@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Instagram Graph API Setup Tool</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            line-height: 1.6;
+            color: #333;
+        }
+        .step {
+            margin: 30px 0;
+            padding: 20px;
+            border-left: 4px solid #1877f2;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .step h3 {
+            color: #1877f2;
+            margin-top: 0;
+        }
+        .button {
+            background: #1877f2;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            margin: 10px 5px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+        }
+        .button:hover {
+            background: #166fe5;
+        }
+        .button.secondary {
+            background: #42a5f5;
+        }
+        .code-box {
+            background: #f1f3f4;
+            padding: 15px;
+            border: 1px solid #dadce0;
+            margin: 15px 0;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            overflow-x: auto;
+        }
+        .warning {
+            border-left-color: #fbbc04;
+            background: #fef7e0;
+        }
+        .success {
+            border-left-color: #34a853;
+            background: #e8f5e8;
+        }
+        .info {
+            border-left-color: #2196f3;
+            background: #e3f2fd;
+        }
+        .checklist {
+            background: white;
+            border: 1px solid #dadce0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .checklist-item.completed {
+            background: #e8f5e8;
+        }
+        .checklist-item input[type="checkbox"] {
+            margin-right: 10px;
+            transform: scale(1.2);
+        }
+        .env-generator {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .form-group {
+            margin: 15px 0;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        #generated-env {
+            background: #2d3748;
+            color: #68d391;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            margin: 15px 0;
+            min-height: 200px;
+        }
+        .copy-button {
+            background: #38a169;
+            font-size: 12px;
+            padding: 8px 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🚀 Instagram Graph API Setup Tool</h1>
+
+    <div class="step success">
+        <h3>✅ Migration Complete!</h3>
+        <p>Your application has been successfully updated from the deprecated Instagram Basic Display API to the current Instagram Graph API v18.0.</p>
+        <ul>
+            <li>✅ Backend updated to use Graph API endpoints</li>
+            <li>✅ Environment configuration updated</li>
+            <li>✅ Enhanced error handling and fallbacks</li>
+            <li>✅ Mock data system maintained for development</li>
+        </ul>
+    </div>
+
+    <div class="step info">
+        <h3>📋 Setup Checklist</h3>
+        <div class="checklist">
+            <div class="checklist-item">
+                <input type="checkbox" id="step1" onchange="updateProgress()">
+                <label for="step1">Convert @beffjarker Instagram account to Business/Creator</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="step2" onchange="updateProgress()">
+                <label for="step2">Create Facebook Page and connect to Instagram</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="step3" onchange="updateProgress()">
+                <label for="step3">Create Facebook Developer App</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="step4" onchange="updateProgress()">
+                <label for="step4">Add Instagram Graph API product to app</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="step5" onchange="updateProgress()">
+                <label for="step5">Get App ID and App Secret</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="step6" onchange="updateProgress()">
+                <label for="step6">Generate Page Access Token with instagram_basic permission</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="step7" onchange="updateProgress()">
+                <label for="step7">Get Instagram Business User ID</label>
+            </div>
+            <div class="checklist-item">
+                <input type="checkbox" id="step8" onchange="updateProgress()">
+                <label for="step8">Update .env file with real credentials</label>
+            </div>
+        </div>
+    </div>
+
+    <div class="step">
+        <h3>🔗 Quick Links</h3>
+        <a href="https://developers.facebook.com/" target="_blank" class="button">Facebook Developers</a>
+        <a href="https://www.facebook.com/pages/create" target="_blank" class="button secondary">Create Facebook Page</a>
+        <a href="https://developers.facebook.com/tools/explorer/" target="_blank" class="button secondary">Graph API Explorer</a>
+        <a href="https://developers.facebook.com/docs/instagram-api/getting-started" target="_blank" class="button secondary">Instagram Graph API Docs</a>
+    </div>
+
+    <div class="step">
+        <h3>⚙️ Environment Configuration Generator</h3>
+        <p>Fill in your credentials below to generate the updated .env file:</p>
+
+        <div class="env-generator">
+            <div class="form-group">
+                <label for="app-id">Facebook App ID:</label>
+                <input type="text" id="app-id" placeholder="123456789012345" oninput="generateEnv()">
+            </div>
+
+            <div class="form-group">
+                <label for="app-secret">Facebook App Secret:</label>
+                <input type="text" id="app-secret" placeholder="abcdef123456789..." oninput="generateEnv()">
+            </div>
+
+            <div class="form-group">
+                <label for="page-id">Facebook Page ID:</label>
+                <input type="text" id="page-id" placeholder="987654321098765" oninput="generateEnv()">
+            </div>
+
+            <div class="form-group">
+                <label for="page-token">Page Access Token:</label>
+                <input type="text" id="page-token" placeholder="EAAG..." oninput="generateEnv()">
+            </div>
+
+            <div class="form-group">
+                <label for="instagram-user-id">Instagram Business User ID:</label>
+                <input type="text" id="instagram-user-id" placeholder="17841400123456789" oninput="generateEnv()">
+            </div>
+
+            <div id="generated-env"># Instagram Graph API Configuration (Current Standard)
+# Follow setup guide: https://developers.facebook.com/docs/instagram-api/getting-started
+INSTAGRAM_APP_ID=your_facebook_app_id_here
+INSTAGRAM_APP_SECRET=your_facebook_app_secret_here
+INSTAGRAM_ACCESS_TOKEN=your_page_access_token_here
+INSTAGRAM_USER_ID=your_instagram_business_user_id_here
+
+# Facebook Page Configuration (Required for Instagram Graph API)
+FACEBOOK_PAGE_ID=your_facebook_page_id_here
+FACEBOOK_PAGE_ACCESS_TOKEN=your_page_access_token_here
+
+# Backend Configuration
+PORT=3000
+
+# Development Environment
+NODE_ENV=development</div>
+
+            <button class="button copy-button" onclick="copyEnvToClipboard()">📋 Copy .env Content</button>
+        </div>
+    </div>
+
+    <div class="step warning">
+        <h3>⚠️ Current Status</h3>
+        <p>Your application is currently using <strong>enhanced mock data</strong> because real Instagram Graph API credentials are not yet configured.</p>
+
+        <div class="code-box">
+# Test your current setup:
+# 1. Start your backend: cd backend && npm start
+# 2. Check health: http://localhost:3000/api/health
+# 3. Check media: http://localhost:3000/api/instagram/user/media
+        </div>
+
+        <p>Once you complete the setup and add real credentials to your .env file, the application will automatically switch to using real Instagram data from @beffjarker.</p>
+    </div>
+
+    <div class="step info">
+        <h3>🔄 What Changed</h3>
+        <ul>
+            <li><strong>API Endpoints:</strong> Migrated from Basic Display to Graph API v18.0</li>
+            <li><strong>Authentication:</strong> Now uses Page Access Tokens instead of User Access Tokens</li>
+            <li><strong>Requirements:</strong> Requires Instagram Business/Creator account + Facebook Page</li>
+            <li><strong>Permissions:</strong> Uses <code>instagram_basic</code> instead of deprecated permissions</li>
+            <li><strong>URLs:</strong> Updated from <code>graph.instagram.com</code> to <code>graph.facebook.com</code></li>
+        </ul>
+    </div>
+
+    <script>
+        function updateProgress() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(checkbox => {
+                const item = checkbox.closest('.checklist-item');
+                if (checkbox.checked) {
+                    item.classList.add('completed');
+                } else {
+                    item.classList.remove('completed');
+                }
+            });
+        }
+
+        function generateEnv() {
+            const appId = document.getElementById('app-id').value || 'your_facebook_app_id_here';
+            const appSecret = document.getElementById('app-secret').value || 'your_facebook_app_secret_here';
+            const pageId = document.getElementById('page-id').value || 'your_facebook_page_id_here';
+            const pageToken = document.getElementById('page-token').value || 'your_page_access_token_here';
+            const instagramUserId = document.getElementById('instagram-user-id').value || 'your_instagram_business_user_id_here';
+
+            const envContent = `# Instagram Graph API Configuration (Current Standard)
+# Follow setup guide: https://developers.facebook.com/docs/instagram-api/getting-started
+INSTAGRAM_APP_ID=${appId}
+INSTAGRAM_APP_SECRET=${appSecret}
+INSTAGRAM_ACCESS_TOKEN=${pageToken}
+INSTAGRAM_USER_ID=${instagramUserId}
+
+# Facebook Page Configuration (Required for Instagram Graph API)
+FACEBOOK_PAGE_ID=${pageId}
+FACEBOOK_PAGE_ACCESS_TOKEN=${pageToken}
+
+# Backend Configuration
+PORT=3000
+
+# Development Environment
+NODE_ENV=development
+
+# Instagram Graph API Setup Instructions:
+# 1. Create Facebook App at developers.facebook.com
+# 2. Add Instagram Graph API product
+# 3. Convert @beffjarker to Instagram Business/Creator account
+# 4. Create Facebook Page and connect to Instagram account
+# 5. Get Page Access Token with instagram_basic permissions
+# 6. Use Instagram Graph API endpoints instead of Basic Display`;
+
+            document.getElementById('generated-env').textContent = envContent;
+        }
+
+        function copyEnvToClipboard() {
+            const envContent = document.getElementById('generated-env').textContent;
+            navigator.clipboard.writeText(envContent).then(() => {
+                const button = document.querySelector('.copy-button');
+                const originalText = button.textContent;
+                button.textContent = '✅ Copied!';
+                button.style.background = '#38a169';
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.background = '#38a169';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>
+

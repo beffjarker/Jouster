@@ -1,0 +1,21 @@
+import { Component } from '@angular/core';
+import { CommonModule } from '@angular/common';
+
+@Component({
+  selector: 'app-home',
+  standalone: true,
+  imports: [CommonModule],
+  template: `
+    <div class="page-container">
+      <h1>Welcome to Jouster</h1>
+      <p>This is the home page of your application.</p>
+      <div class="content-section">
+        <h2>Getting Started</h2>
+        <p>Welcome to your new Angular application built with Nx. This is a clean starting point for your project.</p>
+      </div>
+    </div>
+  `,
+  styleUrls: ['./home.component.scss']
+})
+export class HomeComponent {
+}

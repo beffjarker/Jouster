@@ -1,5 +1,18 @@
 # Jouster
 
+## Architecture Documentation
+
+📐 **[View Complete Architecture Documentation](./ARCHITECTURE.md)**
+
+Jouster is built with modern Angular 20+ best practices, featuring:
+- **Standalone Components** - No NgModules, direct imports, tree-shakable
+- **Nx Monorepo Tooling** - Advanced build system and development tools
+- **Modern TypeScript 5.9** - Strict mode with latest language features
+- **Comprehensive Testing** - Jest unit tests and Cypress E2E testing
+- **Code Quality Tools** - ESLint, Prettier, and automated linting
+
+The architecture documentation includes detailed diagrams showing component relationships, development workflows, dependency structures, and future extension plans.
+
 <a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
 
 ✨ Your new, shiny [Nx workspace](https://nx.dev) is almost ready ✨.
