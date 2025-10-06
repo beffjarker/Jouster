@@ -27,7 +27,8 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'listening-history',
-    loadComponent: () => import('./pages/listening-history/listening-history.component').then(m => m.ListeningHistoryComponent)
+    redirectTo: '/music',
+    pathMatch: 'full'
   },
   {
     path: 'emails',

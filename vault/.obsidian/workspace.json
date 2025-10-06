@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "01-Project-Overview/Library-and-Best-Practices-References.md",
+                "file": "README.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Library-and-Best-Practices-References"
+              "title": "README"
             }
           }
         ]
@@ -171,12 +171,39 @@
   },
   "active": "adde4903469f40ac",
   "lastOpenFiles": [
-    "04-Features/Flash-Experiments.md",
-    "README.md",
-    "03-Development-Guide/Testing-Documentation.md",
-    "05-API-Integration/LASTFM_API_INTEGRATION.md",
-    "03-Development-Guide/SPECTATOR_TESTING_GUIDE.md~",
-    "01-Project-Overview/Library-and-Best-Practices-References.md",
-    "01-Project-Overview/Project-Overview.md"
+    "AI/Conversation History.md",
+    "AI/Claude.md",
+    "AI/AI and Automation Overview.md",
+    "AI/Agents.md",
+    "Tools/Tools and Workflows Overview.md",
+    "Tools/Development Tools.md",
+    "Integrations/Last.fm API Integration.md",
+    "Integrations/Instagram Setup.md",
+    "Integrations/Instagram Graph API Setup.md",
+    "Integrations/Backend API.md",
+    "Integrations/API Integration Overview.md",
+    "Features/Flash Experiments.md",
+    "Features/Features Overview.md",
+    "Features/Complete Flash Experiments Analysis.md",
+    "Development/WSL2 Installation.md",
+    "Development/Testing Documentation.md",
+    "Development/Spectator Testing Guide.md",
+    "Development/Linting Best Practices.md",
+    "Development/Flexbox Implementation Summary.md",
+    "Development/Development Setup Guide.md",
+    "Development/CSS Flexbox Guide.md",
+    "Architecture/System Architecture Overview.md",
+    "Architecture/Flash Experiments Architecture.md",
+    "Architecture/Architecture.md",
+    "Project/Library and Best Practices References.md",
+    "Project/Project Overview.md",
+    "AI",
+    "Tools",
+    "Integrations",
+    "Features",
+    "Development",
+    "Architecture",
+    "Project",
+    "03-Development-Guide/SPECTATOR_TESTING_GUIDE.md~"
   ]
 }

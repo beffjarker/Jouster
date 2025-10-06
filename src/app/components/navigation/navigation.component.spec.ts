@@ -23,11 +23,11 @@ describe('NavigationComponent', () => {
         { path: 'contact', component: MockRouteComponent },
         { path: 'fibonacci', component: MockRouteComponent },
         { path: 'highlights', component: MockRouteComponent },
-        { path: 'listening-history', component: MockRouteComponent },
         { path: 'conversation-history', component: MockRouteComponent },
         { path: 'music', component: MockRouteComponent },
         { path: 'timeline', component: MockRouteComponent },
-        { path: 'flash-experiments', component: MockRouteComponent }
+        { path: 'flash-experiments', component: MockRouteComponent },
+        { path: 'emails', component: MockRouteComponent }
       ])
     ],
     declarations: [MockRouteComponent]
@@ -90,11 +90,11 @@ describe('NavigationComponent', () => {
       expect(linkTexts).toContain('Fibonacci');
       expect(linkTexts).toContain('Highlights');
       expect(linkTexts).toContain('Home');
-      expect(linkTexts).toContain('Listening History');
-      expect(linkTexts).toContain('Conversation History');
+      expect(linkTexts).toContain('Conversations');
       expect(linkTexts).toContain('Music');
       expect(linkTexts).toContain('Timeline');
       expect(linkTexts).toContain('Flash Experiments');
+      expect(linkTexts).toContain('Emails');
     });
 
     it('should have correct router links', () => {

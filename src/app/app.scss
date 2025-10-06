@@ -12,7 +12,52 @@ body {
   background-color: #f8f9fa;
 }
 
+/* Jouster App - Mobile-First Layout with Left Navigation */
+
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  background: #f8fafc;
+}
+
+/* Main Content Area */
 .main-content {
-  min-height: calc(100vh - 70px); // Account for navbar height
-  background-color: #fff;
+  flex: 1;
+  padding: 1rem;
+  margin-left: 0; /* No margin needed - hamburger menu on ALL platforms */
+  transition: margin-left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 0; /* Prevent flex item from overflowing */
+
+  /* Account for hamburger button on all platforms */
+  padding-top: 5rem;
+
+  /* Smooth content transitions */
+  position: relative;
+  z-index: 1;
+}
+
+/* Tablet Styles (768px and up) */
+@media (min-width: 768px) {
+  .main-content {
+    padding: 1.5rem 2rem;
+    padding-top: 6rem; /* More space for larger hamburger button */
+  }
+}
+
+/* Desktop Styles (1024px and up) */
+@media (min-width: 1024px) {
+  .main-content {
+    margin-left: 0; /* NO margin - expandable menu on desktop too */
+    padding: 2rem;
+    padding-top: 7rem; /* Space for larger desktop hamburger button */
+  }
+}
+
+/* Large Desktop (1280px and up) */
+@media (min-width: 1280px) {
+  .main-content {
+    margin-left: 0; /* Keep expandable behavior */
+    padding: 2.5rem 3rem;
+    padding-top: 8rem; /* Space for even larger hamburger button */
+  }
 }

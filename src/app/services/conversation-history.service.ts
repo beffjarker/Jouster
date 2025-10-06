@@ -202,6 +202,128 @@ export class ConversationHistoryService {
   private getMockSessions(): ConversationSession[] {
     return [
       {
+        conversationId: 'deployment-success-oct-6-2025',
+        title: 'Jouster.org AWS Deployment - Complete Success',
+        project: 'Jouster',
+        startTime: '2025-10-06T07:00:00Z',
+        endTime: '2025-10-06T09:30:00Z',
+        messages: [
+          {
+            messageId: 'msg_deploy_1',
+            timestamp: 1728194400000,
+            role: 'user',
+            content: "Let's commit this to GitHub and publish it in a production environment at jouster.org on AWS.",
+            metadata: { context: 'Starting deployment process' }
+          },
+          {
+            messageId: 'msg_deploy_2',
+            timestamp: 1728194460000,
+            role: 'assistant',
+            content: "I'll help you deploy to AWS. First checking your current setup and building for production...",
+            metadata: { context: 'AWS deployment initiation' }
+          },
+          {
+            messageId: 'msg_deploy_3',
+            timestamp: 1728194520000,
+            role: 'assistant',
+            content: '✅ Production build complete! Angular app built with optimization (96.75 kB compressed). Now deploying AWS infrastructure...',
+            metadata: {
+              context: 'Build completion',
+              issuesResolved: 0,
+              finalStatus: 'build-complete'
+            }
+          },
+          {
+            messageId: 'msg_deploy_4',
+            timestamp: 1728194580000,
+            role: 'user',
+            content: "I'm getting 400 Bad Request - The specified bucket exists in another region.",
+            metadata: { context: 'AWS deployment issue encountered' }
+          },
+          {
+            messageId: 'msg_deploy_5',
+            timestamp: 1728194640000,
+            role: 'assistant',
+            content: 'Fixed! The S3 bucket was in us-east-1, not us-west-2. Uploading to correct region now...',
+            metadata: {
+              context: 'Issue resolution',
+              issuesResolved: 1,
+              finalStatus: 'region-corrected'
+            }
+          },
+          {
+            messageId: 'msg_deploy_6',
+            timestamp: 1728194700000,
+            role: 'user',
+            content: 'Now getting 403 Forbidden - Access Denied error.',
+            metadata: { context: 'S3 permissions issue' }
+          },
+          {
+            messageId: 'msg_deploy_7',
+            timestamp: 1728194760000,
+            role: 'assistant',
+            content: 'Resolved! Removed S3 public access blocks and applied correct bucket policy. Site should work now.',
+            metadata: {
+              context: 'Permissions fix',
+              issuesResolved: 1,
+              finalStatus: 'permissions-fixed'
+            }
+          },
+          {
+            messageId: 'msg_deploy_8',
+            timestamp: 1728194820000,
+            role: 'user',
+            content: 'Browser is trying to download a file instead of displaying the Jouster UI.',
+            metadata: { context: 'Content-type issue' }
+          },
+          {
+            messageId: 'msg_deploy_9',
+            timestamp: 1728194880000,
+            role: 'assistant',
+            content: 'Fixed the content-type headers! Uploaded files with proper MIME types (text/html, application/javascript, text/css).',
+            metadata: {
+              context: 'Content-type resolution',
+              issuesResolved: 1,
+              finalStatus: 'content-types-fixed'
+            }
+          },
+          {
+            messageId: 'msg_deploy_10',
+            timestamp: 1728194940000,
+            role: 'user',
+            content: 'Perfect! It\'s working now at http://jouster-org-static.s3-website-us-east-1.amazonaws.com',
+            metadata: { context: 'Deployment success confirmation' }
+          },
+          {
+            messageId: 'msg_deploy_11',
+            timestamp: 1728195000000,
+            role: 'assistant',
+            content: '🎉 Deployment successful! Also created comprehensive Terraform infrastructure and updated all documentation. Your Jouster app with 56+ Flash experiments is now live!',
+            metadata: {
+              context: 'Final deployment success',
+              components: ['Terraform infrastructure', 'Documentation', 'AWS S3 hosting'],
+              issuesResolved: 3,
+              finalStatus: 'deployment-complete'
+            }
+          }
+        ],
+        summary: {
+          mainTopics: ['AWS S3 deployment', 'Infrastructure as Code', 'Production optimization', 'Issue troubleshooting'],
+          keyAchievements: [
+            'Live production website deployed',
+            'Resolved 3 critical deployment issues',
+            'Created Terraform infrastructure',
+            'Updated comprehensive documentation',
+            'Optimized 96.75 kB build size'
+          ],
+          nextSteps: [
+            'Consider Terraform deployment for enhanced infrastructure',
+            'Set up custom domain with CloudFront CDN',
+            'Implement CI/CD pipeline for automated deployments'
+          ]
+        }
+      },
+      {
         conversationId: 'conv_jouster_linting_wsl_setup_20241005',
         title: 'Jouster Linting Updates & WSL2 Setup',
         project: 'Jouster',

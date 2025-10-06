@@ -46,341 +46,617 @@
   }
 }
 
-.music-sections {
-  display: flex;
-  flex-direction: column;
-  gap: 3rem;
-}
-
-.recent-tracks,
-.top-artists,
-.top-albums,
-.user-info {
-  h2 {
-    color: #444;
-    margin-bottom: 1.5rem;
-    font-size: 1.8rem;
-    font-weight: 600;
-    border-bottom: 2px solid #eee;
-    padding-bottom: 0.5rem;
-  }
-}
-
-.loading {
-  text-align: center;
+.music-container {
+  max-width: 1200px;
+  margin: 0 auto;
   padding: 2rem;
-  color: #666;
-  font-style: italic;
-}
 
-// Recent Tracks Grid
-.tracks-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 1.5rem;
-}
-
-.track-card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  transition: all 0.3s ease;
-  border: 1px solid #eee;
-
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  /* Header */
+  .music-header {
+    text-align: center;
+    margin-bottom: 2rem;
   }
 
-  .track-image {
-    height: 200px;
-    overflow: hidden;
+  .music-title {
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin: 0 0 0.5rem 0;
+  }
 
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transition: transform 0.3s ease;
+  .music-subtitle {
+    font-size: 1.1rem;
+    color: #6b7280;
+    margin: 0;
+  }
+
+  /* Tab Navigation */
+  .tab-navigation {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #e5e7eb;
+  }
+
+  .tab-button {
+    background: none;
+    border: none;
+    padding: 1rem 2rem;
+    font-size: 1rem;
+    font-weight: 500;
+    color: #6b7280;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+
+    &:hover {
+      color: #3b82f6;
+      background: rgba(59, 130, 246, 0.05);
+    }
+
+    &.active {
+      color: #3b82f6;
+      border-bottom-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.1);
     }
   }
 
-  &:hover .track-image img {
-    transform: scale(1.05);
+  /* Tab Content */
+  .tab-content {
+    min-height: 400px;
+  }
+
+  /* Music Player Tab Styles */
+  .music-section {
+    margin-bottom: 3rem;
+  }
+
+  .section-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1f2937;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .loading-message {
+    text-align: center;
+    color: #6b7280;
+    font-style: italic;
+    padding: 2rem;
+  }
+
+  // Recent Tracks Grid
+  .tracks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .track-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
   }
 
   .track-info {
-    padding: 1.2rem;
-
     .track-name {
       font-size: 1.1rem;
       font-weight: 600;
-      color: #333;
-      margin: 0 0 0.5rem 0;
-      line-height: 1.3;
+      color: #1f2937;
+      margin: 0 0 0.25rem 0;
     }
 
     .track-artist {
-      color: #666;
+      font-size: 1rem;
+      color: #3b82f6;
+      margin: 0 0 0.25rem 0;
       font-weight: 500;
-      margin: 0 0 0.3rem 0;
     }
 
     .track-album {
-      color: #888;
       font-size: 0.9rem;
-      margin: 0 0 0.8rem 0;
-      font-style: italic;
+      color: #6b7280;
+      margin: 0 0 0.5rem 0;
     }
 
-    .track-meta {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
+    .track-date {
       font-size: 0.85rem;
-      color: #999;
-
-      .play-count {
-        background: #f0f0f0;
-        padding: 0.2rem 0.6rem;
-        border-radius: 12px;
-        font-weight: 500;
-      }
-    }
-  }
-}
-
-// Artists Grid
-.artists-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 1.5rem;
-}
-
-.artist-card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  transition: all 0.3s ease;
-  border: 1px solid #eee;
-
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-  }
-
-  .artist-image {
-    height: 180px;
-    overflow: hidden;
-
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transition: transform 0.3s ease;
+      color: #9ca3af;
+      margin: 0;
     }
   }
 
-  &:hover .artist-image img {
-    transform: scale(1.05);
+  .track-stats {
+    margin-top: 1rem;
+
+    .playcount {
+      background: #eff6ff;
+      color: #3b82f6;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+  }
+
+  /* Artists Grid */
+  .artists-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .artist-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+    text-align: center;
+    transition: all 0.3s ease;
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    }
   }
 
   .artist-info {
-    padding: 1.2rem;
-    text-align: center;
-
     .artist-name {
-      font-size: 1.2rem;
+      font-size: 1.1rem;
       font-weight: 600;
-      color: #333;
+      color: #1f2937;
       margin: 0 0 0.5rem 0;
     }
 
-    .play-count {
-      color: #666;
-      font-weight: 500;
-      margin: 0 0 0.5rem 0;
-    }
-
-    .artist-stats {
-      .listeners {
-        color: #888;
-        font-size: 0.9rem;
-      }
-    }
-  }
-}
-
-// Albums Grid
-.albums-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 1.5rem;
-}
-
-.album-card {
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-  overflow: hidden;
-  transition: all 0.3s ease;
-  border: 1px solid #eee;
-
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-  }
-
-  .album-image {
-    height: 200px;
-    overflow: hidden;
-
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      transition: transform 0.3s ease;
-    }
-  }
-
-  &:hover .album-image img {
-    transform: scale(1.05);
-  }
-
-  .album-info {
-    padding: 1rem;
-    text-align: center;
-
-    .album-name {
+    .artist-plays {
       font-size: 1rem;
-      font-weight: 600;
-      color: #333;
-      margin: 0 0 0.3rem 0;
-      line-height: 1.3;
-    }
-
-    .album-artist {
-      color: #666;
-      font-size: 0.9rem;
-      margin: 0 0 0.5rem 0;
-    }
-
-    .play-count {
-      color: #888;
-      font-size: 0.85rem;
+      color: #3b82f6;
       font-weight: 500;
+      margin: 0 0 0.25rem 0;
+    }
+
+    .artist-listeners {
+      font-size: 0.9rem;
+      color: #6b7280;
+      margin: 0;
     }
   }
-}
 
-// User Stats
-.user-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1.5rem;
-}
-
-.stat-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 2rem;
-  border-radius: 12px;
-  text-align: center;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-  transition: transform 0.3s ease;
-
-  &:hover {
-    transform: translateY(-2px);
+  /* Analytics Tab Styles */
+  .analysis-section {
+    margin-bottom: 3rem;
   }
 
-  h3 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 500;
-    opacity: 0.9;
-  }
-
-  .stat-number {
-    font-size: 2rem;
-    font-weight: 700;
-    margin: 0;
-    line-height: 1;
-  }
-
-  .stat-date {
-    font-size: 1.1rem;
+  .subsection-title {
+    font-size: 1.25rem;
     font-weight: 600;
-    margin: 0;
-  }
-}
-
-// Data Attribution
-.data-attribution {
-  margin-top: 3rem;
-  padding: 1.5rem;
-  background: #f8f9fa;
-  border-radius: 8px;
-  text-align: center;
-  border-left: 4px solid #667eea;
-
-  p {
-    margin: 0;
-    color: #666;
-    font-size: 0.9rem;
+    color: #1f2937;
+    margin: 2rem 0 1rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
   }
 
-  a {
-    color: #667eea;
-    text-decoration: none;
-    font-weight: 500;
-
-    &:hover {
-      text-decoration: underline;
-    }
-  }
-
-  strong {
-    color: #333;
-  }
-}
-
-// Responsive Design
-@media (max-width: 768px) {
-  .page-container {
-    padding: 1rem;
-
-    h1 {
-      font-size: 2rem;
-      margin-bottom: 2rem;
-    }
-  }
-
-  .music-sections {
-    gap: 2rem;
-  }
-
-  .tracks-grid,
-  .artists-grid,
-  .albums-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .user-stats {
-    grid-template-columns: repeat(2, 1fr);
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
   }
 
   .stat-card {
-    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
 
-    .stat-number {
-      font-size: 1.5rem;
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #3b82f6;
+      margin-bottom: 0.5rem;
+    }
+
+    .stat-label {
+      font-size: 0.9rem;
+      color: #6b7280;
+      font-weight: 500;
     }
   }
-}
 
-@media (max-width: 480px) {
-  .user-stats {
-    grid-template-columns: 1fr;
+  /* Genre Distribution */
+  .genre-section {
+    margin-top: 2rem;
+  }
+
+  .genre-list {
+    space: 1rem 0;
+  }
+
+  .genre-item {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid #e5e7eb;
+  }
+
+  .genre-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+
+    .genre-name {
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .genre-percentage {
+      font-weight: 500;
+      color: #3b82f6;
+    }
+  }
+
+  .genre-bar {
+    height: 8px;
+    background: #f3f4f6;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+
+    .genre-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      transition: width 0.8s ease;
+    }
+  }
+
+  .genre-artists {
+    font-size: 0.85rem;
+    color: #6b7280;
+  }
+
+  /* Listening Streaks */
+  .streaks-section {
+    margin-top: 2rem;
+  }
+
+  .streaks-list {
+    space: 1rem 0;
+  }
+
+  .streak-item {
+    background: white;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+    border: 1px solid #e5e7eb;
+    border-left: 4px solid #f59e0b;
+  }
+
+  .streak-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+
+    .streak-type {
+      font-weight: 600;
+      color: #1f2937;
+    }
+
+    .streak-duration {
+      background: #fef3c7;
+      color: #d97706;
+      padding: 0.25rem 0.75rem;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 500;
+    }
+  }
+
+  .streak-details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    .streak-period {
+      font-size: 0.9rem;
+      color: #6b7280;
+    }
+
+    .streak-stats {
+      font-size: 0.85rem;
+      color: #9ca3af;
+    }
+  }
+
+  /* Yearly Statistics */
+  .yearly-section {
+    margin-top: 2rem;
+  }
+
+  .yearly-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .year-card {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+  }
+
+  .year-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+
+    .year-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1f2937;
+      margin: 0;
+    }
+
+    .year-scrobbles {
+      font-size: 0.9rem;
+      color: #3b82f6;
+      font-weight: 500;
+    }
+  }
+
+  .year-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+
+  .year-stat {
+    text-align: center;
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: #6b7280;
+      display: block;
+    }
+
+    .stat-value {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1f2937;
+    }
+  }
+
+  .year-tops {
+    border-top: 1px solid #e5e7eb;
+    padding-top: 1rem;
+
+    .top-item {
+      font-size: 0.9rem;
+      color: #1f2937;
+      margin-bottom: 0.25rem;
+    }
+
+    .top-track {
+      font-size: 0.85rem;
+      color: #6b7280;
+      font-style: italic;
+    }
+  }
+
+  /* Monthly Trends Chart */
+  .trends-section {
+    margin-top: 2rem;
+  }
+
+  .trends-chart {
+    display: flex;
+    justify-content: space-between;
+    align-items: end;
+    height: 200px;
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+    margin-top: 1rem;
+  }
+
+  .trend-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    height: 100%;
+
+    .trend-month {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-bottom: 0.5rem;
+    }
+
+    .trend-visual {
+      flex: 1;
+      width: 20px;
+      background: #f3f4f6;
+      border-radius: 10px;
+      display: flex;
+      align-items: end;
+      margin-bottom: 0.5rem;
+
+      .trend-fill {
+        width: 100%;
+        background: linear-gradient(to top, #3b82f6, #60a5fa);
+        border-radius: 10px;
+        min-height: 4px;
+        transition: height 0.8s ease;
+      }
+    }
+
+    .trend-value {
+      font-size: 0.7rem;
+      color: #9ca3af;
+      font-weight: 500;
+    }
+  }
+
+  /* Discovery Metrics */
+  .discovery-section {
+    margin-top: 2rem;
+  }
+
+  .discovery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.5rem;
+  }
+
+  .discovery-card {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid #e5e7eb;
+
+    .discovery-value {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #10b981;
+      margin-bottom: 0.5rem;
+    }
+
+    .discovery-label {
+      font-size: 0.9rem;
+      color: #1f2937;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .discovery-description {
+      font-size: 0.8rem;
+      color: #6b7280;
+    }
+  }
+
+  /* Loading Animation */
+  .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem;
+  }
+
+  .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #e5e7eb;
+    border-top: 4px solid #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+  }
+
+  @keyframes spin {
+    0% {
+      transform: rotate(0deg);
+    }
+    100% {
+      transform: rotate(360deg);
+    }
+  }
+
+  .loading-text {
+    color: #6b7280;
+    font-size: 1rem;
+  }
+
+  // Responsive Design
+  @media (max-width: 768px) {
+    .page-container {
+      padding: 1rem;
+
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 2rem;
+      }
+    }
+
+    .music-container {
+      padding: 1rem;
+    }
+
+    .music-title {
+      font-size: 2rem;
+    }
+
+    .tab-navigation {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .tab-button {
+      padding: 0.75rem 1rem;
+    }
+
+    .music-sections {
+      gap: 2rem;
+    }
+
+    .tracks-grid,
+    .artists-grid,
+    .albums-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .user-stats {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stat-card {
+      padding: 1.5rem;
+
+      .stat-number {
+        font-size: 1.5rem;
+      }
+    }
+
+    .trends-chart {
+      height: 150px;
+      padding: 1rem;
+    }
+
+    .discovery-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .user-stats {
+      grid-template-columns: 1fr;
+    }
   }
 }
