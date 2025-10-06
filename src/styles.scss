@@ -1,1 +1,172 @@
 /* You can add global styles to this file, and also import other style files */
+
+// Import Flexbox utilities - Primary layout system for Jouster UI
+@use 'styles/flexbox-utilities.scss';
+
+// Global CSS Flexible Box Layout Base Styles
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.6;
+  color: #333;
+  background-color: #fff;
+}
+
+// Root application container using Flexbox
+#root, app-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+// Base page container class for consistent Flexbox layout
+.page-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1rem;
+
+  @media (min-width: 768px) {
+    padding: 2rem;
+  }
+}
+
+// Common layout patterns using Flexbox
+.main-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 2rem;
+}
+
+.sidebar-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+
+  @media (min-width: 1024px) {
+    flex-direction: row;
+    gap: 2rem;
+  }
+
+  .sidebar {
+    flex: 0 0 250px;
+  }
+
+  .content {
+    flex: 1;
+  }
+}
+
+// Card layouts using Flexbox
+.card-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+
+  .card {
+    flex: 1 1 300px;
+    min-width: 280px;
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+
+  .card-header, .card-footer {
+    padding: 1rem;
+  }
+
+  .card-body {
+    flex: 1;
+    padding: 1rem;
+  }
+}
+
+// Form layouts using Flexbox
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 200px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+// Button groups using Flexbox
+.button-group {
+  display: flex;
+  gap: 0.5rem;
+
+  &.vertical {
+    flex-direction: column;
+  }
+}
+
+// Navigation patterns using Flexbox
+.nav-horizontal {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.nav-vertical {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+// Responsive utilities for Flexbox
+@media (max-width: 767px) {
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+
+  .mobile-center {
+    justify-content: center !important;
+    text-align: center;
+  }
+}
+
+// Focus and accessibility for Flexbox elements
+.flex:focus-within,
+.flex-center:focus-within,
+.flex-between:focus-within {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+// Print styles for Flexbox layouts
+@media print {
+  .flex, .flex-center, .flex-between {
+    display: block !important;
+  }
+
+  .flex-column {
+    display: block !important;
+  }
+}

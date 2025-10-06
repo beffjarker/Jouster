@@ -6,12 +6,19 @@ export default defineConfig({
     ...nxE2EPreset(__filename, {
       cypressDir: 'src',
       webServerCommands: {
-        default: 'npx nx run Jouster:serve',
-        production: 'npx nx run Jouster:serve-static',
+        default: 'npx nx run jouster:serve:development',
+        production: 'npx nx run jouster:serve-static',
       },
-      ciWebServerCommand: 'npx nx run Jouster:serve-static',
+      ciWebServerCommand: 'npx nx run jouster:serve-static',
       ciBaseUrl: 'http://localhost:4200',
     }),
     baseUrl: 'http://localhost:4200',
+    specPattern: 'src/e2e/**/*.cy.{js,jsx,ts,tsx}',
+    supportFile: 'src/support/e2e.ts',
+    videosFolder: 'videos',
+    screenshotsFolder: 'screenshots',
+    video: false,
+    screenshotOnRunFailure: true,
+    defaultCommandTimeout: 10000,
   },
 });

@@ -1,0 +1,11 @@
+oldx = getProperty("../redsquare", _X);
+oldy = getProperty("../redsquare", _Y);
+posx = getProperty("../cross", _X);
+posy = getProperty("../cross", _Y);
+diffx = posx - oldx;
+diffy = posy - oldy;
+stepx = stepx * eval("/:reversefriction") + diffx * eval("/:ratio");
+stepy = stepy * eval("/:reversefriction") + diffy * eval("/:ratio");
+setProperty("../redsquare", _X, oldx + stepx);
+setProperty("../redsquare", _Y, oldy + stepy);
+gotoAndPlay(2);

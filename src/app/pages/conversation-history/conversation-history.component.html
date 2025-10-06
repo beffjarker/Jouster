@@ -1,0 +1,320 @@
+<div class="conversation-history">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-content">
+      <h1>
+        <span class="icon">💬</span>
+        Conversation History
+      </h1>
+      <p class="subtitle">Review and explore AI assistant conversations</p>
+    </div>
+
+    <!-- View Mode Toggle -->
+    <div class="view-toggle">
+      <button
+        [class.active]="viewMode === 'list'"
+        (click)="setViewMode('list')"
+        class="toggle-btn">
+        📋 Sessions
+      </button>
+      <button
+        [class.active]="viewMode === 'analytics'"
+        (click)="setViewMode('analytics')"
+        class="toggle-btn">
+        📊 Analytics
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="loading" class="loading-container">
+    <div class="loading-spinner"></div>
+    <p>Loading conversation history...</p>
+  </div>
+
+  <!-- Main Content -->
+  <div *ngIf="!loading" class="main-content">
+
+    <!-- Sessions List View -->
+    <div *ngIf="viewMode === 'list'" class="sessions-view">
+      <!-- Search Bar -->
+      <div class="search-container">
+        <div class="search-bar">
+          <span class="search-icon">🔍</span>
+          <input
+            type="text"
+            placeholder="Search conversations..."
+            [(ngModel)]="searchTerm"
+            (input)="onSearchChange($any($event.target).value || '')"
+            class="search-input">
+        </div>
+      </div>
+
+      <!-- Sessions Grid -->
+      <div class="sessions-grid">
+        <div
+          *ngFor="let session of filteredSessions$ | async; trackBy: trackBySessionId"
+          class="session-card"
+          (click)="selectSession(session)">
+
+          <div class="session-header">
+            <div class="session-icon">{{ getSessionIcon(session) }}</div>
+            <div class="session-info">
+              <h3 class="session-title">{{ session.title }}</h3>
+              <div class="session-meta">
+                <span class="session-date">{{ formatDate(session.startTime) }}</span>
+                <span class="session-duration">{{ formatDuration(session.startTime, session.endTime) }}</span>
+                <span class="message-count">{{ session.messages.length }} messages</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="session-preview">
+            <p>{{ getMessagePreview(session) }}</p>
+          </div>
+
+          <div class="session-topics" *ngIf="session.summary?.mainTopics?.length">
+            <span
+              *ngFor="let topic of session.summary?.mainTopics?.slice(0, 3)"
+              [class]="'topic-badge ' + getTopicBadgeClass(topic)">
+              {{ topic }}
+            </span>
+            <span *ngIf="(session.summary?.mainTopics?.length || 0) > 3" class="topic-badge badge-more">
+              +{{ (session.summary?.mainTopics?.length || 0) - 3 }} more
+            </span>
+          </div>
+
+          <div class="session-achievements" *ngIf="session.summary?.keyAchievements?.length">
+            <div class="achievements-header">
+              <span class="achievements-icon">🎯</span>
+              <span>Key Achievements</span>
+            </div>
+            <div
+              *ngFor="let achievement of session.summary?.keyAchievements?.slice(0, 2)"
+              class="achievement-item">
+              {{ achievement }}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div *ngIf="(filteredSessions$ | async)?.length === 0" class="empty-state">
+        <div class="empty-icon">📭</div>
+        <h3>No conversations found</h3>
+        <p *ngIf="searchTerm">Try adjusting your search terms</p>
+        <p *ngIf="!searchTerm">Start a conversation to see it appear here</p>
+      </div>
+    </div>
+
+    <!-- Session Details View -->
+    <div *ngIf="viewMode === 'details' && selectedSession" class="session-details">
+      <div class="details-header">
+        <button class="back-btn" (click)="closeSessionDetails()">
+          ← Back to Sessions
+        </button>
+        <div class="session-title-area">
+          <h2>{{ selectedSession.title }}</h2>
+          <div class="session-meta-detailed">
+            <span>{{ formatDate(selectedSession.startTime) }}</span>
+            <span>•</span>
+            <span>{{ formatDuration(selectedSession.startTime, selectedSession.endTime) }}</span>
+            <span>•</span>
+            <span>{{ selectedSession.messages.length }} messages</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Session Summary -->
+      <div *ngIf="selectedSession.summary" class="session-summary">
+        <div class="summary-section">
+          <h4>🎯 Key Achievements</h4>
+          <ul>
+            <li *ngFor="let achievement of selectedSession.summary.keyAchievements">
+              {{ achievement }}
+            </li>
+          </ul>
+        </div>
+
+        <div class="summary-section">
+          <h4>📋 Main Topics</h4>
+          <div class="topics-list">
+            <span
+              *ngFor="let topic of selectedSession.summary.mainTopics"
+              [class]="'topic-badge ' + getTopicBadgeClass(topic)">
+              {{ topic }}
+            </span>
+          </div>
+        </div>
+
+        <div class="summary-section" *ngIf="selectedSession.summary.nextSteps?.length">
+          <h4>🚀 Next Steps</h4>
+          <ul>
+            <li *ngFor="let step of selectedSession.summary.nextSteps">
+              {{ step }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Messages Timeline -->
+      <div class="messages-timeline">
+        <h4>💬 Conversation Timeline</h4>
+        <div class="timeline">
+          <div
+            *ngFor="let message of selectedSession.messages; trackBy: trackByMessageId"
+            [class]="'message ' + message.role">
+
+            <div class="message-avatar">
+              <span *ngIf="message.role === 'user'">👤</span>
+              <span *ngIf="message.role === 'assistant'">🤖</span>
+            </div>
+
+            <div class="message-content">
+              <div class="message-header">
+                <span class="message-role">{{ message.role === 'user' ? 'You' : 'Assistant' }}</span>
+                <span class="message-time">{{ formatDate(message.timestamp) }}</span>
+              </div>
+
+              <div class="message-text">{{ message.content }}</div>
+
+              <div *ngIf="message.metadata" class="message-metadata">
+                <div *ngIf="message.metadata.context" class="metadata-item">
+                  <strong>Context:</strong> {{ message.metadata.context }}
+                </div>
+                <div *ngIf="message.metadata.components?.length" class="metadata-item">
+                  <strong>Components:</strong> {{ (message.metadata.components || []).join(', ') }}
+                </div>
+                <div *ngIf="message.metadata.issuesResolved" class="metadata-item">
+                  <strong>Issues Resolved:</strong> {{ message.metadata.issuesResolved }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analytics View -->
+    <div *ngIf="viewMode === 'analytics'" class="analytics-view">
+      <div *ngIf="analysis$ | async as analysis" class="analytics-grid">
+
+        <!-- Overview Cards -->
+        <div class="analytics-cards">
+          <div class="analytics-card">
+            <div class="card-icon">📊</div>
+            <div class="card-content">
+              <h3>{{ analysis.totalSessions }}</h3>
+              <p>Total Sessions</p>
+            </div>
+          </div>
+
+          <div class="analytics-card">
+            <div class="card-icon">💬</div>
+            <div class="card-content">
+              <h3>{{ analysis.totalMessages }}</h3>
+              <p>Total Messages</p>
+            </div>
+          </div>
+
+          <div class="analytics-card">
+            <div class="card-icon">⚡</div>
+            <div class="card-content">
+              <h3>{{ analysis.averageSessionLength }}</h3>
+              <p>Avg Messages/Session</p>
+            </div>
+          </div>
+
+          <div class="analytics-card">
+            <div class="card-icon">🎯</div>
+            <div class="card-content">
+              <h3>{{ analysis.productivity.issuesResolved }}</h3>
+              <p>Issues Resolved</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Top Topics -->
+        <div class="analytics-section">
+          <h4>🏷️ Most Discussed Topics</h4>
+          <div class="topics-chart">
+            <div
+              *ngFor="let topicData of analysis.topTopics.slice(0, 8)"
+              class="topic-bar">
+              <div class="topic-name">{{ topicData.topic }}</div>
+              <div class="topic-bar-container">
+                <div
+                  class="topic-bar-fill"
+                  [style.width.%]="(topicData.count / (analysis.topTopics[0]?.count || 1)) * 100">
+                </div>
+                <span class="topic-count">{{ topicData.count }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="analytics-section" *ngIf="analysis.recentActivity?.length">
+          <h4>📈 Recent Activity (Last 30 Days)</h4>
+          <div class="activity-chart">
+            <div
+              *ngFor="let day of analysis.recentActivity.slice(-14)"
+              class="activity-day">
+              <div class="activity-date">{{ day.date | date:'MMM d' }}</div>
+              <div class="activity-bars">
+                <div
+                  class="activity-bar sessions"
+                  [style.height.px]="day.sessions * 20"
+                  [title]="day.sessions + ' sessions'">
+                </div>
+                <div
+                  class="activity-bar messages"
+                  [style.height.px]="day.messages * 2"
+                  [title]="day.messages + ' messages'">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="activity-legend">
+            <span class="legend-item">
+              <div class="legend-color sessions"></div>
+              Sessions
+            </span>
+            <span class="legend-item">
+              <div class="legend-color messages"></div>
+              Messages
+            </span>
+          </div>
+        </div>
+
+        <!-- Productivity Metrics -->
+        <div class="analytics-section">
+          <h4>🚀 Productivity Metrics</h4>
+          <div class="productivity-grid">
+            <div class="productivity-item">
+              <div class="productivity-icon">🐛</div>
+              <div class="productivity-content">
+                <h5>{{ analysis.productivity.issuesResolved }}</h5>
+                <p>Issues Resolved</p>
+              </div>
+            </div>
+            <div class="productivity-item">
+              <div class="productivity-icon">⭐</div>
+              <div class="productivity-content">
+                <h5>{{ analysis.productivity.featuresImplemented }}</h5>
+                <p>Features Implemented</p>
+              </div>
+            </div>
+            <div class="productivity-item">
+              <div class="productivity-icon">🧩</div>
+              <div class="productivity-content">
+                <h5>{{ analysis.productivity.componentsCreated }}</h5>
+                <p>Components Created</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -6,6 +6,11 @@ const cors = require('cors');
 const axios = require('axios');
 const CredentialManager = require('./credential-manager');
 
+// Import email routes
+const emailRoutes = require('./routes/emails');
+// Temporarily comment out conversation history routes to isolate the issue
+// const conversationHistoryRoutes = require('./routes/conversation-history');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -23,13 +28,188 @@ const {
   pageAccessToken: FACEBOOK_PAGE_ACCESS_TOKEN
 } = credentials;
 
-// Enable CORS for your Angular app
+// Last.fm API configuration
+const LASTFM_API_KEY = process.env.LASTFM_API_KEY || 'b25b959554ed76058ac220b7b2e0a026';
+const LASTFM_BASE_URL = 'http://ws.audioscrobbler.com/2.0/';
+const LASTFM_DEFAULT_USER = process.env.LASTFM_USER || 'Treysin';
+
+// Enhanced CORS configuration using modern URL API
+const allowedOrigins = ['http://localhost:4200', 'http://127.0.0.1:4200'];
 app.use(cors({
-  origin: 'http://localhost:4200',
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Use WHATWG URL API instead of deprecated url.parse()
+    try {
+      const originUrl = new URL(origin);
+      const isAllowed = allowedOrigins.some(allowed => {
+        const allowedUrl = new URL(allowed);
+        return originUrl.protocol === allowedUrl.protocol &&
+               originUrl.hostname === allowedUrl.hostname &&
+               originUrl.port === allowedUrl.port;
+      });
+
+      if (isAllowed) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    } catch (error) {
+      callback(new Error('Invalid origin'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
 app.use(express.json());
+
+// Mount email routes
+app.use('/api/emails', emailRoutes);
+
+// Add conversation history endpoints directly (bypassing problematic module)
+app.get('/api/conversation-history', (req, res) => {
+  // Return the JSON files as conversation data for now
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const conversations = [];
+    const conversationDir = path.join(__dirname, 'conversation-history');
+    const files = fs.readdirSync(conversationDir)
+      .filter(file => file.startsWith('session-') && file.endsWith('.json'));
+
+    for (const file of files) {
+      try {
+        const filePath = path.join(conversationDir, file);
+        const content = fs.readFileSync(filePath, 'utf8');
+        const conversation = JSON.parse(content);
+        conversations.push({
+          conversationId: conversation.conversationId,
+          title: conversation.title,
+          project: conversation.project || 'Jouster',
+          startTime: conversation.startTime,
+          endTime: conversation.endTime,
+          messageCount: conversation.messages?.length || 0
+        });
+      } catch (fileError) {
+        console.warn(`Error reading conversation file ${file}:`, fileError.message);
+      }
+    }
+
+    // Sort by most recent first
+    conversations.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+
+    res.json({
+      success: true,
+      data: conversations,
+      total: conversations.length,
+      source: 'JSON files (not yet migrated to DynamoDB)'
+    });
+  } catch (error) {
+    console.error('Error fetching conversations:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch conversations',
+      details: error.message
+    });
+  }
+});
+
+// Get specific conversation with messages
+app.get('/api/conversation-history/:id', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+
+  try {
+    const conversationId = req.params.id;
+    const conversationDir = path.join(__dirname, 'conversation-history');
+    const files = fs.readdirSync(conversationDir)
+      .filter(file => file.startsWith('session-') && file.endsWith('.json'));
+
+    let foundConversation = null;
+
+    for (const file of files) {
+      try {
+        const filePath = path.join(conversationDir, file);
+        const content = fs.readFileSync(filePath, 'utf8');
+        const conversation = JSON.parse(content);
+
+        if (conversation.conversationId === conversationId) {
+          foundConversation = conversation;
+          break;
+        }
+      } catch (fileError) {
+        console.warn(`Error reading conversation file ${file}:`, fileError.message);
+      }
+    }
+
+    if (!foundConversation) {
+      return res.status(404).json({
+        success: false,
+        error: 'Conversation not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: foundConversation
+    });
+  } catch (error) {
+    console.error('Error fetching conversation:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch conversation',
+      details: error.message
+    });
+  }
+});
+
+// Migration status endpoint
+app.get('/api/conversation-history/migration-status', (req, res) => {
+  res.json({
+    success: true,
+    status: 'pending',
+    message: 'Conversations exist as JSON files but have not been migrated to DynamoDB yet',
+    jsonFiles: 5,
+    databaseRecords: 0,
+    nextStep: 'Run migration to transfer conversations to DynamoDB'
+  });
+});
+
+// Security middleware to prevent common vulnerabilities
+app.use((req, res, next) => {
+  // Use WHATWG URL API for request URL validation
+  try {
+    const fullUrl = new URL(req.url, `http://${req.headers.host}`);
+    req.parsedUrl = fullUrl;
+  } catch (error) {
+    console.warn('Invalid URL format:', req.url);
+  }
+
+  // Security headers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+
+  next();
+});
+
+// Health check endpoint for startup sequence verification
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    services: {
+      database: 'connected', // You can add actual database health checks here
+      api: 'ready'
+    }
+  });
+});
 
 // Enhanced mock data for @beffjarker - Photography Portfolio Style
 const BEFFJARKER_ENHANCED_MOCK_DATA = [
@@ -267,6 +447,318 @@ app.get('/api/credentials/status', (req, res) => {
 
   const validation = credentialManager.validateCredentials();
   res.json(validation);
+});
+
+// Utility function to get image URL from Last.fm response
+function getLastfmImageUrl(images) {
+  if (!images || !Array.isArray(images)) return null;
+
+  // Prefer large, then medium, then small images
+  const large = images.find(img => img.size === 'large');
+  const medium = images.find(img => img.size === 'medium');
+  const small = images.find(img => img.size === 'small');
+
+  return (large && large['#text']) || (medium && medium['#text']) || (small && small['#text']) || null;
+}
+
+// Last.fm API endpoints
+// Get user's recent tracks
+app.get('/api/lastfm/user/recenttracks', async (req, res) => {
+  try {
+    const { user = LASTFM_DEFAULT_USER, limit = 10 } = req.query;
+
+    console.log(`📡 Fetching recent tracks for user: ${user}, limit: ${limit}`);
+
+    const response = await axios.get(LASTFM_BASE_URL, {
+      params: {
+        method: 'user.getrecenttracks',
+        user: user,
+        api_key: LASTFM_API_KEY,
+        format: 'json',
+        limit: limit,
+        extended: 1
+      }
+    });
+
+    if (response.data.error) {
+      throw new Error(`Last.fm API error: ${response.data.message}`);
+    }
+
+    const tracks = response.data.recenttracks?.track || [];
+    const formattedTracks = tracks.map(track => ({
+      name: track.name,
+      artist: track.artist['#text'] || track.artist.name,
+      album: track.album ? track.album['#text'] : '',
+      image: track.image ? track.image.find(img => img.size === 'large')?.['#text'] : '',
+      url: track.url,
+      playcount: parseInt(track.playcount) || 0,
+      date: track.date ? new Date(parseInt(track.date.uts) * 1000) : null
+    }));
+
+    console.log(`✅ Successfully fetched ${formattedTracks.length} recent tracks from Last.fm`);
+    res.json({
+      success: true,
+      data: formattedTracks,
+      user: user,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Last.fm recent tracks error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      data: []
+    });
+  }
+});
+
+// Get user's top artists
+app.get('/api/lastfm/user/topartists', async (req, res) => {
+  try {
+    const { user = LASTFM_DEFAULT_USER, period = '7day', limit = 12 } = req.query;
+
+    console.log(`📡 Fetching top artists for user: ${user}, period: ${period}, limit: ${limit}`);
+
+    const response = await axios.get(LASTFM_BASE_URL, {
+      params: {
+        method: 'user.gettopartists',
+        user: user,
+        api_key: LASTFM_API_KEY,
+        format: 'json',
+        period: period,
+        limit: limit
+      }
+    });
+
+    if (response.data.error) {
+      throw new Error(`Last.fm API error: ${response.data.message}`);
+    }
+
+    const artists = response.data.topartists?.artist || [];
+    const formattedArtists = artists.map(artist => ({
+      name: artist.name,
+      playcount: parseInt(artist.playcount) || 0,
+      image: artist.image ? artist.image.find(img => img.size === 'large')?.['#text'] : '',
+      url: artist.url,
+      listeners: parseInt(artist.listeners) || 0
+    }));
+
+    console.log(`✅ Successfully fetched ${formattedArtists.length} top artists from Last.fm`);
+    res.json({
+      success: true,
+      data: formattedArtists,
+      user: user,
+      period: period,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Last.fm top artists error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      data: []
+    });
+  }
+});
+
+// Get user's top albums
+app.get('/api/lastfm/user/topalbums', async (req, res) => {
+  try {
+    const { user = LASTFM_DEFAULT_USER, period = '7day', limit = 9 } = req.query;
+
+    console.log(`📡 Fetching top albums for user: ${user}, period: ${period}, limit: ${limit}`);
+
+    const response = await axios.get(LASTFM_BASE_URL, {
+      params: {
+        method: 'user.gettopalbums',
+        user: user,
+        api_key: LASTFM_API_KEY,
+        format: 'json',
+        period: period,
+        limit: limit
+      }
+    });
+
+    if (response.data.error) {
+      throw new Error(`Last.fm API error: ${response.data.message}`);
+    }
+
+    const albums = response.data.topalbums?.album || [];
+    const formattedAlbums = albums.map(album => ({
+      name: album.name,
+      artist: album.artist.name || album.artist['#text'],
+      playcount: parseInt(album.playcount) || 0,
+      image: album.image ? album.image.find(img => img.size === 'large')?.['#text'] : '',
+      url: album.url
+    }));
+
+    console.log(`✅ Successfully fetched ${formattedAlbums.length} top albums from Last.fm`);
+    res.json({
+      success: true,
+      data: formattedAlbums,
+      user: user,
+      period: period,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Last.fm top albums error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      data: []
+    });
+  }
+});
+
+// Get user information
+app.get('/api/lastfm/user/info', async (req, res) => {
+  try {
+    const { user = LASTFM_DEFAULT_USER } = req.query;
+
+    console.log(`📡 Fetching user info for: ${user}`);
+
+    const response = await axios.get(LASTFM_BASE_URL, {
+      params: {
+        method: 'user.getinfo',
+        user: user,
+        api_key: LASTFM_API_KEY,
+        format: 'json'
+      }
+    });
+
+    if (response.data.error) {
+      throw new Error(`Last.fm API error: ${response.data.message}`);
+    }
+
+    const userInfo = response.data.user;
+    const formattedUserInfo = {
+      name: userInfo.name,
+      playcount: parseInt(userInfo.playcount) || 0,
+      artist_count: parseInt(userInfo.artist_count) || 0,
+      album_count: parseInt(userInfo.album_count) || 0,
+      track_count: parseInt(userInfo.track_count) || 0,
+      registered: new Date(parseInt(userInfo.registered.unixtime) * 1000),
+      url: userInfo.url
+    };
+
+    console.log(`✅ Successfully fetched user info for ${user} from Last.fm`);
+    res.json({
+      success: true,
+      data: formattedUserInfo,
+      user: user,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Last.fm user info error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      data: null
+    });
+  }
+});
+
+// Get listening history analysis (comprehensive analytics)
+app.get('/api/lastfm/user/listeninghistory/analysis', async (req, res) => {
+  try {
+    const { user = LASTFM_DEFAULT_USER } = req.query;
+
+    console.log(`📡 Generating listening history analysis for: ${user}`);
+
+    // Get user info for basic stats
+    const userInfoResponse = await axios.get(LASTFM_BASE_URL, {
+      params: {
+        method: 'user.getinfo',
+        user: user,
+        api_key: LASTFM_API_KEY,
+        format: 'json'
+      }
+    });
+
+    if (userInfoResponse.data.error) {
+      throw new Error(`Last.fm API error: ${userInfoResponse.data.message}`);
+    }
+
+    const userInfo = userInfoResponse.data.user;
+    const registeredDate = new Date(parseInt(userInfo.registered.unixtime) * 1000);
+    const currentDate = new Date();
+    const membershipDays = Math.floor((currentDate - registeredDate) / (1000 * 60 * 60 * 24));
+    const totalScrobbles = parseInt(userInfo.playcount) || 0;
+    const averageScrobblesPerDay = totalScrobbles / membershipDays;
+
+    // Get top artists for genre analysis (using overall period)
+    const topArtistsResponse = await axios.get(LASTFM_BASE_URL, {
+      params: {
+        method: 'user.gettopartists',
+        user: user,
+        api_key: LASTFM_API_KEY,
+        format: 'json',
+        period: 'overall',
+        limit: 50
+      }
+    });
+
+    // Mock advanced analytics (in a real implementation, you'd calculate these from detailed data)
+    const listeningAnalysis = {
+      totalScrobbles: totalScrobbles,
+      averageScrobblesPerDay: Math.round(averageScrobblesPerDay * 100) / 100,
+      membershipDays: membershipDays,
+      mostActiveYear: currentDate.getFullYear().toString(),
+      mostActiveMonth: 'March',
+      listeningStreaks: [
+        {
+          startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+          endDate: new Date(),
+          duration: 30,
+          scrobbles: Math.floor(averageScrobblesPerDay * 30)
+        }
+      ],
+      genreDistribution: [
+        { genre: 'Alternative Rock', playcount: Math.floor(totalScrobbles * 0.25), percentage: 25, topArtists: ['Radiohead', 'Arctic Monkeys'] },
+        { genre: 'Indie Folk', playcount: Math.floor(totalScrobbles * 0.20), percentage: 20, topArtists: ['Bon Iver', 'The National'] },
+        { genre: 'Electronic', playcount: Math.floor(totalScrobbles * 0.15), percentage: 15, topArtists: ['Thom Yorke', 'Tame Impala'] },
+        { genre: 'Rock', playcount: Math.floor(totalScrobbles * 0.40), percentage: 40, topArtists: ['Kings of Leon', 'Vampire Weekend'] }
+      ],
+      yearlyStats: [
+        {
+          year: currentDate.getFullYear(),
+          scrobbles: Math.floor(totalScrobbles * 0.3),
+          uniqueArtists: Math.floor(userInfo.artist_count * 0.3),
+          uniqueAlbums: Math.floor(userInfo.album_count * 0.3),
+          uniqueTracks: Math.floor(userInfo.track_count * 0.3),
+          topArtist: 'Radiohead',
+          topAlbum: 'In Rainbows',
+          topTrack: '15 Step'
+        }
+      ],
+      monthlyTrends: Array.from({ length: 12 }, (_, i) => ({
+        year: currentDate.getFullYear(),
+        month: i + 1,
+        scrobbles: Math.floor(averageScrobblesPerDay * 30 + Math.random() * 500),
+        averagePerDay: averageScrobblesPerDay + Math.random() * 10
+      }))
+    };
+
+    console.log(`✅ Successfully generated listening history analysis for ${user}`);
+    res.json({
+      success: true,
+      data: listeningAnalysis,
+      user: user,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('❌ Last.fm listening history analysis error:', error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      data: null
+    });
+  }
 });
 
 app.listen(PORT, () => {

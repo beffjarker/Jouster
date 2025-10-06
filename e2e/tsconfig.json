@@ -3,12 +3,14 @@
   "compilerOptions": {
     "allowJs": true,
     "outDir": "../dist/out-tsc",
-    "module": "commonjs",
+    "module": "es2015",
+    "moduleResolution": "node",
+    "target": "es2017",
     "types": ["cypress", "node"],
     "sourceMap": false,
     "strict": true,
     "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": true,
+    "noPropertyAccessFromIndexSignature": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true
   },

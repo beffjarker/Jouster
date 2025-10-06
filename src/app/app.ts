@@ -4,7 +4,7 @@ import { NavigationComponent } from './components/navigation/navigation.componen
 
 @Component({
   imports: [NavigationComponent, RouterModule],
-  selector: 'app-root',
+  selector: 'jstr-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

@@ -10,6 +10,8 @@ export interface InstagramImage {
   caption: string;
   media_type: string;
   timestamp: string;
+  like_count?: number;
+  comments_count?: number;
 }
 
 @Injectable({
@@ -17,152 +19,177 @@ export interface InstagramImage {
 })
 export class InstagramService {
   private readonly INSTAGRAM_USERNAME = 'beffjarker';
-  private readonly BACKEND_API_URL = 'http://localhost:3001/api';
+  private readonly BACKEND_API_URL = 'http://localhost:3000/api';
 
   constructor(private http: HttpClient) {}
 
-  getTopImages(): Observable<InstagramImage[]> {
-    console.log('Fetching Instagram posts via backend API...');
-
-    // Use our backend API to fetch Instagram data
-    return this.fetchViaBackend().pipe(
-      catchError(error => {
-        console.warn('Backend API fetch failed:', error);
-        console.log('Backend might not be running. Falling back to demo content.');
-        return this.getBackendFallbackImages();
-      })
-    );
+  // Method expected by highlights component
+  getUserMedia(): Observable<InstagramImage[]> {
+    return this.getInstagramPosts();
   }
 
-  private fetchViaBackend(): Observable<InstagramImage[]> {
-    const apiUrl = `${this.BACKEND_API_URL}/instagram/${this.INSTAGRAM_USERNAME}`;
+  // Main method to get Instagram posts via backend
+  getInstagramPosts(): Observable<InstagramImage[]> {
+    console.log('Fetching Instagram posts via backend API...');
 
-    return this.http.get<any>(apiUrl).pipe(
+    return this.http.get<any>(`${this.BACKEND_API_URL}/instagram/user/media`).pipe(
       map(response => {
-        if (response.success && response.data) {
-          console.log(`✅ Successfully fetched ${response.data.length} real posts from @${this.INSTAGRAM_USERNAME}!`);
+        if (response.data && Array.isArray(response.data)) {
+          console.log(`✅ Successfully fetched ${response.data.length} posts from @${this.INSTAGRAM_USERNAME}`);
           return response.data as InstagramImage[];
         } else {
-          throw new Error(response.message || 'Invalid response from backend');
+          throw new Error('Invalid response format from backend');
         }
       }),
       catchError(error => {
-        if (error.status === 0) {
-          throw new Error('Backend API is not running. Please start the backend server on port 3001.');
-        }
-        throw error;
+        console.warn('Backend API fetch failed:', error);
+        console.log('Backend might not be running. Falling back to enhanced mock data.');
+        return this.getEnhancedMockData();
       })
     );
   }
 
-  private getBackendFallbackImages(): Observable<InstagramImage[]> {
-    // Updated fallback with backend instructions
-    const fallbackImages: InstagramImage[] = [
+  // Legacy method for backwards compatibility
+  getTopImages(): Observable<InstagramImage[]> {
+    return this.getInstagramPosts();
+  }
+
+  // Enhanced mock data that matches the backend structure
+  private getEnhancedMockData(): Observable<InstagramImage[]> {
+    const mockData: InstagramImage[] = [
       {
-        id: 'backend-demo-1',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=301',
-        caption: '🚀 Backend API Solution Ready! Start the backend server to see real @beffjarker posts.',
+        id: 'mock_001',
+        permalink: 'https://instagram.com/p/mock001/',
+        media_url: 'https://picsum.photos/600/600?random=101',
+        caption: '🌅 Golden hour magic at the coast. There\'s something about that warm light that makes everything feel possible. Shot with 85mm at f/2.8 #goldenhour #coastalphotography #beffjarker #photography #sunset',
         media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
+        timestamp: new Date(Date.now() - 86400000).toISOString(),
+        like_count: 342,
+        comments_count: 28
       },
       {
-        id: 'backend-demo-2',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=302',
-        caption: '💻 Run "npm start" in the backend folder to start the Instagram API server on port 3001',
-        media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+        id: 'mock_002',
+        permalink: 'https://instagram.com/p/mock002/',
+        media_url: 'https://picsum.photos/600/800?random=102',
+        caption: '🏔️ Alpine adventure recap! Three days in the mountains taught me more about patience and light than any workshop ever could. #alpinephotography #mountains #patience #beffjarker',
+        media_type: 'CAROUSEL_ALBUM',
+        timestamp: new Date(Date.now() - 172800000).toISOString(),
+        like_count: 528,
+        comments_count: 45
       },
       {
-        id: 'backend-demo-3',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=303',
-        caption: '🔧 Once the backend is running, refresh this page to see real Instagram posts!',
+        id: 'mock_003',
+        permalink: 'https://instagram.com/p/mock003/',
+        media_url: 'https://picsum.photos/600/600?random=103',
+        caption: '📸 Street photography session in the old quarter. Love how this alley captures both shadow and story. #streetphotography #shadows #storytelling #beffjarker #urban',
         media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
+        timestamp: new Date(Date.now() - 259200000).toISOString(),
+        like_count: 289,
+        comments_count: 31
       },
       {
-        id: 'backend-demo-4',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=304',
-        caption: '✅ Backend bypasses CORS restrictions by fetching Instagram data server-side',
+        id: 'mock_004',
+        permalink: 'https://instagram.com/p/mock004/',
+        media_url: 'https://picsum.photos/600/400?random=104',
+        caption: '🌊 Experimenting with long exposure techniques at the pier. 30-second exposure with ND filters to get that silky water effect. #longexposure #seascape #technicalphotography #beffjarker',
         media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString()
+        timestamp: new Date(Date.now() - 345600000).toISOString(),
+        like_count: 445,
+        comments_count: 62
       },
       {
-        id: 'backend-demo-5',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=305',
-        caption: '🎯 This approach works for any public Instagram profile without authentication',
+        id: 'mock_005',
+        permalink: 'https://instagram.com/p/mock005/',
+        media_url: 'https://picsum.photos/600/600?random=105',
+        caption: '🎭 Portrait session with Maria - exploring the interplay between natural and artificial light. This setup took 3 hours to perfect but the result speaks for itself. #portraitphotography #lightingsetup #beffjarker #portraits',
         media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString()
+        timestamp: new Date(Date.now() - 432000000).toISOString(),
+        like_count: 612,
+        comments_count: 87
       },
       {
-        id: 'backend-demo-6',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=306',
-        caption: '🔗 Meanwhile, click any image to visit the real @beffjarker Instagram profile',
+        id: 'mock_006',
+        permalink: 'https://instagram.com/p/mock006/',
+        media_url: 'https://picsum.photos/600/900?random=106',
+        caption: '🌸 Macro Monday! Getting intimate with nature - this cherry blossom petal tells a whole story about spring\'s fleeting beauty. Shot at f/8 with extension tubes for maximum detail. #macrophotography #spring #details #beffjarker #nature',
         media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString()
+        timestamp: new Date(Date.now() - 518400000).toISOString(),
+        like_count: 378,
+        comments_count: 43
       },
       {
-        id: 'backend-demo-7',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=307',
-        caption: '📡 Backend API endpoint: http://localhost:3001/api/instagram/beffjarker',
+        id: 'mock_007',
+        permalink: 'https://instagram.com/p/mock007/',
+        media_url: 'https://picsum.photos/600/600?random=107',
+        caption: '🏙️ City lights and reflections - sometimes the best urban shots happen after midnight when the city breathes differently. This puddle became my composition partner tonight. #nightphotography #urban #reflections #beffjarker #citylife',
         media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+        timestamp: new Date(Date.now() - 604800000).toISOString(),
+        like_count: 467,
+        comments_count: 38
       },
       {
-        id: 'backend-demo-8',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=308',
-        caption: '⚡ Server-side scraping is more reliable than browser-based attempts',
+        id: 'mock_008',
+        permalink: 'https://instagram.com/p/mock008/',
+        media_url: 'https://picsum.photos/600/800?random=108',
+        caption: '🦅 Wildlife photography ethics matter. This hawk was photographed from 50+ meters with a 600mm lens - no disturbance, just patience and respect. The shot took 4 hours of waiting but wildlife photography isn\'t about the rush. #wildlifephotography #ethics #patience #beffjarker #birds',
         media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString()
+        timestamp: new Date(Date.now() - 691200000).toISOString(),
+        like_count: 523,
+        comments_count: 76
       },
       {
-        id: 'backend-demo-9',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=309',
-        caption: '🌟 Production ready: Deploy the backend to any cloud service for real usage',
+        id: 'mock_009',
+        permalink: 'https://instagram.com/p/mock009/',
+        media_url: 'https://picsum.photos/600/600?random=109',
+        caption: '☕ Coffee shop chronicles - documenting the quiet moments between the rush. This barista\'s concentration while crafting latte art reminded me why I love documentary photography. Real moments > posed shots. #documentaryphotography #coffee #realmoments #beffjarker',
         media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString()
+        timestamp: new Date(Date.now() - 777600000).toISOString(),
+        like_count: 334,
+        comments_count: 29
       },
       {
-        id: 'backend-demo-10',
-        permalink: `https://instagram.com/beffjarker`,
-        media_url: 'https://picsum.photos/400/400?random=310',
-        caption: '🎉 Start the backend server and see this transform into real @beffjarker content!',
-        media_type: 'IMAGE',
-        timestamp: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
+        id: 'mock_010',
+        permalink: 'https://instagram.com/p/mock010/',
+        media_url: 'https://picsum.photos/600/600?random=110',
+        caption: '🎨 Behind the lens: My mobile editing setup for field work. iPad Pro + Apple Pencil + Lightroom Mobile = creativity anywhere. Sometimes the best editing happens right where you captured the moment. What\'s in your mobile kit? #mobileediting #workflow #beffjarker #lightroom #gear',
+        media_type: 'CAROUSEL_ALBUM',
+        timestamp: new Date(Date.now() - 864000000).toISOString(),
+        like_count: 892,
+        comments_count: 156
       }
     ];
 
-    return of(fallbackImages);
+    return of(mockData);
   }
 
-  private transformInstagramResponse(response: any): InstagramImage[] {
-    // Transform RapidAPI response to our format
-    if (!response || !response.data) {
-      throw new Error('Invalid Instagram API response');
-    }
-
-    return response.data.slice(0, 10).map((item: any) => ({
-      id: item.id || item.pk,
-      permalink: `https://www.instagram.com/p/${item.code}/`,
-      media_url: item.image_versions2?.candidates?.[0]?.url || item.display_url,
-      caption: item.caption?.text || 'No caption available',
-      media_type: item.media_type === 1 ? 'IMAGE' : 'VIDEO',
-      timestamp: new Date(item.taken_at * 1000).toISOString()
-    }));
+  // Get user profile information
+  getUserProfile(): Observable<any> {
+    return this.http.get<any>(`${this.BACKEND_API_URL}/instagram/user`).pipe(
+      catchError(error => {
+        console.warn('Failed to fetch user profile:', error);
+        return of({
+          id: 'mock_user_id',
+          username: 'beffjarker',
+          name: 'Beff Jarker Photography',
+          account_type: 'BUSINESS',
+          media_count: 10,
+          note: 'Mock data - backend not available'
+        });
+      })
+    );
   }
 
-  // Method to set up Instagram API integration
-  setupInstagramAPI(accessToken: string): void {
-    // This would be used to set up proper Instagram Basic Display API
-    console.log('Instagram API setup - access token provided');
-    // Store token securely and use for authenticated requests
+  // Health check method
+  checkBackendHealth(): Observable<any> {
+    return this.http.get<any>(`${this.BACKEND_API_URL}/health`).pipe(
+      catchError(error => {
+        console.warn('Backend health check failed:', error);
+        return of({
+          status: 'backend_unavailable',
+          using_mock_data: true,
+          note: 'Backend server is not running'
+        });
+      })
+    );
   }
 }

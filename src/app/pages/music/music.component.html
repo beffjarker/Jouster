@@ -1,0 +1,106 @@
+<div class="page-container">
+  <h1>🎵 Music from Treysin's Last.fm</h1>
+
+  <div class="profile-banner">
+    <h2>Real-time data from <a href="https://www.last.fm/user/Treysin" target="_blank" rel="noopener">Last.fm/user/Treysin</a></h2>
+    <p>Displaying actual listening history and music statistics</p>
+  </div>
+
+  <div class="music-sections">
+    <!-- Recent Tracks Section -->
+    <section class="recent-tracks">
+      <h2>🎵 Recently Played</h2>
+      <div class="loading" *ngIf="loadingTracks">Loading recent tracks...</div>
+      <div class="tracks-grid" *ngIf="!loadingTracks">
+        <div class="track-card" *ngFor="let track of recentTracks | async">
+          <div class="track-image">
+            <img [src]="track.image || 'https://via.placeholder.com/150x150?text=♪'"
+                 [alt]="track.name + ' by ' + track.artist"
+                 loading="lazy">
+          </div>
+          <div class="track-info">
+            <h3 class="track-name">{{ track.name }}</h3>
+            <p class="track-artist">{{ track.artist }}</p>
+            <p class="track-album" *ngIf="track.album">{{ track.album }}</p>
+            <div class="track-meta">
+              <span class="play-count" *ngIf="track.playcount">{{ track.playcount }} plays</span>
+              <span class="timestamp" *ngIf="track.date">{{ track.date | date:'short' }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Top Artists Section -->
+    <section class="top-artists">
+      <h2>🎤 Top Artists</h2>
+      <div class="loading" *ngIf="loadingArtists">Loading top artists...</div>
+      <div class="artists-grid" *ngIf="!loadingArtists">
+        <div class="artist-card" *ngFor="let artist of topArtists | async">
+          <div class="artist-image">
+            <img [src]="artist.image || 'https://via.placeholder.com/150x150?text=🎤'"
+                 [alt]="artist.name"
+                 loading="lazy">
+          </div>
+          <div class="artist-info">
+            <h3 class="artist-name">{{ artist.name }}</h3>
+            <p class="play-count">{{ artist.playcount }} plays</p>
+            <div class="artist-stats" *ngIf="artist.listeners">
+              <span class="listeners">{{ artist.listeners }} listeners</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Top Albums Section -->
+    <section class="top-albums">
+      <h2>💿 Top Albums</h2>
+      <div class="loading" *ngIf="loadingAlbums">Loading top albums...</div>
+      <div class="albums-grid" *ngIf="!loadingAlbums">
+        <div class="album-card" *ngFor="let album of topAlbums | async">
+          <div class="album-image">
+            <img [src]="album.image || 'https://via.placeholder.com/150x150?text=💿'"
+                 [alt]="album.name + ' by ' + album.artist"
+                 loading="lazy">
+          </div>
+          <div class="album-info">
+            <h3 class="album-name">{{ album.name }}</h3>
+            <p class="album-artist">{{ album.artist }}</p>
+            <p class="play-count">{{ album.playcount }} plays</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- User Info Section -->
+    <section class="user-info">
+      <h2>📊 Profile Stats</h2>
+      <div class="loading" *ngIf="loadingUserInfo">Loading profile...</div>
+      <div class="user-stats" *ngIf="!loadingUserInfo && (userInfo | async) as user">
+        <div class="stat-card">
+          <h3>Total Plays</h3>
+          <p class="stat-number">{{ user.playcount | number }}</p>
+        </div>
+        <div class="stat-card">
+          <h3>Artists</h3>
+          <p class="stat-number">{{ user.artist_count | number }}</p>
+        </div>
+        <div class="stat-card">
+          <h3>Albums</h3>
+          <p class="stat-number">{{ user.album_count | number }}</p>
+        </div>
+        <div class="stat-card">
+          <h3>Tracks</h3>
+          <p class="stat-number">{{ user.track_count | number }}</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="empty-state" *ngIf="!loadingTracks && !loadingArtists && !loadingAlbums && (recentTracks | async)?.length === 0">
+    <h3>No music data available</h3>
+    <p>Unable to load Last.fm data. Please try again later.</p>
+  </div>
+</div>

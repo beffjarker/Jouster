@@ -1,0 +1,386 @@
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem;
+  min-height: 100vh;
+
+  h1 {
+    text-align: center;
+    margin-bottom: 2rem;
+    color: #333;
+    font-size: 2.5rem;
+    font-weight: 700;
+  }
+}
+
+.profile-banner {
+  background: linear-gradient(135deg, #d50000 0%, #ff5722 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 12px;
+  text-align: center;
+  margin-bottom: 3rem;
+  box-shadow: 0 4px 15px rgba(213, 0, 0, 0.3);
+
+  h2 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+
+    a {
+      color: white;
+      text-decoration: none;
+      border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+      transition: border-color 0.3s ease;
+
+      &:hover {
+        border-bottom-color: white;
+      }
+    }
+  }
+
+  p {
+    margin: 0;
+    opacity: 0.9;
+    font-size: 1.1rem;
+  }
+}
+
+.music-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.recent-tracks,
+.top-artists,
+.top-albums,
+.user-info {
+  h2 {
+    color: #444;
+    margin-bottom: 1.5rem;
+    font-size: 1.8rem;
+    font-weight: 600;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 0.5rem;
+  }
+}
+
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+  font-style: italic;
+}
+
+// Recent Tracks Grid
+.tracks-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.track-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 1px solid #eee;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  .track-image {
+    height: 200px;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+  }
+
+  &:hover .track-image img {
+    transform: scale(1.05);
+  }
+
+  .track-info {
+    padding: 1.2rem;
+
+    .track-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #333;
+      margin: 0 0 0.5rem 0;
+      line-height: 1.3;
+    }
+
+    .track-artist {
+      color: #666;
+      font-weight: 500;
+      margin: 0 0 0.3rem 0;
+    }
+
+    .track-album {
+      color: #888;
+      font-size: 0.9rem;
+      margin: 0 0 0.8rem 0;
+      font-style: italic;
+    }
+
+    .track-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: #999;
+
+      .play-count {
+        background: #f0f0f0;
+        padding: 0.2rem 0.6rem;
+        border-radius: 12px;
+        font-weight: 500;
+      }
+    }
+  }
+}
+
+// Artists Grid
+.artists-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.5rem;
+}
+
+.artist-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 1px solid #eee;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  .artist-image {
+    height: 180px;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+  }
+
+  &:hover .artist-image img {
+    transform: scale(1.05);
+  }
+
+  .artist-info {
+    padding: 1.2rem;
+    text-align: center;
+
+    .artist-name {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: #333;
+      margin: 0 0 0.5rem 0;
+    }
+
+    .play-count {
+      color: #666;
+      font-weight: 500;
+      margin: 0 0 0.5rem 0;
+    }
+
+    .artist-stats {
+      .listeners {
+        color: #888;
+        font-size: 0.9rem;
+      }
+    }
+  }
+}
+
+// Albums Grid
+.albums-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.album-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 1px solid #eee;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  .album-image {
+    height: 200px;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s ease;
+    }
+  }
+
+  &:hover .album-image img {
+    transform: scale(1.05);
+  }
+
+  .album-info {
+    padding: 1rem;
+    text-align: center;
+
+    .album-name {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #333;
+      margin: 0 0 0.3rem 0;
+      line-height: 1.3;
+    }
+
+    .album-artist {
+      color: #666;
+      font-size: 0.9rem;
+      margin: 0 0 0.5rem 0;
+    }
+
+    .play-count {
+      color: #888;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+  }
+}
+
+// User Stats
+.user-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 2rem;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  transition: transform 0.3s ease;
+
+  &:hover {
+    transform: translateY(-2px);
+  }
+
+  h3 {
+    margin: 0 0 1rem 0;
+    font-size: 1rem;
+    font-weight: 500;
+    opacity: 0.9;
+  }
+
+  .stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    line-height: 1;
+  }
+
+  .stat-date {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+  }
+}
+
+// Data Attribution
+.data-attribution {
+  margin-top: 3rem;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+  text-align: center;
+  border-left: 4px solid #667eea;
+
+  p {
+    margin: 0;
+    color: #666;
+    font-size: 0.9rem;
+  }
+
+  a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 500;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  strong {
+    color: #333;
+  }
+}
+
+// Responsive Design
+@media (max-width: 768px) {
+  .page-container {
+    padding: 1rem;
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 2rem;
+    }
+  }
+
+  .music-sections {
+    gap: 2rem;
+  }
+
+  .tracks-grid,
+  .artists-grid,
+  .albums-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .stat-card {
+    padding: 1.5rem;
+
+    .stat-number {
+      font-size: 1.5rem;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .user-stats {
+    grid-template-columns: 1fr;
+  }
+}

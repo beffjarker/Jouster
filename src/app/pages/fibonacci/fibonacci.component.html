@@ -1,0 +1,131 @@
+<div class="fibonacci-container">
+  <h1>Fibonacci Sequence Generator</h1>
+  <p>Generate and visualize the Fibonacci sequence with mathematical properties</p>
+
+  <!-- Input Controls -->
+  <div class="input-section">
+    <h3>Sequence Configuration</h3>
+
+    <div class="input-controls">
+      <div class="input-group">
+        <label for="sequenceLength">Number of terms:</label>
+        <input
+          type="number"
+          id="sequenceLength"
+          [(ngModel)]="sequenceLength"
+          min="1"
+          max="50"
+          (input)="generateSequence()">
+      </div>
+
+      <div class="input-group">
+        <label for="startA">First term:</label>
+        <input
+          type="number"
+          id="startA"
+          [(ngModel)]="startA"
+          (input)="generateSequence()">
+      </div>
+
+      <div class="input-group">
+        <label for="startB">Second term:</label>
+        <input
+          type="number"
+          id="startB"
+          [(ngModel)]="startB"
+          (input)="generateSequence()">
+      </div>
+    </div>
+
+    <div class="preset-buttons">
+      <button (click)="setClassicFibonacci()" class="preset-btn">Classic Fibonacci (0,1)</button>
+      <button (click)="setLucasNumbers()" class="preset-btn">Lucas Numbers (2,1)</button>
+    </div>
+  </div>
+
+  <!-- Visualization Section -->
+  <div class="visualization-section">
+
+    <!-- Golden Spiral -->
+    <div class="spiral-container">
+      <h3>Golden Spiral</h3>
+      <svg viewBox="0 0 400 400" class="fibonacci-spiral">
+        <path
+          *ngFor="let arc of spiralArcs; let i = index"
+          [attr.d]="arc.path"
+          [attr.stroke]="getSpiralColor(i)"
+          stroke-width="2"
+          fill="none"
+          class="spiral-arc">
+        </path>
+      </svg>
+
+      <div class="spiral-info">
+        <p><strong>Golden Ratio (φ):</strong> {{ goldenRatio.toFixed(6) }}</p>
+        <p><strong>Current Ratio:</strong> {{ currentRatio.toFixed(6) }}</p>
+        <p><strong>Convergence:</strong> {{ getRatioConvergence().toFixed(1) }}%</p>
+      </div>
+    </div>
+
+    <!-- Bar Chart -->
+    <div class="bar-chart-container">
+      <h3>Sequence Growth</h3>
+      <div class="bar-chart">
+        <div
+          *ngFor="let num of fibonacciSequence.slice(0, 12); let i = index"
+          class="bar"
+          [style.height.px]="getBarHeight(num)"
+          [style.background]="getBarColor(i)"
+          [title]="'F(' + i + ') = ' + formatNumber(num)">
+          <span class="bar-label">{{ i }}</span>
+          <span class="bar-value">{{ formatNumber(num) }}</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Sequence Display -->
+  <div class="sequence-display">
+    <h3>Generated Sequence</h3>
+    <div class="sequence-grid">
+      <div
+        *ngFor="let num of fibonacciSequence.slice(0, 20); let i = index"
+        class="sequence-item">
+        <span class="sequence-index">F({{ i }})</span>
+        <span class="sequence-value">{{ formatNumber(num) }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mathematical Properties -->
+  <div class="properties-section">
+    <h3>Mathematical Properties</h3>
+    <div class="properties-grid">
+      <div class="property-card">
+        <h4>Golden Ratio (φ)</h4>
+        <p class="property-value">{{ goldenRatio.toFixed(8) }}</p>
+        <p class="property-description">Limit of consecutive ratios</p>
+      </div>
+
+      <div class="property-card">
+        <h4>Current Ratio</h4>
+        <p class="property-value">{{ currentRatio.toFixed(8) }}</p>
+        <p class="property-description">F(n)/F(n-1)</p>
+      </div>
+
+      <div class="property-card">
+        <h4>Sequence Length</h4>
+        <p class="property-value">{{ fibonacciSequence.length }}</p>
+        <p class="property-description">Number of terms generated</p>
+      </div>
+
+      <div class="property-card">
+        <h4>Sum of Sequence</h4>
+        <p class="property-value">{{ formatNumber(getSequenceSum()) }}</p>
+        <p class="property-description">Σ F(i) from i=0 to n</p>
+      </div>
+    </div>
+  </div>
+
+</div>

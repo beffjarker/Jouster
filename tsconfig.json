@@ -6,14 +6,55 @@
     "module": "preserve",
     "lib": ["es2020", "dom"],
     "paths": {},
-    "isolatedModules": true
+    "isolatedModules": true,
+    // Enhanced strict mode settings
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": false, // Temporarily disabled
+    "exactOptionalPropertyTypes": false, // Temporarily disabled
+    // Additional type checking - temporarily relaxed
+    "noUnusedLocals": false, // Temporarily disabled
+    "noUnusedParameters": false, // Temporarily disabled
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": false, // Too strict for Angular
+    // Code quality settings
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "experimentalDecorators": true,
+    "emitDeclarationOnly": false,
+    "sourceMap": true,
+    "declaration": false,
+    "removeComments": false,
+    "importHelpers": true
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
     "strictInjectionParameters": true,
     "strictInputAccessModifiers": true,
+    "strictInputTypes": true,
+    "strictOutputEventTypes": true,
+    "strictDomEventTypes": true,
+    "strictSafeNavigationTypes": true,
+    "strictDomLocalRefTypes": true,
+    "strictAttributeTypes": true,
+    "strictContextGenerics": true,
+    "strictLiteralTypes": true,
+    "enableBlockSyntax": true,
+    "enableLetSyntax": true,
     "typeCheckHostBindings": true,
-    "strictTemplates": true
+    "strictTemplates": true,
+    "preserveWhitespaces": false,
+    "fullTemplateTypeCheck": true,
+    "strictCheckBinds": true
   },
   "files": [],
   "include": [],
