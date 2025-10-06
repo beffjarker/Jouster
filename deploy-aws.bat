@@ -9,7 +9,7 @@ echo 🚀 Starting Jouster.org deployment to AWS...
 REM Configuration
 set DOMAIN=jouster.org
 set S3_BUCKET=jouster-org-static
-set REGION=us-east-1
+set REGION=us-west-2
 set BUILD_DIR=dist\jouster
 
 echo 📋 Checking prerequisites...
