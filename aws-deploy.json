@@ -1,0 +1,27 @@
+{
+  "deploymentConfig": {
+    "domain": "jouster.org",
+    "region": "us-east-1",
+    "certificateArn": "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERT_ID",
+    "hostedZoneId": "HOSTED_ZONE_ID"
+  },
+  "infrastructure": {
+    "s3Bucket": "jouster-org-static",
+    "cloudFrontDistribution": "jouster-org-cdn",
+    "route53": "jouster.org"
+  },
+  "buildConfig": {
+    "outputPath": "dist/jouster",
+    "environment": "production",
+    "optimization": true,
+    "gzip": true,
+    "bundleSize": "optimized"
+  },
+  "cacheStrategy": {
+    "staticAssets": "1 year",
+    "htmlFiles": "1 day",
+    "jsFiles": "1 year with hash",
+    "cssFiles": "1 year with hash"
+  }
+}
+

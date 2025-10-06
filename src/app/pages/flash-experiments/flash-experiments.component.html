@@ -58,36 +58,98 @@
         </small>
       </div>
 
-      <!-- Explosive Burst Center Point Controls -->
-      <div class="explosive-center-controls"
-           *ngIf="experiment.id === 'particles' && showExplosiveCenterControls"
-           [attr.data-cy]="'explosive-center-controls'">
-        <h4>Explosive Burst Center Point</h4>
+      <!-- Universal Center Point Controls for All Experiments -->
+      <div class="universal-center-controls"
+           [attr.data-cy]="'center-controls-' + experiment.id">
+        <h4>Animation Center Point</h4>
 
         <!-- Control Mode Selection -->
         <div class="control-mode-selector">
           <div class="radio-group">
             <input
               type="radio"
-              id="manual-mode"
-              name="explosiveCenterMode"
+              [id]="'manual-mode-' + experiment.id"
+              [name]="'centerMode-' + experiment.id"
               value="manual"
-              [(ngModel)]="explosiveCenterMode"
-              (change)="onExplosiveCenterModeChange()"
-              data-cy="manual-mode-radio">
-            <label for="manual-mode">Manual Coordinates</label>
+              [checked]="getExperimentMouseMode(experiment.id) === 'manual'"
+              (change)="onExperimentMouseModeChange(experiment.id, 'manual')"
+              [attr.data-cy]="'manual-mode-' + experiment.id">
+            <label [for]="'manual-mode-' + experiment.id">Manual Coordinates</label>
           </div>
           <div class="radio-group">
             <input
               type="radio"
-              id="mouse-mode"
-              name="explosiveCenterMode"
+              [id]="'mouse-mode-' + experiment.id"
+              [name]="'centerMode-' + experiment.id"
               value="mouse"
-              [(ngModel)]="explosiveCenterMode"
-              (change)="onExplosiveCenterModeChange()"
-              data-cy="mouse-mode-radio">
-            <label for="mouse-mode">Follow Mouse</label>
+              [checked]="getExperimentMouseMode(experiment.id) === 'mouse'"
+              (change)="onExperimentMouseModeChange(experiment.id, 'mouse')"
+              [attr.data-cy]="'mouse-mode-' + experiment.id">
+            <label [for]="'mouse-mode-' + experiment.id">Follow Mouse</label>
           </div>
+        </div>
+
+        <!-- Manual Input Controls (shown only in manual mode) -->
+        <div class="center-point-inputs" *ngIf="getExperimentMouseMode(experiment.id) === 'manual'">
+          <div class="input-group">
+            <label [for]="'centerX-' + experiment.id">Center X:</label>
+            <input
+              [id]="'centerX-' + experiment.id"
+              type="number"
+              [value]="getExperimentCenter(experiment.id).x"
+              (input)="onExperimentCenterChange(experiment.id, +($any($event.target).value), getExperimentCenter(experiment.id).y)"
+              min="0"
+              max="400"
+              [attr.data-cy]="'center-x-' + experiment.id">
+          </div>
+          <div class="input-group">
+            <label [for]="'centerY-' + experiment.id">Center Y:</label>
+            <input
+              [id]="'centerY-' + experiment.id"
+              type="number"
+              [value]="getExperimentCenter(experiment.id).y"
+              (input)="onExperimentCenterChange(experiment.id, getExperimentCenter(experiment.id).x, +($any($event.target).value))"
+              min="0"
+              max="300"
+              [attr.data-cy]="'center-y-' + experiment.id">
+          </div>
+        </div>
+
+        <!-- Mouse Mode Instructions (shown only in mouse mode) -->
+        <div class="mouse-mode-instructions" *ngIf="getExperimentMouseMode(experiment.id) === 'mouse'">
+          <p><i class="icon-mouse"></i> Move your mouse over the canvas to control the animation center point.</p>
+          <p>Current position: X={{ getExperimentCenter(experiment.id).x }}, Y={{ getExperimentCenter(experiment.id).y }}</p>
+        </div>
+      </div>
+
+      <!-- Legacy Explosive Burst Center Point Controls (for backward compatibility) -->
+      <div class="explosive-center-controls"
+           *ngIf="experiment.id === 'particles' && showExplosiveCenterControls"
+           [attr.data-cy]="'explosive-center-controls'">
+        <h4>Legacy Explosive Burst Center Point</h4>
+
+        <!-- Control Mode Selection -->
+        <div class="radio-group">
+          <input
+            type="radio"
+            id="manual-mode"
+            name="explosiveCenterMode"
+            value="manual"
+            [(ngModel)]="explosiveCenterMode"
+            (change)="onExplosiveCenterModeChange()"
+            data-cy="manual-mode-radio">
+          <label for="manual-mode">Manual Coordinates</label>
+        </div>
+        <div class="radio-group">
+          <input
+            type="radio"
+            id="mouse-mode"
+            name="explosiveCenterMode"
+            value="mouse"
+            [(ngModel)]="explosiveCenterMode"
+            (change)="onExplosiveCenterModeChange()"
+            data-cy="mouse-mode-radio">
+          <label for="mouse-mode">Follow Mouse</label>
         </div>
 
         <!-- Manual Input Controls (shown only in manual mode) -->

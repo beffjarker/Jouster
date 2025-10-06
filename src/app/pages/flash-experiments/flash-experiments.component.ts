@@ -32,7 +32,12 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
   public networkPresets: Map<string, string> = new Map(); // experimentId -> presetId
   public bouncePresets: Map<string, string> = new Map(); // experimentId -> presetId
 
-  // Center point controls for explosive burst
+  // Universal mouse tracking for all experiments
+  public experimentCenterPoints: Map<string, {x: number, y: number}> = new Map();
+  public experimentMouseModes: Map<string, 'manual' | 'mouse'> = new Map();
+  public activeMouseTracking: Set<string> = new Set();
+
+  // Center point controls for explosive burst (legacy - now part of universal system)
   public explosiveCenterX: number = 200; // Default center X
   public explosiveCenterY: number = 150; // Default center Y
   public showExplosiveCenterControls: boolean = false;
@@ -59,7 +64,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
         name: 'Sine & Cosine Waves',
         description: 'Combined sine and cosine wave patterns with various mathematical relationships',
         category: 'waves',
-        canvasFunction: (canvas, ctx) => this.canvasAnimations.createSineCosineWave(canvas, ctx, this.getWavePreset('sinecosinewaves')),
+        canvasFunction: (canvas, ctx) => {
+          const center = this.getExperimentCenter('sinecosinewaves');
+          return this.canvasAnimations.createSineCosineWave(canvas, ctx, this.getWavePreset('sinecosinewaves'), {
+            centerX: center.x,
+            centerY: center.y,
+            getCenterX: () => this.getExperimentCenter('sinecosinewaves').x,
+            getCenterY: () => this.getExperimentCenter('sinecosinewaves').y
+          });
+        },
         hasPresets: true,
         presets: [
           { id: 'classic', name: 'Classic Sin/Cos', description: 'Traditional sine and cosine waves' },
@@ -77,7 +90,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
         name: 'Spiral Animation',
         description: 'Animated spiral patterns with different mathematical spiral types from original Flash experiments',
         category: 'geometric',
-        canvasFunction: (canvas, ctx) => this.canvasAnimations.createSpiralAnimation(canvas, ctx, this.getSpiralPreset('spiral')),
+        canvasFunction: (canvas, ctx) => {
+          const center = this.getExperimentCenter('spiral');
+          return this.canvasAnimations.createSpiralAnimation(canvas, ctx, this.getSpiralPreset('spiral'), {
+            centerX: center.x,
+            centerY: center.y,
+            getCenterX: () => this.getExperimentCenter('spiral').x,
+            getCenterY: () => this.getExperimentCenter('spiral').y
+          });
+        },
         hasPresets: true,
         presets: [
           { id: 'classic', name: 'Classic Logarithmic', description: 'Traditional logarithmic spiral pattern' },
@@ -96,12 +117,13 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
         category: 'particles',
         canvasFunction: (canvas, ctx) => {
           const preset = this.getParticlePreset('particles');
-          const options = preset === 'exploding' ? {
-            centerX: this.explosiveCenterX,
-            centerY: this.explosiveCenterY,
-            getCenterX: () => this.explosiveCenterX,
-            getCenterY: () => this.explosiveCenterY
-          } : undefined;
+          const center = this.getExperimentCenter('particles');
+          const options = {
+            centerX: preset === 'exploding' ? this.explosiveCenterX : center.x,
+            centerY: preset === 'exploding' ? this.explosiveCenterY : center.y,
+            getCenterX: () => preset === 'exploding' ? this.explosiveCenterX : this.getExperimentCenter('particles').x,
+            getCenterY: () => preset === 'exploding' ? this.explosiveCenterY : this.getExperimentCenter('particles').y
+          };
           return this.canvasAnimations.createParticleSystem(canvas, ctx, preset, options);
         },
         hasPresets: true,
@@ -121,7 +143,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
         name: 'Mouse Following',
         description: 'Interactive mouse following animations with different behavioral patterns from original Flash experiments',
         category: 'interactive',
-        canvasFunction: (canvas, ctx) => this.canvasAnimations.createFollowingAnimation(canvas, ctx, this.getFollowingPreset('following')),
+        canvasFunction: (canvas, ctx) => {
+          const center = this.getExperimentCenter('following');
+          return this.canvasAnimations.createFollowingAnimation(canvas, ctx, this.getFollowingPreset('following'), {
+            centerX: center.x,
+            centerY: center.y,
+            getCenterX: () => this.getExperimentCenter('following').x,
+            getCenterY: () => this.getExperimentCenter('following').y
+          });
+        },
         hasPresets: true,
         presets: [
           { id: 'chain', name: 'Chain Following', description: 'Classic chain following from follow.fla' },
@@ -139,7 +169,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
         name: 'Network Connections',
         description: 'Dynamic network of connected nodes with different topologies from original LinedNet Flash experiments',
         category: 'networks',
-        canvasFunction: (canvas, ctx) => this.canvasAnimations.createNetworkAnimation(canvas, ctx, this.getNetworkPreset('network')),
+        canvasFunction: (canvas, ctx) => {
+          const center = this.getExperimentCenter('network');
+          return this.canvasAnimations.createNetworkAnimation(canvas, ctx, this.getNetworkPreset('network'), {
+            centerX: center.x,
+            centerY: center.y,
+            getCenterX: () => this.getExperimentCenter('network').x,
+            getCenterY: () => this.getExperimentCenter('network').y
+          });
+        },
         hasPresets: true,
         presets: [
           { id: 'classic', name: 'Classic Network', description: 'Classic network from LinedNet.fla' },
@@ -157,7 +195,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
         name: 'Bounce Physics',
         description: 'Realistic bouncing balls with different physics behaviors from original BounceBack Flash experiment',
         category: 'physics',
-        canvasFunction: (canvas, ctx) => this.canvasAnimations.createBounceAnimation(canvas, ctx, this.getBouncePreset('bounce')),
+        canvasFunction: (canvas, ctx) => {
+          const center = this.getExperimentCenter('bounce');
+          return this.canvasAnimations.createBounceAnimation(canvas, ctx, this.getBouncePreset('bounce'), {
+            centerX: center.x,
+            centerY: center.y,
+            getCenterX: () => this.getExperimentCenter('bounce').x,
+            getCenterY: () => this.getExperimentCenter('bounce').y
+          });
+        },
         hasPresets: true,
         presets: [
           { id: 'classic', name: 'Classic Bounce', description: 'Classic bounce physics from BounceBack.fla' },
@@ -175,7 +221,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
         name: 'Golden Ratio & Fibonacci Patterns',
         description: 'Golden ratio, Fibonacci spirals, and sunflower seed arrangements from original Flash experiments',
         category: 'nature',
-        canvasFunction: (canvas, ctx) => this.canvasAnimations.createSunflowerPattern(canvas, ctx, this.getSunflowerPreset('sunflower')),
+        canvasFunction: (canvas, ctx) => {
+          const center = this.getExperimentCenter('sunflower');
+          return this.canvasAnimations.createSunflowerPattern(canvas, ctx, this.getSunflowerPreset('sunflower'), {
+            centerX: center.x,
+            centerY: center.y,
+            getCenterX: () => this.getExperimentCenter('sunflower').x,
+            getCenterY: () => this.getExperimentCenter('sunflower').y
+          });
+        },
         hasPresets: true,
         presets: [
           // Original Sunflower Patterns
@@ -245,6 +299,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
       cleanupFunction();
     });
     this.runningAnimations.clear();
+
+    // Clean up all mouse tracking
+    this.activeMouseTracking.forEach(experimentId => {
+      this.stopUniversalMouseTracking(experimentId);
+    });
+    this.activeMouseTracking.clear();
+
+    // Legacy mouse tracking cleanup
+    this.stopMouseTracking();
   }
 
   public getSunflowerPreset(experimentId: string): string {
@@ -470,5 +533,120 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
     const currentPresetId = this.getPresetForExperiment(experiment.id);
     const preset = experiment.presets.find(p => p.id === currentPresetId);
     return preset?.description || '';
+  }
+
+  // Universal Mouse Tracking Methods for All Experiments
+
+  public initializeExperimentCenter(experimentId: string) {
+    // Initialize default center point for each experiment
+    if (!this.experimentCenterPoints.has(experimentId)) {
+      this.experimentCenterPoints.set(experimentId, { x: 200, y: 150 }); // Default canvas center
+    }
+    if (!this.experimentMouseModes.has(experimentId)) {
+      this.experimentMouseModes.set(experimentId, 'manual');
+    }
+  }
+
+  public getExperimentCenter(experimentId: string): { x: number, y: number } {
+    this.initializeExperimentCenter(experimentId);
+    return this.experimentCenterPoints.get(experimentId)!;
+  }
+
+  public setExperimentCenter(experimentId: string, x: number, y: number) {
+    this.experimentCenterPoints.set(experimentId, { x, y });
+    this.restartExperimentIfRunning(experimentId);
+  }
+
+  public getExperimentMouseMode(experimentId: string): 'manual' | 'mouse' {
+    this.initializeExperimentCenter(experimentId);
+    return this.experimentMouseModes.get(experimentId)!;
+  }
+
+  public setExperimentMouseMode(experimentId: string, mode: 'manual' | 'mouse') {
+    this.experimentMouseModes.set(experimentId, mode);
+
+    if (mode === 'mouse') {
+      this.startUniversalMouseTracking(experimentId);
+    } else {
+      this.stopUniversalMouseTracking(experimentId);
+    }
+
+    this.restartExperimentIfRunning(experimentId);
+  }
+
+  public startUniversalMouseTracking(experimentId: string) {
+    if (!this.activeMouseTracking.has(experimentId)) {
+      this.activeMouseTracking.add(experimentId);
+      const canvas = document.getElementById(`canvas-${experimentId}`) as HTMLCanvasElement;
+      if (canvas) {
+        canvas.addEventListener('mousemove', (event) => this.handleUniversalMouseMove(event, experimentId));
+        canvas.addEventListener('mouseleave', (event) => this.handleUniversalMouseLeave(event, experimentId));
+        canvas.style.cursor = 'crosshair'; // Visual feedback
+      }
+    }
+  }
+
+  public stopUniversalMouseTracking(experimentId: string) {
+    if (this.activeMouseTracking.has(experimentId)) {
+      this.activeMouseTracking.delete(experimentId);
+      const canvas = document.getElementById(`canvas-${experimentId}`) as HTMLCanvasElement;
+      if (canvas) {
+        canvas.removeEventListener('mousemove', (event) => this.handleUniversalMouseMove(event, experimentId));
+        canvas.removeEventListener('mouseleave', (event) => this.handleUniversalMouseLeave(event, experimentId));
+        canvas.style.cursor = 'default'; // Reset cursor
+      }
+    }
+  }
+
+  private handleUniversalMouseMove(event: MouseEvent, experimentId: string) {
+    if (this.getExperimentMouseMode(experimentId) === 'mouse') {
+      const canvas = event.target as HTMLCanvasElement;
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.round(event.clientX - rect.left);
+      const y = Math.round(event.clientY - rect.top);
+
+      // Update the center point without restarting the experiment for performance
+      this.experimentCenterPoints.set(experimentId, { x, y });
+
+      // For backward compatibility with explosive particles
+      if (experimentId === 'particles' && this.getParticlePreset('particles') === 'exploding') {
+        this.explosiveCenterX = x;
+        this.explosiveCenterY = y;
+      }
+    }
+  }
+
+  private handleUniversalMouseLeave(event: MouseEvent, experimentId: string) {
+    if (this.getExperimentMouseMode(experimentId) === 'mouse') {
+      // Reset to canvas center when mouse leaves
+      const centerPoint = { x: 200, y: 150 }; // Default canvas center
+      this.experimentCenterPoints.set(experimentId, centerPoint);
+
+      // For backward compatibility with explosive particles
+      if (experimentId === 'particles') {
+        this.explosiveCenterX = centerPoint.x;
+        this.explosiveCenterY = centerPoint.y;
+      }
+    }
+  }
+
+  private restartExperimentIfRunning(experimentId: string) {
+    const experiment = this.experiments.find(exp => exp.id === experimentId);
+    if (experiment && this.runningAnimations.has(experimentId)) {
+      const canvas = document.getElementById(`canvas-${experimentId}`) as HTMLCanvasElement;
+      const ctx = canvas.getContext('2d')!;
+      this.stopExperiment(experiment);
+      this.canvasAnimations.clearCanvas(canvas, ctx);
+      const cleanupFunction = experiment.canvasFunction(canvas, ctx);
+      this.runningAnimations.set(experiment.id, cleanupFunction);
+    }
+  }
+
+  public onExperimentCenterChange(experimentId: string, x: number, y: number) {
+    this.setExperimentCenter(experimentId, x, y);
+  }
+
+  public onExperimentMouseModeChange(experimentId: string, mode: 'manual' | 'mouse') {
+    this.setExperimentMouseMode(experimentId, mode);
   }
 }

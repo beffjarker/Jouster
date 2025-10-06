@@ -35,9 +35,22 @@ export class CanvasAnimationsService {
   /**
    * Creates combined sine and cosine wave visualization with different presets
    */
-  public createSineCosineWave(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'classic'): AnimationCleanup {
+  public createSineCosineWave(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'classic', options?: {
+    centerX?: number;
+    centerY?: number;
+    getCenterX?: () => number;
+    getCenterY?: () => number;
+  }): AnimationCleanup {
     let phase = 0;
     let animationId: number;
+
+    // Default center point
+    const defaultCenterX = canvas.width / 2;
+    const defaultCenterY = canvas.height / 2;
+
+    // Use provided options or defaults
+    const getCenterX = options?.getCenterX || (() => options?.centerX ?? defaultCenterX);
+    const getCenterY = options?.getCenterY || (() => options?.centerY ?? defaultCenterY);
 
     // Wave presets with different combinations and parameters
     const presets: Record<string, {
@@ -169,9 +182,22 @@ export class CanvasAnimationsService {
   /**
    * Creates a spiral animation using trigonometric functions with different presets
    */
-  public createSpiralAnimation(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'classic'): AnimationCleanup {
+  public createSpiralAnimation(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'classic', options?: {
+    centerX?: number;
+    centerY?: number;
+    getCenterX?: () => number;
+    getCenterY?: () => number;
+  }): AnimationCleanup {
     let angle = 0;
     let animationId: number;
+
+    // Default center point
+    const defaultCenterX = canvas.width / 2;
+    const defaultCenterY = canvas.height / 2;
+
+    // Use provided options or defaults
+    const getCenterX = options?.getCenterX || (() => options?.centerX ?? defaultCenterX);
+    const getCenterY = options?.getCenterY || (() => options?.centerY ?? defaultCenterY);
 
     // Spiral presets based on original Flash experiments
     const presets: Record<string, {
@@ -606,7 +632,12 @@ export class CanvasAnimationsService {
   /**
    * Creates a following/mouse tracking animation with different presets
    */
-  public createFollowingAnimation(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'chain'): AnimationCleanup {
+  public createFollowingAnimation(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'chain', options?: {
+    centerX?: number;
+    centerY?: number;
+    getCenterX?: () => number;
+    getCenterY?: () => number;
+  }): AnimationCleanup {
     const followers: Follower[] = [];
     let mouseX = canvas.width / 2;
     let mouseY = canvas.height / 2;
@@ -934,7 +965,12 @@ export class CanvasAnimationsService {
   /**
    * Creates a network/line connection animation
    */
-  public createNetworkAnimation(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'classic'): AnimationCleanup {
+  public createNetworkAnimation(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'classic', options?: {
+    centerX?: number;
+    centerY?: number;
+    getCenterX?: () => number;
+    getCenterY?: () => number;
+  }): AnimationCleanup {
     const nodes: NetworkNode[] = [];
     let animationId: number;
 
@@ -1142,7 +1178,12 @@ export class CanvasAnimationsService {
   /**
    * Creates a bounce-back physics animation with different presets
    */
-  public createBounceAnimation(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'classic'): AnimationCleanup {
+  public createBounceAnimation(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'classic', options?: {
+    centerX?: number;
+    centerY?: number;
+    getCenterX?: () => number;
+    getCenterY?: () => number;
+  }): AnimationCleanup {
     const balls: Array<{x: number, y: number, vx: number, vy: number, radius: number, color: string, mass?: number, elasticity?: number}> = [];
     let animationId: number;
 
@@ -1448,7 +1489,12 @@ export class CanvasAnimationsService {
    * Each preset replicates the mathematical patterns from the original sunflower_*.swf files
    * Now includes Fibonacci spiral variations from fibonacci_sequence.fla and golden_ratio*.fla files
    */
-  public createSunflowerPattern(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'golden'): AnimationCleanup {
+  public createSunflowerPattern(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'golden', options?: {
+    centerX?: number;
+    centerY?: number;
+    getCenterX?: () => number;
+    getCenterY?: () => number;
+  }): AnimationCleanup {
     let animationId: number;
     let count = 0;
     let angle = 0;
