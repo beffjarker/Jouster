@@ -35,7 +35,7 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Build application
-        run: npm run build:jouster-ui
+        run: npm run build:qa
 
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
