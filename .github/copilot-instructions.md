@@ -17,12 +17,14 @@
 - Never commit secrets or sensitive data
 - Always review Copilot/LLM suggestions for correctness, security, and style
 - When in doubt, search the workspace or ask for clarification
+- Use GitHub CLI for repository operations when available
+- **NEVER commit or push code without explicit user permission**
 
 ---
 
 ## 1. How to Use This File
 
-- **LLMs (Copilot, ChatGPT, etc.):** Treat every rule as mandatory. Use semantic search and Nx tools before generating or editing code. If unsure, search for examples or ask for clarification.
+- **LLMs (Copilot, ChatGPT, etc.):** Treat every rule as mandatory. Use semantic search and Nx tools before generating or editing code. If unsure, search for examples or ask for clarification. **ALWAYS ask for permission before committing or pushing any changes.**
 - **Humans:** Review and follow these rules for all code, config, and documentation changes. Use as a checklist for PRs and reviews.
 
 ---
@@ -114,6 +116,13 @@ class UserProfile {}
 - **Branch names:** `[initials]-[rallyticketnumber]-[short-description]`
   - **Example:** `pd-US2234-update-roles`
 - All code must pass lint, test, and build checks before merging.
+- **GitHub CLI:** Use `gh` commands for efficient repository operations:
+  - Create branches: `gh repo create` or work with existing repos
+  - Create PRs: `gh pr create --title "feat: description" --body "Details"`
+  - Review PRs: `gh pr review` with appropriate comments
+  - Merge PRs: `gh pr merge` with appropriate merge strategy
+  - Check CI status: `gh run list` and `gh run view`
+- **CRITICAL:** Never commit or push without explicit user permission. Always stop and ask before executing `git commit`, `git push`, or equivalent GitHub CLI commands.
 
 ---
 
@@ -188,6 +197,7 @@ class UserProfile {}
 - Prompt Copilot/LLMs with clear, specific instructions.
 - Use semantic search to find examples/patterns before generating code.
 - Review Copilot/LLM-generated code for correctness, security, and style before committing.
+- **MANDATORY:** Always ask for explicit user permission before committing or pushing any changes.
 
 ---
 
@@ -200,34 +210,51 @@ class UserProfile {}
 
 ---
 
-## 18. If Unsure
+## 18. GitHub CLI Integration
 
-- **If you are unsure about a pattern, convention, or implementation:**
-  - Use semantic search to find examples in the codebase.
-  - Review Nx documentation and `.github/instructions/nx.instructions.md`.
-  - Ask for clarification if ambiguity remains.
+- **GitHub CLI is available** and should be used for repository operations
+- **IMPORTANT:** Before using any commit or push commands, always ask for user permission first
+- **Common GitHub CLI commands for this workflow:**
+  - `gh repo view` - Get repository information
+  - `gh branch create feature-branch-name` - Create and switch to new branch
+  - `gh pr create --draft` - Create draft PR for work in progress
+  - `gh pr create --title "Title" --body "Description"` - Create PR with details
+  - `gh pr list` - List open PRs
+  - `gh pr view` - View PR details
+  - `gh pr review --approve` - Approve PR
+  - `gh pr merge --squash` - Merge PR with squash
+  - `gh run list` - View workflow runs
+  - `gh run view` - View specific workflow run details
+  - `gh issue create` - Create issues for bugs or features
+- **Use GitHub CLI for automation:**
+  - Check CI/CD status before merging
+  - Create PRs with proper templates and labels
+  - Link issues to PRs automatically
+  - Set up branch protection and status checks
+- **CRITICAL SAFETY RULE:** Never execute commit or push operations without explicit user consent. Always ask: "Should I commit and push these changes?" before proceeding.
 
 ---
 
-## 19. Example Prompts & Responses
+## 19. Git Safety & Permission Protocol
 
-**Prompt:**
-
-> Add a new shared date utility to the monorepo.
-
-**Ideal LLM Response:**
-
-- Use semantic search to check for existing date utilities in `libs/`.
-- If none exist, generate a new library in `libs/` using Nx generators.
-- Place the utility in the new/existing shared lib, following naming and code style conventions.
-- Add tests alongside the utility with `.spec.ts` suffix.
-- Update or create `README.md` for the lib.
-
----
-
-**Summary:**
-
-- Follow these rules for all code, config, and documentation changes.
-- Prioritize reuse, clarity, and security.
-- When in doubt, search the workspace or ask for clarification.
-- These instructions are for both Copilot/LLMs and human contributors.
+- **ABSOLUTE RULE:** Never commit or push code without explicit user permission
+- **Before any commit operation:**
+  1. Show a summary of changes to be committed
+  2. Ask: "Should I commit these changes with message: [commit message]?"
+  3. Wait for explicit approval before proceeding
+- **Before any push operation:**
+  1. Show what will be pushed (branch, commits)
+  2. Ask: "Should I push these commits to [branch name]?"
+  3. Wait for explicit approval before proceeding
+- **Safe operations that don't require permission:**
+  - Reading files
+  - Editing files (without committing)
+  - Running tests
+  - Building the project
+  - Checking git status
+  - Creating branches (local only)
+- **Operations requiring permission:**
+  - `git commit` or equivalent
+  - `git push` or equivalent
+  - `gh pr create` (creates remote branch)
+  - Any operation that creates or modifies remote repository state
