@@ -28,7 +28,7 @@ jobs:
         run: npm install
 
       - name: Build application
-        run: npx nx build jouster-ui --skip-nx-cache
+        run: npx nx build jouster-ui --skip-nx-cache --optimization=false
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
