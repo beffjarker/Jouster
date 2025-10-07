@@ -1,13 +1,13 @@
 {
-  "conversationId": "conv_jouster_jasmine_jest_20241004",
+  "conversationId": "conv_jouster_jasmine_jest_20251004",
   "title": "Jasmine to Jest Spies Conversion",
   "project": "Jouster",
-  "startTime": "2024-10-04T15:30:00Z",
-  "endTime": "2024-10-04T16:15:00Z",
+  "startTime": "2025-10-04T15:30:00Z",
+  "endTime": "2025-10-04T16:15:00Z",
   "messages": [
     {
       "messageId": "msg_001",
-      "timestamp": 1728053400000,
+      "timestamp": 1759588200000,
       "role": "user",
       "content": "update your instructions to save our conversation history before each time you prompt me for input. The last thing we were working on was updating jasmine spies to jest spies.",
       "metadata": {
@@ -16,7 +16,7 @@
     },
     {
       "messageId": "msg_002",
-      "timestamp": 1728053460000,
+      "timestamp": 1759588260000,
       "role": "assistant",
       "content": "Updated copilot instructions to include saving conversation history before prompting user for input. Successfully converted all jasmine spies to jest spies in music.component.spec.ts following @ngneat/spectator best practices.",
       "metadata": {
@@ -64,4 +64,3 @@
     "spyFramework": "Jest mocks and spies"
   }
 }
-
