@@ -7,7 +7,6 @@
     "lib": ["es2020", "dom"],
     "paths": {},
     "isolatedModules": true,
-    // Enhanced strict mode settings
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -17,14 +16,12 @@
     "noImplicitThis": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": false, // Temporarily disabled
-    "exactOptionalPropertyTypes": false, // Temporarily disabled
-    // Additional type checking - temporarily relaxed
-    "noUnusedLocals": false, // Temporarily disabled
-    "noUnusedParameters": false, // Temporarily disabled
+    "noUncheckedIndexedAccess": false,
+    "exactOptionalPropertyTypes": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noImplicitOverride": true,
-    "noPropertyAccessFromIndexSignature": false, // Too strict for Angular
-    // Code quality settings
+    "noPropertyAccessFromIndexSignature": false,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,

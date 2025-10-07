@@ -1,0 +1,72 @@
+<div class="navigation-container" [class.menu-open]="isMenuOpen">
+
+  <!-- Hamburger Button (Fixed on Left) -->
+  <button
+    class="hamburger-button"
+    type="button"
+    (click)="toggleMenu()"
+    [attr.aria-expanded]="isMenuOpen"
+    aria-label="Toggle navigation menu">
+    <span class="hamburger-line" [class.active]="isMenuOpen"></span>
+    <span class="hamburger-line" [class.active]="isMenuOpen"></span>
+    <span class="hamburger-line" [class.active]="isMenuOpen"></span>
+  </button>
+
+  <!-- Navigation Sidebar (Slides in from Left) -->
+  <nav
+    class="navigation-sidebar"
+    [class.open]="isMenuOpen"
+    role="navigation"
+    aria-label="Main navigation">
+
+    <!-- Header -->
+    <div class="nav-header">
+      <h2 class="nav-title">Jouster</h2>
+      <p class="nav-subtitle">Interactive Platform</p>
+    </div>
+
+    <!-- Navigation Menu -->
+    <ul class="nav-menu" role="menubar">
+      <li
+        *ngFor="let item of navigationItems; trackBy: trackByPath"
+        class="nav-item"
+        [class.active]="isActiveRoute(item.path)"
+        role="none">
+
+        <a
+          class="nav-link"
+          [routerLink]="item.path"
+          role="menuitem"
+          [attr.aria-current]="isActiveRoute(item.path) ? 'page' : null"
+          (click)="onNavigate(item.path)">
+
+          <span class="nav-icon" aria-hidden="true">{{ item.icon }}</span>
+
+          <div class="nav-content">
+            <span class="nav-label">{{ item.label }}</span>
+            <span class="nav-description" *ngIf="item.description">{{ item.description }}</span>
+          </div>
+
+          <span class="nav-arrow" *ngIf="isActiveRoute(item.path)" aria-hidden="true">→</span>
+        </a>
+      </li>
+    </ul>
+
+    <!-- Footer Info -->
+    <div class="nav-footer">
+      <p class="nav-status">
+        <span class="status-dot"></span>
+        Live Site
+      </p>
+      <p class="nav-build-info">v1.0.0 • 96.75 kB</p>
+    </div>
+  </nav>
+
+  <!-- Overlay (Mobile Only) -->
+  <div
+    class="nav-overlay"
+    *ngIf="isMobile && isMenuOpen"
+    (click)="closeMenu()"
+    aria-hidden="true">
+  </div>
+</div>

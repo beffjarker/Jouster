@@ -1,37 +1,19 @@
 {
   "recommendations": [
-    // Essential Angular development
     "angular.ng-template",
     "ms-vscode.vscode-typescript-next",
-
-    // Linting and formatting
     "dbaeumer.vscode-eslint",
     "esbenp.prettier-vscode",
-
-    // Nx workspace support
     "nrwl.angular-console",
-
-    // TypeScript enhancements
     "usernamehw.errorlens",
     "bradlc.vscode-tailwindcss",
-
-    // Git integration
     "eamodio.gitlens",
-
-    // HTML/CSS enhancements
     "formulahendry.auto-rename-tag",
     "christian-kohler.path-intellisense",
-
-    // Code quality
     "streetsidesoftware.code-spell-checker",
     "ms-vscode.todo-highlight",
-
-    // Debugging
     "ms-vscode.js-debug",
-
-    // Productivity
     "ms-vscode.vscode-json",
     "redhat.vscode-yaml"
   ]
 }
-
