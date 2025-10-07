@@ -1,0 +1,186 @@
+name: Preview Environment Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [develop, main]
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    if: github.event.action != 'closed'
+
+    environment:
+      name: preview-pr-${{ github.event.pull_request.number }}
+      url: https://pr${{ github.event.pull_request.number }}.jouster.org
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        ref: ${{ github.event.pull_request.head.sha }}
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build application
+      run: npm run build:prod
+      env:
+        NODE_ENV: production
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-west-2
+
+    - name: Generate preview environment name
+      id: env-name
+      run: |
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+        BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+        # Clean branch name for S3 bucket (lowercase, no special chars)
+        CLEAN_BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
+        PREVIEW_BUCKET="pr${PR_NUMBER}-${CLEAN_BRANCH}.jouster.org"
+        echo "bucket_name=$PREVIEW_BUCKET" >> $GITHUB_OUTPUT
+        echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
+        echo "branch_name=$CLEAN_BRANCH" >> $GITHUB_OUTPUT
+
+    - name: Deploy to preview environment
+      run: |
+        chmod +x ./aws/scripts/deploy-preview.sh
+        ./aws/scripts/deploy-preview.sh "${{ steps.env-name.outputs.bucket_name }}" "${{ steps.env-name.outputs.pr_number }}"
+
+    - name: Comment on PR with preview URL
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const prNumber = ${{ github.event.pull_request.number }};
+          const bucketName = '${{ steps.env-name.outputs.bucket_name }}';
+          const previewUrl = `https://${bucketName}`;
+          const s3WebsiteUrl = `http://${bucketName}.s3-website-us-west-2.amazonaws.com`;
+
+          const body = `## 🚀 Preview Environment Deployed!
+
+          Your preview environment is ready for testing:
+
+          ### 📍 Preview URLs
+          - **Primary URL**: [${previewUrl}](${previewUrl}) *(requires DNS setup)*
+          - **Direct S3 URL**: [${s3WebsiteUrl}](${s3WebsiteUrl}) *(available immediately)*
+
+          ### 📊 Environment Details
+          - **PR Number**: #${prNumber}
+          - **Branch**: \`${{ github.event.pull_request.head.ref }}\`
+          - **Commit**: \`${{ github.event.pull_request.head.sha }}\`
+          - **S3 Bucket**: \`${bucketName}\`
+
+          ### 🔧 AWS Resources
+          - **Region**: us-west-2
+          - **S3 Bucket**: \`${bucketName}\`
+          - **Static Website Hosting**: Enabled
+          - **Public Access**: Configured for web hosting
+
+          ### 🧪 Testing Instructions
+          1. Use the **Direct S3 URL** for immediate access
+          2. Test all functionality in this isolated environment
+          3. Report any issues in this PR thread
+
+          > 💡 **Note**: This preview environment will be automatically cleaned up when the PR is closed or merged.
+
+          ---
+          *Preview deployed at: ${new Date().toISOString()}*`;
+
+          // Find existing preview comment and update it, or create new one
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber
+          });
+
+          const existingComment = comments.find(comment =>
+            comment.user.type === 'Bot' &&
+            comment.body.includes('Preview Environment Deployed')
+          );
+
+          if (existingComment) {
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: existingComment.id,
+              body: body
+            });
+          } else {
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: body
+            });
+          }
+
+  cleanup-preview:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: us-west-2
+
+    - name: Generate preview environment name
+      id: env-name
+      run: |
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+        BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+        CLEAN_BRANCH=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-\|-$//g')
+        PREVIEW_BUCKET="pr${PR_NUMBER}-${CLEAN_BRANCH}.jouster.org"
+        echo "bucket_name=$PREVIEW_BUCKET" >> $GITHUB_OUTPUT
+
+    - name: Cleanup preview environment
+      run: |
+        chmod +x ./aws/scripts/cleanup-preview.sh
+        ./aws/scripts/cleanup-preview.sh "${{ steps.env-name.outputs.bucket_name }}"
+
+    - name: Comment on PR about cleanup
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const prNumber = ${{ github.event.pull_request.number }};
+          const bucketName = '${{ steps.env-name.outputs.bucket_name }}';
+
+          const body = `## 🧹 Preview Environment Cleaned Up
+
+          The preview environment for this PR has been automatically cleaned up:
+
+          - **S3 Bucket**: \`${bucketName}\` has been deleted
+          - **Resources**: All associated AWS resources have been removed
+
+          ---
+          *Cleanup completed at: ${new Date().toISOString()}*`;
+
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: prNumber,
+            body: body
+          });

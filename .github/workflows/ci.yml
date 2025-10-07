@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
   pull_request:
 
 permissions:
@@ -19,25 +20,48 @@ jobs:
           filter: tree:0
           fetch-depth: 0
 
-      # This enables task distribution via Nx Cloud
-      # Run this command as early as possible, before dependencies are installed
-      # Learn more at https://nx.dev/ci/reference/nx-cloud-cli#npx-nxcloud-startcirun
-      # Uncomment this line to enable task distribution
-      # - run: npx nx start-ci-run --distribute-on="3 linux-medium-js" --stop-agents-after="e2e-ci"
-
       # Cache node_modules
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
-      - run: npm ci --legacy-peer-deps
+      - run: npm ci
       - run: npx cypress install
 
-      # Prepend any command with "nx-cloud record --" to record its logs to Nx Cloud
-      # - run: npx nx-cloud record -- echo Hello World
-      # When you enable task distribution, run the e2e-ci task instead of e2e
+      # Run tests, linting, and build
       - run: npx nx run-many -t lint test build e2e
-      # Nx Cloud recommends fixes for failures to help you get CI green faster. Learn more: https://nx.dev/ci/features/self-healing-ci
+
+      # Nx Cloud fixes for CI issues
       - run: npx nx fix-ci
         if: always()
+
+  # Quality checks specific to PRs
+  pr-checks:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - run: npm ci
+
+      # Check for dependency issues
+      - name: Validate dependencies
+        run: |
+          npm ls --depth=0 || echo "Some dependency issues found"
+          npx nx graph --file=dependency-graph.json
+
+      # Run affected tests only for PRs
+      - name: Run affected tests
+        run: npx nx affected -t test --base=origin/develop
+
+      # Build affected apps
+      - name: Build affected apps
+        run: npx nx affected -t build --base=origin/develop
