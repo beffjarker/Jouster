@@ -1,0 +1,44 @@
+name: Cleanup Preview Deployment
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [closed]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  cleanup-preview:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::924677642513:role/GitHubActionsPreviewRole
+          aws-region: us-west-2
+
+      - name: Get PR number
+        id: pr
+        run: echo "number=${{ github.event.number }}" >> $GITHUB_OUTPUT
+
+      - name: Delete S3 bucket and contents
+        run: |
+          BUCKET_NAME="jouster-preview-pr-${{ steps.pr.outputs.number }}"
+
+          # Check if bucket exists before trying to delete
+          if aws s3api head-bucket --bucket $BUCKET_NAME 2>/dev/null; then
+            echo "Deleting preview bucket: $BUCKET_NAME"
+
+            # Delete all objects in the bucket first
+            aws s3 rm s3://$BUCKET_NAME --recursive
+
+            # Delete the bucket
+            aws s3api delete-bucket --bucket $BUCKET_NAME --region us-west-2
+
+            echo "Preview environment cleaned up successfully"
+          else
+            echo "Preview bucket $BUCKET_NAME not found, nothing to clean up"
+          fi
