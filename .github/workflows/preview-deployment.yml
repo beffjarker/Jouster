@@ -35,7 +35,7 @@ jobs:
         run: npm install --legacy-peer-deps
 
       - name: Build application
-        run: NX_CLOUD_DISTRIBUTED_EXECUTION=false npm run build:qa
+        run: npx nx build --configuration=development --skip-nx-cache
 
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
