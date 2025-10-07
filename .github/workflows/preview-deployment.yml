@@ -187,4 +187,3 @@ jobs:
           else
             echo "Preview bucket $BUCKET_NAME does not exist, skipping cleanup"
           fi
-<!-- Force trigger workflow -->
