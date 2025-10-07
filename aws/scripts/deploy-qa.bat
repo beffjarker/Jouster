@@ -7,7 +7,7 @@ echo JOUSTER QA DEPLOYMENT
 echo ========================================
 
 echo [1/5] Building application for QA...
-call npm run build
+call npm run build:qa
 if %ERRORLEVEL% NEQ 0 (
     echo ❌ Build failed!
     pause
@@ -26,8 +26,8 @@ if %ERRORLEVEL% NEQ 0 (
     REM Remove public access blocks
     aws s3api put-public-access-block --bucket qa.jouster.org --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
 
-    REM Apply public read policy
-    aws s3api put-bucket-policy --bucket qa.jouster.org --policy file://..\policies\qa-bucket-policy.json
+    REM Apply public read policy using correct path
+    aws s3api put-bucket-policy --bucket qa.jouster.org --policy file://aws/policies/qa-bucket-policy.json
 
     echo ✅ QA S3 bucket created and configured
 ) else (
@@ -35,7 +35,8 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo [3/5] Deploying application to QA S3 bucket...
-aws s3 sync dist\ s3://qa.jouster.org --delete --region us-west-2
+REM Deploy from the correct browser directory to root of S3 bucket
+aws s3 sync dist/jouster/browser/ s3://qa.jouster.org --delete --region us-west-2
 if %ERRORLEVEL% NEQ 0 (
     echo ❌ Deployment failed!
     pause

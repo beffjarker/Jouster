@@ -14,6 +14,8 @@
     "lint:fix": "nx lint --fix",
     "deploy:qa": "npm run build:qa && aws\\scripts\\deploy-qa.bat",
     "deploy:qa:sh": "npm run build:qa && ./aws/scripts/deploy-qa.sh",
+    "deploy:staging": "npm run build:prod && aws\\scripts\\deploy-staging.bat",
+    "deploy:staging:sh": "npm run build:prod && ./aws/scripts/deploy-staging.sh",
     "start:full": "node start-full-stack.js",
     "start:full:bat": "cmd /c start-full-stack.bat",
     "start:full:legacy": "npm run db:start && npm run db:wait && npm run db:init && npm run backend:start && npm run frontend:start",

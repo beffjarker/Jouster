@@ -10,13 +10,25 @@
     "dnsEnabled": true,
     "sslEnabled": false
   },
+  "staging": {
+    "domain": "stg.jouster.org",
+    "region": "us-west-2",
+    "bucket": "stg.jouster.org",
+    "branch": "main",
+    "buildCommand": "npm run build:prod",
+    "distFolder": "dist",
+    "autoDeployOnPR": true,
+    "dnsEnabled": true,
+    "sslEnabled": false,
+    "environment": "green"
+  },
   "production": {
     "domain": "jouster.org",
     "wwwDomain": "www.jouster.org",
     "region": "us-west-2",
     "bucket": "www.jouster.org",
     "branch": "main",
-    "buildCommand": "npm run build",
+    "buildCommand": "npm run build:prod",
     "distFolder": "dist",
     "autoDeployOnPR": false,
     "dnsEnabled": true,
