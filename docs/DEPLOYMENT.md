@@ -2,14 +2,112 @@
 
 This guide covers all deployment options for the Jouster platform, from local development to production AWS infrastructure.
 
+## 🚨 TODO - High Priority
+
+### SSL Certificate Setup
+- **Priority**: HIGH - Required for production HTTPS
+- **Current Status**: Site running on HTTP only
+- **Action Required**: Set up SSL/TLS certificate for jouster.org domain
+- **Options to investigate**:
+  - AWS Certificate Manager (ACM) for free SSL certificates
+  - CloudFront distribution for HTTPS + CDN benefits
+  - Route 53 for custom domain routing
+- **Impact**: Security, SEO, and professional appearance
+- **Target**: Complete before major launch
+
+### Custom Domain Routing (jouster.org)
+- **Priority**: HIGH - Professional domain required
+- **Current Status**: Using S3 website endpoint URL
+- **Action Required**: Route jouster.org to production infrastructure
+- **Implementation Steps**:
+  - Configure Route 53 hosted zone for jouster.org
+  - Set up CNAME/ALIAS records pointing to CloudFront distribution
+  - Update DNS nameservers with domain registrar
+  - Test domain propagation and routing
+- **Dependencies**: SSL Certificate setup (above)
+- **Impact**: Professional branding, easier user access
+- **Target**: Complete with SSL certificate implementation
+
+### Blue-Green Deployment Strategy
+- **Priority**: HIGH - Zero-downtime deployments
+- **Current Status**: Single environment with manual deployment
+- **Action Required**: Implement blue-green deployment pipeline
+- **Implementation Options**:
+  - **Option A**: Dual S3 buckets with Route 53 weighted routing
+  - **Option B**: CloudFront with multiple origins and instant switching
+  - **Option C**: AWS CodeDeploy with blue-green configuration
+- **Benefits**: 
+  - Zero-downtime deployments
+  - Instant rollback capability
+  - Production testing before traffic switch
+  - Reduced deployment risk
+- **Components Needed**:
+  - Production environment (blue)
+  - Staging environment (green) 
+  - Automated health checks
+  - Traffic switching mechanism
+- **Target**: Implement after custom domain setup
+
 ## 🌐 Current Live Deployment
 
-**Production Site**: [http://jouster-org-static.s3-website-us-east-1.amazonaws.com](http://jouster-org-static.s3-website-us-east-1.amazonaws.com)
+**Production Site (BLUE)**: [http://jouster-org-static.s3-website-us-east-1.amazonaws.com](http://jouster-org-static.s3-website-us-east-1.amazonaws.com)
+**Staging Site (GREEN)**: [http://jouster-org-green.s3-website-us-east-1.amazonaws.com](http://jouster-org-green.s3-website-us-east-1.amazonaws.com)
 
-**Status**: ✅ Live and operational
+**Status**: ✅ Blue-Green deployment infrastructure operational
 **Last Deployed**: October 6, 2025
-**Build Size**: 96.75 kB compressed
-**Infrastructure**: AWS S3 Static Website Hosting
+**Build Size**: 95.27 kB compressed
+**Infrastructure**: AWS S3 Static Website Hosting with Blue-Green Strategy
+**Domain Status**: Ready for jouster.org routing (requires Route 53 permissions)
+
+## 🔄 Blue-Green Deployment System
+
+### Current Infrastructure
+- **BLUE Environment** (Production): `jouster-org-static`
+- **GREEN Environment** (Staging): `jouster-org-green` 
+- **Automated Scripts**: Complete deployment pipeline with safety checks
+- **Backup System**: Automatic backups before promotions
+- **Rollback Capability**: Instant rollback to previous versions
+
+### Deployment Scripts Available
+- `deploy-manager.bat` - Interactive deployment management
+- `deploy-green.bat` - Deploy to staging for testing
+- `deploy-blue-green-promote.bat` - Promote staging to production
+- `deploy-blue-green-rollback.bat` - Rollback to previous backup
+
+### Blue-Green Workflow
+1. **Deploy to GREEN** (staging) for testing
+2. **Test thoroughly** in staging environment
+3. **Promote GREEN to BLUE** (zero-downtime switch)
+4. **Rollback available** if issues occur
+
+## 🚨 Route 53 Permissions Required
+
+**Current Issue**: AWS user `jouster-dev` lacks Route 53 permissions for custom domain routing.
+
+**Required Permissions**:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "route53:ListHostedZones",
+        "route53:GetHostedZone",
+        "route53:ChangeResourceRecordSets",
+        "route53:GetChange"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+**Next Steps for jouster.org Routing**:
+1. Add Route 53 permissions to IAM user
+2. Create hosted zone for jouster.org
+3. Set up ALIAS records pointing to CloudFront (with SSL)
+4. Update domain registrar nameservers
 
 ## 📋 Deployment Options
 

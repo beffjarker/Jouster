@@ -28,7 +28,16 @@
 
   <!-- Experiments Grid -->
   <div class="experiments-grid" data-cy="experiments-grid">
-    <div *ngFor="let experiment of filteredExperiments" class="experiment-card" [attr.data-cy]="'experiment-card-' + experiment.id">
+    <div *ngFor="let experiment of filteredExperiments"
+         class="experiment-card"
+         [class]="getHighlightClass(experiment.id)"
+         [attr.data-cy]="'experiment-card-' + experiment.id">
+
+      <!-- Highlight Badge -->
+      <div class="highlight-badge" *ngIf="isHighlighted(experiment.id)" [attr.data-cy]="'highlight-badge-' + experiment.id">
+        {{ getHighlightBadge(experiment.id) }}
+      </div>
+
       <div class="experiment-header">
         <h3 [attr.data-cy]="'experiment-title-' + experiment.id">{{ experiment.name }}</h3>
         <span class="category-tag" [class]="'category-' + experiment.category" [attr.data-cy]="'experiment-category-' + experiment.id">

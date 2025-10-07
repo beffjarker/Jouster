@@ -58,9 +58,9 @@
 // Experiments Grid
 .experiments-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
-  gap: 25px;
-  margin-bottom: 40px;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+  gap: 30px;
+  margin-top: 30px;
 
   @media (max-width: 768px) {
     grid-template-columns: 1fr;
@@ -69,17 +69,48 @@
 
 .experiment-card {
   background: white;
-  border-radius: 15px;
+  border-radius: 12px;
   padding: 25px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  position: relative;
   border: 1px solid #f0f0f0;
   display: flex;
   flex-direction: column;
 
   &:hover {
     transform: translateY(-5px);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+
+  // Highlighted experiment styling
+  &.highlighted {
+    border: 2px solid #3498db;
+    box-shadow: 0 0 20px rgba(52, 152, 219, 0.3);
+    background: linear-gradient(135deg, #ffffff 0%, #f8fcff 100%);
+
+    &:hover {
+      box-shadow: 0 8px 30px rgba(52, 152, 219, 0.4);
+      transform: translateY(-8px);
+    }
+  }
+
+  // Featured experiment styling (enhanced highlighting)
+  &.featured {
+    border: 3px solid #e74c3c;
+    box-shadow: 0 0 25px rgba(231, 76, 60, 0.4);
+    background: linear-gradient(135deg, #ffffff 0%, #fef9f9 100%);
+    transform: scale(1.02);
+
+    &:hover {
+      box-shadow: 0 12px 35px rgba(231, 76, 60, 0.5);
+      transform: scale(1.02) translateY(-10px);
+    }
+  }
+
+  // Pulse animation for highlights
+  &.pulse-highlight {
+    animation: highlightPulse 2s ease-in-out infinite;
   }
 
   .experiment-header {
@@ -563,5 +594,53 @@
 
   .category-nature .category-tag {
     box-shadow: 0 0 20px rgba(150, 206, 180, 0.5);
+  }
+}
+
+// Highlight badge styling
+.highlight-badge {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  background: linear-gradient(45deg, #e74c3c, #c0392b);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  box-shadow: 0 3px 10px rgba(231, 76, 60, 0.4);
+  z-index: 10;
+  transform: rotate(5deg);
+
+  &::before {
+    content: '⭐';
+    margin-right: 4px;
+  }
+}
+
+// Pulse animation keyframes
+@keyframes highlightPulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(52, 152, 219, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(52, 152, 219, 0.6);
+  }
+}
+
+// Featured pulse animation (stronger effect)
+.experiment-card.featured.pulse-highlight {
+  animation: featuredPulse 2s ease-in-out infinite;
+}
+
+@keyframes featuredPulse {
+  0%, 100% {
+    box-shadow: 0 0 25px rgba(231, 76, 60, 0.4);
+    border-color: #e74c3c;
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(231, 76, 60, 0.7);
+    border-color: #c0392b;
   }
 }

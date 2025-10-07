@@ -26,9 +26,8 @@ export class NavigationComponent implements OnInit, OnDestroy {
   public isMobile = false;
 
   public navigationItems: NavigationItem[] = [
-    { path: '/', label: 'Home', icon: '🏠', description: 'Welcome to Jouster' },
+    { path: '/', label: 'Flash Experiments', icon: '🎨', description: '56+ interactive presets' },
     { path: '/highlights', label: 'Highlights', icon: '⭐', description: 'Featured content' },
-    { path: '/flash-experiments', label: 'Flash Experiments', icon: '🎨', description: '56+ interactive presets' },
     { path: '/timeline', label: 'Timeline', icon: '📅', description: 'Interactive visualization' },
     { path: '/conversation-history', label: 'Conversations', icon: '💬', description: 'Chat history & analysis' },
     { path: '/fibonacci', label: 'Fibonacci', icon: '🔢', description: 'Mathematical visualizations' },

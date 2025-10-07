@@ -3,7 +3,7 @@ import { Route } from '@angular/router';
 export const appRoutes: Route[] = [
   {
     path: '',
-    loadComponent: () => import('./pages/home/home.component').then(m => m.HomeComponent)
+    loadComponent: () => import('./pages/flash-experiments/flash-experiments.component').then(m => m.FlashExperimentsComponent)
   },
   {
     path: 'highlights',

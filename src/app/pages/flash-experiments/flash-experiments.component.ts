@@ -37,6 +37,11 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
   public experimentMouseModes: Map<string, 'manual' | 'mouse'> = new Map();
   public activeMouseTracking: Set<string> = new Set();
 
+  // Highlight System for Featured Experiments
+  public highlightedExperiments: Set<string> = new Set(['particles']); // Featured experiments
+  public featuredExperiment: string = 'particles'; // Primary featured experiment
+  public highlightPulse: boolean = true; // Enable pulsing animation for highlights
+
   // Center point controls for explosive burst (legacy - now part of universal system)
   public explosiveCenterX: number = 200; // Default center X
   public explosiveCenterY: number = 150; // Default center Y
@@ -648,5 +653,38 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
 
   public onExperimentMouseModeChange(experimentId: string, mode: 'manual' | 'mouse') {
     this.setExperimentMouseMode(experimentId, mode);
+  }
+
+  // Highlight System Methods
+  public isHighlighted(experimentId: string): boolean {
+    return this.highlightedExperiments.has(experimentId);
+  }
+
+  public isFeatured(experimentId: string): boolean {
+    return this.featuredExperiment === experimentId;
+  }
+
+  public getHighlightClass(experimentId: string): string {
+    const classes = [];
+    if (this.isHighlighted(experimentId)) {
+      classes.push('highlighted');
+    }
+    if (this.isFeatured(experimentId)) {
+      classes.push('featured');
+    }
+    if (this.highlightPulse && this.isHighlighted(experimentId)) {
+      classes.push('pulse-highlight');
+    }
+    return classes.join(' ');
+  }
+
+  public getHighlightBadge(experimentId: string): string {
+    if (this.isFeatured(experimentId)) {
+      return 'FEATURED';
+    }
+    if (this.isHighlighted(experimentId)) {
+      return 'HIGHLIGHT';
+    }
+    return '';
   }
 }
