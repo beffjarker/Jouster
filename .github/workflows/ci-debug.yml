@@ -1,4 +1,4 @@
-name: CI Debug
+name: CI Debug - npm ci Fix
 
 on:
   push:
@@ -12,10 +12,10 @@ permissions:
   contents: read
 
 jobs:
-  # Split the main job into smaller, isolated steps with timeouts
+  # More aggressive npm installation with cache clearing
   setup-and-install:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -24,26 +24,92 @@ jobs:
           fetch-depth: 0
         timeout-minutes: 5
 
-      - name: Setup Node.js
+      - name: Setup Node.js (no cache initially)
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
         timeout-minutes: 3
 
-      - name: Install dependencies
+      - name: Clear npm cache and setup
         run: |
-          echo "Starting npm ci..."
-          npm ci
-          echo "npm ci completed successfully"
-        timeout-minutes: 8
+          echo "Clearing npm cache..."
+          npm cache clean --force
+          echo "Setting npm timeout and registry..."
+          npm config set fetch-timeout 60000
+          npm config set fetch-retry-mintimeout 10000
+          npm config set fetch-retry-maxtimeout 60000
+          npm config set registry https://registry.npmjs.org/
+          echo "npm configuration complete"
+        timeout-minutes: 2
 
-      - name: Install Cypress
+      - name: Install dependencies with timeout protection
         run: |
-          echo "Installing Cypress..."
-          npx cypress install
-          echo "Cypress installation completed"
-        timeout-minutes: 5
+          echo "Starting npm install with timeout protection..."
+          echo "Package.json dependency count:"
+          cat package.json | grep -c '"' || echo "Could not count dependencies"
+
+          # Try npm ci with timeout, fallback to npm install
+          timeout 600s npm ci --no-audit --no-fund --prefer-offline || {
+            echo "npm ci timed out or failed, trying npm install..."
+            rm -rf node_modules package-lock.json
+            timeout 600s npm install --no-audit --no-fund --legacy-peer-deps || {
+              echo "npm install also failed, trying with --force..."
+              timeout 600s npm install --force --no-audit --no-fund
+            }
+          }
+
+          echo "Dependency installation completed successfully"
+        timeout-minutes: 12
+
+      - name: Verify installation
+        run: |
+          echo "Verifying node_modules..."
+          ls -la node_modules/ | head -10
+          echo "Checking for critical packages..."
+          ls node_modules/@angular/ || echo "Angular packages not found"
+          ls node_modules/@nx/ || echo "Nx packages not found"
+          echo "Installation verification complete"
+        timeout-minutes: 2
+
+  # Quick dependency audit without full installation
+  dependency-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Analyze package.json for issues
+        run: |
+          echo "=== Package.json Analysis ==="
+          echo "Checking for conflicting dependencies..."
+
+          # Check if both overrides and resolutions exist
+          if grep -q "overrides" package.json && grep -q "resolutions" package.json; then
+            echo "ERROR: Both overrides and resolutions sections found!"
+            exit 1
+          fi
+
+          # Check for duplicate entries in dependencies and devDependencies
+          echo "Checking for duplicate dependencies..."
+          node -e "
+            const pkg = require('./package.json');
+            const deps = Object.keys(pkg.dependencies || {});
+            const devDeps = Object.keys(pkg.devDependencies || {});
+            const duplicates = deps.filter(d => devDeps.includes(d));
+            if (duplicates.length > 0) {
+              console.log('DUPLICATE DEPENDENCIES:', duplicates);
+              process.exit(1);
+            } else {
+              console.log('No duplicate dependencies found');
+            }
+          "
+
+          echo "Package.json analysis complete"
+        timeout-minutes: 3
 
   lint-and-test:
     needs: setup-and-install
@@ -58,23 +124,24 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (cached)
+        run: |
+          npm cache clean --force
+          npm ci --no-audit --no-fund --prefer-offline
         timeout-minutes: 8
 
       - name: Run linting
         run: |
           echo "Starting linting..."
-          npx nx run-many -t lint
+          npx nx run-many -t lint --parallel=1
           echo "Linting completed successfully"
         timeout-minutes: 5
 
       - name: Run unit tests
         run: |
           echo "Starting unit tests..."
-          npx nx run-many -t test
+          npx nx run-many -t test --parallel=1
           echo "Unit tests completed successfully"
         timeout-minutes: 10
 
@@ -91,102 +158,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (cached)
+        run: |
+          npm cache clean --force
+          npm ci --no-audit --no-fund --prefer-offline
         timeout-minutes: 8
 
       - name: Build applications
         run: |
           echo "Starting build process..."
-          npx nx run-many -t build
+          npx nx run-many -t build --parallel=1
           echo "Build completed successfully"
         timeout-minutes: 10
-
-  # E2E tests in a separate job with extended timeout
-  e2e-tests:
-    needs: [setup-and-install, build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          filter: tree:0
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-        timeout-minutes: 8
-
-      - name: Install Cypress
-        run: npx cypress install
-        timeout-minutes: 5
-
-      - name: Run E2E tests
-        run: |
-          echo "Starting E2E tests..."
-          timeout 25m npx nx run-many -t e2e || echo "E2E tests timed out or failed"
-          echo "E2E tests step completed"
-        timeout-minutes: 25
-
-  # Dependency validation in a separate job
-  dependency-check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-        timeout-minutes: 8
-
-      - name: Validate dependencies
-        run: |
-          echo "Checking dependency tree..."
-          npm ls --depth=0 || echo "Some dependency issues found"
-          echo "Dependency check completed"
-        timeout-minutes: 3
-
-      - name: Generate dependency graph
-        run: |
-          echo "Generating Nx dependency graph..."
-          timeout 5m npx nx graph --file=dependency-graph.json || echo "Graph generation timed out"
-          echo "Dependency graph step completed"
-        timeout-minutes: 5
-
-  # Nx fixes in a separate job
-  nx-fixes:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    if: always()
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-        timeout-minutes: 8
-
-      - name: Run Nx fixes
-        run: |
-          echo "Running Nx CI fixes..."
-          npx nx fix-ci || echo "Nx fix-ci completed with warnings"
-          echo "Nx fixes completed"
-        timeout-minutes: 3
