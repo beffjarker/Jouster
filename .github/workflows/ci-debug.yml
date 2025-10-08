@@ -48,18 +48,23 @@ jobs:
           echo "Package.json dependency count:"
           cat package.json | grep -c '"' || echo "Could not count dependencies"
 
-          # Try npm ci with timeout, fallback to npm install
-          timeout 600s npm ci --no-audit --no-fund --prefer-offline || {
-            echo "npm ci timed out or failed, trying npm install..."
+          # First, try a clean npm ci without aggressive timeout
+          echo "Attempting npm ci (clean install)..."
+          if npm ci --no-audit --no-fund --prefer-offline; then
+            echo "npm ci completed successfully"
+          else
+            echo "npm ci failed, trying npm install..."
             rm -rf node_modules package-lock.json
-            timeout 600s npm install --no-audit --no-fund --legacy-peer-deps || {
-              echo "npm install also failed, trying with --force..."
-              timeout 600s npm install --force --no-audit --no-fund
-            }
-          }
+            if npm install --no-audit --no-fund --legacy-peer-deps; then
+              echo "npm install completed successfully"
+            else
+              echo "npm install with legacy-peer-deps failed, trying with --force..."
+              npm install --force --no-audit --no-fund
+            fi
+          fi
 
           echo "Dependency installation completed successfully"
-        timeout-minutes: 12
+        timeout-minutes: 15
 
       - name: Verify installation
         run: |
