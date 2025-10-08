@@ -1,110 +1,111 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "1. Clean Start (Kill Node Processes)",
-      "type": "shell",
-      "command": "taskkill",
-      "args": ["/F", "/IM", "node.exe"],
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "new",
-        "showReuseMessage": false,
-        "clear": true
-      },
-      "problemMatcher": [],
-      "options": {
-        "shell": {
-          "executable": "cmd.exe",
-          "args": ["/c"]
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Full Stack Startup with Health Check",
+            "type": "npm",
+            "script": "start:full:health",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "runOptions": {
+                "runOn": "default"
+            }
+        },
+        {
+            "label": "Start Database",
+            "type": "npm",
+            "script": "db:start",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Wait for Database",
+            "type": "npm",
+            "script": "db:wait",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Initialize Database",
+            "type": "npm",
+            "script": "db:init",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Start Backend",
+            "type": "npm",
+            "script": "backend:start",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Start Frontend",
+            "type": "npm",
+            "script": "frontend:start",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            }
+        },
+        {
+            "label": "Stop Services",
+            "type": "npm",
+            "script": "services:stop",
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
+        },
+        {
+            "label": "Check Backend Health",
+            "type": "npm",
+            "script": "test:backend",
+            "group": "test",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            }
         }
-      }
-    },
-    {
-      "label": "2. Backend Server (Port 3000)",
-      "type": "shell",
-      "command": "npm",
-      "args": ["run", "dev"],
-      "options": {
-        "cwd": "${workspaceFolder}/backend",
-        "env": {
-          "PORT": "3000",
-          "AWS_REGION": "us-west-2",
-          "S3_BUCKET_NAME": "jouster-dev-bucket",
-          "S3_EMAIL_PREFIX": "email/"
-        }
-      },
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "new",
-        "group": "backend"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "3. Angular Frontend (Port 4200)",
-      "type": "npm",
-      "script": "serve:dev",
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "new",
-        "group": "frontend"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Full Stack (Auto-Recovery)",
-      "type": "npm",
-      "script": "start:full",
-      "group": "build",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "new"
-      },
-      "problemMatcher": []
-    },
-    {
-      "label": "Check Services Status",
-      "type": "shell",
-      "command": "netstat",
-      "args": ["-ano", "|", "findstr", ":3000\\|:4200\\|:8000\\|:8001"],
-      "group": "test",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "new"
-      },
-      "options": {
-        "shell": {
-          "executable": "cmd.exe",
-          "args": ["/c"]
-        }
-      }
-    },
-    {
-      "label": "Test Email API",
-      "type": "shell",
-      "command": "curl",
-      "args": ["-X", "GET", "http://localhost:3000/api/emails?pageSize=5", "-H", "Content-Type: application/json"],
-      "group": "test",
-      "presentation": {
-        "echo": true,
-        "reveal": "always",
-        "focus": false,
-        "panel": "new"
-      }
-    }
-  ]
+    ]
 }
+

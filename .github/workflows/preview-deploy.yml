@@ -47,13 +47,16 @@ jobs:
 
       - name: Create S3 bucket for preview
         run: |
-          aws s3 mb s3://${{ steps.preview-name.outputs.bucket_name }} --region us-west-2 || true
-          aws s3 website s3://${{ steps.preview-name.outputs.bucket_name }} \
-            --index-document index.html \
-            --error-document index.html
+          BUCKET_NAME="jouster-preview-pr-${{ steps.pr.outputs.number }}"
+          aws s3 mb s3://$BUCKET_NAME --region us-west-2 || echo "Bucket may already exist"
 
-      - name: Configure S3 bucket policy
-        run: |
+          # Configure bucket for static website hosting
+          aws s3 website s3://$BUCKET_NAME --index-document index.html --error-document index.html
+
+          # Remove public access blocks to allow public read access
+          aws s3api delete-public-access-block --bucket $BUCKET_NAME || echo "Public access blocks may not exist"
+
+          # Set bucket policy for public read access
           cat > bucket-policy.json << EOF
           {
             "Version": "2012-10-17",
@@ -63,12 +66,13 @@ jobs:
                 "Effect": "Allow",
                 "Principal": "*",
                 "Action": "s3:GetObject",
-                "Resource": "arn:aws:s3:::${{ steps.preview-name.outputs.bucket_name }}/*"
+                "Resource": "arn:aws:s3:::$BUCKET_NAME/*"
               }
             ]
           }
           EOF
-          aws s3api put-bucket-policy --bucket ${{ steps.preview-name.outputs.bucket_name }} --policy file://bucket-policy.json
+
+          aws s3api put-bucket-policy --bucket $BUCKET_NAME --policy file://bucket-policy.json
 
       - name: Deploy to S3
         run: |

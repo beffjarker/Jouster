@@ -1,25 +1,49 @@
 {
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "name": "Angular: Serve",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/node_modules/@nx/cli/bin/nx.js",
-      "args": ["serve", "jouster", "--host=localhost", "--port=4200", "--configuration=development"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal",
-      "internalConsoleOptions": "neverOpen"
-    },
-    {
-      "name": "Angular: Build",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/node_modules/@nx/cli/bin/nx.js",
-      "args": ["build", "jouster"],
-      "cwd": "${workspaceFolder}",
-      "console": "integratedTerminal"
-    }
-  ]
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Full Stack Startup with Health Check",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/npm",
+            "args": ["run", "start:full:health"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen",
+            "skipFiles": [
+                "<node_internals>/**"
+            ]
+        },
+        {
+            "name": "Start Database Only",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/npm",
+            "args": ["run", "db:start"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "name": "Start Backend Only",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/npm",
+            "args": ["run", "backend:start"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        },
+        {
+            "name": "Start Frontend Only",
+            "type": "node",
+            "request": "launch",
+            "program": "${workspaceFolder}/node_modules/.bin/npm",
+            "args": ["run", "frontend:start"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "internalConsoleOptions": "neverOpen"
+        }
+    ]
 }
 
