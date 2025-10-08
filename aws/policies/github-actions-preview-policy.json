@@ -23,6 +23,9 @@
                 "s3:GetBucketVersioning"
             ],
             "Resource": [
+                "arn:aws:s3:::jouster-preview-pr-*",
+                "arn:aws:s3:::jouster-blue-static",
+                "arn:aws:s3:::jouster-green-static",
                 "arn:aws:s3:::pr*-*.jouster.org",
                 "arn:aws:s3:::qa.jouster.org",
                 "arn:aws:s3:::stg.jouster.org",
@@ -45,6 +48,9 @@
                 "s3:DeleteObjectVersion"
             ],
             "Resource": [
+                "arn:aws:s3:::jouster-preview-pr-*/*",
+                "arn:aws:s3:::jouster-blue-static/*",
+                "arn:aws:s3:::jouster-green-static/*",
                 "arn:aws:s3:::pr*-*.jouster.org/*",
                 "arn:aws:s3:::qa.jouster.org/*",
                 "arn:aws:s3:::stg.jouster.org/*",
