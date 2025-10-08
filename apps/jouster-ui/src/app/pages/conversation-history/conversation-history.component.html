@@ -245,7 +245,7 @@
               <div class="topic-bar-container">
                 <div
                   class="topic-bar-fill"
-                  [style.width.%]="(topicData.count / (analysis.topTopics[0]?.count || 1)) * 100">
+                  [style.width.%]="(topicData.count / (analysis.topTopics[0].count || 1)) * 100">
                 </div>
                 <span class="topic-count">{{ topicData.count }}</span>
               </div>

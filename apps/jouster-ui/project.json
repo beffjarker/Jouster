@@ -11,6 +11,7 @@
       "outputs": ["{options.outputPath}"],
       "options": {
         "outputPath": "dist/apps/jouster-ui",
+        "index": "apps/jouster-ui/src/index.html",
         "browser": "apps/jouster-ui/src/main.ts",
         "polyfills": ["zone.js"],
         "tsConfig": "apps/jouster-ui/tsconfig.app.json",
