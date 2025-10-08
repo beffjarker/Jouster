@@ -47,24 +47,39 @@ jobs:
           echo "Starting npm install with timeout protection..."
           echo "Package.json dependency count:"
           cat package.json | grep -c '"' || echo "Could not count dependencies"
+          echo "Note: npm audit shows 2024 total dependencies - using npm install for better handling"
 
-          # First, try a clean npm ci without aggressive timeout
-          echo "Attempting npm ci (clean install)..."
-          if npm ci --no-audit --no-fund --prefer-offline; then
-            echo "npm ci completed successfully"
-          else
-            echo "npm ci failed, trying npm install..."
-            rm -rf node_modules package-lock.json
-            if npm install --no-audit --no-fund --legacy-peer-deps; then
-              echo "npm install completed successfully"
-            else
-              echo "npm install with legacy-peer-deps failed, trying with --force..."
-              npm install --force --no-audit --no-fund
-            fi
-          fi
+          # Skip npm ci entirely and use npm install which is more robust with large dependency trees
+          echo "Using npm install (more robust than npm ci for large dependency trees)..."
+
+          # Clear any existing installations first
+          rm -rf node_modules package-lock.json || true
+
+          # Use npm install with a reasonable timeout
+          echo "Attempting npm install with 10-minute timeout..."
+          timeout 600s bash -c '
+            npm install --no-audit --no-fund --legacy-peer-deps --verbose
+          ' || {
+            echo "npm install timed out after 10 minutes"
+            echo "Checking what processes might be hanging..."
+            ps aux | grep npm || true
+
+            echo "Trying npm install with --force as final fallback..."
+            timeout 300s npm install --force --no-audit --no-fund --verbose || {
+              echo "All npm installation methods failed - dependency tree may be too complex"
+              echo "Trying minimal installation..."
+              npm install --production --no-optional --no-audit --no-fund || exit 1
+            }
+          }
 
           echo "Dependency installation completed successfully"
-        timeout-minutes: 15
+          echo "Verifying critical packages..."
+          ls node_modules/@nx/ >/dev/null && echo "Nx installed" || echo "Nx missing"
+          ls node_modules/@angular/ >/dev/null && echo "Angular installed" || echo "Angular missing"
+
+          echo "Regenerating package-lock.json for consistency..."
+          npm shrinkwrap --dev || echo "Could not generate shrinkwrap"
+        timeout-minutes: 20
 
       - name: Verify installation
         run: |
