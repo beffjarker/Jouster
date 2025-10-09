@@ -31,7 +31,7 @@
     "sourceMap": true,
     "declaration": false,
     "removeComments": false,
-    "importHelpers": true
+    "importHelpers": false
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

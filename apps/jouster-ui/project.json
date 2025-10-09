@@ -16,6 +16,7 @@
         "polyfills": ["zone.js"],
         "tsConfig": "apps/jouster-ui/tsconfig.app.json",
         "inlineStyleLanguage": "scss",
+        "externalDependencies": ["tslib"],
         "assets": [
           {
             "glob": "**/*",
