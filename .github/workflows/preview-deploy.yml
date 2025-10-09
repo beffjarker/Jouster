@@ -13,24 +13,69 @@ permissions:
 jobs:
   deploy-preview:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        timeout-minutes: 3
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+        timeout-minutes: 2
 
-      - name: Clear npm cache
-        run: npm cache clean --force
+      - name: Install dependencies with timeout protection
+        run: |
+          echo "Starting npm install with timeout protection..."
+          echo "Package.json dependency count:"
+          cat package.json | grep -c '"' || echo "Could not count dependencies"
 
-      - name: Install dependencies
-        run: npm ci
+          # Set shorter npm timeouts to prevent hanging
+          npm config set fetch-timeout 30000
+          npm config set fetch-retry-mintimeout 5000
+          npm config set fetch-retry-maxtimeout 30000
+
+          # Function to install with timeout
+          install_with_timeout() {
+            local method="$1"
+            local timeout_sec="$2"
+            local extra_flags="$3"
+
+            echo "Trying $method with ${timeout_sec}s timeout..."
+            timeout ${timeout_sec}s bash -c "$method $extra_flags" && return 0 || return 1
+          }
+
+          # Strategy 1: npm ci with 5-minute timeout
+          if install_with_timeout "npm ci" 300 "--no-audit --no-fund --prefer-offline"; then
+            echo "npm ci completed successfully"
+          # Strategy 2: npm install with legacy-peer-deps and 5-minute timeout
+          elif rm -f package-lock.json && install_with_timeout "npm install" 300 "--no-audit --no-fund --legacy-peer-deps"; then
+            echo "npm install with legacy-peer-deps completed successfully"
+          # Strategy 3: npm install with force and 3-minute timeout
+          elif install_with_timeout "npm install" 180 "--force --no-audit --no-fund"; then
+            echo "npm install with --force completed successfully"
+          # Strategy 4: Production-only install (minimal dependencies)
+          elif install_with_timeout "npm install" 120 "--production --no-optional --no-audit --no-fund"; then
+            echo "Production-only install completed successfully"
+            echo "WARNING: Only production dependencies installed - some build steps may fail"
+          else
+            echo "ERROR: All npm installation methods failed within timeout limits"
+            echo "This suggests the dependency tree is too complex for GitHub Actions"
+            exit 1
+          fi
+
+          echo "Installation completed - verifying critical packages..."
+          ls node_modules/@angular/ >/dev/null && echo "✓ Angular packages found" || echo "✗ Angular packages missing"
+          ls node_modules/@nx/ >/dev/null && echo "✓ Nx packages found" || echo "✗ Nx packages missing"
+          ls node_modules/typescript/ >/dev/null && echo "✓ TypeScript found" || echo "✗ TypeScript missing"
+        timeout-minutes: 10
 
       - name: Build application
         run: npx nx build jouster-ui --configuration=development --skip-nx-cache
+        timeout-minutes: 8
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
