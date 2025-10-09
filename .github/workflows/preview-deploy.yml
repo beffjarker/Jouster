@@ -57,10 +57,10 @@ jobs:
           # Strategy 3: npm install with force and 3-minute timeout
           elif install_with_timeout "npm install" 180 "--force --no-audit --no-fund"; then
             echo "npm install with --force completed successfully"
-          # Strategy 4: Production-only install (minimal dependencies)
-          elif install_with_timeout "npm install" 120 "--production --no-optional --no-audit --no-fund"; then
-            echo "Production-only install completed successfully"
-            echo "WARNING: Only production dependencies installed - some build steps may fail"
+          # Strategy 4: Minimal install but include dev dependencies for build tools
+          elif install_with_timeout "npm install" 120 "--no-optional --no-audit --no-fund"; then
+            echo "Minimal install completed successfully"
+            echo "NOTE: Optional packages skipped but dev dependencies included for build"
           else
             echo "ERROR: All npm installation methods failed within timeout limits"
             echo "This suggests the dependency tree is too complex for GitHub Actions"
@@ -71,6 +71,7 @@ jobs:
           ls node_modules/@angular/ >/dev/null && echo "✓ Angular packages found" || echo "✗ Angular packages missing"
           ls node_modules/@nx/ >/dev/null && echo "✓ Nx packages found" || echo "✗ Nx packages missing"
           ls node_modules/typescript/ >/dev/null && echo "✓ TypeScript found" || echo "✗ TypeScript missing"
+          ls node_modules/eslint-plugin-import/ >/dev/null && echo "✓ ESLint plugin-import found" || echo "✗ ESLint plugin-import missing"
         timeout-minutes: 10
 
       - name: Build application
