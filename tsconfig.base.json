@@ -17,7 +17,6 @@
     "types": ["node", "jest"],
     "typeRoots": ["node_modules/@types"],
     "paths": {
-      "tslib": ["node_modules/tslib/tslib.d.ts"],
       "@jouster/shared/services": ["libs/shared/services/src/index.ts"],
       "@jouster/shared/ui": ["libs/shared/ui/src/index.ts"],
       "@jouster/shared/utils": ["libs/shared/utils/src/index.ts"]
@@ -25,4 +24,3 @@
   },
   "exclude": ["node_modules", "tmp"]
 }
-

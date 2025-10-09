@@ -72,6 +72,7 @@ jobs:
           ls node_modules/@nx/ >/dev/null && echo "✓ Nx packages found" || echo "✗ Nx packages missing"
           ls node_modules/typescript/ >/dev/null && echo "✓ TypeScript found" || echo "✗ TypeScript missing"
           ls node_modules/eslint-plugin-import/ >/dev/null && echo "✓ ESLint plugin-import found" || echo "✗ ESLint plugin-import missing"
+          ls node_modules/@angular-eslint/ >/dev/null && echo "✓ Angular ESLint packages found" || echo "✗ Angular ESLint packages missing"
         timeout-minutes: 10
 
       - name: Build application
