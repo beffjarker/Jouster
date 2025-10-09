@@ -1,8 +1,8 @@
 const nx = require('@nx/eslint-plugin');
-const baseConfig = require('../../.eslintrc.json');
 
 module.exports = [
-  ...baseConfig,
+  ...nx.configs['flat/base'],
+  ...nx.configs['flat/typescript'],
   ...nx.configs['flat/angular'],
   ...nx.configs['flat/angular-template'],
   {
