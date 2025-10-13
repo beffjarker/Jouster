@@ -77,9 +77,20 @@ jobs:
           NX_SKIP_NX_CACHE: true
           CI: true
 
+      - name: Initialize Nx workspace
+        run: |
+          echo "Initializing Nx workspace..."
+          npx nx reset || true
+          echo "Nx workspace initialized"
+        timeout-minutes: 2
+
       - name: Build application
-        run: npx nx build jouster-ui --configuration=development --skip-nx-cache
-        timeout-minutes: 8
+        run: |
+          echo "Building jouster-ui..."
+          npx nx build jouster-ui --configuration=development --skip-nx-cache --verbose
+        timeout-minutes: 12
+        env:
+          NODE_OPTIONS: --max_old_space_size=4096
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
