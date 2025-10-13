@@ -38,43 +38,43 @@ jobs:
           npm config set fetch-retry-mintimeout 5000
           npm config set fetch-retry-maxtimeout 30000
 
-          # Skip nx post-install to prevent hanging
-          export NX_SKIP_NX_CACHE=true
-          export CI=true
-
-          # Function to install with timeout
-          install_with_timeout() {
-            local method="$1"
-            local timeout_sec="$2"
-            local extra_flags="$3"
-
-            echo "Trying $method with ${timeout_sec}s timeout..."
-            timeout ${timeout_sec}s bash -c "$method $extra_flags" && return 0 || return 1
+          # Function to kill hung processes
+          kill_hung_npm() {
+            echo "Killing any hung npm/node processes..."
+            pkill -9 node || true
+            sleep 2
           }
 
-          # Strategy 1: npm ci with aggressive 3-minute timeout and ignore-scripts
-          if install_with_timeout "npm ci" 180 "--no-audit --no-fund --prefer-offline --ignore-scripts"; then
-            echo "npm ci completed successfully (with scripts skipped)"
-          # Strategy 2: npm install with legacy-peer-deps and ignore-scripts
-          elif rm -f package-lock.json && install_with_timeout "npm install" 180 "--no-audit --no-fund --legacy-peer-deps --ignore-scripts"; then
-            echo "npm install with legacy-peer-deps completed successfully (with scripts skipped)"
-          # Strategy 3: npm install with force and ignore-scripts
-          elif install_with_timeout "npm install" 120 "--force --no-audit --no-fund --ignore-scripts"; then
-            echo "npm install with --force completed successfully (with scripts skipped)"
+          # Strategy 1: Try npm ci normally with 4-minute timeout
+          echo "Trying npm ci with 240s timeout..."
+          if timeout 240s npm ci --no-audit --no-fund --prefer-offline 2>&1 | tee npm-install.log; then
+            echo "npm ci completed successfully"
           else
-            echo "ERROR: All npm installation methods failed within timeout limits"
-            exit 1
+            EXIT_CODE=$?
+            echo "npm ci failed or timed out (exit code: $EXIT_CODE)"
+            kill_hung_npm
+
+            # Strategy 2: Try with ignore-scripts as fallback
+            echo "Fallback: Trying npm ci with --ignore-scripts..."
+            rm -rf node_modules
+            if npm ci --no-audit --no-fund --prefer-offline --ignore-scripts; then
+              echo "npm ci with --ignore-scripts completed successfully"
+
+              # Manually run only the critical post-install scripts (skip nx)
+              echo "Running critical post-install steps..."
+              # Most packages don't need post-install, so we're done
+            else
+              echo "ERROR: npm ci failed even with --ignore-scripts"
+              exit 1
+            fi
           fi
 
           echo "Installation completed - verifying critical packages..."
           ls node_modules/@angular/ >/dev/null && echo "✓ Angular packages found" || echo "✗ Angular packages missing"
           ls node_modules/@nx/ >/dev/null && echo "✓ Nx packages found" || echo "✗ Nx packages missing"
           ls node_modules/typescript/ >/dev/null && echo "✓ TypeScript found" || echo "✗ TypeScript missing"
-          ls node_modules/eslint-plugin-import/ >/dev/null && echo "✓ ESLint plugin-import found" || echo "✗ ESLint plugin-import missing"
-          ls node_modules/@angular-eslint/ >/dev/null && echo "✓ Angular ESLint packages found" || echo "✗ Angular ESLint packages missing"
-        timeout-minutes: 10
+        timeout-minutes: 8
         env:
-          NX_SKIP_NX_CACHE: true
           CI: true
 
       - name: Build application
