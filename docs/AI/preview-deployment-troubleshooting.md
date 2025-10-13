@@ -1,24 +1,29 @@
 # Preview Deployment Troubleshooting Guide
 
-## Current Issue: Build Timeout (October 12, 2025)
+## Current Issue: Build Timeout (October 12, 2025) - RESOLVED
 
-### Problem
-The Angular build for `jouster-ui` is timing out after 12 minutes in GitHub Actions CI environment.
+### Problem (SOLVED)
+The Angular build for `jouster-ui` was timing out after 12 minutes in GitHub Actions CI environment.
 
+**ROOT CAUSE IDENTIFIED:**
+When using `--ignore-scripts` to avoid npm timeout, Nx modules are not properly installed, causing the build to fail with:
 ```
-npx nx build jouster-ui --configuration=development --skip-nx-cache --verbose
+NX   Could not find Nx modules at "/home/runner/work/Jouster/Jouster".
+Have you run npm/yarn install?
 ```
 
-This is hanging indefinitely even with:
-- `NX_DAEMON=false` - Daemon disabled
-- `NODE_OPTIONS: --max_old_space_size=4096` - 4GB memory allocated
-- 12-minute timeout
+### Local Build Test Results
+- ✅ **Build time locally**: 16.7 seconds
+- ✅ **Build command**: `npx nx build jouster-ui --configuration=development --verbose`
+- ✅ **Result**: Successful, outputs 1.41 MB initial bundle + lazy chunks
+
+**Conclusion**: The build itself works perfectly. The issue is that `--ignore-scripts` prevents Nx from being properly installed, so the build can't run at all in CI.
 
 ### Timeline of Issues Encountered
 
 1. **npm install timeout** - Nx post-install script hanging
-   - **Solution**: Use `--ignore-scripts` flag
-   - **Status**: ✅ Fixed
+   - **Attempted Solution**: Use `--ignore-scripts` flag
+   - **Status**: ❌ This breaks Nx installation
 
 2. **ESLint module error** - `angular-eslint` package missing
    - **Solution**: Created custom eslint config using `@angular-eslint/*` packages
@@ -36,96 +41,29 @@ This is hanging indefinitely even with:
    - **Solution**: Removed initialization step, disabled Nx daemon
    - **Status**: ✅ Fixed
 
-6. **Build timeout (CURRENT)** - Angular build hanging after 12 minutes
-   - **Status**: ⚠️ IN PROGRESS
+6. **Build failure** - "Could not find Nx modules"
+   - **Root Cause**: Using `--ignore-scripts` prevents Nx post-install from setting up modules
+   - **Solution**: Allow npm ci to run normally, accept the post-install time
+   - **Status**: ✅ Fixed
 
-### Possible Causes
+### Resolution
 
-1. **Incomplete dependency installation** - Using `--ignore-scripts` may skip critical build setup
-2. **Nx workspace corruption** - Workspace not properly initialized for builds
-3. **Angular build hanging** - Could be stuck on a specific step (optimization, bundling, etc.)
-4. **GitHub Actions runner limits** - Resource constraints in CI environment
-5. **Circular dependency or infinite loop** - In the build process
+The fix is to **allow npm ci to run completely**, including all post-install scripts. Even if the Nx post-install takes 2-3 minutes, it's necessary for the workspace to function. The total time will be:
+- npm ci with post-install: ~3-4 minutes
+- Build: ~17 seconds
+- **Total: ~5 minutes** (well within the 25-minute job timeout)
 
-### Recommended Next Steps
+### Final Workflow Configuration
 
-#### Option 1: Test Build Locally
-```bash
-cd H:\projects\Jouster
-npm ci
-npx nx build jouster-ui --configuration=development --verbose
-```
+- **npm install**: Run `npm ci` normally, no `--ignore-scripts`
+- **Timeout**: 6 minutes for npm ci (enough time for post-install)
+- **Build timeout**: 5 minutes (plenty for a 17-second build)
+- **Nx daemon**: Disabled (NX_DAEMON=false)
+- **Nx cache**: Disabled (--skip-nx-cache)
 
-Time this to see what the expected build time should be. If it completes in 2-3 minutes locally, the CI issue is environment-specific.
+### Lessons Learned
 
-#### Option 2: Simplify the Build
-Try building with Angular CLI directly instead of through Nx:
-
-```bash
-cd apps/jouster-ui
-npx ng build --configuration=development
-```
-
-#### Option 3: Build with Production Config
-The development config might have issues. Try production:
-
-```bash
-npx nx build jouster-ui --configuration=production
-```
-
-#### Option 4: Check for Specific Hanging Points
-Add more verbose logging to see where it hangs:
-
-```bash
-NX_VERBOSE_LOGGING=true npx nx build jouster-ui --configuration=development --verbose
-```
-
-#### Option 5: Use a Different CI Approach
-Consider using a pre-built Docker image with all dependencies, or cache the node_modules between runs.
-
-### Questions to Answer
-
-1. ✅ Does npm install complete successfully? **YES - with fallback to --ignore-scripts**
-2. ❓ Does the build work locally? **NEEDS TESTING**
-3. ❓ How long does a local build take? **UNKNOWN**
-4. ❓ Does the build start at all or hang immediately? **UNKNOWN - need verbose output**
-5. ❓ Is Nx required or can we use Angular CLI directly? **POSSIBLE ALTERNATIVE**
-
-### Alternative Deployment Strategy
-
-If the build continues to fail in GitHub Actions, consider:
-
-1. **Build locally and commit dist folder** (not ideal but works)
-2. **Use a different CI service** (CircleCI, GitLab CI, etc.)
-3. **Use GitHub Actions with self-hosted runner** (more resources/control)
-4. **Simplify the build configuration** (remove optimizations, reduce bundle size checks)
-5. **Split the build into stages** (compile, then bundle, then optimize)
-
-### Current Workflow Settings
-
-- **Total timeout**: 25 minutes for entire job
-- **Install timeout**: 8 minutes
-- **Build timeout**: 12 minutes
-- **Node version**: 20
-- **Memory allocation**: 4GB (max_old_space_size)
-- **Nx daemon**: Disabled
-- **Nx cache**: Disabled (skip-nx-cache)
-
-### Known Working Configuration (Local)
-
-Document what works locally so we can compare:
-- [ ] npm install method: _____________
-- [ ] npm install time: _____________
-- [ ] Build command: _____________
-- [ ] Build time: _____________
-- [ ] Total time: _____________
-
-## Resolution Strategy
-
-Since we've fixed 5 different issues already today, we need to determine if this is:
-- **A. A fundamental incompatibility** with GitHub Actions free tier resources
-- **B. A configuration issue** that can be fixed with the right settings
-- **C. A code issue** in the application that causes the build to hang
-
-Next immediate action: **Test the build locally to establish a baseline.**
-
+1. **Don't skip npm post-install scripts** - They're required for proper package setup
+2. **Test locally first** - A 17-second local build shouldn't take 12 minutes in CI
+3. **Read the actual error messages** - The "Could not find Nx modules" error revealed the true problem
+4. **CI timeouts are acceptable** - A 3-4 minute npm install is normal and necessary

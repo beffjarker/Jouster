@@ -29,50 +29,27 @@ jobs:
 
       - name: Install dependencies with timeout protection
         run: |
-          echo "Starting npm install with timeout protection..."
+          echo "Starting npm ci..."
           echo "Package.json dependency count:"
           cat package.json | grep -c '"' || echo "Could not count dependencies"
 
-          # Set shorter npm timeouts to prevent hanging
-          npm config set fetch-timeout 30000
-          npm config set fetch-retry-mintimeout 5000
-          npm config set fetch-retry-maxtimeout 30000
+          # Set npm timeouts
+          npm config set fetch-timeout 60000
+          npm config set fetch-retry-mintimeout 10000
+          npm config set fetch-retry-maxtimeout 60000
 
-          # Function to kill hung processes
-          kill_hung_npm() {
-            echo "Killing any hung npm/node processes..."
-            pkill -9 node || true
-            sleep 2
-          }
+          # Run npm ci normally - post-install scripts are necessary for Nx
+          echo "Running npm ci (including post-install scripts for Nx setup)..."
+          npm ci --no-audit --no-fund --prefer-offline
 
-          # Strategy 1: Try npm ci normally with 4-minute timeout
-          echo "Trying npm ci with 240s timeout..."
-          if timeout 240s npm ci --no-audit --no-fund --prefer-offline 2>&1 | tee npm-install.log; then
-            echo "npm ci completed successfully"
-          else
-            EXIT_CODE=$?
-            echo "npm ci failed or timed out (exit code: $EXIT_CODE)"
-            kill_hung_npm
-
-            # Strategy 2: Try with ignore-scripts as fallback
-            echo "Fallback: Trying npm ci with --ignore-scripts..."
-            rm -rf node_modules
-            if npm ci --no-audit --no-fund --prefer-offline --ignore-scripts; then
-              echo "npm ci with --ignore-scripts completed successfully"
-
-              # Manually run only the critical post-install scripts (skip nx)
-              echo "Running critical post-install steps..."
-              # Most packages don't need post-install, so we're done
-            else
-              echo "ERROR: npm ci failed even with --ignore-scripts"
-              exit 1
-            fi
-          fi
-
-          echo "Installation completed - verifying critical packages..."
+          echo "Installation completed successfully"
+          echo "Verifying critical packages..."
           ls node_modules/@angular/ >/dev/null && echo "✓ Angular packages found" || echo "✗ Angular packages missing"
           ls node_modules/@nx/ >/dev/null && echo "✓ Nx packages found" || echo "✗ Nx packages missing"
           ls node_modules/typescript/ >/dev/null && echo "✓ TypeScript found" || echo "✗ TypeScript missing"
+
+          # Verify Nx is properly installed
+          npx nx --version && echo "✓ Nx is functional"
         timeout-minutes: 8
         env:
           CI: true
