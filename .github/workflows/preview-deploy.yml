@@ -96,7 +96,7 @@ jobs:
 
       - name: Create S3 bucket for preview
         run: |
-          BUCKET_NAME="jouster-preview-pr-${{ steps.pr.outputs.number }}"
+          BUCKET_NAME="${{ steps.preview-name.outputs.bucket_name }}"
           aws s3 mb s3://$BUCKET_NAME --region us-west-2 || echo "Bucket may already exist"
 
           # Configure bucket for static website hosting
