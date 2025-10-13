@@ -38,6 +38,10 @@ jobs:
           npm config set fetch-retry-mintimeout 5000
           npm config set fetch-retry-maxtimeout 30000
 
+          # Skip nx post-install to prevent hanging
+          export NX_SKIP_NX_CACHE=true
+          export CI=true
+
           # Function to install with timeout
           install_with_timeout() {
             local method="$1"
@@ -48,22 +52,17 @@ jobs:
             timeout ${timeout_sec}s bash -c "$method $extra_flags" && return 0 || return 1
           }
 
-          # Strategy 1: npm ci with 5-minute timeout
-          if install_with_timeout "npm ci" 300 "--no-audit --no-fund --prefer-offline"; then
-            echo "npm ci completed successfully"
-          # Strategy 2: npm install with legacy-peer-deps and 5-minute timeout
-          elif rm -f package-lock.json && install_with_timeout "npm install" 300 "--no-audit --no-fund --legacy-peer-deps"; then
-            echo "npm install with legacy-peer-deps completed successfully"
-          # Strategy 3: npm install with force and 3-minute timeout
-          elif install_with_timeout "npm install" 180 "--force --no-audit --no-fund"; then
-            echo "npm install with --force completed successfully"
-          # Strategy 4: Minimal install but include dev dependencies for build tools
-          elif install_with_timeout "npm install" 120 "--no-optional --no-audit --no-fund"; then
-            echo "Minimal install completed successfully"
-            echo "NOTE: Optional packages skipped but dev dependencies included for build"
+          # Strategy 1: npm ci with aggressive 3-minute timeout and ignore-scripts
+          if install_with_timeout "npm ci" 180 "--no-audit --no-fund --prefer-offline --ignore-scripts"; then
+            echo "npm ci completed successfully (with scripts skipped)"
+          # Strategy 2: npm install with legacy-peer-deps and ignore-scripts
+          elif rm -f package-lock.json && install_with_timeout "npm install" 180 "--no-audit --no-fund --legacy-peer-deps --ignore-scripts"; then
+            echo "npm install with legacy-peer-deps completed successfully (with scripts skipped)"
+          # Strategy 3: npm install with force and ignore-scripts
+          elif install_with_timeout "npm install" 120 "--force --no-audit --no-fund --ignore-scripts"; then
+            echo "npm install with --force completed successfully (with scripts skipped)"
           else
             echo "ERROR: All npm installation methods failed within timeout limits"
-            echo "This suggests the dependency tree is too complex for GitHub Actions"
             exit 1
           fi
 
@@ -74,6 +73,9 @@ jobs:
           ls node_modules/eslint-plugin-import/ >/dev/null && echo "✓ ESLint plugin-import found" || echo "✗ ESLint plugin-import missing"
           ls node_modules/@angular-eslint/ >/dev/null && echo "✓ Angular ESLint packages found" || echo "✗ Angular ESLint packages missing"
         timeout-minutes: 10
+        env:
+          NX_SKIP_NX_CACHE: true
+          CI: true
 
       - name: Build application
         run: npx nx build jouster-ui --configuration=development --skip-nx-cache
