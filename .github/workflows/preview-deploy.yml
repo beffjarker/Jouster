@@ -53,7 +53,7 @@ jobs:
       - name: Build application
         run: |
           echo "Building jouster-ui with Angular CLI..."
-          ng build --configuration=development
+          npx ng build --configuration=development
         timeout-minutes: 8
         env:
           NODE_OPTIONS: --max_old_space_size=4096
