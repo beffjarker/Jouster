@@ -1,26 +1,19 @@
-import nx from '@nx/eslint-plugin';
+import eslint from '@eslint/js';
+import tseslint from 'typescript-eslint';
+import angular from 'angular-eslint';
 
-export default [
-  ...nx.configs['flat/base'],
-  ...nx.configs['flat/typescript'],
-  ...nx.configs['flat/javascript'],
+export default tseslint.config(
   {
-    ignores: ['**/dist', '**/node_modules'],
-  },
-  {
-    files: [
-      '**/*.ts',
-      '**/*.tsx',
-      '**/*.cts',
-      '**/*.mts',
-      '**/*.js',
-      '**/*.jsx',
-      '**/*.cjs',
-      '**/*.mjs',
+    files: ['**/*.ts'],
+    extends: [
+      eslint.configs.recommended,
+      ...tseslint.configs.recommended,
+      ...tseslint.configs.stylistic,
+      ...angular.configs.tsRecommended,
     ],
-    // TypeScript best practices
+    processor: angular.processInlineTemplates,
     rules: {
-      // Enforce explicit visibility modifiers
+      // TypeScript best practices
       '@typescript-eslint/explicit-member-accessibility': [
         'error',
         {
@@ -34,60 +27,17 @@ export default [
           }
         }
       ],
-      // Enforce consistent type definitions
       '@typescript-eslint/consistent-type-definitions': ['error', 'interface'],
-      // No unused variables/imports
       '@typescript-eslint/no-unused-vars': ['error', {
         argsIgnorePattern: '^_',
         varsIgnorePattern: '^_',
         ignoreRestSiblings: true
       }],
-      // No explicit any
       '@typescript-eslint/no-explicit-any': 'warn',
-      // No non-null assertion
       '@typescript-eslint/no-non-null-assertion': 'warn',
-      // Method signature style
       '@typescript-eslint/method-signature-style': ['error', 'method'],
-      // Naming conventions
-      '@typescript-eslint/naming-convention': [
-        'error',
-        {
-          selector: 'default',
-          format: ['camelCase'],
-          leadingUnderscore: 'allow',
-          trailingUnderscore: 'forbid'
-        },
-        {
-          selector: 'variable',
-          format: ['camelCase', 'UPPER_CASE'],
-          leadingUnderscore: 'allow'
-        },
-        {
-          selector: 'typeLike',
-          format: ['PascalCase']
-        },
-        {
-          selector: 'property',
-          format: ['camelCase'],
-          leadingUnderscore: 'allow'
-        },
-        {
-          selector: 'method',
-          format: ['camelCase']
-        },
-        {
-          selector: 'enumMember',
-          format: ['PascalCase', 'UPPER_CASE']
-        }
-      ]
-    },
-  },
-  ...nx.configs['flat/angular'],
-  ...nx.configs['flat/angular-template'],
-  {
-    files: ['**/*.ts'],
-    rules: {
-      // Angular-specific best practices
+
+      // Angular specific rules
       '@angular-eslint/directive-selector': [
         'error',
         {
@@ -104,18 +54,14 @@ export default [
           style: 'kebab-case',
         },
       ],
-      // Component class suffix
-      '@angular-eslint/component-class-suffix': 'error',
-      '@angular-eslint/directive-class-suffix': 'error',
-      // Component lifecycle interface implementation
-      '@angular-eslint/use-lifecycle-interface': 'error',
     },
   },
   {
     files: ['**/*.html'],
-    rules: {
-      // Use only basic template rules that are known to work
-      '@angular-eslint/template/no-negated-async': 'error',
-    },
-  },
-];
+    extends: [
+      ...angular.configs.templateRecommended,
+      ...angular.configs.templateAccessibility,
+    ],
+    rules: {},
+  }
+);

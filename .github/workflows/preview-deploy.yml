@@ -27,9 +27,9 @@ jobs:
           cache: 'npm'
         timeout-minutes: 2
 
-      - name: Install dependencies with timeout protection
+      - name: Install dependencies
         run: |
-          echo "Starting npm ci with hybrid approach..."
+          echo "Installing dependencies with Angular CLI..."
           echo "Package.json dependency count:"
           cat package.json | grep -c '"' || echo "Could not count dependencies"
 
@@ -38,41 +38,25 @@ jobs:
           npm config set fetch-retry-mintimeout 10000
           npm config set fetch-retry-maxtimeout 60000
 
-          # Install without scripts to avoid Nx post-install hang
-          echo "Installing packages (skipping post-install to avoid hangs)..."
-          npm ci --no-audit --no-fund --prefer-offline --ignore-scripts
+          # Simple npm ci - no more Nx post-install scripts to hang
+          echo "Running npm ci..."
+          npm ci --no-audit --no-fund --prefer-offline
 
           echo "Installation completed successfully"
           echo "Verifying packages..."
           ls node_modules/@angular/ >/dev/null && echo "✓ Angular packages found" || echo "✗ Angular packages missing"
-          ls node_modules/@nx/ >/dev/null && echo "✓ Nx packages found" || echo "✗ Nx packages missing"
           ls node_modules/typescript/ >/dev/null && echo "✓ TypeScript found" || echo "✗ TypeScript missing"
-
-          # Manually create Nx workspace structure that post-install would create
-          echo "Setting up Nx workspace manually..."
-          mkdir -p .nx/cache
-          mkdir -p node_modules/.cache/nx
-
-          # Test if nx binary works
-          if npx nx --version 2>/dev/null; then
-            echo "✓ Nx is functional"
-          else
-            echo "⚠ Nx may need additional setup, but will try to continue"
-          fi
         timeout-minutes: 5
         env:
           CI: true
 
       - name: Build application
         run: |
-          echo "Building jouster-ui..."
-          echo "Nx Daemon: Disabled for CI environment"
-          npx nx build jouster-ui --configuration=development --skip-nx-cache --verbose
-        timeout-minutes: 12
+          echo "Building jouster-ui with Angular CLI..."
+          ng build --configuration=development
+        timeout-minutes: 8
         env:
           NODE_OPTIONS: --max_old_space_size=4096
-          NX_DAEMON: false
-          NX_SKIP_NX_CACHE: true
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -97,9 +81,6 @@ jobs:
           # Configure bucket for static website hosting
           aws s3 website s3://$BUCKET_NAME --index-document index.html --error-document index.html
 
-          # Remove public access blocks to allow public read access
-          aws s3api delete-public-access-block --bucket $BUCKET_NAME || echo "Public access blocks may not exist"
-
           # Set bucket policy for public read access
           cat > bucket-policy.json << EOF
           {
@@ -120,61 +101,35 @@ jobs:
 
       - name: Deploy to S3
         run: |
-          aws s3 sync dist/apps/jouster-ui/ s3://${{ steps.preview-name.outputs.bucket_name }} --delete
+          BUCKET_NAME="${{ steps.preview-name.outputs.bucket_name }}"
 
-      - name: Get preview URL
-        id: preview-url
-        run: |
-          PREVIEW_URL="http://${{ steps.preview-name.outputs.bucket_name }}.s3-website-us-west-2.amazonaws.com"
-          echo "url=${PREVIEW_URL}" >> $GITHUB_OUTPUT
+          # Deploy built files (Angular CLI outputs to dist/jouster-ui)
+          aws s3 sync dist/jouster-ui/ s3://$BUCKET_NAME --delete
+
+          # Get the website URL
+          WEBSITE_URL="http://$BUCKET_NAME.s3-website-us-west-2.amazonaws.com"
+          echo "Preview deployed to: $WEBSITE_URL"
+          echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
+        id: deploy
 
       - name: Comment on PR
         uses: actions/github-script@v7
         with:
           script: |
-            const previewUrl = '${{ steps.preview-url.outputs.url }}';
-            const prNumber = context.issue.number;
+            const websiteUrl = '${{ steps.deploy.outputs.website_url }}';
+            const previewName = '${{ steps.preview-name.outputs.preview_name }}';
 
-            // Find existing preview comment
-            const comments = await github.rest.issues.listComments({
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: prNumber,
+              body: `🚀 **Preview Environment Deployed!**
+
+              **Preview URL:** ${websiteUrl}
+              **Environment:** ${previewName}
+
+              This preview will be automatically cleaned up when the PR is closed.`
             });
-
-            const botComment = comments.data.find(comment =>
-              comment.user.type === 'Bot' &&
-              comment.body.includes('🚀 Preview Environment')
-            );
-
-            const commentBody = `## 🚀 Preview Environment
-
-            Your preview environment has been deployed!
-
-            **Preview URL:** ${previewUrl}
-
-            This preview will be automatically updated when you push new commits to this PR.
-
-            ---
-            *Preview environments are automatically cleaned up when the PR is closed.*`;
-
-            if (botComment) {
-              // Update existing comment
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: botComment.id,
-                body: commentBody
-              });
-            } else {
-              // Create new comment
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: prNumber,
-                body: commentBody
-              });
-            }
 
   cleanup-preview:
     runs-on: ubuntu-latest
