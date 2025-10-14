@@ -38,13 +38,11 @@ jobs:
           npm config set fetch-retry-mintimeout 10000
           npm config set fetch-retry-maxtimeout 60000
 
-          # Try npm ci first, but fallback to npm install if it fails due to optional deps
-          echo "Running npm ci..."
-          if ! npm ci --no-audit --no-fund --prefer-offline; then
-            echo "npm ci failed (likely optional dependency issue), trying npm install..."
-            rm -rf node_modules package-lock.json
-            npm install --no-audit --no-fund
-          fi
+          # Use npm install instead of npm ci to avoid optional dependency bug
+          # npm ci has a known bug where it silently fails to install optional deps like @rollup/rollup-linux-x64-gnu
+          # See: https://github.com/npm/cli/issues/4828
+          echo "Running npm install (required for Rollup optional dependencies)..."
+          npm install --no-audit --no-fund
 
           echo "Installation completed successfully"
           echo "Verifying packages..."
