@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Angular: Serve",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/@nx/cli/bin/nx.js",
+      "args": ["serve", "jouster", "--host=localhost", "--port=4200", "--configuration=development"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "Angular: Build",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/@nx/cli/bin/nx.js",
+      "args": ["build", "jouster"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal"
+    }
+  ]
+}
+

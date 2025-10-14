@@ -1,0 +1,136 @@
+<div class="page-container">
+  <h1>Highlights from @beffjarker</h1>
+
+  <div class="content-switch">
+    <button
+      class="switch-btn"
+      [class.active]="showEmbeds"
+      (click)="toggleContent(true)">
+      📱 Real Instagram Posts
+    </button>
+    <button
+      class="switch-btn"
+      [class.active]="!showEmbeds"
+      (click)="toggleContent(false)">
+      🎨 Portfolio Gallery
+    </button>
+  </div>
+
+  <!-- Instagram Embeds Section -->
+  <div *ngIf="showEmbeds" class="embeds-section">
+    <div class="embed-notice">
+      <h3>🚀 Real @beffjarker Instagram Posts</h3>
+      <p>These are live Instagram embeds from @beffjarker's actual profile. To add more posts:</p>
+      <ol>
+        <li>Visit <a href="https://instagram.com/beffjarker" target="_blank">@beffjarker on Instagram</a></li>
+        <li>Click "..." on any post → "Embed"</li>
+        <li>Copy the embed code and add it below</li>
+      </ol>
+    </div>
+
+    <div class="instagram-embeds" *ngIf="instagramEmbeds.length > 0">
+      <div class="embed-container" *ngFor="let embed of instagramEmbeds">
+        <div [innerHTML]="getSafeHtml(embed.embedCode)"></div>
+        <div class="embed-caption">
+          <p>{{ embed.caption }}</p>
+          <a [href]="embed.postUrl" target="_blank" class="view-post">View on Instagram</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="add-embed-form" *ngIf="showAddForm">
+      <h4>Add New Instagram Post</h4>
+      <div class="form-group">
+        <label>Instagram Embed Code:</label>
+        <textarea
+          [(ngModel)]="newEmbedCode"
+          placeholder="Paste Instagram embed code here..."
+          rows="4">
+        </textarea>
+      </div>
+      <div class="form-group">
+        <label>Caption (optional):</label>
+        <input
+          type="text"
+          [(ngModel)]="newEmbedCaption"
+          placeholder="Brief description of the post">
+      </div>
+      <div class="form-group">
+        <label>Post URL:</label>
+        <input
+          type="url"
+          [(ngModel)]="newEmbedUrl"
+          placeholder="https://instagram.com/p/...">
+      </div>
+      <div class="form-actions">
+        <button (click)="addEmbed()" class="add-btn" [disabled]="!newEmbedCode">Add Post</button>
+        <button (click)="showAddForm = false" class="cancel-btn">Cancel</button>
+      </div>
+    </div>
+
+    <button
+      *ngIf="!showAddForm"
+      (click)="showAddForm = true"
+      class="add-embed-btn">
+      ➕ Add Instagram Post
+    </button>
+  </div>
+
+  <!-- Existing Portfolio Gallery Section -->
+  <div *ngIf="!showEmbeds">
+    <div class="instagram-notice">
+      <p class="notice-text">
+        <strong>Portfolio Gallery:</strong> Professional photography showcase with enhanced mock data
+        representing @beffjarker's style and quality.
+      </p>
+      <div class="notice-actions">
+        <a
+          href="https://instagram.com/beffjarker"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="instagram-link">
+          📱 Visit Real @beffjarker Profile
+        </a>
+      </div>
+    </div>
+
+    <div class="loading" *ngIf="loading">
+      <div class="spinner"></div>
+      <p>Loading Instagram highlights...</p>
+    </div>
+
+    <div class="instagram-grid" *ngIf="!loading">
+      <div class="instagram-item" *ngFor="let image of images$ | async; let i = index">
+        <div class="image-container">
+          <img
+            [src]="image.media_url"
+            [alt]="image.caption || 'Instagram image'"
+            (load)="onImageLoad(i)"
+            (error)="onImageError(i)"
+          >
+          <div class="image-overlay">
+            <div class="image-info">
+              <p class="caption">{{ getShortCaption(image.caption) }}</p>
+              <span class="date">{{ formatDate(image.timestamp) }}</span>
+            </div>
+            <a
+              [href]="image.permalink"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="view-on-instagram"
+              aria-label="View on Instagram"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="empty-state" *ngIf="!loading && (images$ | async)?.length === 0">
+    <p>No images available at the moment. Please try again later.</p>
+  </div>
+</div>

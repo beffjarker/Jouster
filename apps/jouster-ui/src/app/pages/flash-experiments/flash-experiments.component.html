@@ -1,0 +1,230 @@
+<div class="page-container" data-cy="flash-experiments-page">
+  <h1 data-cy="flash-experiments-title">Old Flash Experiments</h1>
+  <p class="intro" data-cy="flash-experiments-intro">
+    A collection of Flash experiments from 2001-2002, now converted to HTML5 Canvas.
+    These were originally created in ActionScript and showcase early interactive web animations.
+  </p>
+
+  <!-- Category Filter -->
+  <div class="filter-section" data-cy="filter-section">
+    <label for="categoryFilter">Filter by category:</label>
+    <select id="categoryFilter" [(ngModel)]="selectedCategory" (change)="filterExperiments()" class="category-select" data-cy="category-filter-select">
+      <option value="">All Categories</option>
+      <option value="particles">Particles</option>
+      <option value="following">Following</option>
+      <option value="math">Mathematical</option>
+      <option value="networks">Networks</option>
+      <option value="waves">Waves</option>
+      <option value="geometric">Geometric</option>
+      <option value="trigonometry">Trigonometry</option>
+      <option value="physics">Physics</option>
+      <option value="interactive">Interactive</option>
+      <option value="orbital">Orbital</option>
+      <option value="nature">Nature</option>
+      <option value="fractals">Fractals</option>
+      <option value="sketching">Sketching</option>
+    </select>
+  </div>
+
+  <!-- Experiments Grid -->
+  <div class="experiments-grid" data-cy="experiments-grid">
+    <div *ngFor="let experiment of filteredExperiments"
+         class="experiment-card"
+         [class]="getHighlightClass(experiment.id)"
+         [attr.data-cy]="'experiment-card-' + experiment.id">
+
+      <!-- Highlight Badge -->
+      <div class="highlight-badge" *ngIf="isHighlighted(experiment.id)" [attr.data-cy]="'highlight-badge-' + experiment.id">
+        {{ getHighlightBadge(experiment.id) }}
+      </div>
+
+      <div class="experiment-header">
+        <h3 [attr.data-cy]="'experiment-title-' + experiment.id">{{ experiment.name }}</h3>
+        <span class="category-tag" [class]="'category-' + experiment.category" [attr.data-cy]="'experiment-category-' + experiment.id">
+          {{ capitalizeCategory(experiment.category) }}
+        </span>
+      </div>
+      <p class="experiment-description" [attr.data-cy]="'experiment-description-' + experiment.id">{{ experiment.description }}</p>
+
+      <!-- Preset Selector (for experiments that have presets like sunflower) -->
+      <div class="preset-selector" *ngIf="experiment.hasPresets && experiment.presets" [attr.data-cy]="'preset-selector-' + experiment.id">
+        <label [for]="'preset-' + experiment.id">Pattern Preset:</label>
+        <select
+          [id]="'preset-' + experiment.id"
+          [ngModel]="getPresetForExperiment(experiment.id)"
+          (change)="setPresetForExperiment(experiment.id, getSelectValue($event))"
+          class="preset-dropdown"
+          [attr.data-cy]="'preset-dropdown-' + experiment.id">
+          <option *ngFor="let preset of experiment.presets"
+                  [value]="preset.id"
+                  [title]="preset.description"
+                  [attr.data-cy]="'preset-option-' + preset.id">
+            {{ preset.name }}
+          </option>
+        </select>
+        <small class="preset-description" *ngIf="experiment.presets">
+          {{ getPresetDescription(experiment) }}
+        </small>
+      </div>
+
+      <!-- Universal Center Point Controls for All Experiments -->
+      <div class="universal-center-controls"
+           [attr.data-cy]="'center-controls-' + experiment.id">
+        <h4>Animation Center Point</h4>
+
+        <!-- Control Mode Selection -->
+        <div class="control-mode-selector">
+          <div class="radio-group">
+            <input
+              type="radio"
+              [id]="'manual-mode-' + experiment.id"
+              [name]="'centerMode-' + experiment.id"
+              value="manual"
+              [checked]="getExperimentMouseMode(experiment.id) === 'manual'"
+              (change)="onExperimentMouseModeChange(experiment.id, 'manual')"
+              [attr.data-cy]="'manual-mode-' + experiment.id">
+            <label [for]="'manual-mode-' + experiment.id">Manual Coordinates</label>
+          </div>
+          <div class="radio-group">
+            <input
+              type="radio"
+              [id]="'mouse-mode-' + experiment.id"
+              [name]="'centerMode-' + experiment.id"
+              value="mouse"
+              [checked]="getExperimentMouseMode(experiment.id) === 'mouse'"
+              (change)="onExperimentMouseModeChange(experiment.id, 'mouse')"
+              [attr.data-cy]="'mouse-mode-' + experiment.id">
+            <label [for]="'mouse-mode-' + experiment.id">Follow Mouse</label>
+          </div>
+        </div>
+
+        <!-- Manual Input Controls (shown only in manual mode) -->
+        <div class="center-point-inputs" *ngIf="getExperimentMouseMode(experiment.id) === 'manual'">
+          <div class="input-group">
+            <label [for]="'centerX-' + experiment.id">Center X:</label>
+            <input
+              [id]="'centerX-' + experiment.id"
+              type="number"
+              [value]="getExperimentCenter(experiment.id).x"
+              (input)="onExperimentCenterChange(experiment.id, +($any($event.target).value), getExperimentCenter(experiment.id).y)"
+              min="0"
+              max="400"
+              [attr.data-cy]="'center-x-' + experiment.id">
+          </div>
+          <div class="input-group">
+            <label [for]="'centerY-' + experiment.id">Center Y:</label>
+            <input
+              [id]="'centerY-' + experiment.id"
+              type="number"
+              [value]="getExperimentCenter(experiment.id).y"
+              (input)="onExperimentCenterChange(experiment.id, getExperimentCenter(experiment.id).x, +($any($event.target).value))"
+              min="0"
+              max="300"
+              [attr.data-cy]="'center-y-' + experiment.id">
+          </div>
+        </div>
+
+        <!-- Mouse Mode Instructions (shown only in mouse mode) -->
+        <div class="mouse-mode-instructions" *ngIf="getExperimentMouseMode(experiment.id) === 'mouse'">
+          <p><i class="icon-mouse"></i> Move your mouse over the canvas to control the animation center point.</p>
+          <p>Current position: X={{ getExperimentCenter(experiment.id).x }}, Y={{ getExperimentCenter(experiment.id).y }}</p>
+        </div>
+      </div>
+
+      <!-- Legacy Explosive Burst Center Point Controls (for backward compatibility) -->
+      <div class="explosive-center-controls"
+           *ngIf="experiment.id === 'particles' && showExplosiveCenterControls"
+           [attr.data-cy]="'explosive-center-controls'">
+        <h4>Legacy Explosive Burst Center Point</h4>
+
+        <!-- Control Mode Selection -->
+        <div class="radio-group">
+          <input
+            type="radio"
+            id="manual-mode"
+            name="explosiveCenterMode"
+            value="manual"
+            [(ngModel)]="explosiveCenterMode"
+            (change)="onExplosiveCenterModeChange()"
+            data-cy="manual-mode-radio">
+          <label for="manual-mode">Manual Coordinates</label>
+        </div>
+        <div class="radio-group">
+          <input
+            type="radio"
+            id="mouse-mode"
+            name="explosiveCenterMode"
+            value="mouse"
+            [(ngModel)]="explosiveCenterMode"
+            (change)="onExplosiveCenterModeChange()"
+            data-cy="mouse-mode-radio">
+          <label for="mouse-mode">Follow Mouse</label>
+        </div>
+
+        <!-- Manual Input Controls (shown only in manual mode) -->
+        <div class="center-point-inputs" *ngIf="explosiveCenterMode === 'manual'">
+          <div class="input-group">
+            <label for="explosiveCenterX">Center X:</label>
+            <input
+              id="explosiveCenterX"
+              type="number"
+              [(ngModel)]="explosiveCenterX"
+              (input)="onExplosiveCenterChange()"
+              min="0"
+              max="400"
+              step="10"
+              class="center-input"
+              data-cy="explosive-center-x-input">
+            <span class="input-range">0-400</span>
+          </div>
+          <div class="input-group">
+            <label for="explosiveCenterY">Center Y:</label>
+            <input
+              id="explosiveCenterY"
+              type="number"
+              [(ngModel)]="explosiveCenterY"
+              (input)="onExplosiveCenterChange()"
+              min="0"
+              max="300"
+              step="10"
+              class="center-input"
+              data-cy="explosive-center-y-input">
+            <span class="input-range">0-300</span>
+          </div>
+        </div>
+
+        <!-- Mouse Mode Display (shown only in mouse mode) -->
+        <div class="mouse-mode-display" *ngIf="explosiveCenterMode === 'mouse'">
+          <div class="current-coordinates">
+            <span>Current Position: X={{explosiveCenterX}}, Y={{explosiveCenterY}}</span>
+          </div>
+          <div class="mouse-instructions">
+            <small>Move your mouse over the canvas to control the explosion center point.
+            Particles will explode from wherever your cursor is positioned.</small>
+          </div>
+        </div>
+
+        <small class="help-text">
+          <span *ngIf="explosiveCenterMode === 'manual'">Set the center point where particles will explode from. Canvas size is 400×300 pixels.</span>
+          <span *ngIf="explosiveCenterMode === 'mouse'">Move your mouse over the canvas to dynamically control the explosion center.</span>
+        </small>
+      </div>
+
+      <div class="canvas-container">
+        <canvas
+          [id]="'canvas-' + experiment.id"
+          width="400"
+          height="300"
+          class="experiment-canvas"
+          [attr.data-cy]="'experiment-canvas-' + experiment.id">
+        </canvas>
+      </div>
+
+      <div class="experiment-controls" [attr.data-cy]="'experiment-controls-' + experiment.id">
+        <button (click)="startExperiment(experiment)" class="start-btn" [attr.data-cy]="'start-btn-' + experiment.id">Start</button>
+        <button (click)="stopExperiment(experiment)" class="stop-btn" [attr.data-cy]="'stop-btn-' + experiment.id">Stop</button>
+        <button (click)="resetExperiment(experiment)" class="reset-btn" [attr.data-cy]="'reset-btn-' + experiment.id">Reset</button>
+      </div>
+    </div>
+  </div>
+</div>
