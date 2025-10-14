@@ -1,0 +1,295 @@
+name: Deploy QA Environment
+
+on:
+  push:
+    branches:
+      - develop
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: qa
+      url: ${{ steps.deploy.outputs.website_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        timeout-minutes: 3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+        timeout-minutes: 2
+
+      - name: Install dependencies
+        run: |
+          echo "Installing dependencies with Angular CLI..."
+          echo "Package.json dependency count:"
+          cat package.json | grep -c '"' || echo "Could not count dependencies"
+
+          # Set npm timeouts
+          npm config set fetch-timeout 60000
+          npm config set fetch-retry-mintimeout 10000
+          npm config set fetch-retry-maxtimeout 60000
+
+          # Delete package-lock.json and node_modules to force clean install
+          # This is required to properly install Rollup optional dependencies
+          # See: https://github.com/npm/cli/issues/4828
+          echo "Removing package-lock.json and node_modules for clean install..."
+          rm -rf node_modules package-lock.json
+
+          echo "Running npm install (required for Rollup optional dependencies)..."
+          npm install --no-audit --no-fund
+
+          echo "Installation completed successfully"
+          echo "Verifying packages..."
+          ls node_modules/@angular/ >/dev/null && echo "✓ Angular packages found" || echo "✗ Angular packages missing"
+          ls node_modules/typescript/ >/dev/null && echo "✓ TypeScript found" || echo "✗ TypeScript missing"
+          ls node_modules/@rollup/ >/dev/null && echo "✓ Rollup packages found" || echo "✗ Rollup packages missing"
+        timeout-minutes: 8
+        env:
+          CI: true
+
+      - name: Build application
+        run: |
+          echo "Building jouster-ui for QA environment..."
+          npx ng build --configuration=production
+        timeout-minutes: 10
+        env:
+          NODE_OPTIONS: --max_old_space_size=4096
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - name: Determine deployment slot (Blue/Green)
+        id: deployment-slot
+        run: |
+          # Check which environment is currently active by checking CloudFront distribution
+          ACTIVE_ORIGIN=$(aws cloudfront get-distribution-config \
+            --id ${{ secrets.QA_CLOUDFRONT_DISTRIBUTION_ID }} \
+            --query 'DistributionConfig.Origins.Items[0].Id' \
+            --output text 2>/dev/null || echo "blue")
+
+          # Determine the inactive slot for deployment
+          if [[ "$ACTIVE_ORIGIN" == *"blue"* ]]; then
+            DEPLOY_SLOT="green"
+            INACTIVE_BUCKET="jouster-qa-green"
+          else
+            DEPLOY_SLOT="blue"
+            INACTIVE_BUCKET="jouster-qa-blue"
+          fi
+
+          echo "active_slot=${ACTIVE_ORIGIN}" >> $GITHUB_OUTPUT
+          echo "deploy_slot=${DEPLOY_SLOT}" >> $GITHUB_OUTPUT
+          echo "deploy_bucket=${INACTIVE_BUCKET}" >> $GITHUB_OUTPUT
+          echo "Deploying to ${DEPLOY_SLOT} slot (bucket: ${INACTIVE_BUCKET})"
+
+      - name: Ensure S3 buckets exist
+        run: |
+          # Create blue bucket if it doesn't exist
+          aws s3 mb s3://jouster-qa-blue --region us-west-2 || echo "Blue bucket already exists"
+
+          # Create green bucket if it doesn't exist
+          aws s3 mb s3://jouster-qa-green --region us-west-2 || echo "Green bucket already exists"
+
+          # Configure both buckets for static website hosting
+          for BUCKET in jouster-qa-blue jouster-qa-green; do
+            echo "Configuring bucket: $BUCKET"
+
+            # Remove block public access settings
+            aws s3api put-public-access-block \
+              --bucket $BUCKET \
+              --public-access-block-configuration \
+              "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+
+            # Configure for static website hosting
+            aws s3 website s3://$BUCKET --index-document index.html --error-document index.html
+
+            # Set bucket policy for CloudFront access
+            cat > bucket-policy-${BUCKET}.json << EOF
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "PublicReadGetObject",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::${BUCKET}/*"
+              }
+            ]
+          }
+          EOF
+
+            aws s3api put-bucket-policy --bucket $BUCKET --policy file://bucket-policy-${BUCKET}.json
+          done
+
+      - name: Deploy to inactive slot
+        run: |
+          BUCKET_NAME="${{ steps.deployment-slot.outputs.deploy_bucket }}"
+
+          echo "Deploying to $BUCKET_NAME..."
+
+          # Sync built files to the inactive bucket
+          aws s3 sync dist/jouster-ui/browser/ s3://$BUCKET_NAME --delete
+
+          echo "Deployment to $BUCKET_NAME completed successfully"
+
+      - name: Run smoke tests
+        run: |
+          BUCKET_NAME="${{ steps.deployment-slot.outputs.deploy_bucket }}"
+          WEBSITE_URL="http://${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com"
+
+          echo "Running smoke tests against: $WEBSITE_URL"
+
+          # Test 1: Check if index.html is accessible
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$WEBSITE_URL")
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Smoke test failed: Expected HTTP 200, got $HTTP_CODE"
+            exit 1
+          fi
+          echo "✓ HTTP status check passed (200)"
+
+          # Test 2: Check if content is valid HTML
+          CONTENT=$(curl -s "$WEBSITE_URL")
+          if ! echo "$CONTENT" | grep -q "<html"; then
+            echo "❌ Smoke test failed: Response does not contain valid HTML"
+            exit 1
+          fi
+          echo "✓ HTML content check passed"
+
+          # Test 3: Check if Angular app files exist
+          if ! echo "$CONTENT" | grep -q "app"; then
+            echo "❌ Smoke test failed: Angular app not found in response"
+            exit 1
+          fi
+          echo "✓ Angular app check passed"
+
+          echo "🎉 All smoke tests passed!"
+
+      - name: Switch CloudFront origin (Blue/Green swap)
+        id: deploy
+        run: |
+          DEPLOY_BUCKET="${{ steps.deployment-slot.outputs.deploy_bucket }}"
+          DEPLOY_SLOT="${{ steps.deployment-slot.outputs.deploy_slot }}"
+          DISTRIBUTION_ID="${{ secrets.QA_CLOUDFRONT_DISTRIBUTION_ID }}"
+
+          echo "Switching CloudFront to $DEPLOY_SLOT slot..."
+
+          # Get current distribution config
+          aws cloudfront get-distribution-config \
+            --id $DISTRIBUTION_ID \
+            --output json > dist-config.json
+
+          # Extract ETag
+          ETAG=$(jq -r '.ETag' dist-config.json)
+
+          # Update origin to point to new bucket
+          NEW_ORIGIN_DOMAIN="${DEPLOY_BUCKET}.s3-website-us-west-2.amazonaws.com"
+
+          jq --arg domain "$NEW_ORIGIN_DOMAIN" --arg id "$DEPLOY_SLOT" \
+            '.DistributionConfig.Origins.Items[0].DomainName = $domain |
+             .DistributionConfig.Origins.Items[0].Id = $id' \
+            dist-config.json > updated-config.json
+
+          # Update distribution
+          aws cloudfront update-distribution \
+            --id $DISTRIBUTION_ID \
+            --distribution-config file://updated-config.json \
+            --if-match $ETAG
+
+          # Create CloudFront invalidation to clear cache
+          echo "Creating CloudFront invalidation..."
+          aws cloudfront create-invalidation \
+            --distribution-id $DISTRIBUTION_ID \
+            --paths "/*"
+
+          # Get CloudFront URL
+          CLOUDFRONT_URL=$(aws cloudfront get-distribution \
+            --id $DISTRIBUTION_ID \
+            --query 'Distribution.DomainName' \
+            --output text)
+
+          WEBSITE_URL="https://${CLOUDFRONT_URL}"
+          echo "website_url=${WEBSITE_URL}" >> $GITHUB_OUTPUT
+          echo "deployed_slot=${DEPLOY_SLOT}" >> $GITHUB_OUTPUT
+
+          echo "✅ QA environment deployed to $DEPLOY_SLOT slot"
+          echo "🌐 URL: $WEBSITE_URL"
+
+      - name: Notify deployment success
+        if: success()
+        run: |
+          echo "🎉 QA Deployment Successful!"
+          echo "Environment: QA (${{ steps.deploy.outputs.deployed_slot }} slot)"
+          echo "URL: ${{ steps.deploy.outputs.website_url }}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref_name }}"
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed, initiating rollback..."
+          # The inactive slot still has the old version, so we don't need to do anything
+          # The CloudFront distribution is still pointing to the active (old) slot
+          echo "Rollback complete - previous version still active"
+          exit 1
+
+  health-check:
+    needs: deploy-qa
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Wait for CloudFront propagation
+        run: |
+          echo "Waiting 60 seconds for CloudFront distribution to propagate..."
+          sleep 60
+
+      - name: Run health checks
+        run: |
+          DISTRIBUTION_ID="${{ secrets.QA_CLOUDFRONT_DISTRIBUTION_ID }}"
+
+          # Get CloudFront URL
+          CLOUDFRONT_URL=$(aws cloudfront get-distribution \
+            --id $DISTRIBUTION_ID \
+            --query 'Distribution.DomainName' \
+            --output text)
+
+          WEBSITE_URL="https://${CLOUDFRONT_URL}"
+
+          echo "Running health checks against: $WEBSITE_URL"
+
+          # Retry logic for health checks
+          MAX_RETRIES=5
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$WEBSITE_URL" || echo "000")
+
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health check passed (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            echo "⚠️  Health check attempt $RETRY_COUNT failed (HTTP $HTTP_CODE), retrying in 10s..."
+            sleep 10
+          done
+
+          echo "❌ Health check failed after $MAX_RETRIES attempts"
+          exit 1
+        env:
+          AWS_DEFAULT_REGION: us-west-2
+          AWS_REGION: us-west-2
+
