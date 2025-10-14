@@ -1,0 +1,168 @@
+name: Deploy Preview Environment
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build application
+        run: npx nx build jouster-ui --configuration=development --skip-nx-cache
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - name: Generate preview environment name
+        id: preview-name
+        run: |
+          PR_NUMBER=${{ github.event.number }}
+          PREVIEW_NAME="preview-pr-${PR_NUMBER}"
+          echo "preview_name=${PREVIEW_NAME}" >> $GITHUB_OUTPUT
+          echo "bucket_name=jouster-${PREVIEW_NAME}" >> $GITHUB_OUTPUT
+          echo "cloudfront_comment=Jouster Preview PR ${PR_NUMBER}" >> $GITHUB_OUTPUT
+
+      - name: Create S3 bucket for preview
+        run: |
+          aws s3 mb s3://${{ steps.preview-name.outputs.bucket_name }} --region us-west-2 || true
+          aws s3 website s3://${{ steps.preview-name.outputs.bucket_name }} \
+            --index-document index.html \
+            --error-document index.html
+
+      - name: Configure S3 bucket policy
+        run: |
+          cat > bucket-policy.json << EOF
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "PublicReadGetObject",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::${{ steps.preview-name.outputs.bucket_name }}/*"
+              }
+            ]
+          }
+          EOF
+          aws s3api put-bucket-policy --bucket ${{ steps.preview-name.outputs.bucket_name }} --policy file://bucket-policy.json
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist/apps/jouster-ui/ s3://${{ steps.preview-name.outputs.bucket_name }} --delete
+
+      - name: Get preview URL
+        id: preview-url
+        run: |
+          PREVIEW_URL="http://${{ steps.preview-name.outputs.bucket_name }}.s3-website-us-west-2.amazonaws.com"
+          echo "url=${PREVIEW_URL}" >> $GITHUB_OUTPUT
+
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const previewUrl = '${{ steps.preview-url.outputs.url }}';
+            const prNumber = context.issue.number;
+
+            // Find existing preview comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('🚀 Preview Environment')
+            );
+
+            const commentBody = `## 🚀 Preview Environment
+
+            Your preview environment has been deployed!
+
+            **Preview URL:** ${previewUrl}
+
+            This preview will be automatically updated when you push new commits to this PR.
+
+            ---
+            *Preview environments are automatically cleaned up when the PR is closed.*`;
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody
+              });
+            }
+
+  cleanup-preview:
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed'
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-west-2
+
+      - name: Clean up preview environment
+        run: |
+          PR_NUMBER=${{ github.event.number }}
+          BUCKET_NAME="jouster-preview-pr-${PR_NUMBER}"
+
+          # Delete all objects in bucket
+          aws s3 rm s3://${BUCKET_NAME} --recursive || true
+
+          # Delete the bucket
+          aws s3 rb s3://${BUCKET_NAME} || true
+
+      - name: Comment cleanup on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: `## 🧹 Preview Environment Cleaned Up
+
+              The preview environment for this PR has been automatically cleaned up.
+
+              Thanks for your contribution! 🎉`
+            });

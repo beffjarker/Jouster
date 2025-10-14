@@ -1,0 +1,10 @@
+oldx = getProperty("../follow", _X);
+oldy = getProperty("../follow", _Y);
+mousex = getProperty("../target", _X);
+mousey = getProperty("../target", _Y);
+newx = mousex - oldx;
+newy = mousey - oldy;
+stepx = newx / "50";
+stepy = newy / "50";
+setProperty("../follow", _X, oldx + stepx);
+setProperty("../follow", _Y, oldy + stepy);
