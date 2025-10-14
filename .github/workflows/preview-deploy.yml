@@ -24,7 +24,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
         timeout-minutes: 2
 
       - name: Install dependencies
@@ -38,9 +37,12 @@ jobs:
           npm config set fetch-retry-mintimeout 10000
           npm config set fetch-retry-maxtimeout 60000
 
-          # Use npm install instead of npm ci to avoid optional dependency bug
-          # npm ci has a known bug where it silently fails to install optional deps like @rollup/rollup-linux-x64-gnu
+          # Delete package-lock.json and node_modules to force clean install
+          # This is required to properly install Rollup optional dependencies
           # See: https://github.com/npm/cli/issues/4828
+          echo "Removing package-lock.json and node_modules for clean install..."
+          rm -rf node_modules package-lock.json
+
           echo "Running npm install (required for Rollup optional dependencies)..."
           npm install --no-audit --no-fund
 
@@ -49,7 +51,7 @@ jobs:
           ls node_modules/@angular/ >/dev/null && echo "✓ Angular packages found" || echo "✗ Angular packages missing"
           ls node_modules/typescript/ >/dev/null && echo "✓ TypeScript found" || echo "✗ TypeScript missing"
           ls node_modules/@rollup/ >/dev/null && echo "✓ Rollup packages found" || echo "✗ Rollup packages missing"
-        timeout-minutes: 5
+        timeout-minutes: 8
         env:
           CI: true
 
