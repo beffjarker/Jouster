@@ -81,7 +81,16 @@ jobs:
       - name: Create S3 bucket for preview
         run: |
           BUCKET_NAME="${{ steps.preview-name.outputs.bucket_name }}"
-          aws s3 mb s3://$BUCKET_NAME --region us-west-2 || echo "Bucket may already exist"
+
+          # Create bucket if it doesn't exist
+          aws s3 mb s3://$BUCKET_NAME --region us-west-2 || echo "Bucket already exists"
+
+          # Remove block public access settings to allow public bucket policy
+          echo "Removing block public access settings..."
+          aws s3api put-public-access-block \
+            --bucket $BUCKET_NAME \
+            --public-access-block-configuration \
+            "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
 
           # Configure bucket for static website hosting
           aws s3 website s3://$BUCKET_NAME --index-document index.html --error-document index.html
@@ -103,6 +112,8 @@ jobs:
           EOF
 
           aws s3api put-bucket-policy --bucket $BUCKET_NAME --policy file://bucket-policy.json
+
+          echo "Bucket configured successfully for public website hosting"
 
       - name: Deploy to S3
         run: |
