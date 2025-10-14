@@ -1,0 +1,86 @@
+# QA Environment Infrastructure Configuration
+# This file defines the QA environment setup for qa.jouster.org
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Jouster QA Environment Infrastructure'
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: qa.jouster.org
+    Description: QA domain name
+
+Resources:
+  # QA S3 Bucket for static website hosting
+  QAS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref DomainName
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+
+  # QA S3 Bucket Policy for public read access
+  QAS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref QAS3Bucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub '${QAS3Bucket}/*'
+
+  # QA Route 53 DNS Record (if hosted zone exists)
+  QADNSRecord:
+    Type: AWS::Route53::RecordSet
+    Condition: HasHostedZone
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DomainName
+      Type: CNAME
+      TTL: 300
+      ResourceRecords:
+        - !Sub '${DomainName}.s3-website-us-west-2.amazonaws.com'
+
+Conditions:
+  HasHostedZone: !Not [!Equals [!Ref HostedZoneId, '']]
+
+Parameters:
+  HostedZoneId:
+    Type: String
+    Default: ''
+    Description: Route 53 Hosted Zone ID for jouster.org (optional)
+
+Outputs:
+  QABucketName:
+    Description: Name of the QA S3 bucket
+    Value: !Ref QAS3Bucket
+    Export:
+      Name: !Sub '${AWS::StackName}-QABucket'
+
+  QAWebsiteURL:
+    Description: URL for QA website
+    Value: !GetAtt QAS3Bucket.WebsiteURL
+    Export:
+      Name: !Sub '${AWS::StackName}-QAWebsiteURL'
+
+  QADomainURL:
+    Description: QA domain URL
+    Value: !Sub 'https://${DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-QADomainURL'

@@ -1,0 +1,5 @@
+# Conversation History Storage
+
+This directory contains conversation history data and DynamoDB configuration for Rancher Docker deployment.
+
+Files in this directory are ignored by git for privacy and security reasons.

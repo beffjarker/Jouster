@@ -1,0 +1,30 @@
+{
+  "types": {},
+  "css-theme": "",
+  "pluginEnabledStatus": {
+    "file-explorer": true,
+    "global-search": true,
+    "switcher": true,
+    "graph": true,
+    "backlink": true,
+    "outgoing-links": true,
+    "tag-pane": true,
+    "page-preview": true,
+    "daily-notes": true,
+    "templates": true,
+    "note-composer": true,
+    "command-palette": true,
+    "editor-status": true,
+    "starred": true,
+    "markdown-importer": true,
+    "outline": true,
+    "word-count": true,
+    "file-recovery": true
+  },
+  "enabledPlugins": [],
+  "communityPluginSortOrder": "download",
+  "showLineNumber": false,
+  "strictLineBreaks": false,
+  "useMarkdownLinks": true,
+  "showFrontmatter": true
+}

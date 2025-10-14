@@ -1,0 +1,187 @@
+<div class="emails-container" data-cy="emails-page">
+  <div class="page-header">
+    <h1 data-cy="emails-title">Email Files</h1>
+    <p class="subtitle" data-cy="emails-subtitle">Browse and download your email files from S3</p>
+  </div>
+
+  <!-- Controls Section -->
+  <div class="controls-section" data-cy="emails-controls">
+    <div class="page-size-control">
+      <label for="pageSize">Items per page:</label>
+      <input
+        id="pageSize"
+        type="number"
+        [(ngModel)]="pageSize"
+        (change)="onPageSizeChange()"
+        [min]="MIN_PAGE_SIZE"
+        [max]="MAX_PAGE_SIZE"
+        class="page-size-input"
+        data-cy="page-size-input"
+      />
+      <span class="range-info">({{MIN_PAGE_SIZE}}-{{MAX_PAGE_SIZE}})</span>
+    </div>
+
+    <div class="results-info" *ngIf="!loading" data-cy="results-info">
+      <span>Showing {{emails.length}} of {{totalEmails > 0 ? totalEmails + (hasMore ? '+' : '') : 'unknown'}} emails</span>
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="loading" data-cy="loading-state">
+    <div class="loading-spinner"></div>
+    <p>Loading emails...</p>
+  </div>
+
+  <!-- Error State -->
+  <div class="error-state" *ngIf="error && !loading" data-cy="error-state">
+    <div class="error-icon">⚠️</div>
+    <p data-cy="error-message">{{error}}</p>
+    <button class="retry-btn" (click)="loadEmails(currentPage)" data-cy="retry-button">Retry</button>
+  </div>
+
+  <!-- Email List -->
+  <div class="emails-list" *ngIf="!loading && !error" data-cy="emails-list">
+    <div class="list-header" data-cy="list-header">
+      <div class="col-subject">Subject</div>
+      <div class="col-size">Size</div>
+      <div class="col-date">Last Modified</div>
+      <div class="col-actions">Actions</div>
+    </div>
+
+    <div class="email-item" *ngFor="let email of emails; trackBy: trackByKey" [attr.data-cy]="'email-item-' + email.key">
+      <div class="col-subject" [attr.data-cy]="'email-subject-' + email.key">
+        <div class="email-subject" [title]="email.subject || email.key">
+          <span *ngIf="email.loadingSubject" class="loading-subject">📧 Loading subject...</span>
+          <span *ngIf="!email.loadingSubject && email.subject" class="subject-text">{{email.subject}}</span>
+          <span *ngIf="!email.loadingSubject && !email.subject" class="no-subject">No Subject</span>
+        </div>
+        <div class="file-key">{{email.displayName}}</div>
+      </div>
+      <div class="col-size">
+        {{formatFileSize(email.size)}}
+      </div>
+      <div class="col-date">
+        {{formatDate(email.lastModified)}}
+      </div>
+      <div class="col-actions">
+        <button
+          class="display-btn"
+          (click)="displayEmail(email)"
+          title="Display email content"
+          [disabled]="loadingEmail && displayingEmail?.key === email.key"
+          [attr.data-cy]="'display-button-' + email.key"
+        >
+          <span *ngIf="loadingEmail && displayingEmail?.key === email.key">⏳</span>
+          <span *ngIf="!(loadingEmail && displayingEmail?.key === email.key)">👁️ Display</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="empty-state" *ngIf="emails.length === 0" data-cy="empty-state">
+      <div class="empty-icon">📭</div>
+      <h3>No emails found</h3>
+      <p>There are no email files to display.</p>
+    </div>
+  </div>
+
+  <!-- Email Display Modal -->
+  <div class="email-modal" *ngIf="displayingEmail" (click)="closeEmailDisplay()">
+    <div class="email-modal-content" (click)="$event.stopPropagation()">
+      <div class="email-modal-header">
+        <h2>📧 Email Display</h2>
+        <button class="close-btn" (click)="closeEmailDisplay()" title="Close">×</button>
+      </div>
+
+      <!-- Loading State -->
+      <div class="email-loading" *ngIf="loadingEmail">
+        <div class="loading-spinner"></div>
+        <p>Parsing email content...</p>
+      </div>
+
+      <!-- Error State -->
+      <div class="email-error" *ngIf="emailError && !loadingEmail">
+        <div class="error-icon">⚠️</div>
+        <p>{{emailError}}</p>
+        <button class="retry-btn" (click)="displayEmail(displayingEmail!)">Retry</button>
+      </div>
+
+      <!-- Email Content -->
+      <div class="email-content" *ngIf="parsedEmail && !loadingEmail && !emailError">
+        <div class="email-headers">
+          <div class="header-row">
+            <span class="header-label">Subject:</span>
+            <span class="header-value">{{parsedEmail.subject || 'No Subject'}}</span>
+          </div>
+          <div class="header-row">
+            <span class="header-label">From:</span>
+            <span class="header-value">{{parsedEmail.from}}</span>
+          </div>
+          <div class="header-row">
+            <span class="header-label">To:</span>
+            <span class="header-value">{{parsedEmail.to.join(', ')}}</span>
+          </div>
+          <div class="header-row">
+            <span class="header-label">Date:</span>
+            <span class="header-value">{{formatDate(parsedEmail.date)}}</span>
+          </div>
+        </div>
+
+        <div class="email-body">
+          <h4>Message Content:</h4>
+          <div class="body-content" [innerHTML]="parsedEmail.body"></div>
+        </div>
+
+        <div class="email-actions">
+          <button class="download-btn" (click)="downloadEmail(displayingEmail!)" title="Download original email file">
+            📥 Download Original
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination" *ngIf="!loading && !error && emails.length > 0">
+    <div class="pagination-info">
+      <span>Page {{currentPage}} of {{totalPages > 0 ? totalPages : '?'}}</span>
+    </div>
+
+    <div class="pagination-controls">
+      <!-- Previous Button -->
+      <button
+        class="page-btn"
+        (click)="previousPage()"
+        [disabled]="currentPage <= 1"
+        title="Previous page"
+        data-cy="previous-page-button"
+      >
+        ← Previous
+      </button>
+
+      <!-- Page Numbers -->
+      <div class="page-numbers">
+        <button
+          *ngFor="let page of getPageNumbers()"
+          class="page-number-btn"
+          [class.active]="page === currentPage"
+          (click)="goToPage(page)"
+          [attr.data-cy]="'page-number-' + page"
+        >
+          {{page}}
+        </button>
+      </div>
+
+      <!-- Next Button -->
+      <button
+        class="page-btn"
+        (click)="nextPage()"
+        [disabled]="!hasMore && currentPage >= totalPages"
+        title="Next page"
+        data-cy="next-page-button"
+      >
+        Next →
+      </button>
+    </div>
+  </div>
+</div>

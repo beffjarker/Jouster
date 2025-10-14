@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: jouster-dynamodb
+    ports:
+      - "8000:8000"
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+    working_dir: /home/dynamodblocal
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
+    networks:
+      - jouster-network
+    restart: unless-stopped
+    environment:
+      - AWS_ACCESS_KEY_ID=dummy
+      - AWS_SECRET_ACCESS_KEY=dummy
+      - AWS_DEFAULT_REGION=us-east-1
+    labels:
+      - "io.rancher.container.pull_image=always"
+      - "io.rancher.scheduler.affinity:host_label_soft=environment=development"
+
+  dynamodb-admin:
+    image: aaronshaf/dynamodb-admin:latest
+    container_name: jouster-dynamodb-admin
+    ports:
+      - "8001:8001"
+    environment:
+      - DYNAMO_ENDPOINT=http://dynamodb-local:8000
+      - AWS_REGION=us-east-1
+    networks:
+      - jouster-network
+    depends_on:
+      - dynamodb-local
+
+networks:
+  jouster-network:
+    driver: bridge
+
+volumes:
+  dynamodb-data:
+    driver: local

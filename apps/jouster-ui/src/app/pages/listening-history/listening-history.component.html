@@ -1,0 +1,161 @@
+<div class="page-container">
+  <h1>📊 Listening History Analysis</h1>
+
+  <div class="profile-banner">
+    <h2>Complete Last.fm History for <a href="https://www.last.fm/user/Treysin" target="_blank" rel="noopener">Treysin</a></h2>
+    <p>Comprehensive analysis of your music listening patterns since joining Last.fm</p>
+  </div>
+
+  <div class="loading" *ngIf="loadingAnalysis">Analyzing your complete listening history...</div>
+
+  <div class="analysis-container" *ngIf="!loadingAnalysis && (analysisData | async) as analysis">
+
+    <!-- Overview Stats Section -->
+    <section class="overview-stats">
+      <h2>🎵 Overview Statistics</h2>
+      <div class="stats-grid">
+        <div class="stat-card primary">
+          <h3>Total Scrobbles</h3>
+          <p class="stat-number">{{ analysis.totalScrobbles | number }}</p>
+          <span class="stat-label">Since joining</span>
+        </div>
+        <div class="stat-card">
+          <h3>Average Per Day</h3>
+          <p class="stat-number">{{ analysis.averageScrobblesPerDay | number:'1.1-1' }}</p>
+          <span class="stat-label">Scrobbles daily</span>
+        </div>
+        <div class="stat-card">
+          <h3>Membership Days</h3>
+          <p class="stat-number">{{ analysis.membershipDays | number }}</p>
+          <span class="stat-label">Days on Last.fm</span>
+        </div>
+        <div class="stat-card highlight">
+          <h3>Most Active Year</h3>
+          <p class="stat-year">{{ analysis.mostActiveYear }}</p>
+          <span class="stat-label">Peak listening</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Genre Distribution Section -->
+    <section class="genre-distribution">
+      <h2>🎭 Genre Distribution</h2>
+      <div class="genre-chart">
+        <div class="genre-item" *ngFor="let genre of analysis.genreDistribution">
+          <div class="genre-header">
+            <h3>{{ genre.genre }}</h3>
+            <span class="percentage">{{ genre.percentage | number:'1.1-1' }}%</span>
+          </div>
+          <div class="genre-bar">
+            <div class="genre-fill" [style.width.%]="genre.percentage"></div>
+          </div>
+          <div class="genre-details">
+            <span class="playcount">{{ genre.playcount | number }} plays</span>
+            <div class="top-artists">
+              <span class="artist" *ngFor="let artist of genre.topArtists; let last = last">
+                {{ artist }}<span *ngIf="!last">, </span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Yearly Breakdown Section -->
+    <section class="yearly-breakdown">
+      <h2>📅 Year by Year Breakdown</h2>
+      <div class="years-grid">
+        <div class="year-card" *ngFor="let year of analysis.yearlyStats">
+          <h3>{{ year.year }}</h3>
+          <div class="year-stats">
+            <div class="year-stat">
+              <span class="stat-value">{{ year.scrobbles | number }}</span>
+              <span class="stat-label">Scrobbles</span>
+            </div>
+            <div class="year-stat">
+              <span class="stat-value">{{ year.uniqueArtists | number }}</span>
+              <span class="stat-label">Artists</span>
+            </div>
+            <div class="year-stat">
+              <span class="stat-value">{{ year.uniqueAlbums | number }}</span>
+              <span class="stat-label">Albums</span>
+            </div>
+            <div class="year-stat">
+              <span class="stat-value">{{ year.uniqueTracks | number }}</span>
+              <span class="stat-label">Tracks</span>
+            </div>
+          </div>
+          <div class="year-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" [style.width.%]="getYearProgressPercent(year)"></div>
+            </div>
+          </div>
+          <div class="top-artist">
+            Top: {{ year.topArtist }}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Monthly Trends Section -->
+    <section class="monthly-trends">
+      <h2>📈 Monthly Listening Trends</h2>
+      <div class="trend-chart">
+        <div class="month-bar" *ngFor="let month of analysis.monthlyTrends">
+          <div class="month-label">{{ month.month }}</div>
+          <div class="month-bar-container">
+            <div class="month-bar-fill" [style.height.%]="getMonthBarHeight(month)"></div>
+          </div>
+          <div class="month-value">{{ month.averageScrobbles | number:'1.0-0' }}</div>
+        </div>
+      </div>
+      <p class="trend-description">Average scrobbles per month across all years</p>
+    </section>
+
+    <!-- Listening Streaks Section -->
+    <section class="listening-streaks">
+      <h2>🔥 Listening Streaks</h2>
+      <div class="streaks-container">
+        <div class="streak-card" *ngFor="let streak of analysis.listeningStreaks">
+          <h4>{{ streak.type | titlecase }} Streak</h4>
+          <div class="streak-value">{{ streak.days }} days</div>
+          <div class="streak-period">
+            {{ streak.startDate | date:'MMM d, y' }} - {{ streak.endDate | date:'MMM d, y' }}
+          </div>
+          <div class="streak-details">
+            <span>{{ streak.totalScrobbles | number }} scrobbles</span>
+            <span>{{ streak.avgPerDay | number:'1.1-1' }}/day avg</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Discovery Analysis Section -->
+    <section class="discovery-analysis">
+      <h2>🔍 Music Discovery Analysis</h2>
+      <div class="discovery-stats">
+        <div class="discovery-card">
+          <h4>New Artists Per Year</h4>
+          <div class="discovery-value">{{ analysis.discoveryRate | number:'1.0-0' }}</div>
+          <p>Average new artists discovered annually</p>
+        </div>
+        <div class="discovery-card">
+          <h4>Exploration Score</h4>
+          <div class="discovery-value">{{ analysis.explorationScore | number:'1.1-1' }}/10</div>
+          <p>How much you explore new music vs replay favorites</p>
+        </div>
+        <div class="discovery-card">
+          <h4>Diversity Index</h4>
+          <div class="discovery-value">{{ analysis.diversityIndex | number:'1.1-1' }}</div>
+          <p>Musical diversity across genres and artists</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="empty-state" *ngIf="!loadingAnalysis && !(analysisData | async)">
+    <h3>No data available</h3>
+    <p>Unable to load listening history analysis. Please try again later.</p>
+  </div>
+</div>

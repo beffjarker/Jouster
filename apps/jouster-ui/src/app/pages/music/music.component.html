@@ -1,0 +1,234 @@
+<div class="music-container">
+
+  <!-- Header -->
+  <div class="music-header">
+    <h1 class="music-title">🎵 Music</h1>
+    <p class="music-subtitle">Music Player & Listening History Analytics</p>
+  </div>
+
+  <!-- Tab Navigation -->
+  <div class="tab-navigation">
+    <button
+      class="tab-button"
+      [class.active]="activeTab === 'player'"
+      (click)="setActiveTab('player')">
+      🎵 Player
+    </button>
+    <button
+      class="tab-button"
+      [class.active]="activeTab === 'history'"
+      (click)="setActiveTab('history')">
+      📊 History
+    </button>
+    <button
+      class="tab-button"
+      [class.active]="activeTab === 'analytics'"
+      (click)="setActiveTab('analytics')">
+      📈 Analytics
+    </button>
+  </div>
+
+  <!-- Music Player Tab -->
+  <div class="tab-content" *ngIf="activeTab === 'player'">
+
+    <!-- Recent Tracks Section -->
+    <div class="music-section">
+      <h2 class="section-title">🎧 Recent Tracks</h2>
+      <div class="loading-message" *ngIf="loadingTracks">
+        Loading recent tracks...
+      </div>
+      <div class="tracks-grid" *ngIf="!loadingTracks">
+        <div class="track-card" *ngFor="let track of recentTracks | async; trackBy: trackById">
+          <div class="track-info">
+            <h3 class="track-name">{{ track.name }}</h3>
+            <p class="track-artist">{{ track.artist }}</p>
+            <p class="track-album" *ngIf="track.album">{{ track.album }}</p>
+            <p class="track-date" *ngIf="track.date">{{ formatDate(track.date) }}</p>
+          </div>
+          <div class="track-stats" *ngIf="track.playcount">
+            <span class="playcount">{{ formatPlaycount(track.playcount) }} plays</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top Artists Section -->
+    <div class="music-section">
+      <h2 class="section-title">⭐ Top Artists</h2>
+      <div class="loading-message" *ngIf="loadingArtists">
+        Loading top artists...
+      </div>
+      <div class="artists-grid" *ngIf="!loadingArtists">
+        <div class="artist-card" *ngFor="let artist of topArtists | async; trackBy: trackById">
+          <div class="artist-info">
+            <h3 class="artist-name">{{ artist.name }}</h3>
+            <p class="artist-plays">{{ formatPlaycount(artist.playcount) }} plays</p>
+            <p class="artist-listeners" *ngIf="artist.listeners">
+              {{ formatPlaycount(artist.listeners) }} listeners
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Listening History Tab -->
+  <div class="tab-content" *ngIf="activeTab === 'history'">
+
+    <!-- Overall Stats -->
+    <div class="analysis-section" *ngIf="analysisData | async as analysis">
+      <h2 class="section-title">📊 Listening Overview</h2>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{ analysis.totalScrobbles.toLocaleString() }}</div>
+          <div class="stat-label">Total Scrobbles</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ analysis.averageScrobblesPerDay.toFixed(1) }}</div>
+          <div class="stat-label">Avg per Day</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ analysis.membershipDays.toLocaleString() }}</div>
+          <div class="stat-label">Days Listening</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ analysis.mostActiveYear }}</div>
+          <div class="stat-label">Most Active Year</div>
+        </div>
+      </div>
+
+      <!-- Genre Distribution -->
+      <div class="genre-section">
+        <h3 class="subsection-title">🎭 Genre Distribution</h3>
+        <div class="genre-list">
+          <div class="genre-item" *ngFor="let genre of analysis.genreDistribution; trackBy: trackByGenre">
+            <div class="genre-info">
+              <span class="genre-name">{{ genre.genre }}</span>
+              <span class="genre-percentage">{{ genre.percentage.toFixed(1) }}%</span>
+            </div>
+            <div class="genre-bar">
+              <div class="genre-fill" [style.width.%]="genre.percentage"></div>
+            </div>
+            <div class="genre-artists">
+              <span *ngFor="let artist of genre.topArtists; let last = last">
+                {{ artist }}<span *ngIf="!last">, </span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Listening Streaks -->
+      <div class="streaks-section" *ngIf="analysis.listeningStreaks.length > 0">
+        <h3 class="subsection-title">🔥 Listening Streaks</h3>
+        <div class="streaks-list">
+          <div class="streak-item" *ngFor="let streak of analysis.listeningStreaks">
+            <div class="streak-header">
+              <span class="streak-type">{{ streak.type }}</span>
+              <span class="streak-duration">{{ streak.days }} days</span>
+            </div>
+            <div class="streak-details">
+              <span class="streak-period">
+                {{ streak.startDate | date:'MMM d' }} - {{ streak.endDate | date:'MMM d, yyyy' }}
+              </span>
+              <span class="streak-stats">
+                {{ streak.totalScrobbles.toLocaleString() }} scrobbles
+                ({{ streak.avgPerDay.toFixed(1) }}/day)
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Analytics Tab -->
+  <div class="tab-content" *ngIf="activeTab === 'analytics'">
+
+    <div class="analysis-section" *ngIf="analysisData | async as analysis">
+
+      <!-- Yearly Statistics -->
+      <div class="yearly-section">
+        <h3 class="subsection-title">📅 Yearly Statistics</h3>
+        <div class="yearly-grid">
+          <div class="year-card" *ngFor="let year of analysis.yearlyStats">
+            <div class="year-header">
+              <h4 class="year-title">{{ year.year }}</h4>
+              <span class="year-scrobbles">{{ year.scrobbles.toLocaleString() }} scrobbles</span>
+            </div>
+            <div class="year-stats">
+              <div class="year-stat">
+                <span class="stat-label">Artists:</span>
+                <span class="stat-value">{{ year.uniqueArtists.toLocaleString() }}</span>
+              </div>
+              <div class="year-stat">
+                <span class="stat-label">Albums:</span>
+                <span class="stat-value">{{ year.uniqueAlbums.toLocaleString() }}</span>
+              </div>
+              <div class="year-stat">
+                <span class="stat-label">Tracks:</span>
+                <span class="stat-value">{{ year.uniqueTracks.toLocaleString() }}</span>
+              </div>
+            </div>
+            <div class="year-tops">
+              <div class="top-item">
+                <strong>{{ year.topArtist }}</strong> • {{ year.topAlbum }}
+              </div>
+              <div class="top-track">{{ year.topTrack }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Monthly Trends -->
+      <div class="trends-section">
+        <h3 class="subsection-title">📈 Monthly Trends</h3>
+        <div class="trends-chart">
+          <div class="trend-bar" *ngFor="let trend of analysis.monthlyTrends">
+            <div class="trend-month">{{ getMonthName(trend.month) }}</div>
+            <div class="trend-visual">
+              <div
+                class="trend-fill"
+                [style.height.%]="getRelativePercentage(trend.scrobbles, analysis.monthlyTrends)">
+              </div>
+            </div>
+            <div class="trend-value">{{ trend.scrobbles.toLocaleString() }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Discovery Metrics -->
+      <div class="discovery-section">
+        <h3 class="subsection-title">🔍 Discovery & Exploration</h3>
+        <div class="discovery-grid">
+          <div class="discovery-card">
+            <div class="discovery-value">{{ analysis.discoveryRate.toFixed(1) }}%</div>
+            <div class="discovery-label">Discovery Rate</div>
+            <div class="discovery-description">New artists per month</div>
+          </div>
+          <div class="discovery-card">
+            <div class="discovery-value">{{ analysis.explorationScore.toFixed(1) }}</div>
+            <div class="discovery-label">Exploration Score</div>
+            <div class="discovery-description">Genre diversity index</div>
+          </div>
+          <div class="discovery-card">
+            <div class="discovery-value">{{ analysis.diversityIndex.toFixed(1) }}</div>
+            <div class="discovery-label">Diversity Index</div>
+            <div class="discovery-description">Listening pattern variety</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div class="loading-container" *ngIf="loadingAnalysis && activeTab !== 'player'">
+    <div class="loading-spinner"></div>
+    <p class="loading-text">Analyzing your listening history...</p>
+  </div>
+
+</div>
