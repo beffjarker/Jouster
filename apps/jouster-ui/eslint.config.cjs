@@ -1,12 +1,9 @@
-const nx = require('@nx/eslint-plugin');
 const angular = require('@angular-eslint/eslint-plugin');
 const angularTemplate = require('@angular-eslint/eslint-plugin-template');
 const tseslint = require('typescript-eslint');
 
 module.exports = [
-  ...nx.configs['flat/base'],
-  ...nx.configs['flat/typescript'],
-  // Instead of using nx.configs['flat/angular'], we configure it manually
+  // TypeScript configuration
   ...tseslint.config({
     files: ['**/*.ts'],
     plugins: {

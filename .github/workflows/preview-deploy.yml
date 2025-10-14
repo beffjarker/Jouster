@@ -38,14 +38,19 @@ jobs:
           npm config set fetch-retry-mintimeout 10000
           npm config set fetch-retry-maxtimeout 60000
 
-          # Simple npm ci - no more Nx post-install scripts to hang
+          # Try npm ci first, but fallback to npm install if it fails due to optional deps
           echo "Running npm ci..."
-          npm ci --no-audit --no-fund --prefer-offline
+          if ! npm ci --no-audit --no-fund --prefer-offline; then
+            echo "npm ci failed (likely optional dependency issue), trying npm install..."
+            rm -rf node_modules package-lock.json
+            npm install --no-audit --no-fund
+          fi
 
           echo "Installation completed successfully"
           echo "Verifying packages..."
           ls node_modules/@angular/ >/dev/null && echo "✓ Angular packages found" || echo "✗ Angular packages missing"
           ls node_modules/typescript/ >/dev/null && echo "✓ TypeScript found" || echo "✗ TypeScript missing"
+          ls node_modules/@rollup/ >/dev/null && echo "✓ Rollup packages found" || echo "✗ Rollup packages missing"
         timeout-minutes: 5
         env:
           CI: true
