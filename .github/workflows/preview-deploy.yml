@@ -119,8 +119,8 @@ jobs:
         run: |
           BUCKET_NAME="${{ steps.preview-name.outputs.bucket_name }}"
 
-          # Deploy built files (Angular CLI outputs to dist/jouster-ui)
-          aws s3 sync dist/jouster-ui/ s3://$BUCKET_NAME --delete
+          # Deploy built files (Angular CLI outputs to dist/jouster-ui/browser/ in newer versions)
+          aws s3 sync dist/jouster-ui/browser/ s3://$BUCKET_NAME --delete
 
           # Get the website URL
           WEBSITE_URL="http://$BUCKET_NAME.s3-website-us-west-2.amazonaws.com"
