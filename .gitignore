@@ -4,6 +4,16 @@
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
+.env.test
+.env.staging
+!.env.example
+!.env*.example
+
+# AWS Credentials (NEVER commit these!)
+aws/credentials
+aws/config
 
 # compiled output
 dist
