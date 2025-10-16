@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jouster Backend - Security Test Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .status-badge.online {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-badge.offline {
+            background: #ef4444;
+            color: white;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h2::before {
+            content: "🔒";
+            font-size: 24px;
+        }
+
+        .test-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            border-left: 4px solid #ddd;
+        }
+
+        .test-item.pass {
+            border-left-color: #10b981;
+            background: #f0fdf4;
+        }
+
+        .test-item.fail {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .test-item.pending {
+            border-left-color: #f59e0b;
+            background: #fffbeb;
+        }
+
+        .test-label {
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .test-result {
+            font-size: 20px;
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .response-box {
+            background: #1e293b;
+            color: #10b981;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .info-section {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+
+        .info-section h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .info-section ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .info-section li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .info-section li:last-child {
+            border-bottom: none;
+        }
+
+        .endpoint-badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #6b7280;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            border-top-color: #667eea;
+            animation: spin 1s linear infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Jouster Backend Security Dashboard</h1>
+            <p style="color: #6b7280; margin-top: 10px;">Testing all security features and endpoints</p>
+            <div id="serverStatus" style="margin-top: 15px;">
+                <span class="status-badge offline">Checking...</span>
+            </div>
+        </div>
+
+        <div class="grid">
+            <!-- Security Headers Test -->
+            <div class="card">
+                <h2>Security Headers</h2>
+                <div id="securityHeaders">
+                    <div class="test-item pending">
+                        <span class="test-label">Helmet CSP</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                    <div class="test-item pending">
+                        <span class="test-label">HSTS</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                    <div class="test-item pending">
+                        <span class="test-label">X-Frame-Options</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                    <div class="test-item pending">
+                        <span class="test-label">X-Content-Type-Options</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                </div>
+                <button class="btn" onclick="testSecurityHeaders()">Test Security Headers</button>
+            </div>
+
+            <!-- Health Check -->
+            <div class="card">
+                <h2>Health Check</h2>
+                <div id="healthCheck">
+                    <div class="test-item pending">
+                        <span class="test-label">Server Status</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                    <div class="test-item pending">
+                        <span class="test-label">Uptime</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                    <div class="test-item pending">
+                        <span class="test-label">Environment</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                </div>
+                <button class="btn" onclick="testHealth()">Check Health</button>
+                <div id="healthResponse" class="response-box" style="display: none;"></div>
+            </div>
+
+            <!-- Rate Limiting Test -->
+            <div class="card">
+                <h2>Rate Limiting</h2>
+                <div id="rateLimiting">
+                    <div class="test-item pending">
+                        <span class="test-label">Rate Limit Active</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                    <div class="test-item pending">
+                        <span class="test-label">Request Count</span>
+                        <span class="test-result">0</span>
+                    </div>
+                </div>
+                <button class="btn" onclick="testRateLimiting()">Test Rate Limit (10 requests)</button>
+                <div id="rateLimitResponse" class="response-box" style="display: none;"></div>
+            </div>
+
+            <!-- CORS Test -->
+            <div class="card">
+                <h2>CORS Configuration</h2>
+                <div id="corsTest">
+                    <div class="test-item pending">
+                        <span class="test-label">CORS Headers</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                    <div class="test-item pending">
+                        <span class="test-label">Origin Validation</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                </div>
+                <button class="btn" onclick="testCORS()">Test CORS</button>
+                <div id="corsResponse" class="response-box" style="display: none;"></div>
+            </div>
+
+            <!-- Instagram API Test -->
+            <div class="card">
+                <h2>Instagram API</h2>
+                <div id="instagramTest">
+                    <div class="test-item pending">
+                        <span class="test-label">User Endpoint</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                    <div class="test-item pending">
+                        <span class="test-label">Media Endpoint</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                </div>
+                <button class="btn" onclick="testInstagram()">Test Instagram API</button>
+                <div id="instagramResponse" class="response-box" style="display: none;"></div>
+            </div>
+
+            <!-- Conversation History Test -->
+            <div class="card">
+                <h2>Conversation History</h2>
+                <div id="conversationTest">
+                    <div class="test-item pending">
+                        <span class="test-label">List Conversations</span>
+                        <span class="test-result">⏳</span>
+                    </div>
+                    <div class="test-item pending">
+                        <span class="test-label">Total Count</span>
+                        <span class="test-result">-</span>
+                    </div>
+                </div>
+                <button class="btn" onclick="testConversations()">Test Conversations</button>
+                <div id="conversationResponse" class="response-box" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Available Endpoints -->
+        <div class="info-section">
+            <h3>📋 Available Endpoints</h3>
+            <ul>
+                <li><span class="endpoint-badge">GET</span> <code>/health</code> - Health check and server status</li>
+                <li><span class="endpoint-badge">GET</span> <code>/api/emails</code> - List emails from S3 bucket</li>
+                <li><span class="endpoint-badge">GET</span> <code>/api/instagram/user</code> - Instagram user profile</li>
+                <li><span class="endpoint-badge">GET</span> <code>/api/instagram/user/media</code> - Instagram user media</li>
+                <li><span class="endpoint-badge">GET</span> <code>/api/lastfm/recent-tracks</code> - Last.fm recent tracks</li>
+                <li><span class="endpoint-badge">GET</span> <code>/api/conversation-history</code> - List all conversations</li>
+                <li><span class="endpoint-badge">GET</span> <code>/api/conversation-history/:id</code> - Get specific conversation</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+
+        // Auto-check on page load
+        window.addEventListener('load', () => {
+            testHealth();
+        });
+
+        async function testHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+
+                document.getElementById('serverStatus').innerHTML =
+                    '<span class="status-badge online">✅ Server Online</span>';
+
+                const healthDiv = document.getElementById('healthCheck');
+                healthDiv.innerHTML = `
+                    <div class="test-item pass">
+                        <span class="test-label">Server Status</span>
+                        <span class="test-result">✅</span>
+                    </div>
+                    <div class="test-item pass">
+                        <span class="test-label">Uptime</span>
+                        <span class="test-result">${Math.floor(data.uptime)}s</span>
+                    </div>
+                    <div class="test-item pass">
+                        <span class="test-label">Environment</span>
+                        <span class="test-result">${data.environment}</span>
+                    </div>
+                `;
+
+                const responseBox = document.getElementById('healthResponse');
+                responseBox.style.display = 'block';
+                responseBox.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('serverStatus').innerHTML =
+                    '<span class="status-badge offline">❌ Server Offline</span>';
+                console.error('Health check failed:', error);
+            }
+        }
+
+        async function testSecurityHeaders() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const headers = response.headers;
+
+                const checks = [
+                    { name: 'Helmet CSP', header: 'content-security-policy' },
+                    { name: 'HSTS', header: 'strict-transport-security' },
+                    { name: 'X-Frame-Options', header: 'x-frame-options' },
+                    { name: 'X-Content-Type-Options', header: 'x-content-type-options' }
+                ];
+
+                let html = '';
+                checks.forEach(check => {
+                    const hasHeader = headers.has(check.header);
+                    html += `
+                        <div class="test-item ${hasHeader ? 'pass' : 'fail'}">
+                            <span class="test-label">${check.name}</span>
+                            <span class="test-result">${hasHeader ? '✅' : '❌'}</span>
+                        </div>
+                    `;
+                });
+
+                document.getElementById('securityHeaders').innerHTML = html;
+            } catch (error) {
+                console.error('Security headers test failed:', error);
+            }
+        }
+
+        async function testRateLimiting() {
+            const responseBox = document.getElementById('rateLimitResponse');
+            responseBox.style.display = 'block';
+            responseBox.textContent = 'Sending 10 rapid requests...\n';
+
+            let successCount = 0;
+            let rateLimited = false;
+
+            for (let i = 1; i <= 10; i++) {
+                try {
+                    const response = await fetch(`${API_BASE}/health`);
+                    if (response.ok) {
+                        successCount++;
+                        responseBox.textContent += `Request ${i}: ✅ Success (${response.status})\n`;
+                    } else {
+                        rateLimited = true;
+                        responseBox.textContent += `Request ${i}: ⚠️ Rate limited (${response.status})\n`;
+                    }
+                } catch (error) {
+                    responseBox.textContent += `Request ${i}: ❌ Error\n`;
+                }
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+
+            document.getElementById('rateLimiting').innerHTML = `
+                <div class="test-item ${rateLimited ? 'pass' : 'pending'}">
+                    <span class="test-label">Rate Limit Active</span>
+                    <span class="test-result">${rateLimited ? '✅' : '⏳'}</span>
+                </div>
+                <div class="test-item pass">
+                    <span class="test-label">Successful Requests</span>
+                    <span class="test-result">${successCount}/10</span>
+                </div>
+            `;
+        }
+
+        async function testCORS() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const headers = response.headers;
+
+                const corsHeader = headers.get('access-control-allow-origin');
+                const hasCORS = !!corsHeader;
+
+                document.getElementById('corsTest').innerHTML = `
+                    <div class="test-item ${hasCORS ? 'pass' : 'fail'}">
+                        <span class="test-label">CORS Headers</span>
+                        <span class="test-result">${hasCORS ? '✅' : '❌'}</span>
+                    </div>
+                    <div class="test-item pass">
+                        <span class="test-label">Allowed Origin</span>
+                        <span class="test-result">${corsHeader || 'N/A'}</span>
+                    </div>
+                `;
+
+                const responseBox = document.getElementById('corsResponse');
+                responseBox.style.display = 'block';
+                responseBox.textContent = `Access-Control-Allow-Origin: ${corsHeader}`;
+            } catch (error) {
+                console.error('CORS test failed:', error);
+            }
+        }
+
+        async function testInstagram() {
+            const responseBox = document.getElementById('instagramResponse');
+            responseBox.style.display = 'block';
+            responseBox.textContent = 'Testing Instagram endpoints...\n';
+
+            try {
+                // Test user endpoint
+                const userResponse = await fetch(`${API_BASE}/api/instagram/user`);
+                const userData = await userResponse.json();
+
+                // Test media endpoint
+                const mediaResponse = await fetch(`${API_BASE}/api/instagram/user/media`);
+                const mediaData = await mediaResponse.json();
+
+                document.getElementById('instagramTest').innerHTML = `
+                    <div class="test-item ${userResponse.ok ? 'pass' : 'fail'}">
+                        <span class="test-label">User Endpoint</span>
+                        <span class="test-result">${userResponse.ok ? '✅' : '❌'}</span>
+                    </div>
+                    <div class="test-item ${mediaResponse.ok ? 'pass' : 'fail'}">
+                        <span class="test-label">Media Endpoint</span>
+                        <span class="test-result">${mediaResponse.ok ? '✅' : '❌'}</span>
+                    </div>
+                `;
+
+                responseBox.textContent = JSON.stringify({ user: userData, media: mediaData }, null, 2);
+            } catch (error) {
+                responseBox.textContent += `Error: ${error.message}`;
+            }
+        }
+
+        async function testConversations() {
+            const responseBox = document.getElementById('conversationResponse');
+            responseBox.style.display = 'block';
+            responseBox.textContent = 'Loading conversations...\n';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/conversation-history`);
+                const data = await response.json();
+
+                document.getElementById('conversationTest').innerHTML = `
+                    <div class="test-item ${response.ok ? 'pass' : 'fail'}">
+                        <span class="test-label">List Conversations</span>
+                        <span class="test-result">${response.ok ? '✅' : '❌'}</span>
+                    </div>
+                    <div class="test-item pass">
+                        <span class="test-label">Total Count</span>
+                        <span class="test-result">${data.total || 0}</span>
+                    </div>
+                `;
+
+                responseBox.textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                responseBox.textContent += `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
+
