@@ -35,7 +35,12 @@
     "troubleshoot": "npm run check:ports && npm run test:backend && npm run test:emails",
     "test:e2e": "nx e2e jouster-ui-e2e",
     "test:e2e:headless": "nx e2e jouster-ui-e2e --headless",
-    "test:e2e:watch": "nx e2e jouster-ui-e2e --watch"
+    "test:e2e:watch": "nx e2e jouster-ui-e2e --watch",
+    "security:audit": "npm audit",
+    "security:audit:fix": "npm audit fix",
+    "security:check": "node security-checks.js",
+    "security:full": "npm run security:audit && npm run security:check",
+    "security:scan": "cmd /c security-audit.bat"
   },
   "private": true,
   "dependencies": {

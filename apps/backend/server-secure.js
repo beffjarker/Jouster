@@ -25,15 +25,8 @@ const {
   securityLogger,
 } = require('./middleware/security');
 
-// Import enhanced validation for mitigating validator.js vulnerabilities
-const {
-  validateURLFields,
-  validateEmailFields,
-  sanitizeRequestBody,
-} = require('./middleware/enhanced-validation');
-
 // Import CORS configuration
-const { corsOptions } = require('./config/cors');
+const { corsOptions, handleCorsError } = require('./config/cors');
 
 // Import routes
 const emailRoutes = require('./routes/emails');
@@ -72,7 +65,7 @@ app.use(hppProtection);
 
 // 10. CORS configuration
 app.use(cors(corsOptions));
-// Note: handleCorsError is an error handler and will be added in the error handling section
+app.use(handleCorsError);
 
 // 11. Body parsing with size limits (security measure)
 app.use(express.json({ limit: '10mb' }));
@@ -427,3 +420,4 @@ process.on('SIGINT', () => {
 });
 
 module.exports = app;
+

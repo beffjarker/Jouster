@@ -1,9 +1,29 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
-# Environment variables
+# Environment variables - CRITICAL SECURITY
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.development
+*.env
+.env.*
+
+# AWS Credentials - NEVER COMMIT
+aws/credentials
+aws/config
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Secrets and certificates
+secrets/
+certs/
+*.crt
+*.cer
 
 # compiled output
 dist
@@ -49,3 +69,15 @@ Thumbs.db
 .github/instructions/nx.instructions.md
 
 .angular
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Security scanning results
+.snyk
+vulnerability-report.json

@@ -2,6 +2,9 @@ const express = require('express');
 const AWS = require('aws-sdk');
 const router = express.Router();
 
+// Import validation middleware
+const { validateEmailQuery, validateEmailKey } = require('../middleware/validation');
+
 // Configure AWS credentials and region explicitly
 AWS.config.update({
   accessKeyId: process.env.AWS_ACCESS_KEY_ID,
@@ -16,7 +19,7 @@ const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'jouster-dev-bucket';
 const EMAIL_PREFIX = process.env.S3_EMAIL_PREFIX || 'email/'; // Use the prefix from .env
 
 // GET /api/emails - List emails from S3 bucket
-router.get('/', async (req, res) => {
+router.get('/', validateEmailQuery, async (req, res) => {
   try {
     const { pageSize = 100, marker } = req.query;
     const maxKeys = Math.min(parseInt(pageSize), 1000); // AWS limit is 1000
@@ -53,13 +56,13 @@ router.get('/', async (req, res) => {
     console.error('Error listing emails from S3:', error);
     res.status(500).json({
       error: 'Failed to list emails',
-      message: error.message
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
 
 // GET /api/emails/:key/parse - Parse a specific email
-router.get('/:key/parse', async (req, res) => {
+router.get('/:key/parse', validateEmailKey, async (req, res) => {
   try {
     const emailKey = decodeURIComponent(req.params.key);
 
@@ -85,13 +88,13 @@ router.get('/:key/parse', async (req, res) => {
     console.error('Error parsing email from S3:', error);
     res.status(500).json({
       error: 'Failed to parse email',
-      message: error.message
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
 
 // GET /api/emails/:key/download - Get download URL for email
-router.get('/:key/download', async (req, res) => {
+router.get('/:key/download', validateEmailKey, async (req, res) => {
   try {
     const emailKey = decodeURIComponent(req.params.key);
 
@@ -103,12 +106,15 @@ router.get('/:key/download', async (req, res) => {
 
     const url = s3.getSignedUrl('getObject', params);
 
-    res.json({ downloadUrl: url });
+    res.json({
+      downloadUrl: url,
+      expiresIn: 300
+    });
   } catch (error) {
     console.error('Error generating download URL:', error);
     res.status(500).json({
       error: 'Failed to generate download URL',
-      message: error.message
+      message: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
 });
