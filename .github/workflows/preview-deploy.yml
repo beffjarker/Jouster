@@ -25,7 +25,12 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm ci || {
+            echo "npm ci failed, falling back to npm install"
+            rm -rf node_modules package-lock.json
+            npm install
+          }
 
       - name: Build application
         run: npx nx build jouster-ui --configuration=development --skip-nx-cache
