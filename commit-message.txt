@@ -1,0 +1,102 @@
+feat: comprehensive security hardening and preview environment setup
+
+## Security Improvements
+
+### AWS Credential Protection
+- Remove exposed AWS credentials from git history
+- Delete hardcoded credentials in init-tables.bat
+- Delete AWS access key CSV exports
+- Remove setup-github-actions.ps1 with exposed keys
+- Create secure templates for all credential files
+- Add comprehensive .gitignore patterns for credential files
+
+### Documentation Sanitization
+- Remove private files (Copilot instruction updates, internal sessions)
+- Replace personal username with generic placeholders
+- Remove dev-journal and dev-tools references from public docs
+- Update GitHub URLs to use YOUR_USERNAME placeholder
+- Establish clear public/private documentation separation
+
+## Documentation Enhancements
+
+### AWS Security Best Practices
+- Add comprehensive security guide (docs/Tools/AWS-Security-Best-Practices.md)
+- Document credential management best practices
+- Provide security incident response procedures
+- Include credential rotation schedules
+- Add IAM configuration guidelines
+
+### Public Documentation (Confluence/Obsidian Vault)
+- Sanitize all integration guides for public consumption
+- Remove personal identifiers from API examples
+- Update environment configuration guide
+- Genericize release plan GitHub URLs
+
+## AI/Copilot Instructions
+
+### Scientific Method Integration
+- Add hypothesis-driven approach to Copilot instructions
+- Implement confidence level system (🟢🟡🔴⚪)
+- Require tentative language for unconfirmed statements
+- Add evidence-based communication requirements
+- Establish user verification checkpoints
+
+### Documentation Guidelines
+- Add Section 6: Public Documentation rules
+- Define privacy rules for docs/ folder
+- Create sanitization checklist
+- Document Obsidian vault structure
+
+## Preview Environment
+
+### Bucket Naming Optimization
+- Shorten bucket names: jouster-preview-pr-{N} → jstr-pr-{N}
+- Update preview-deploy.yml workflow
+- Update documentation with new naming
+- Benefits: shorter URLs, cleaner logs, reduced costs
+
+## Breaking Changes
+
+- docs/ folder is now public-facing (Confluence/Obsidian vault)
+- All personal information removed from public documentation
+- Preview environment uses new shorter naming convention
+
+## Files Changed
+
+### Security (Removed/Protected)
+- apps/backend/conversation-history/init-tables.bat (deleted - had credentials)
+- aws/config (removed from git tracking)
+- aws/configs/jouster-dev_accessKeys.csv (deleted - CSV with keys)
+- aws/scripts/setup-github-actions.ps1 (renamed to template)
+
+### Security (Added)
+- aws/config.example (template)
+- aws/scripts/setup-github-actions-template.ps1 (template)
+- apps/backend/conversation-history/init-tables-template.bat (template)
+- docs/Tools/AWS-Security-Best-Practices.md (comprehensive guide)
+
+### Documentation (Sanitized - 9 files)
+- docs/Development/Environment-Configuration.md
+- docs/Features/Features Overview.md
+- docs/Integrations/API Integration Overview.md
+- docs/Integrations/Backend API.md
+- docs/Integrations/Instagram Graph API Setup.md
+- docs/Integrations/Instagram Setup.md
+- docs/Project/RELEASE-PLAN-v0.0.1.md
+- docs/Project/RELEASE-PLAN-v0.0.2.md
+- docs/aws/preview-environments.md
+
+### Documentation (Removed - Private)
+- docs/AI/session-2025-10-14-security-implementation.md
+- docs/Project/COPILOT-INSTRUCTIONS-UPDATE-2025-10-28.md
+- docs/Project/COPILOT-INSTRUCTIONS-UPDATE-2025-10-28-ENVIRONMENT.md
+
+### Workflows
+- .github/workflows/preview-deploy.yml (shorter bucket names)
+
+### Configuration
+- .gitignore (enhanced credential patterns)
+- .github/copilot-instructions.md (scientific method, docs guidelines)
+
+Co-authored-by: GitHub Copilot <noreply@github.com>
+

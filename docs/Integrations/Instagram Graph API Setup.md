@@ -1,10 +1,10 @@
 # Instagram Graph API Setup Guide
 
 ## Overview
-This guide will help you migrate from the deprecated Instagram Basic Display API to the current Instagram Graph API for accessing @beffjarker's Instagram content.
+This guide will help you migrate from the deprecated Instagram Basic Display API to the current Instagram Graph API for accessing your Instagram content.
 
 ## Prerequisites
-1. **Instagram Business or Creator Account** - Convert @beffjarker from personal to business/creator
+1. **Instagram Business or Creator Account** - Convert your account from personal to business/creator
 2. **Facebook Page** - Required to connect to Instagram account
 3. **Facebook Developer Account** - To create the app
 
@@ -16,10 +16,10 @@ This guide will help you migrate from the deprecated Instagram Basic Display API
 
 ## Step 2: Create Facebook Page
 1. Go to [Facebook Pages](https://www.facebook.com/pages/create)
-2. Create a page for @beffjarker (can be simple)
+2. Create a page for your portfolio (can be simple)
 3. Connect the page to your Instagram business account:
    - Go to Page Settings → Instagram
-   - Connect your @beffjarker Instagram account
+   - Connect your Instagram account
 
 ## Step 3: Create Facebook App
 1. Go to [Facebook Developers](https://developers.facebook.com/)

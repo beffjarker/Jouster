@@ -65,7 +65,7 @@ npm run env:validate:production
 - Rotate credentials every 90 days
 - Validate environment before deployment
 - Document all environment variables in templates
-- Store credentials in git-ignored files (`.env`, `dev-journal/`, `dev-tools/`)
+- Store credentials in git-ignored `.env` files
 
 ### ❌ DON'T:
 - **NEVER commit .env files to git** (except .example files)
@@ -73,7 +73,6 @@ npm run env:validate:production
 - Don't share .env files via public channels (Slack, email, forums)
 - Don't use admin credentials in application code
 - Don't hardcode secrets in source code
-- Don't push dev-journal or dev-tools to git (already git-ignored)
 
 ### 🛡️ Why Git-Ignored Files Are Safe
 
@@ -85,11 +84,7 @@ These locations are **protected by .gitignore** and never leave your machine:
 ├── .env.qa                 # QA credentials
 ├── .env.staging            # Staging credentials  
 ├── .env.production         # Production credentials
-├── dev-journal/            # Personal development journal
-│   └── (all contents)      # Can reference credentials here safely
-└── dev-tools/              # Personal developer tools
-    └── .env                # Tool-specific API keys (GitHub, etc.)
-
+└── .env.production         # Production credentials
 ❌ COMMITTED TO GIT:
 ├── .env.example            # Templates only (NO SECRETS)
 ├── .env.qa.example
@@ -101,9 +96,7 @@ These locations are **protected by .gitignore** and never leave your machine:
 - ✅ Credentials stay on your local machine only
 - ✅ Each developer has their own copies
 - ✅ Safe to reference in local documentation (dev-journal)
-- ✅ Won't be exposed in git history or pushed to GitHub
 - ✅ Can discuss with Copilot for local development assistance
-
 ## 🔑 AWS IAM Users by Environment
 
 | IAM User | Environment | Access Level | Use Case |
@@ -216,7 +209,7 @@ Track when credentials were last rotated:
 → Remove AWS_ADMIN_* variables from .env
 → Admin credentials should only be used for infrastructure setup
 
-### "Local DynamoDB endpoint set in production"
+**Note:** Track credential rotation dates in your local documentation.
 → Remove DYNAMODB_ENDPOINT from production .env
 → Production should use AWS DynamoDB service
 

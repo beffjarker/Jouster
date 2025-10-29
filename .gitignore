@@ -21,6 +21,13 @@ aws/config
 *.key
 *.p12
 *.pfx
+# AWS access key CSV exports from IAM
+*accessKeys.csv
+*_accessKeys.csv
+# Scripts with hardcoded credentials (use .env instead)
+**/init-tables.bat
+**/init-tables.sh
+aws/scripts/setup-github-actions.ps1
 
 # Secrets and certificates
 secrets/

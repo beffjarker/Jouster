@@ -184,7 +184,7 @@ git push --tags
 ```
 
 ### 3. Create GitHub Release
-1. Visit: https://github.com/beffjarker/Jouster/releases/new
+1. Visit: https://github.com/YOUR_USERNAME/Jouster/releases/new
 2. Select tag: `v0.0.2`
 3. Release title: `v0.0.2 - Interactive Playground + Copilot Enhancements`
 4. Description: Copy from CHANGELOG.md v0.0.2 section

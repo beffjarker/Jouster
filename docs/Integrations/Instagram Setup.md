@@ -38,7 +38,7 @@ NODE_ENV=development
 
 ## Option 2: Web Scraping (For Public Profiles Only)
 
-If you want to display posts from a public Instagram account (like @beffjarker), the app will automatically fall back to web scraping when no API credentials are provided.
+If you want to display posts from a public Instagram account, the app will automatically fall back to web scraping when no API credentials are provided.
 
 **Note:** This method is less reliable and may break if Instagram changes their website structure.
 
@@ -59,7 +59,7 @@ If you want to display posts from a public Instagram account (like @beffjarker),
 
 2. Test the API endpoint:
    ```bash
-   curl http://localhost:3001/api/instagram/beffjarker
+   curl http://localhost:3001/api/instagram/yourusername
    ```
 
 3. Start the frontend:
