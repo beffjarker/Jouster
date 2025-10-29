@@ -1,12 +1,27 @@
 @echo off
 REM Windows batch script to set up GitHub Actions IAM with admin credentials
 
-REM Set AWS credentials
-set AWS_ACCESS_KEY_ID=AKIA5OSYVDEIZOT5QP4T
-set AWS_SECRET_ACCESS_KEY=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
-set AWS_REGION=us-west-2
+REM AWS credentials should be set via environment variables or AWS CLI config
+REM DO NOT hardcode credentials in this file
+REM Use: aws configure
+REM Or set environment variables:
+REM   set AWS_ACCESS_KEY_ID=your_key_here
+REM   set AWS_SECRET_ACCESS_KEY=your_secret_here
+REM   set AWS_REGION=us-west-2
 
-echo Setting up GitHub Actions IAM with admin credentials...
+if "%AWS_ACCESS_KEY_ID%"=="" (
+    echo ERROR: AWS_ACCESS_KEY_ID environment variable is not set
+    echo Please run 'aws configure' or set AWS credentials as environment variables
+    pause
+    exit /b 1
+)
+
+if "%AWS_REGION%"=="" (
+    set AWS_REGION=us-west-2
+    echo Using default region: us-west-2
+)
+
+echo Setting up GitHub Actions IAM with configured credentials...
 
 REM 1. Get AWS Account ID
 echo.
