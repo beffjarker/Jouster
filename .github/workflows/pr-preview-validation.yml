@@ -58,6 +58,10 @@ jobs:
             --index-document index.html \
             --error-document index.html
 
+      - name: Disable Block Public Access
+        run: |
+          aws s3api delete-public-access-block --bucket ${{ steps.preview-name.outputs.bucket_name }} || true
+
       - name: Configure S3 bucket policy
         run: |
           cat > bucket-policy.json << EOF
@@ -78,7 +82,7 @@ jobs:
 
       - name: Deploy to S3
         run: |
-          aws s3 sync dist/apps/jouster-ui/ s3://${{ steps.preview-name.outputs.bucket_name }} --delete
+          aws s3 sync dist/apps/jouster-ui/browser s3://${{ steps.preview-name.outputs.bucket_name }} --delete --cache-control "public, max-age=300"
 
       - name: Get preview URL
         id: preview-url
@@ -107,24 +111,40 @@ jobs:
               comment.body.includes('🚀 Preview Environment')
             );
 
-            const commentBody = `## 🚀 Preview Environment Deployed
+            const commentBody = `## 🚀 Preview Environment Deployed Successfully!
 
-            Your preview environment is ready for testing!
+            Your preview environment is ready for testing! 🎉
 
-            **Preview URL:** ${previewUrl}
+            ### 🌐 Preview URL
+            **[Click here to view the preview →](${previewUrl})**
 
-            **Bucket:** \`${bucketName}\`
-            **Commit:** ${context.sha.substring(0, 7)}
-            **Branch:** ${context.ref}
+            \`\`\`
+            ${previewUrl}
+            \`\`\`
 
-            ### Next Steps:
-            - ✅ Preview environment deployed
-            - ⏳ Automated tests will run against this environment
-            - 🧪 Manual testing can begin
+            ### 📋 Deployment Details
+            - **Bucket:** \`${bucketName}\`
+            - **Commit:** \`${context.sha.substring(0, 7)}\`
+            - **Branch:** \`${context.ref.replace('refs/heads/', '')}\`
+            - **Region:** us-west-2
+
+            ### ✅ Next Steps
+            1. ✅ **Preview environment deployed** - Application is live and accessible
+            2. ⏳ **Automated tests running** - Tests will run against this environment
+            3. 🧪 **Manual testing** - You can start testing immediately
+
+            ### 🧪 Manual Testing Checklist
+            - [ ] Application loads without errors
+            - [ ] All pages render correctly
+            - [ ] Navigation works as expected
+            - [ ] Check browser console for errors
+            - [ ] Test responsive design
+            - [ ] Verify security changes
+            - [ ] Review documentation changes
 
             ---
-            *This preview will be automatically updated when you push new commits.*
-            *Preview environments are cleaned up when the PR is closed.*`;
+            💡 **Tip:** This preview will be automatically updated when you push new commits.
+            🗑️ **Cleanup:** Preview environment will be removed when this PR is closed.`;
 
             if (botComment) {
               await github.rest.issues.updateComment({
@@ -215,14 +235,22 @@ jobs:
 
             const commentBody = `## ${statusEmoji} Automated Tests ${statusText}
 
-            **Preview URL:** ${previewUrl}
-            **Test Results:** ${statusText}
+            **Preview URL:** [Click to view preview →](${previewUrl})
+
+            **Test Status:** ${statusText}
 
             ${conclusion === 'success' ?
-              '✅ All automated tests passed! Ready for manual testing and review.' :
-              '❌ Some tests failed. Please review the workflow logs.'}
+              '### ✅ All Automated Tests Passed!\n\n' +
+              '- ✅ Linting passed\n' +
+              '- ✅ Unit tests passed\n' +
+              '- ✅ Build verification passed\n' +
+              '- ✅ E2E tests completed\n\n' +
+              '**Ready for manual testing and review!**' :
+              '### ❌ Some Tests Failed\n\n' +
+              'Please review the workflow logs for details.\n\n' +
+              '[View detailed logs →](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})'}
 
-            ### Manual Testing
+            ### 🧪 Manual Testing Checklist
             Please test the following in the preview environment:
             - [ ] Application loads correctly
             - [ ] All pages render properly
@@ -230,9 +258,15 @@ jobs:
             - [ ] No console errors
             - [ ] Security changes are working
             - [ ] Documentation changes look good
+            - [ ] Responsive design functions correctly
+
+            ### 📊 Resources
+            - **Preview URL:** ${previewUrl}
+            - **Workflow Run:** [View Details](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            - **Commit:** \`${context.sha.substring(0, 7)}\`
 
             ---
-            View detailed test results: [Workflow Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+            💡 Push new commits to re-run tests automatically.`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
