@@ -1,0 +1,2 @@
+origin	https://github.com/beffjarker/Jouster.git (fetch)
+origin	https://github.com/beffjarker/Jouster.git (push)

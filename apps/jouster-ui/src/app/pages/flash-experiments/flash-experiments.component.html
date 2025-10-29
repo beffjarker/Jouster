@@ -5,7 +5,156 @@
     These were originally created in ActionScript and showcase early interactive web animations.
   </p>
 
-  <!-- Category Filter -->
+  <!-- Main Featured Experiment Section -->
+  <section class="featured-experiment" data-cy="featured-experiment-section">
+    <h2>Interactive Playground</h2>
+    <p class="section-intro">Customize the animation parameters and watch how they affect the behavior in real-time.</p>
+
+    <div class="playground-container">
+      <!-- Configuration Panel -->
+      <div class="config-panel" data-cy="config-panel">
+        <h3>Animation Parameters</h3>
+
+        <!-- Experiment Type Selector -->
+        <div class="form-group">
+          <label for="mainExperimentType">Animation Type:</label>
+          <select id="mainExperimentType" [(ngModel)]="mainExperimentType" (change)="onMainExperimentTypeChange()" class="form-control" data-cy="main-experiment-type">
+            <option value="particles">Particle System</option>
+            <option value="spiral">Spiral Animation</option>
+            <option value="waves">Sine & Cosine Waves</option>
+            <option value="sunflower">Sunflower Pattern</option>
+          </select>
+        </div>
+
+        <!-- Particle System Parameters -->
+        <div class="params-group" *ngIf="mainExperimentType === 'particles'">
+          <h4>Particle Physics</h4>
+
+          <div class="form-group">
+            <label for="particleCount">Particle Count: {{mainParams.particleCount}}</label>
+            <input type="range" id="particleCount" [(ngModel)]="mainParams.particleCount"
+                   min="10" max="200" step="10" class="form-range" data-cy="particle-count-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="particleSpeed">Speed: {{mainParams.speed.toFixed(1)}}</label>
+            <input type="range" id="particleSpeed" [(ngModel)]="mainParams.speed"
+                   min="0.5" max="10" step="0.5" class="form-range" data-cy="particle-speed-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="particleGravity">Gravity: {{mainParams.gravity.toFixed(2)}}</label>
+            <input type="range" id="particleGravity" [(ngModel)]="mainParams.gravity"
+                   min="0" max="1" step="0.05" class="form-range" data-cy="particle-gravity-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="particleFriction">Friction: {{mainParams.friction.toFixed(2)}}</label>
+            <input type="range" id="particleFriction" [(ngModel)]="mainParams.friction"
+                   min="0.8" max="1" step="0.01" class="form-range" data-cy="particle-friction-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="particleRadius">Particle Size: {{mainParams.radius.toFixed(1)}}</label>
+            <input type="range" id="particleRadius" [(ngModel)]="mainParams.radius"
+                   min="1" max="10" step="0.5" class="form-range" data-cy="particle-radius-slider">
+          </div>
+        </div>
+
+        <!-- Spiral Parameters -->
+        <div class="params-group" *ngIf="mainExperimentType === 'spiral'">
+          <h4>Spiral Configuration</h4>
+
+          <div class="form-group">
+            <label for="spiralSpeed">Rotation Speed: {{mainParams.rotationSpeed.toFixed(2)}}</label>
+            <input type="range" id="spiralSpeed" [(ngModel)]="mainParams.rotationSpeed"
+                   min="0.01" max="0.2" step="0.01" class="form-range" data-cy="spiral-speed-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="spiralArms">Number of Arms: {{mainParams.arms}}</label>
+            <input type="range" id="spiralArms" [(ngModel)]="mainParams.arms"
+                   min="1" max="12" step="1" class="form-range" data-cy="spiral-arms-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="spiralDensity">Point Density: {{mainParams.density}}</label>
+            <input type="range" id="spiralDensity" [(ngModel)]="mainParams.density"
+                   min="50" max="300" step="10" class="form-range" data-cy="spiral-density-slider">
+          </div>
+        </div>
+
+        <!-- Wave Parameters -->
+        <div class="params-group" *ngIf="mainExperimentType === 'waves'">
+          <h4>Wave Properties</h4>
+
+          <div class="form-group">
+            <label for="waveAmplitude">Amplitude: {{mainParams.amplitude.toFixed(1)}}</label>
+            <input type="range" id="waveAmplitude" [(ngModel)]="mainParams.amplitude"
+                   min="0.5" max="3" step="0.1" class="form-range" data-cy="wave-amplitude-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="waveFrequency">Frequency: {{mainParams.frequency.toFixed(3)}}</label>
+            <input type="range" id="waveFrequency" [(ngModel)]="mainParams.frequency"
+                   min="0.005" max="0.05" step="0.005" class="form-range" data-cy="wave-frequency-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="waveSpeed">Animation Speed: {{mainParams.waveSpeed.toFixed(2)}}</label>
+            <input type="range" id="waveSpeed" [(ngModel)]="mainParams.waveSpeed"
+                   min="0.01" max="0.2" step="0.01" class="form-range" data-cy="wave-speed-slider">
+          </div>
+        </div>
+
+        <!-- Sunflower Parameters -->
+        <div class="params-group" *ngIf="mainExperimentType === 'sunflower'">
+          <h4>Sunflower Pattern</h4>
+
+          <div class="form-group">
+            <label for="sunflowerCount">Seed Count: {{mainParams.seedCount}}</label>
+            <input type="range" id="sunflowerCount" [(ngModel)]="mainParams.seedCount"
+                   min="50" max="500" step="10" class="form-range" data-cy="sunflower-count-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="sunflowerRadius">Seed Size: {{mainParams.seedRadius.toFixed(1)}}</label>
+            <input type="range" id="sunflowerRadius" [(ngModel)]="mainParams.seedRadius"
+                   min="1" max="8" step="0.5" class="form-range" data-cy="sunflower-radius-slider">
+          </div>
+
+          <div class="form-group">
+            <label for="sunflowerScale">Pattern Scale: {{mainParams.scale.toFixed(1)}}</label>
+            <input type="range" id="sunflowerScale" [(ngModel)]="mainParams.scale"
+                   min="0.5" max="3" step="0.1" class="form-range" data-cy="sunflower-scale-slider">
+          </div>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="control-buttons">
+          <button (click)="startMainExperiment()" class="btn-primary" data-cy="main-start-btn">Start</button>
+          <button (click)="stopMainExperiment()" class="btn-secondary" data-cy="main-stop-btn">Stop</button>
+          <button (click)="resetMainExperiment()" class="btn-secondary" data-cy="main-reset-btn">Reset</button>
+          <button (click)="applyMainChanges()" class="btn-apply" data-cy="main-apply-btn">Apply Changes</button>
+        </div>
+      </div>
+
+      <!-- Main Canvas -->
+      <div class="main-canvas-container">
+        <canvas id="mainCanvas" width="600" height="450" class="main-canvas" data-cy="main-canvas"></canvas>
+        <div class="canvas-info">
+          <small>600×450 pixels | Experiment running: {{isMainExperimentRunning ? 'Yes' : 'No'}}</small>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Historical Experiments Section -->
+  <section class="historical-experiments" data-cy="historical-experiments-section">
+    <h2>Historical Experiments Library</h2>
+    <p class="section-intro">Browse through all the original experiments from the Flash era, each preserving its unique behavior and style.</p>
+
+    <!-- Category Filter -->
   <div class="filter-section" data-cy="filter-section">
     <label for="categoryFilter">Filter by category:</label>
     <select id="categoryFilter" [(ngModel)]="selectedCategory" (change)="filterExperiments()" class="category-select" data-cy="category-filter-select">
@@ -227,4 +376,5 @@
       </div>
     </div>
   </div>
+  </section>
 </div>
