@@ -21,6 +21,32 @@ interface FlashExperiment {
   styleUrls: ['./flash-experiments.component.scss']
 })
 export class FlashExperimentsComponent implements OnInit, OnDestroy {
+  // Main Featured Experiment Properties
+  public mainExperimentType: 'particles' | 'spiral' | 'waves' | 'sunflower' = 'particles';
+  public isMainExperimentRunning = false;
+  public mainParams = {
+    // Particle parameters
+    particleCount: 80,
+    speed: 3.0,
+    gravity: 0.2,
+    friction: 0.95,
+    radius: 2.5,
+    // Spiral parameters
+    rotationSpeed: 0.05,
+    arms: 5,
+    density: 150,
+    // Wave parameters
+    amplitude: 1.5,
+    frequency: 0.015,
+    waveSpeed: 0.06,
+    // Sunflower parameters
+    seedCount: 200,
+    seedRadius: 3.0,
+    scale: 1.5
+  };
+  private mainAnimationCleanup?: AnimationCleanup;
+
+  // Existing properties
   public experiments: FlashExperiment[] = [];
   public filteredExperiments: FlashExperiment[] = [];
   public selectedCategory = '';
@@ -298,7 +324,255 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
     this.canvasAnimations.clearCanvas(canvas, ctx);
   }
 
+  // Main Experiment Methods
+  public startMainExperiment() {
+    const canvas = document.getElementById('mainCanvas') as HTMLCanvasElement;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Stop any existing animation
+    if (this.mainAnimationCleanup) {
+      this.mainAnimationCleanup();
+    }
+
+    // Start the selected experiment type with current parameters
+    this.mainAnimationCleanup = this.runMainExperiment(canvas, ctx);
+    this.isMainExperimentRunning = true;
+  }
+
+  public stopMainExperiment() {
+    if (this.mainAnimationCleanup) {
+      this.mainAnimationCleanup();
+      this.mainAnimationCleanup = undefined;
+    }
+    this.isMainExperimentRunning = false;
+  }
+
+  public resetMainExperiment() {
+    this.stopMainExperiment();
+
+    // Reset parameters to defaults based on type
+    if (this.mainExperimentType === 'particles') {
+      this.mainParams.particleCount = 80;
+      this.mainParams.speed = 3.0;
+      this.mainParams.gravity = 0.2;
+      this.mainParams.friction = 0.95;
+      this.mainParams.radius = 2.5;
+    } else if (this.mainExperimentType === 'spiral') {
+      this.mainParams.rotationSpeed = 0.05;
+      this.mainParams.arms = 5;
+      this.mainParams.density = 150;
+    } else if (this.mainExperimentType === 'waves') {
+      this.mainParams.amplitude = 1.5;
+      this.mainParams.frequency = 0.015;
+      this.mainParams.waveSpeed = 0.06;
+    } else if (this.mainExperimentType === 'sunflower') {
+      this.mainParams.seedCount = 200;
+      this.mainParams.seedRadius = 3.0;
+      this.mainParams.scale = 1.5;
+    }
+
+    // Clear canvas
+    const canvas = document.getElementById('mainCanvas') as HTMLCanvasElement;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+  }
+
+  public applyMainChanges() {
+    if (this.isMainExperimentRunning) {
+      // Restart with new parameters
+      this.stopMainExperiment();
+      this.startMainExperiment();
+    }
+  }
+
+  public onMainExperimentTypeChange() {
+    this.stopMainExperiment();
+    this.resetMainExperiment();
+  }
+
+  private runMainExperiment(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
+    // Create custom animation based on type and parameters
+    switch (this.mainExperimentType) {
+      case 'particles':
+        return this.createCustomParticleSystem(canvas, ctx);
+      case 'spiral':
+        return this.createCustomSpiral(canvas, ctx);
+      case 'waves':
+        return this.createCustomWaves(canvas, ctx);
+      case 'sunflower':
+        return this.createCustomSunflower(canvas, ctx);
+      default:
+        return () => {};
+    }
+  }
+
+  private createCustomParticleSystem(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
+    const particles: any[] = [];
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    // Initialize particles based on current parameters
+    for (let i = 0; i < this.mainParams.particleCount; i++) {
+      particles.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        vx: (Math.random() - 0.5) * this.mainParams.speed,
+        vy: (Math.random() - 0.5) * this.mainParams.speed,
+        radius: this.mainParams.radius,
+        color: `hsl(${Math.random() * 360}, 70%, 60%)`
+      });
+    }
+
+    let animationId: number;
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      particles.forEach(p => {
+        // Apply gravity
+        p.vy += this.mainParams.gravity;
+
+        // Apply friction
+        p.vx *= this.mainParams.friction;
+        p.vy *= this.mainParams.friction;
+
+        // Update position
+        p.x += p.vx;
+        p.y += p.vy;
+
+        // Bounce off walls
+        if (p.x < p.radius || p.x > canvas.width - p.radius) {
+          p.vx *= -0.8;
+          p.x = Math.max(p.radius, Math.min(canvas.width - p.radius, p.x));
+        }
+        if (p.y < p.radius || p.y > canvas.height - p.radius) {
+          p.vy *= -0.8;
+          p.y = Math.max(p.radius, Math.min(canvas.height - p.radius, p.y));
+        }
+
+        // Draw particle
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      animationId = requestAnimationFrame(animate);
+    };
+
+    animate();
+    return () => cancelAnimationFrame(animationId);
+  }
+
+  private createCustomSpiral(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
+    let rotation = 0;
+    let animationId: number;
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const centerX = canvas.width / 2;
+      const centerY = canvas.height / 2;
+
+      for (let i = 0; i < this.mainParams.density; i++) {
+        const angle = (i / this.mainParams.density) * Math.PI * 2 * this.mainParams.arms + rotation;
+        const radius = (i / this.mainParams.density) * Math.min(centerX, centerY) * 0.8;
+
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+
+        const hue = (i / this.mainParams.density) * 360;
+        ctx.fillStyle = `hsl(${hue}, 70%, 60%)`;
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      rotation += this.mainParams.rotationSpeed;
+      animationId = requestAnimationFrame(animate);
+    };
+
+    animate();
+    return () => cancelAnimationFrame(animationId);
+  }
+
+  private createCustomWaves(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
+    let phase = 0;
+    let animationId: number;
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const centerY = canvas.height / 2;
+      const scale = 80;
+
+      // Draw sine wave
+      ctx.strokeStyle = '#e74c3c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = 0; x < canvas.width; x++) {
+        const y = centerY + Math.sin(x * this.mainParams.frequency + phase) * scale * this.mainParams.amplitude;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      // Draw cosine wave
+      ctx.strokeStyle = '#3498db';
+      ctx.beginPath();
+      for (let x = 0; x < canvas.width; x++) {
+        const y = centerY + Math.cos(x * this.mainParams.frequency + phase) * scale * this.mainParams.amplitude;
+        if (x === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+
+      phase += this.mainParams.waveSpeed;
+      animationId = requestAnimationFrame(animate);
+    };
+
+    animate();
+    return () => cancelAnimationFrame(animationId);
+  }
+
+  private createCustomSunflower(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
+    const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~137.5 degrees
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < this.mainParams.seedCount; i++) {
+      const angle = i * goldenAngle;
+      const radius = this.mainParams.scale * Math.sqrt(i) * 3;
+
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
+
+      const hue = (i / this.mainParams.seedCount) * 360;
+      ctx.fillStyle = `hsl(${hue}, 70%, 60%)`;
+      ctx.beginPath();
+      ctx.arc(x, y, this.mainParams.seedRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Sunflower is static, no animation needed
+    return () => {};
+  }
+
   public ngOnDestroy() {
+    // Clean up main experiment
+    if (this.mainAnimationCleanup) {
+      this.mainAnimationCleanup();
+      this.mainAnimationCleanup = undefined;
+    }
+
     // Clean up all running animations
     this.runningAnimations.forEach(cleanupFunction => {
       cleanupFunction();

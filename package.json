@@ -1,6 +1,6 @@
 {
   "name": "@jouster/source",
-  "version": "0.0.0",
+  "version": "0.0.2",
   "license": "MIT",
   "scripts": {
     "start": "nx serve jouster-ui --configuration=development",
@@ -40,7 +40,11 @@
     "security:audit:fix": "npm audit fix",
     "security:check": "node security-checks.js",
     "security:full": "npm run security:audit && npm run security:check",
-    "security:scan": "cmd /c security-audit.bat"
+    "security:scan": "cmd /c security-audit.bat",
+    "env:validate": "node scripts/validate-env.js",
+    "env:validate:qa": "cross-env NODE_ENV=qa node scripts/validate-env.js",
+    "env:validate:staging": "cross-env NODE_ENV=staging node scripts/validate-env.js",
+    "env:validate:production": "cross-env NODE_ENV=production node scripts/validate-env.js"
   },
   "private": true,
   "dependencies": {

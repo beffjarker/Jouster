@@ -1,14 +1,17 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
 # Environment variables - CRITICAL SECURITY
+# NEVER commit these files - they contain secrets!
 .env
 .env.local
-.env.*.local
-.env.production
+.env.qa
+.env.preview
 .env.staging
-.env.development
+.env.production
+.env.*.local
 *.env
 .env.*
+# Only .env.example should be committed (template with no secrets)
 
 # AWS Credentials - NEVER COMMIT
 aws/credentials
@@ -81,3 +84,12 @@ lerna-debug.log*
 # Security scanning results
 .snyk
 vulnerability-report.json
+
+# Personal development journal - NEVER COMMIT (local workspace only)
+dev-journal/
+
+# Personal developer tools and utilities - NEVER COMMIT (contains API keys)
+dev-tools/
+dev-tools/.env
+dev-tools/node_modules/
+

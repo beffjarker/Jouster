@@ -38,7 +38,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::924677642513:role/GitHubActionsPreviewRole
           aws-region: us-west-2
 
       - name: Generate preview environment name
@@ -141,7 +141,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: arn:aws:iam::924677642513:role/GitHubActionsPreviewRole
           aws-region: us-west-2
 
       - name: Clean up preview environment
@@ -149,11 +149,11 @@ jobs:
           PR_NUMBER=${{ github.event.number }}
           BUCKET_NAME="jouster-preview-pr-${PR_NUMBER}"
 
-          # Delete all objects in bucket
-          aws s3 rm s3://${BUCKET_NAME} --recursive || true
+          # Empty and delete the S3 bucket
+          aws s3 rm s3://${BUCKET_NAME} --recursive || echo "Bucket already empty or doesn't exist"
+          aws s3 rb s3://${BUCKET_NAME} || echo "Bucket already deleted or doesn't exist"
 
-          # Delete the bucket
-          aws s3 rb s3://${BUCKET_NAME} || true
+          echo "✅ Preview environment for PR ${PR_NUMBER} cleaned up"
 
       - name: Comment cleanup on PR
         uses: actions/github-script@v7

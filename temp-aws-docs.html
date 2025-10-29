@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+    <html xmlns="http://www.w3.org/1999/xhtml" lang="en-US"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8" /><title>Obtain the thumbprint for an OpenID Connect identity provider - AWS Identity and Access Management</title><meta name="viewport" content="width=device-width,initial-scale=1" /><meta name="assets_root" content="/assets" /><meta name="target_state" content="id_roles_providers_create_oidc_verify-thumbprint" /><meta name="default_state" content="id_roles_providers_create_oidc_verify-thumbprint" /><link rel="icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="shortcut icon" type="image/ico" href="/assets/images/favicon.ico" /><link rel="canonical" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" /><meta name="description" content="Manually obtain the thumbprint (signature) of the server certificate for an OIDC identity provider to validate that the certificate automatically retrieved by IAM is the correct one." /><meta name="deployment_region" content="IAD" /><meta name="product" content="AWS Identity and Access Management" /><meta name="guide" content="User Guide" /><meta name="abstract" content="Control access to your AWS resources with user identity (authentication) and with policies that define specific permissions (authorization)." /><meta name="guide-locale" content="en_us" /><meta name="tocs" content="toc-contents.json" /><link rel="canonical" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="id-id" /><link rel="alternative" href="https://docs.aws.amazon.com/id_id/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="id" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="de-de" /><link rel="alternative" href="https://docs.aws.amazon.com/de_de/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="de" /><link rel="alternative" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="en-us" /><link rel="alternative" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="en" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="es-es" /><link rel="alternative" href="https://docs.aws.amazon.com/es_es/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="es" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="fr-fr" /><link rel="alternative" href="https://docs.aws.amazon.com/fr_fr/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="fr" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="it-it" /><link rel="alternative" href="https://docs.aws.amazon.com/it_it/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="it" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="ja-jp" /><link rel="alternative" href="https://docs.aws.amazon.com/ja_jp/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="ja" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="ko-kr" /><link rel="alternative" href="https://docs.aws.amazon.com/ko_kr/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="ko" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="pt-br" /><link rel="alternative" href="https://docs.aws.amazon.com/pt_br/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="pt" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_cn/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="zh-cn" /><link rel="alternative" href="https://docs.aws.amazon.com/zh_tw/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="zh-tw" /><link rel="alternative" href="https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" hreflang="x-default" /><meta name="feedback-item" content="IAM" /><meta name="this_doc_product" content="AWS Identity and Access Management" /><meta name="this_doc_guide" content="User Guide" /><head xmlns="http://www.w3.org/1999/xhtml"> <script defer="" src="/assets/r/awsdocs-doc-page.2.0.0.js"></script><link href="/assets/r/awsdocs-doc-page.2.0.0.css" rel="stylesheet"/></head>
+<script defer="" id="awsc-panorama-bundle" type="text/javascript" src="https://prod.pa.cdn.uis.awsstatic.com/panorama-nav-init.js" data-config="{'appEntity':'aws-documentation','region':'us-east-1','service':'iam'}"></script><meta id="panorama-serviceSubSection" value="User Guide" /><meta id="panorama-serviceConsolePage" value="Obtain the thumbprint for an OpenID Connect identity provider" /></head><body class="awsdocs awsui"><div class="awsdocs-container"><awsdocs-header></awsdocs-header><awsui-app-layout id="app-layout" class="awsui-util-no-gutters" ng-controller="ContentController as $ctrl" header-selector="awsdocs-header" navigation-hide="false" navigation-width="$ctrl.navWidth" navigation-open="$ctrl.navOpen" navigation-change="$ctrl.onNavChange($event)" tools-hide="$ctrl.hideTools" tools-width="$ctrl.toolsWidth" tools-open="$ctrl.toolsOpen" tools-change="$ctrl.onToolsChange($event)"><div id="guide-toc" dom-region="navigation"><awsdocs-toc></awsdocs-toc></div><div id="main-column" dom-region="content" tabindex="-1"><awsdocs-view class="awsdocs-view"><div id="awsdocs-content"><head><title>Obtain the thumbprint for an OpenID Connect identity provider - AWS Identity and Access Management</title><meta name="pdf" content="/pdfs/IAM/latest/UserGuide/iam-ug.pdf#id_roles_providers_create_oidc_verify-thumbprint" /><meta name="rss" content="aws-iam-release-notes.rss" /><meta name="forums" content="https://repost.aws/tags/TAO7Z4bI5hQVWMiYFs34QhIA" /><meta name="feedback" content="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=IAM&amp;topic_url=https://docs.aws.amazon.com/en_us/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" /><meta name="feedback-yes" content="feedbackyes.html?topic_url=https://docs.aws.amazon.com/en_us/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" /><meta name="feedback-no" content="feedbackno.html?topic_url=https://docs.aws.amazon.com/en_us/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html" /><meta name="keywords" content="IAM,AWS Identity and Access Management,IAM user,user,IAM group,group,IAM role,role,permission policy,trust policy,policy,access key,password,AWS IAM federation,identity federation,IAM SAML,IAM OIDC" /><script type="application/ld+json">
+{
+    "@context" : "https://schema.org",
+    "@type" : "BreadcrumbList",
+    "itemListElement" : [
+      {
+        "@type" : "ListItem",
+        "position" : 1,
+        "name" : "AWS",
+        "item" : "https://aws.amazon.com"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 2,
+        "name" : "AWS Identity and Access Management",
+        "item" : "https://docs.aws.amazon.com/iam/index.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 3,
+        "name" : "User Guide",
+        "item" : "https://docs.aws.amazon.com/IAM/latest/UserGuide"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 4,
+        "name" : "IAM Identities",
+        "item" : "https://docs.aws.amazon.com/IAM/latest/UserGuide/id.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 5,
+        "name" : "Identity providers and federation",
+        "item" : "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 6,
+        "name" : "OIDC federation",
+        "item" : "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html"
+      },
+      {
+        "@type" : "ListItem",
+        "position" : 7,
+        "name" : "Obtain the thumbprint for an OpenID Connect identity provider",
+        "item" : "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_providers_oidc.html"
+      }
+    ]
+}
+</script></head><body><div id="main"><div style="display: none"><a href="/pdfs/IAM/latest/UserGuide/iam-ug.pdf#id_roles_providers_create_oidc_verify-thumbprint" target="_blank" rel="noopener noreferrer" title="Open PDF"></a></div><div id="breadcrumbs" class="breadcrumb"><a href="/index.html">Documentation</a><a href="/iam/index.html">AWS Identity and Access Management</a><a href="introduction.html">User Guide</a></div><div id="page-toc-src"><a href="#oidc-obtain-thumbprint">Obtain certificate thumbprint</a><a href="#oidc-install-openssl">Install OpenSSL</a><a href="#oidc-configure-openssl">Configure OpenSSL</a></div><div id="main-content" class="awsui-util-container"><div id="main-col-body"><awsdocs-language-banner data-service="$ctrl.pageService"></awsdocs-language-banner><h1 class="topictitle" id="id_roles_providers_create_oidc_verify-thumbprint">Obtain the thumbprint for an
+      OpenID Connect identity provider</h1><div class="awsdocs-page-header-container"><awsdocs-page-header></awsdocs-page-header><awsdocs-filter-selector id="awsdocs-filter-selector"></awsdocs-filter-selector></div><p>When you <a href="./id_roles_providers_create_oidc.html">create an OpenID Connect (OIDC)
+      identity provider</a> in IAM, IAM requires the thumbprint for the top intermediate
+    certificate authority (CA) that signed the certificate used by the external identity provider
+    (IdP). The thumbprint is a signature for the CA's certificate that was used to issue the
+    certificate for the OIDC-compatible IdP. When you create an IAM OIDC identity provider, you
+    are trusting identities authenticated by that IdP to have access to your AWS account. By using
+    the CA's certificate thumbprint, you trust any certificate issued by that CA with the same DNS
+    name as the one registered. This eliminates the need to update trusts in each account when you
+    renew the IdP's signing certificate.</p><div class="awsdocs-note awsdocs-important"><div class="awsdocs-note-title"><awsui-icon name="status-warning" variant="error"></awsui-icon><h6>Important</h6></div><div class="awsdocs-note-text"><p>In most cases, the federation server uses two different certificates:</p><div class="itemizedlist">
+       
+       
+    <ul class="itemizedlist"><li class="listitem">
+        <p>The first establishes an HTTPS connection between AWS and your IdP. This should be
+          issued by a well-known public root CA, such as AWS Certificate Manager. This enables the client to check
+          the reliability and status of the certificate.</p>
+      </li><li class="listitem">
+        <p>The second is used to encrypt tokens, and should be signed by a private or public
+            <em>root</em> CA.</p>
+      </li></ul></div></div></div><p>You can create an IAM OIDC identity provider with <a href="./id_roles_providers_create_oidc.html#manage-oidc-provider-cli">the AWS Command Line Interface, the Tools for Windows PowerShell, or the IAM API</a>. When you use these methods, you have the
+    option to manually provide a thumbprint. If you choose not to include a thumbprint, IAM will
+    retrieve the top intermediate CA thumbprint of the OIDC IdP server certificate. If you choose to
+    include a thumbprint, you must obtain the thumbprint manually and supply it to AWS.</p><p>When you create an OIDC identity provider with <a href="./id_roles_providers_create_oidc.html">the IAM console</a>, IAM attempts to retrieve
+    the top intermediate CA thumbprint of the OIDC IdP server certificate for you. </p><p>We recommend that you also obtain the thumbprint for your OIDC IdP manually and verify that
+    IAM retrieved the correct thumbprint. For more information about obtaining certificate
+    thumbprints, see the following sections.</p><div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>Note</h6></div><div class="awsdocs-note-text"><p>AWS secures communication with OIDC identity providers (IdPs) using our library of
+        trusted root certificate authorities (CAs) to verify the JSON Web Key Set (JWKS)
+        endpoint's TLS certificate. If your OIDC IdP relies on a certificate that is not signed
+        by one of these trusted CAs, only then we secure communication using the thumbprints set in
+        the IdP's configuration. AWS will fall back to thumbprint verification if we are
+        unable to retrieve the TLS certificate or if TLS v1.3 is required.</p></div></div>
+    <h2 id="oidc-obtain-thumbprint">Obtain certificate thumbprint</h2>
+  <p>You use a web browser and the OpenSSL command line tool to obtain the certificate thumbprint
+    for an OIDC provider. However, you do not need to manually obtain the certificate thumbprint to
+    create an IAM OIDC identity provider. You can use the following procedure to obtain the
+    certificate thumbprint of your OIDC provider.</p><div class="procedure"><h6>To obtain the thumbprint for an OIDC IdP</h6><ol><li>
+      <p>Before you can obtain the thumbprint for an OIDC IdP, you need to obtain the OpenSSL
+        command line tool. You use this tool to download the OIDC IdP certificate chain and produce
+        a thumbprint of the final certificate in the certificate chain. If you need to install and
+        configure OpenSSL, follow the instructions at <a href="#oidc-install-openssl">Install OpenSSL</a> and <a href="#oidc-configure-openssl">Configure OpenSSL</a>.</p>
+    </li><li>
+      <p>Start with the OIDC IdP URL (for example, <code class="code">https://server.example.com</code>), and
+        then add <code class="code">/.well-known/openid-configuration</code> to form the URL for the IdP's
+        configuration document, such as the following:</p>
+      <p><code class="userinput">https://<code class="replaceable">server.example.com</code>/.well-known/openid-configuration</code></p>
+      <p>Open this URL in a web browser, replacing <code class="replaceable">server.example.com</code>
+        with your IdP server name. </p>
+    </li><li id="thumbstep2">
+      
+      <p>In the displayed document, use your web browser <b>Find</b> feature to
+        locate the text <code class="code">"jwks_uri"</code>. Immediately following the text
+          <code class="code">"jwks_uri"</code>, there is a colon (:) followed by a URL. Copy the fully qualified
+        domain name of the URL. Do not include <code class="code">https://</code> or any path that comes after
+        the top-level domain. </p>
+      <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli ()--><code class="nohighlight"><span>{</span>
+ "issuer": "https://accounts.example.com",
+ "authorization_endpoint": "https://accounts.example.com/o/oauth2/v2/auth",
+ "device_authorization_endpoint": "https://oauth2.exampleapis.com/device/code",
+ "token_endpoint": "https://oauth2.exampleapis.com/token",
+ "userinfo_endpoint": "https://openidconnect.exampleapis.com/v1/userinfo",
+ "revocation_endpoint": "https://oauth2.exampleapis.com/revoke",
+ "jwks_uri": "https://<code class="replaceable">www.exampleapis.com</code>/oauth2/v3/certs",
+...
+      </code></pre>
+    </li><li>
+      <p>Use the OpenSSL command line tool to run the following command. Replace
+          <code class="replaceable">keys.example.com</code> with the domain name you obtained in <a href="#thumbstep2">Step 3</a>.</p>
+      <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli ()--><code class="nohighlight">openssl s_client -servername <code class="replaceable">keys.example.com</code> -showcerts -connect <code class="replaceable">keys.example.com</code>:443</code></pre>
+    </li><li>
+      <p>In your command window, scroll up until you see a certificate similar to the following
+        example. If you see more than one certificate, find the last certificate displayed (at the
+        end of the command output). This contains the certificate of the top intermediate CA in the
+        certificate authority chain.</p>
+      <pre class="programlisting"><div class="code-btn-container"></div><!--DEBUG: cli (none)--><code class="nohighlight">-----BEGIN CERTIFICATE-----
+ MIICiTCCAfICCQD6m7oRw0uXOjANBgkqhkiG9w0BAQUFADCBiDELMAkGA1UEBhMC
+ VVMxCzAJBgNVBAgTAldBMRAwDgYDVQQHEwdTZWF0dGxlMQ8wDQYDVQQKEwZBbWF6
+ b24xFDASBgNVBAsTC0lBTSBDb25zb2xlMRIwEAYDVQQDEwlUZXN0Q2lsYWMxHzAd
+ BgkqhkiG9w0BCQEWEG5vb25lQGFtYXpvbi5jb20wHhcNMTEwNDI1MjA0NTIxWhcN
+ MTIwNDI0MjA0NTIxWjCBiDELMAkGA1UEBhMCVVMxCzAJBgNVBAgTAldBMRAwDgYD
+ VQQHEwdTZWF0dGxlMQ8wDQYDVQQKEwZBbWF6b24xFDASBgNVBAsTC0lBTSBDb25z
+ b2xlMRIwEAYDVQQDEwlUZXN0Q2lsYWMxHzAdBgkqhkiG9w0BCQEWEG5vb25lQGFt
+ YXpvbi5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBAMaK0dn+a4GmWIWJ
+ 21uUSfwfEvySWtC2XADZ4nB+BLYgVIk60CpiwsZ3G93vUEIO3IyNoH/f0wYK8m9T
+ rDHudUZg3qX4waLG5M43q7Wgc/MbQITxOUSQv7c7ugFFDzQGBzZswY6786m86gpE
+ Ibb3OhjZnzcvQAaRHhdlQWIMm2nrAgMBAAEwDQYJKoZIhvcNAQEFBQADgYEAtCu4
+ nUhVVxYUntneD9+h8Mg9q6q+auNKyExzyLwaxlAoo7TJHidbtS4J5iNmZgXL0Fkb
+ FFBjvSfpJIlJ00zbhNYS5f6GuoEDmFJl0ZxBHjJnyp378OD8uTs7fLvjx79LjSTb
+ NYiytVbZPQUQ5Yaxu2jXnimvw3rrszlaEXAMPLE=
+ -----END CERTIFICATE-----</code></pre>
+      <p>Copy the certificate (including the <code class="code">-----BEGIN CERTIFICATE-----</code> and
+          <code class="code">-----END CERTIFICATE-----</code> lines) and paste it into a text file. Then save the
+        file with the file name <code class="userinput">certificate.crt</code>.</p>
+      <div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>Note</h6></div><div class="awsdocs-note-text"><p>The OIDC identity provider's certificate chain must start with the domain or issuer
+          URL, include any intermediate certificates (if present), and end with the root
+          certificate. If the certificate chain order is different or includes duplicate or
+          additional certificates, you will receive a signature mismatch error and STS fails to
+          validate the JSON Web Token (JWT). Correct the order of the certificates in the chain
+          returned from the server to resolve the error. For more information about certificate
+          chain standards, see <a href="https://www.rfc-editor.org/rfc/rfc5246#section-7.4.2" rel="noopener noreferrer" target="_blank"><span>certificate_list in RFC 5246</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a> on the RFC Series website.</p></div></div>
+    </li><li>
+      <p>Use the OpenSSL command line tool to run the following command.</p>
+      <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (none)--><code class="nohighlight">openssl x509 -in certificate.crt -fingerprint -sha1 -noout</code></pre>
+      <p>Your command window displays the certificate thumbprint, which looks similar to the
+        following example:</p>
+      <pre class="programlisting"><div class="code-btn-container"></div><!--DEBUG: cli (none)--><code class="nohighlight">SHA1 Fingerprint=99:0F:41:93:97:2F:2B:EC:F1:2D:DE:DA:52:37:F9:C9:52:F2:0D:9E</code></pre>
+      <p>Remove the colon characters (:) from this string to produce the final thumbprint, like
+        this:</p>
+      <pre class="programlisting"><div class="code-btn-container"></div><!--DEBUG: cli (none)--><code class="nohighlight">990F4193972F2BECF12DDEDA5237F9C952F20D9E</code></pre>
+    </li><li>
+      <p>If you are creating the IAM OIDC identity provider with the AWS CLI, Tools for Windows PowerShell, or the IAM
+        API, providing a thumbprint is optional. If you choose not to include a thumbprint during
+        creation, IAM will retrieve the top intermediate CA thumbprint of the OIDC IdP server
+        certificate. After the IAM OIDC identity provider is created, you can compare this
+        thumbprint to the thumbprint retrieved by IAM.</p>
+      <p>If you are creating the IAM OIDC identity provider in the IAM console, the console
+        attempts to retrieve the top intermediate CA thumbprint of the OIDC IdP server certificate
+        for you. You can compare this thumbprint to the thumbprint retrieved by IAM. After the
+        IAM OIDC identity provider is created, you can view the thumbprint for the IAM OIDC
+        identity provider in the <b>Endpoint verification</b> tab on the OIDC provider
+          <b>Summary</b> console page.</p>
+      <div class="awsdocs-note awsdocs-important"><div class="awsdocs-note-title"><awsui-icon name="status-warning" variant="error"></awsui-icon><h6>Important</h6></div><div class="awsdocs-note-text"><p>If the thumbprint you obtained does not match the one you see in the IAM OIDC
+          identity provider thumbprint details, you should not use the OIDC provider. Instead, you
+          should delete the created OIDC provider and then try again to create the OIDC provider
+          after some time has passed. Verify that the thumbprints match before you use the provider.
+          If the thumbprints still do not match after a second attempt, use the <a href="https://forums.aws.amazon.com/forum.jspa?forumID=76" rel="noopener noreferrer" target="_blank"><span>IAM Forum</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a> to contact AWS.</p></div></div>
+    </li></ol></div>
+    <h2 id="oidc-install-openssl">Install OpenSSL</h2>
+    
+  <p>If you don't already have OpenSSL installed, follow the instructions in this
+    section.</p>
+ 
+  <div class="procedure"><h6>To install OpenSSL on Linux or Unix</h6><ol><li>
+      <p>Go to <a href="https://openssl.org/source/" rel="noopener noreferrer" target="_blank"><span>OpenSSL: Source, Tarballs</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a>
+        (https://openssl.org/source/).</p>
+    </li><li>
+      <p>Download the latest source and build the package.</p>
+    </li></ol></div>
+  
+  <div class="procedure"><h6>To install OpenSSL on Windows</h6><ol><li>
+      <p>Go to <a href="https://wiki.openssl.org/index.php/Binaries" rel="noopener noreferrer" target="_blank"><span>OpenSSL: Binary
+        Distributions</span><awsui-icon class="awsdocs-link-icon" name="external"></awsui-icon></a> (https://wiki.openssl.org/index.php/Binaries) for a list of sites from 
+        which you can install the Windows version.</p>
+    </li><li>
+      <p>Follow the instructions on your selected site to start the installation.</p>
+    </li><li>
+      <p>If you are asked to install the <b>Microsoft Visual C++ 2008 Redistributables
+      </b> and it is not already installed on your system, choose the download link appropriate 
+      for your environment. Follow the instructions provided by the <b>Microsoft Visual C++ 
+      2008 Redistributable Setup Wizard</b>.</p>
+      <div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>Note</h6></div><div class="awsdocs-note-text"><p>If you are not sure whether the Microsoft Visual C++ 2008 Redistributables is already 
+          installed on your system, you can try installing OpenSSL first. The OpenSSL installer
+          displays an alert if the Microsoft Visual C++ 2008 Redistributables is not yet
+          installed. Make sure that you install the architecture (32-bit or 64-bit) that matches the 
+          version of OpenSSL that you install.</p></div></div>
+    </li><li>
+      <p>After you have installed the Microsoft Visual C++ 2008 Redistributables, select the
+        appropriate version of the OpenSSL binaries for your environment and save the file locally.
+        Start the <b>OpenSSL Setup Wizard</b>.</p>
+    </li><li>
+      <p>Follow the instructions described in the <b>OpenSSL Setup Wizard</b>.</p>
+    </li></ol></div>
+
+   
+    <h2 id="oidc-configure-openssl">Configure OpenSSL</h2>
+    
+  <p>Before you use OpenSSL commands, you must configure the operating system so that it has
+    information about the location where OpenSSL is installed.</p>
+  <div class="procedure"><h6>To configure OpenSSL on Linux or Unix</h6><ol><li>
+      <p>At the command line, set the <code class="code">OpenSSL_HOME</code> variable to the location of the
+        OpenSSL installation:</p>
+      <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (none)--><code class="nohighlight"><code class="code" copy="false">$ </code>export OpenSSL_HOME=<code class="replaceable">path_to_your_OpenSSL_installation</code></code></pre>
+    </li><li>
+      <p>Set the path to include the OpenSSL installation:</p>
+      <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (none)--><code class="nohighlight"><code class="code" copy="false">$ </code>export PATH=$PATH:$OpenSSL_HOME/bin</code></pre>
+      <div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>Note</h6></div><div class="awsdocs-note-text"><p>Any changes you make to environment variables with the <code class="code">export</code> command are 
+        valid only for the current session. You can make persistent changes to the environment variables 
+        by setting them in your shell configuration file. For more information, see the documentation
+        for your operating system.</p></div></div>
+    </li></ol></div>
+  <div class="procedure"><h6>To configure OpenSSL on Windows</h6><ol><li>
+      <p>Open a <b>Command Prompt</b> window.</p>
+    </li><li>
+      <p>Set the <code class="code">OpenSSL_HOME</code> variable to the location of the OpenSSL
+        installation:</p>
+      <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (none)--><code class="nohighlight"><code class="code" copy="false">C:\&gt; </code>set OpenSSL_HOME=<code class="replaceable">path_to_your_OpenSSL_installation</code></code></pre>
+    </li><li>
+      <p>Set the <code class="code">OpenSSL_CONF</code> variable to the location of the configuration file in
+        your OpenSSL installation:</p>
+      <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (none)--><code class="nohighlight"><code class="code" copy="false">C:\&gt; </code>set OpenSSL_CONF=<code class="replaceable">path_to_your_OpenSSL_installation</code>\bin\openssl.cfg</code></pre>
+    </li><li>
+      <p>Set the path to include the OpenSSL installation:</p>
+      <pre class="programlisting"><div class="code-btn-container"><div class="btn-copy-code" title="Copy"><awsui-icon name="copy"></awsui-icon></div></div><!--DEBUG: cli (none)--><code class="nohighlight"><code class="code" copy="false">C:\&gt; </code>set Path=%Path%;%OpenSSL_HOME%\bin</code></pre>
+      <div class="awsdocs-note"><div class="awsdocs-note-title"><awsui-icon name="status-info" variant="link"></awsui-icon><h6>Note</h6></div><div class="awsdocs-note-text"><p>Any changes you make to Windows environment variables in a <b>Command
+          Prompt</b> window are valid only for the current command line session. You can
+          make persistent changes to the environment variables by setting them as system properties.
+          The exact procedures depend on what version of Windows you're using. (For example,
+          in Windows 7, open <b>Control Panel</b>, <b>System and
+            Security</b>, <b>System</b>. Then choose <b>Advanced
+              system settings</b>, <b>Advanced</b> tab,
+          <b>Environment Variables</b>.) For more information, see the Windows
+          documentation.</p></div></div>
+    </li></ol></div>
+
+  <awsdocs-copyright class="copyright-print"></awsdocs-copyright><awsdocs-thumb-feedback right-edge="{{$ctrl.thumbFeedbackRightEdge}}"></awsdocs-thumb-feedback></div><noscript><div><div><div><div id="js_error_message"><p><img src="https://d1ge0kk1l5kms0.cloudfront.net/images/G/01/webservices/console/warning.png" alt="Warning" /> <strong>Javascript is disabled or is unavailable in your browser.</strong></p><p>To use the Amazon Web Services Documentation, Javascript must be enabled. Please refer to your browser's Help pages for instructions.</p></div></div></div></div></noscript><div id="main-col-footer" class="awsui-util-font-size-0"><div id="doc-conventions"><a target="_top" href="/general/latest/gr/docconventions.html">Document Conventions</a></div><div class="prev-next"><div id="previous" class="prev-link" accesskey="p" href="./id_roles_providers_create_oidc.html">Create OIDC identity provider</div><div id="next" class="next-link" accesskey="n" href="./id_roles_providers_oidc_secure-by-default.html">Identity-provider controls for shared OIDC providers</div></div></div><awsdocs-page-utilities></awsdocs-page-utilities></div><div id="quick-feedback-yes" style="display: none;"><div class="title">Did this page help you? - Yes</div><div class="content"><p>Thanks for letting us know we're doing a good job!</p><p>If you've got a moment, please tell us what we did right so we can do more of it.</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="Feedback" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=IAM&amp;topic_url=https://docs.aws.amazon.com/en_us/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html"></awsui-button></p></div></div><div id="quick-feedback-no" style="display: none;"><div class="title">Did this page help you? - No</div><div class="content"><p>Thanks for letting us know this page needs work. We're sorry we let you down.</p><p>If you've got a moment, please tell us how we can make the documentation better.</p><p><awsui-button id="fblink" rel="noopener noreferrer" target="_blank" text="Feedback" click="linkClick($event)" href="https://docs.aws.amazon.com/forms/aws-doc-feedback?hidden_service_name=IAM&amp;topic_url=https://docs.aws.amazon.com/en_us/IAM/latest/UserGuide/id_roles_providers_create_oidc_verify-thumbprint.html"></awsui-button></p></div></div></div></body></div></awsdocs-view><div class="page-loading-indicator" id="page-loading-indicator"><awsui-spinner size="large"></awsui-spinner></div></div><div id="tools-panel" dom-region="tools"><awsdocs-tools-panel id="awsdocs-tools-panel"></awsdocs-tools-panel></div></awsui-app-layout><awsdocs-cookie-banner class="doc-cookie-banner"></awsdocs-cookie-banner></div></body></html>
