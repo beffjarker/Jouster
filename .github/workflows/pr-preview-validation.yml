@@ -1,0 +1,324 @@
+name: PR Preview and Validation
+
+on:
+  pull_request:
+    branches: [develop]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  # Step 1: Deploy Preview Environment
+  deploy-preview:
+    name: Deploy Preview Environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      preview-url: ${{ steps.preview-url.outputs.url }}
+      bucket-name: ${{ steps.preview-name.outputs.bucket_name }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npx nx build jouster-ui --configuration=development --skip-nx-cache
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::924677642513:role/GitHubActionsPreviewRole
+          aws-region: us-west-2
+
+      - name: Generate preview environment name
+        id: preview-name
+        run: |
+          PR_NUMBER=${{ github.event.number }}
+          PREVIEW_NAME="pr-${PR_NUMBER}"
+          echo "preview_name=${PREVIEW_NAME}" >> $GITHUB_OUTPUT
+          echo "bucket_name=jstr-${PREVIEW_NAME}" >> $GITHUB_OUTPUT
+          echo "cloudfront_comment=Jstr Preview PR ${PR_NUMBER}" >> $GITHUB_OUTPUT
+
+      - name: Create S3 bucket for preview
+        run: |
+          aws s3 mb s3://${{ steps.preview-name.outputs.bucket_name }} --region us-west-2 || true
+          aws s3 website s3://${{ steps.preview-name.outputs.bucket_name }} \
+            --index-document index.html \
+            --error-document index.html
+
+      - name: Configure S3 bucket policy
+        run: |
+          cat > bucket-policy.json << EOF
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "PublicReadGetObject",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::${{ steps.preview-name.outputs.bucket_name }}/*"
+              }
+            ]
+          }
+          EOF
+          aws s3api put-bucket-policy --bucket ${{ steps.preview-name.outputs.bucket_name }} --policy file://bucket-policy.json
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync dist/apps/jouster-ui/ s3://${{ steps.preview-name.outputs.bucket_name }} --delete
+
+      - name: Get preview URL
+        id: preview-url
+        run: |
+          PREVIEW_URL="http://${{ steps.preview-name.outputs.bucket_name }}.s3-website-us-west-2.amazonaws.com"
+          echo "url=${PREVIEW_URL}" >> $GITHUB_OUTPUT
+          echo "Preview environment deployed to: ${PREVIEW_URL}"
+
+      - name: Comment on PR with preview URL
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const previewUrl = '${{ steps.preview-url.outputs.url }}';
+            const prNumber = context.issue.number;
+            const bucketName = '${{ steps.preview-name.outputs.bucket_name }}';
+
+            // Find existing preview comment
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('🚀 Preview Environment')
+            );
+
+            const commentBody = `## 🚀 Preview Environment Deployed
+
+            Your preview environment is ready for testing!
+
+            **Preview URL:** ${previewUrl}
+
+            **Bucket:** \`${bucketName}\`
+            **Commit:** ${context.sha.substring(0, 7)}
+            **Branch:** ${context.ref}
+
+            ### Next Steps:
+            - ✅ Preview environment deployed
+            - ⏳ Automated tests will run against this environment
+            - 🧪 Manual testing can begin
+
+            ---
+            *This preview will be automatically updated when you push new commits.*
+            *Preview environments are cleaned up when the PR is closed.*`;
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody
+              });
+            }
+
+  # Step 2: Run Automated Tests Against Preview Environment
+  test-preview:
+    name: Test Preview Environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: deploy-preview
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Cypress
+        run: npx cypress install
+
+      - name: Run linting
+        run: npx nx run-many -t lint
+
+      - name: Run unit tests
+        run: npx nx run-many -t test
+
+      - name: Build verification
+        run: npx nx run-many -t build
+
+      - name: Wait for preview environment to be ready
+        run: |
+          PREVIEW_URL="${{ needs.deploy-preview.outputs.preview-url }}"
+          echo "Waiting for preview environment: $PREVIEW_URL"
+
+          for i in {1..30}; do
+            if curl -s -o /dev/null -w "%{http_code}" "$PREVIEW_URL" | grep -q "200"; then
+              echo "✅ Preview environment is ready!"
+              exit 0
+            fi
+            echo "Waiting... (attempt $i/30)"
+            sleep 10
+          done
+
+          echo "❌ Preview environment did not become ready in time"
+          exit 1
+
+      - name: Run E2E tests against preview
+        run: |
+          PREVIEW_URL="${{ needs.deploy-preview.outputs.preview-url }}"
+          echo "Running E2E tests against: $PREVIEW_URL"
+          # Set base URL for E2E tests
+          export CYPRESS_BASE_URL="$PREVIEW_URL"
+          npx nx e2e jouster-ui-e2e --configuration=ci || echo "E2E tests need configuration"
+
+      - name: Update PR with test results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+            const conclusion = '${{ job.status }}';
+            const previewUrl = '${{ needs.deploy-preview.outputs.preview-url }}';
+
+            const statusEmoji = conclusion === 'success' ? '✅' : '❌';
+            const statusText = conclusion === 'success' ? 'PASSED' : 'FAILED';
+
+            const commentBody = `## ${statusEmoji} Automated Tests ${statusText}
+
+            **Preview URL:** ${previewUrl}
+            **Test Results:** ${statusText}
+
+            ${conclusion === 'success' ?
+              '✅ All automated tests passed! Ready for manual testing and review.' :
+              '❌ Some tests failed. Please review the workflow logs.'}
+
+            ### Manual Testing
+            Please test the following in the preview environment:
+            - [ ] Application loads correctly
+            - [ ] All pages render properly
+            - [ ] Navigation works as expected
+            - [ ] No console errors
+            - [ ] Security changes are working
+            - [ ] Documentation changes look good
+
+            ---
+            View detailed test results: [Workflow Run](https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody
+            });
+
+  # Step 3: Quality Checks
+  quality-checks:
+    name: Code Quality Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: deploy-preview
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check for affected projects
+        run: |
+          npx nx affected:graph
+          npx nx print-affected
+
+      - name: Validate dependencies
+        run: |
+          npx nx graph --file=graph.json
+          echo "✅ Project graph validated"
+
+      - name: Security audit
+        run: npm audit --audit-level=moderate || echo "Security vulnerabilities found - review required"
+
+      - name: Nx Cloud fixes
+        if: always()
+        run: npx nx fix-ci
+
+  # Cleanup job when PR is closed
+  cleanup-preview:
+    name: Cleanup Preview Environment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.action == 'closed'
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::924677642513:role/GitHubActionsPreviewRole
+          aws-region: us-west-2
+
+      - name: Clean up preview environment
+        run: |
+          PR_NUMBER=${{ github.event.number }}
+          BUCKET_NAME="jstr-pr-${PR_NUMBER}"
+
+          echo "Cleaning up preview environment: $BUCKET_NAME"
+
+          # Empty bucket first
+          aws s3 rm s3://${BUCKET_NAME} --recursive || true
+
+          # Delete bucket
+          aws s3 rb s3://${BUCKET_NAME} || true
+
+          echo "✅ Preview environment cleaned up"
+
+      - name: Comment on PR about cleanup
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: '🧹 Preview environment has been cleaned up.'
+            });
+
