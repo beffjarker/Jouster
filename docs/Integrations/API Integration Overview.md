@@ -21,7 +21,7 @@
 - **[Facebook Graph API Documentation](https://developers.facebook.com/docs/graph-api/)** - Official Facebook Graph API
 - **[Instagram Graph API Reference](https://developers.facebook.com/docs/instagram-api/)** - Instagram-specific endpoints
 - **[Instagram Basic Display API](https://developers.facebook.com/docs/instagram-basic-display-api/)** - Legacy API (deprecated)
-- **Account**: @beffjarker photography portfolio
+- **Account**: Photography portfolio integration
 - **Implementation**: Graph API v18.0 (replaces deprecated Basic Display)
 - **Content**: Recent posts, engagement metrics, media galleries
 - **Fallback**: Enhanced mock photography data for development
