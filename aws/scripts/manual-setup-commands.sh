@@ -50,10 +50,34 @@ aws iam attach-role-policy \
     --policy-arn "arn:aws:iam::$ACCOUNT_ID:policy/GitHubActionsPreviewPolicy"
 
 # 6. Create GitHub OIDC provider (if it doesn't exist)
+#
+# THUMBPRINT NOTES:
+# - AWS now validates the entire certificate chain (as of June 2022)
+# - The thumbprint 6938fd4d98bab03faadb97b34396831e3780aea1 is widely verified and working
+# - Alternative: Let AWS CLI auto-detect by omitting --thumbprint-list
+# - See THUMBPRINT-RESEARCH.md for detailed information
+#
+# Option A: Use established thumbprint (current approach - RECOMMENDED for consistency)
 aws iam create-open-id-connect-provider \
     --url "https://token.actions.githubusercontent.com" \
     --client-id-list "sts.amazonaws.com" \
     --thumbprint-list "6938fd4d98bab03faadb97b34396831e3780aea1"
+
+# Option B: Let AWS CLI auto-detect thumbprint (uncomment to use)
+# aws iam create-open-id-connect-provider \
+#     --url "https://token.actions.githubusercontent.com" \
+#     --client-id-list "sts.amazonaws.com"
+
+# Option C: Get current thumbprint dynamically (uncomment to use)
+# THUMBPRINT=$(echo | openssl s_client -servername token.actions.githubusercontent.com \
+#     -connect token.actions.githubusercontent.com:443 2>/dev/null \
+#     | openssl x509 -fingerprint -sha1 -noout \
+#     | sed 's/://g' | awk -F= '{print tolower($2)}')
+# echo "Detected thumbprint: $THUMBPRINT"
+# aws iam create-open-id-connect-provider \
+#     --url "https://token.actions.githubusercontent.com" \
+#     --client-id-list "sts.amazonaws.com" \
+#     --thumbprint-list "$THUMBPRINT"
 
 # 7. Display the Role ARN (you'll need this for GitHub secrets)
 echo "Role ARN: arn:aws:iam::$ACCOUNT_ID:role/GitHubActionsPreviewRole"

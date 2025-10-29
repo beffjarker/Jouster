@@ -1,0 +1,18 @@
+{
+  "name": "security-scan",
+  "version": "1.0.0",
+  "description": "Security scanning configuration for Jouster",
+  "scripts": {
+    "security:audit": "npm audit --json > security-reports/audit-report.json && npm audit",
+    "security:audit:fix": "npm audit fix",
+    "security:check": "node security-checks.js",
+    "security:full": "npm run security:audit && npm run security:check"
+  },
+  "devDependencies": {
+    "snyk": "^1.1000.0"
+  },
+  "config": {
+    "audit-level": "moderate"
+  }
+}
+
