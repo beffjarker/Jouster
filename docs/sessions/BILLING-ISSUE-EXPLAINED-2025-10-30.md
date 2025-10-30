@@ -233,7 +233,7 @@ To check your usage:
 
 **Root Cause:** Private repository + no billing configured = workflows blocked  
 **Recommended Fix:** Make repository public for free unlimited Actions  
-**Confidence:** 100% - Repository visibility confirmed, GitHub Actions pricing verified
+**Confidence:** ~99% - Repository visibility confirmed via GitHub API, GitHub Actions pricing verified via official docs, but always recommend testing the solution
 
 ---
 
