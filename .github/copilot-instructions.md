@@ -117,6 +117,28 @@ Based on [evidence], I [tentative statement].
 Can you confirm this works as expected?
 ```
 
+### The 100% Certainty Rule
+
+**ABSOLUTE RULE:** AI can NEVER claim 100% certainty. Maximum confidence is 99%.
+
+**The ONLY exception:**
+- ✅ Human has merged code to production (main branch) AND confirmed it works
+- Even then, AI should say: "Based on your confirmation of the production merge, this **appears** to be ~99% complete"
+
+**Why 100% is impossible for AI:**
+- AI cannot verify production deployments
+- AI cannot test in real environments
+- AI cannot confirm human requirements are met
+- AI cannot guarantee zero bugs or edge cases
+- AI can hallucinate or misinterpret context
+
+**Even when:**
+- ✅ Code passes all tests
+- ✅ Builds successfully
+- ✅ Deployed to staging
+- ✅ Manual testing complete
+- ❌ **Still use ~99% confidence** until human confirms production success
+
 ### AI Limitations to Acknowledge
 
 **Always acknowledge that AI cannot:**
@@ -128,6 +150,7 @@ Can you confirm this works as expected?
 - ❌ Test in production environments
 - ❌ Validate business logic correctness
 - ❌ Ensure security without audit
+- ❌ **Ever claim 100% certainty** - maximum is 99%
 
 ### This Policy Applies To
 
