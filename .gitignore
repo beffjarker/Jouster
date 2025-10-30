@@ -28,6 +28,8 @@ aws/config
 **/init-tables.bat
 **/init-tables.sh
 aws/scripts/setup-github-actions.ps1
+aws/scripts/setup-github-actions.ps1.backup
+*.backup
 
 # Secrets and certificates
 secrets/

@@ -1,0 +1,365 @@
+name: AURA UI Cypress Manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        description: Tag of the tests you want to run
+        required: true
+        default: '@regression'
+      browser:
+        type: choice
+        description: Browser you want tests to run on
+        default: 'chrome'
+        required: true
+        options:
+          - chrome
+          - firefox
+      projects:
+        type: choice
+        description: Project you want to tests to run on
+        default: 'aura-app-bar-e2e'
+        required: true
+        options:
+          - 'aura-app-bar-e2e'
+          - 'aura-profile-e2e'
+      tests_per_machine:
+        type: choice
+        description: Number of tests to run on each machine
+        required: true
+        default: '10'
+        options:
+          - '5'
+          - '10'
+          - '15'
+          - '20'
+      test_env:
+        type: choice
+        description: Env you want to run your tests on
+        default: uat
+        required: true
+        options:
+          - qa
+          - uat
+      baseurl:
+        type: string
+        description: baseurl to run against
+        default: 'https://uat1.aws.repsrv.com'
+        required: true
+
+env:
+  NODE_VERSION: '20.12.1'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  cy-prep:
+    runs-on: ubuntu-latest
+    outputs:
+      author: ${{ steps.cy-info.outputs.author }}
+      branch: ${{ github.ref_name }}
+      build-id: ${{ steps.cy-info.outputs.build-id }}
+      email: ${{ steps.cy-info.outputs.email }}
+      env: '${{ github.event.inputs.test_env }}'
+      message: ${{ steps.cy-info.outputs.message }}
+      remote: ${{ steps.cy-info.outputs.remote }}
+      sha: ${{ steps.cy-info.outputs.sha }}
+      projects: ${{ github.event.inputs.projects }}
+      browser: ${{ github.event.inputs.browser }}
+      tag: ${{ github.event.inputs.tag }}
+      instances: ${{ steps.instances.outputs.instances }}
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🎁 Get Affected Base
+        id: base
+        run: |
+          BASE="remotes/origin/master"
+          echo "name=${BASE}" >> $GITHUB_OUTPUT
+
+      - name: 🎁 Get Necessary Cypress information
+        id: cy-info
+        run: |
+          AUTHOR=$(git log -1 --pretty=%an)
+          EMAIL=$(git log -1 --pretty=%ae)
+          BROWSER=${{ github.event.inputs.browser }}
+          TAG=${{ github.event.inputs.tag }}
+          PROJECTS=${{ github.event.inputs.projects }}
+          REMOTE=$(git config --get remote.origin.url)
+          SHA=$(git log -1 --pretty=%H)
+          echo "author=${AUTHOR}" >> $GITHUB_OUTPUT
+          echo "email=${EMAIL}" >> $GITHUB_OUTPUT
+          echo "build-id=${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+          echo "projects=${PROJECTS}" >> $GITHUB_OUTPUT
+          echo "remote=${REMOTE}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+          echo "browser=${BROWSER}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "message<<$EOF" >> $GITHUB_OUTPUT
+          git log -1 --pretty=%B >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+
+      - name: ♾️ Set Instances
+        id: instances
+        run: |
+          # Debug information
+          echo "Debug: Starting Set Instances"
+          echo "TESTS_PER_MACHINE: ${{ github.event.inputs.tests_per_machine }}"
+          echo "PROJECT: ${{ github.event.inputs.projects }}"
+          echo "TAG: ${{ github.event.inputs.tag }}"
+
+          # arguments
+          TESTS_PER_MACHINE=${{ github.event.inputs.tests_per_machine }}
+
+          # declared variables
+          INSTANCES="["
+          declare -i NUM_INSTANCES
+
+          # Get specs for the project and tag
+          SPECS=$(grep -ERl "${{ github.event.inputs.tag }}" "apps/${{ github.event.inputs.projects }}/src/" | tr '\n' ',')
+          SPECS=${SPECS::-1}
+          echo "SPECS found: $SPECS"
+
+          # Debug array creation
+          echo "Creating SPEC_ARRAY from specs"
+          IFS=',' read -ra SPEC_ARRAY <<< "$SPECS"
+          echo "Number of specs found: ${#SPEC_ARRAY[@]}"
+
+          # get the number of instances based on the number of tests and tests per instance
+          NUM_INSTANCES=$((${#SPEC_ARRAY[@]} / $TESTS_PER_MACHINE))
+          REMAINDER=$((${#SPEC_ARRAY[@]} % $TESTS_PER_MACHINE))
+
+          echo "Debug: NUM_INSTANCES=$NUM_INSTANCES"
+          echo "Debug: REMAINDER=$REMAINDER"
+
+          if [ $REMAINDER -gt 0 ]; then
+            NUM_INSTANCES+=1
+            echo "Debug: Added instance for remainder. New NUM_INSTANCES=$NUM_INSTANCES"
+          fi
+
+          # Ensure at least one instance if there are any specs
+          if [ ${#SPEC_ARRAY[@]} -gt 0 ] && [ $NUM_INSTANCES -eq 0 ]; then
+            NUM_INSTANCES=1
+            echo "Debug: Set minimum of 1 instance since specs exist"
+          fi
+
+          # create instance strings
+          for (( i=1; i<=$NUM_INSTANCES; i++ )); do
+            INSTANCES+="\"group$i\","
+            echo "Debug: Added group$i"
+          done
+
+          INSTANCES=${INSTANCES::-1}
+          INSTANCES+="]"
+          echo "Debug: Final INSTANCES=$INSTANCES"
+          echo "instances=${INSTANCES}" >> $GITHUB_OUTPUT
+
+  cypress-tests:
+    name: cypress-tests (${{ matrix.GROUP_VARS }})
+    needs: [cy-prep]
+    runs-on:
+      group: self-hosted-nonprod
+      labels: nonprod
+    strategy:
+      fail-fast: false
+      matrix:
+        GROUP_VARS: ${{ fromJSON(needs.cy-prep.outputs.instances) }}
+    outputs:
+      cypress_run_number: ${{ steps.extract-run-number.outputs.cypress_run_number }}
+      CYPRESS_REPORT_TOKEN: ${{ steps.ssm.outputs.CYPRESS_REPORT_TOKEN }}
+
+    steps:
+      - name: Process Build Id
+        id: build-id
+        run: |
+          echo "${{ github.event.inputs.projects }}"
+          echo ${{ needs.cy-prep.outputs.build-id }}
+          echo "build-id=${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+
+      - name: 🖨️ Print needed info
+        run: |
+          echo "Needed Information"
+          echo "author: ${{ needs.cy-prep.outputs.author }}"
+          echo "branch: ${{ github.ref_name }}"
+          echo "build-id": ${{ steps.build-id.outputs.build-id }}
+          echo "email: ${{ needs.cy-prep.outputs.email }}"
+          echo "env: ${{ github.event.inputs.test_env }}"
+          echo "message: ${{ needs.cy-prep.outputs.message }}"
+          echo "project: ${{ github.event.inputs.projects }}"
+          echo "remote: ${{ needs.cy-prep.outputs.remote }}"
+          echo "sha: ${{ needs.cy-prep.outputs.sha }}"
+          echo "browser: ${{ github.event.inputs.browser }}"
+          echo "tag: ${{ github.event.inputs.tag }}"
+          echo "group: ${{ matrix.GROUP_VARS }}"
+
+      - name: 🎁 Cypress Cloud Record Key Secret Name
+        id: cy-cloud
+        run: |
+          RECORD_KEY=$(echo "${{github.event.inputs.projects}}_RECORD_KEY" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          echo "RECORD_KEY: ${RECORD_KEY}"
+          echo "record-key=${RECORD_KEY}" >> $GITHUB_OUTPUT
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CYPRESS_OIDC_ROLE }}
+          role-session-name: 'github_actions-cypress-aura-ui-manual'
+          aws-region: us-west-2
+
+      - name: Get SSM parameters
+        id: ssm
+        run: |
+          echo "CY_AUTH0_CLIENT_SECRET=$(aws ssm get-parameter --name /digital/github/CY_AUTH0_CLIENT_SECRET --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "CYPRESS_REPORT_TOKEN=$(aws ssm get-parameter --name /digital/github/CYPRESS_REPORT_TOKEN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🧪 Cypress Tests (UI) [AURA]
+        id: cypress
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BROWSER: ${{ github.event.inputs.browser }}
+          BASE_URL: ${{ github.event.inputs.baseurl }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          ENV: '${{ github.event.inputs.test_env }}'
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ github.event.inputs.projects }}
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: ${{ github.event.inputs.tag }}
+        run: |
+          npx nx e2e ${{ github.event.inputs.projects }} -- --env.grepTags=${TAG} --skipServe=true --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI --browser ${BROWSER} --baseUrl=${BASE_URL} --env.env=${ENV} --env.CY_AUTH0_CLIENT_ID=${CY_AUTH0_CLIENT_ID} --env.CY_AUTH0_CLIENT_SECRET=${CY_AUTH0_CLIENT_SECRET} | tee cypress-output.log
+
+      - name: Extract Cypress Run Number
+        id: extract-run-number
+        run: |
+          RUN_URL=$(grep -oP 'https://cloud.cypress.io/projects/[a-zA-Z0-9]*/runs/[0-9]*' cypress-output.log | head -1 || echo "")
+          RUN_NUMBER=$(echo "$RUN_URL" | grep -o '[0-9]*$')
+          if [ -n "$RUN_NUMBER" ]; then
+            echo "cypress_run_number=${RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "Extracted Cypress Run Number: $RUN_NUMBER"
+          else
+            echo "Failed to extract Cypress run number"
+            exit 1
+          fi
+
+      - name: Set opslevel-service variable
+        id: opslevel-service-var
+        if: ${{ !cancelled() }}
+        run: |
+          PROJECT=$(echo "${{ github.event.inputs.projects }}" | sed -e "s/-/_/g" )
+          echo "PROJECT: ${PROJECT}"
+          echo "PROJECT=${PROJECT}" >> $GITHUB_ENV
+          echo "OPSLEVEL_SERVICE=${PROJECT}" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-${{ github.event.inputs.projects }}-artifacts
+          path: apps/${{ github.event.inputs.projects }}/reports
+
+      - name: Report Cypress To Opslevel
+        if: ${{ !cancelled() }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: regression
+          opslevel-service: ${{ steps.opslevel-service-var.outputs.OPSLEVEL_SERVICE }} #opslevel alias for the service
+          report-path: apps/${{ github.event.inputs.projects }}/reports/index.json
+
+  cypress-extract-results:
+    if: ${{ !cancelled() }}
+    needs: [cy-prep, cypress-tests]
+    runs-on: ubuntu-latest
+    env:
+      BRANCH_NAME: ${{ github.ref_name }}
+      CYPRESS_RUN_NUMBER: ${{ needs.cypress-tests.outputs.cypress_run_number }}
+      CYPRESS_PROJECT_NAME: digital-platform-${{ github.event.inputs.projects }}
+      CYPRESS_REPORT_TOKEN: ${{ needs.cypress-tests.outputs.CYPRESS_REPORT_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CYPRESS_OIDC_ROLE }}
+          role-session-name: 'github_actions-cypress-aura-ui-manual-extract'
+          aws-region: us-west-2
+
+      - name: Extract Test Results
+        run: |
+          rm -f scripts/extract-regression-results/output/test-results.csv
+          npx ts-node scripts/extract-regression-results/extract-cypress-results.ts
+        env:
+          CYPRESS_REPORT_TOKEN: ${{ needs.cypress-tests.outputs.CYPRESS_REPORT_TOKEN }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          CYPRESS_RUN_NUMBER: ${{ needs.cypress-tests.outputs.cypress_run_number }}
+          CYPRESS_PROJECT_NAME: digital-platform-${{ github.event.inputs.projects }}
+
+      - name: Upload Results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-test-results-digital-platform-${{ github.event.inputs.projects }}-${{ needs.cypress-tests.outputs.cypress_run_number }}
+          path: scripts/extract-regression-results/output/digital-platform-${{ github.event.inputs.projects }}-${{ needs.cypress-tests.outputs.cypress_run_number }}.csv
+          retention-days: 5
+
+  cypress-status:
+    if: ${{ !cancelled() }}
+    needs: [cy-prep, cypress-tests, cypress-extract-results]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🖨️ print cypress-smoke-tests result
+        run: |
+          echo "project: ${{ needs.cy-prep.outputs.projects }}"
+          echo "result: ${{ needs.cypress-tests.result }}"
+          echo "proceed: ${{ needs.cypress-tests.result == 'success' }}"
+
+      - name: ✔️ Check Cypress Matrix status
+        if: ${{ needs.cypress-tests.result != 'success' }}
+        run: exit 1

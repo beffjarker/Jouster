@@ -1,0 +1,136 @@
+name: CodeQL monorepo
+on:
+  push:
+    branches:
+      - master
+      - '**'
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - reopened
+      - synchronize
+  merge_group:
+    types:
+      - checks_requested
+
+env:
+  NODE_VERSION: '20.12.1'
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+
+    permissions:
+      pull-requests: read
+      contents: read
+
+    outputs:
+      scan-required: ${{ steps.changes.outputs.scan-required }}
+      scan-config: ${{ steps.changes.outputs.scan-config }}
+      republish-config: ${{ steps.changes.outputs.republish-config }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: Fetch Main Branch
+        if: github.event_name != 'push'
+        run: git fetch origin master:master
+
+      # This is the original action that the script below replicated the output for and replaces
+      # - name: Determine changed projects
+      #   id: changes
+      #   uses: advanced-security/monorepo-code-scanning-action/changes@main
+      #   with:
+      #     projects-json: .github/projects.json
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Get Affected Projects
+        id: changes
+        run: bin/nx-codeql.sh
+
+  scan:
+    if: needs.changes.outputs.scan-required == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    needs: changes
+    strategy:
+      matrix:
+        project: ${{ fromJson(needs.changes.outputs.scan-config).projects }}
+    steps:
+      - name: Analyze code
+        uses: advanced-security/monorepo-code-scanning-action/scan@main
+
+  republish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+
+    needs: changes
+    steps:
+      - name: Republish CodeQL results
+        uses: advanced-security/monorepo-code-scanning-action/republish-sarif@main
+        with:
+          projects: ${{ needs.changes.outputs.republish-config }}
+
+  # Workaround for making CodeQL status checks mandatory on PRs with Merge Queues enabled
+  # @see https://ewega.github.io/site/github/tutorial/2023/12/04/enabling-ghas-merge-queue/
+  check_codeql_status:
+    name: Check CodeQL Status
+    needs: [scan, republish]
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+    steps:
+      - name: Authenticate gh CLI
+        run: |
+          gh auth login --with-token <<< "${{ secrets.GITHUB_TOKEN }}"
+      - name: Check CodeQL Status
+        run: |
+          response=$(gh api graphql -f query='
+            {
+                repository(owner: "${{ github.event.repository.owner.login }}", name: "${{ github.event.repository.name }}") {
+                pullRequest(number: ${{ github.event.pull_request.number }}) {
+                  commits(last: 1) {
+                    nodes {
+                      commit {
+                        checkSuites(first: 1, filterBy: {checkName: "CodeQL"}) {
+                          nodes {
+                            checkRuns(first: 1) {
+                              nodes {
+                                name
+                                status
+                                conclusion
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ')
+          conclusion=$(echo $response | jq -r '.data.repository.pullRequest.commits.nodes[0].commit.checkSuites.nodes[0].checkRuns.nodes[0].conclusion')
+          if [ "$conclusion" != "SUCCESS" ]; then
+            echo "CodeQL check failed"
+            exit 1
+          fi

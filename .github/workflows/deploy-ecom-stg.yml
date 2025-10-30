@@ -1,0 +1,117 @@
+name: Deploy ECOM STG
+
+env:
+  NODE_VERSION: '20.12.1'
+
+on:
+  push:
+    branches:
+      - release-ecom-*
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.projects.outputs.projects }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Get Apps
+        id: projects
+        run: |
+          PROJECTS=($(bin/get-apps.js -l ecommerce));
+          PROJECTS_JSON=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${PROJECTS[@]}" | jq -c -M '{"project": . }');
+          echo "projects=${PROJECTS_JSON}" >> $GITHUB_OUTPUT
+          echo ""
+          echo "Projects to deploy:"
+          echo ${PROJECTS[@]}
+
+  deploy-ecom-stg:
+    needs: setup
+
+    permissions:
+      id-token: write
+      contents: read
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.projects) }}
+
+    steps:
+      - name: Action Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure AWS credentials (ecom)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_STG_ROLE }}
+          role-session-name: 'github_actions-rscom_ecom_sso-stg'
+          aws-region: us-west-2
+
+      - name: Create Infrastructure
+        env:
+          ENVIRONMENT: stg
+          NODE_OPTIONS: '--max_old_space_size=7168'
+        run: |
+          npx nx deploy \
+            --project='${{matrix.project}}' \
+            --stage=stg
+
+  trigger-cypress-tests:
+    needs: deploy-ecom-stg
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Trigger Shop API Cypress Tests
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ecom-cy-manual-baseurl.yml',
+              ref: '${{ github.ref }}',
+              inputs: {
+                tag: '@regression',
+                projects: 'ecom-shop-api-e2e',
+                tests_per_machine: '5',
+                baseurl: 'https://ecom-shop-api-stg.rscom-nonprod.awsext.repsrv.com/stg',
+                test_env: 'stg',
+                promo_test_env: 'https://ecom-promo-api-stg.rscom-nonprod.awsext.repsrv.com/stg'
+              }
+            });
+
+      - name: Trigger Promo API Cypress Tests
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'ecom-cy-manual-baseurl.yml',
+              ref: '${{ github.ref }}',
+              inputs: {
+                tag: '@regression',
+                projects: 'ecom-promo-api-e2e',
+                tests_per_machine: '5',
+                baseurl: 'https://ecom-promo-api-stg.rscom-nonprod.awsext.repsrv.com/stg',
+                test_env: 'stg',
+                promo_test_env: 'https://ecom-promo-api-stg.rscom-nonprod.awsext.repsrv.com/stg'
+              }
+            });

@@ -1,0 +1,246 @@
+name: RS Footer E2E Scheduled
+
+on:
+  schedule:
+    - cron: '0 12 * * *' # Run at 12:00 UTC every day
+  workflow_dispatch: # Allow manual triggering with default values
+    inputs:
+      tag:
+        description: 'Test tag to run (e.g. @regression)'
+        required: false
+        default: '@regression'
+      browser:
+        description: 'Browser to run tests in'
+        required: false
+        default: 'chrome'
+      tests_per_machine:
+        description: 'Number of tests per machine'
+        required: false
+        default: '10'
+      test_env:
+        description: 'Test environment to run against'
+        required: false
+        default: 'qa'
+      baseurl:
+        description: 'Base URL for the application'
+        required: false
+        default: 'https://rs-frontend-master.rscom-nonprod.awsext.repsrv.com'
+
+env:
+  NODE_VERSION: '20.12.1'
+  DEFAULT_TAG: ${{ github.event.inputs.tag || '@regression' }}
+  DEFAULT_BROWSER: ${{ github.event.inputs.browser || 'chrome' }}
+  DEFAULT_TESTS_PER_MACHINE: ${{ github.event.inputs.tests_per_machine || '10' }}
+  DEFAULT_TEST_ENV: ${{ github.event.inputs.test_env || 'qa' }}
+  DEFAULT_BASEURL: ${{ github.event.inputs.baseurl || 'https://rs-frontend-master.rscom-nonprod.awsext.repsrv.com' }}
+  PROJECT: 'rs-footer-e2e'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+
+  cy-prep:
+    runs-on: ubuntu-latest
+    outputs:
+      author: ${{ steps.cy-info.outputs.author }}
+      branch: ${{ github.ref_name }}
+      browser: ${{ env.DEFAULT_BROWSER }}
+      tag: ${{ env.DEFAULT_TAG }}
+      test_env: ${{ env.DEFAULT_TEST_ENV }}
+      baseurl: ${{ env.DEFAULT_BASEURL }}
+      instances: ${{ steps.instances.outputs.instances }}
+      group: ${{ steps.instances.outputs.instances }}
+      build-id: ${{ steps.cy-info.outputs.build-id }}
+      email: ${{ steps.cy-info.outputs.email }}
+      message: ${{ steps.cy-info.outputs.message }}
+      remote: ${{ steps.cy-info.outputs.remote }}
+      sha: ${{ steps.cy-info.outputs.sha }}
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          retry-count: '5'
+          retry-delay: '10'
+
+      - name: 🎁 Get Necessary Cypress information
+        id: cy-info
+        run: |
+          AUTHOR=$(git log -1 --pretty=%an)
+          EMAIL=$(git log -1 --pretty=%ae)
+          REMOTE=$(git config --get remote.origin.url)
+          SHA=$(git log -1 --pretty=%H)
+          SPECS=$(grep -ERl "${DEFAULT_TAG}" "apps/${PROJECT}/src/" | tr '\n' ',')
+          SPECS=${SPECS::-1}
+          echo "author=${AUTHOR}" >> $GITHUB_OUTPUT
+          echo "email=${EMAIL}" >> $GITHUB_OUTPUT
+          echo "build-id=${SHA}-time-$(date +"%s")" >> $GITHUB_OUTPUT
+          echo "remote=${REMOTE}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "message<<$EOF" >> $GITHUB_OUTPUT
+          git log -1 --pretty=%B >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+          echo "specs=${SPECS}" >> $GITHUB_OUTPUT
+
+      - name: ♾️ Set Instances
+        id: instances
+        run: |
+          TESTS_PER_MACHINE=${{ env.DEFAULT_TESTS_PER_MACHINE }}
+          INSTANCES="["
+          declare -i NUM_INSTANCES
+
+          IFS=',' read -ra SPEC_ARRAY <<< "${{ steps.cy-info.outputs.specs }}"
+          NUM_INSTANCES=$((${#SPEC_ARRAY[@]} / $TESTS_PER_MACHINE))
+          REMAINDER=$(((${#SPEC_ARRAY[@]} - 5) % $TESTS_PER_MACHINE))
+
+          if [ $REMAINDER -gt 0 ]; then
+            NUM_INSTANCES+=1
+          fi
+
+          for (( i=1; i<=$NUM_INSTANCES; i++ )); do
+            INSTANCES+="\"group$i\","
+          done
+
+          INSTANCES=${INSTANCES::-1}
+          INSTANCES+="]"
+          echo "instances=${INSTANCES}" >> $GITHUB_OUTPUT
+
+  cypress-tests:
+    name: cypress-tests (${{ matrix.GROUP_VARS }})
+    needs: [cy-prep]
+    runs-on:
+      group: self-hosted-nonprod
+      labels: nonprod
+    strategy:
+      fail-fast: false
+      matrix:
+        GROUP_VARS: ${{ fromJSON(needs.cy-prep.outputs.instances) }}
+
+    steps:
+      - name: Process Build Id
+        id: build-id
+        run: |
+          BUILD_ID="${{ needs.cy-prep.outputs.build-id }}"
+          echo "build-id=${PROJECT}-${BUILD_ID}" >> $GITHUB_OUTPUT
+
+      - name: 🎁 Cypress Cloud Record Key Secret Name
+        id: cy-cloud
+        run: |
+          RECORD_KEY=$(echo "${PROJECT}_RECORD_KEY" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          echo "record-key=${RECORD_KEY}" >> $GITHUB_OUTPUT
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CYPRESS_OIDC_ROLE }}
+          role-session-name: 'github_actions-cypress-rs-footer-scheduled'
+          aws-region: us-west-2
+
+      - name: Get SSM parameters
+        id: ssm
+        run: |
+          echo "CY_AUTH0_CLIENT_SECRET=$(aws ssm get-parameter --name /digital/github/CY_AUTH0_CLIENT_SECRET --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🧪 Cypress Tests (UI)
+        id: cypress
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BROWSER: ${{ needs.cy-prep.outputs.browser }}
+          BASE_URL: ${{ needs.cy-prep.outputs.baseurl }}
+          BUILD_ID: ${{ needs.cy-prep.outputs.build-id }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          ENV: ${{ needs.cy-prep.outputs.test_env }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          RECORD_KEY: ${{ secrets[steps.cy-cloud.outputs.record-key] }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: ${{ needs.cy-prep.outputs.tag }}
+          GROUP: ${{ needs.cy-prep.outputs.group }}
+          GROUP_VARS: ${{ matrix.GROUP_VARS }}
+        run: |
+          # Validate required variables
+          if [ -z "$BROWSER" ]; then
+            echo "Error: BROWSER is not set"
+            exit 1
+          fi
+          if [ -z "$BASE_URL" ]; then
+            echo "Error: BASE_URL is not set"
+            exit 1
+          fi
+          if [ -z "$ENV" ]; then
+            echo "Error: ENV is not set"
+            exit 1
+          fi
+
+          npx nx e2e ${PROJECT} -- \
+            --env.grepTags="${TAG}" \
+            --skipServe=true \
+            --record \
+            --key="${RECORD_KEY}" \
+            --parallel \
+            --ci-build-id "${BUILD_ID}" \
+            --group CI \
+            --browser "${BROWSER}" \
+            --baseUrl="${BASE_URL}" \
+            --env.env="${ENV}" \
+            --env.CY_AUTH0_CLIENT_ID="${CY_AUTH0_CLIENT_ID}" \
+            --env.CY_AUTH0_CLIENT_SECRET="${CY_AUTH0_CLIENT_SECRET}"
+
+      - name: Upload Reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-reports-${{ matrix.GROUP_VARS }}
+          path: apps/rs-header-e2e/reports/
+          if-no-files-found: warn
+
+      - name: Report Cypress To Opslevel
+        if: ${{ !cancelled() }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: regression
+          opslevel-service: rs_footer_e2e
+          parallel: 'true'
+
+  cypress-status:
+    if: ${{ !cancelled() }}
+    needs: [cy-prep, cypress-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🖨️ Print Status
+        run: |
+          echo "Project: ${{ env.PROJECT }}"
+          echo "Group: ${{ needs.cy-prep.outputs.group }}"
+          echo "Test Result: ${{ needs.cypress-tests.result }}"
+
+      - name: ✔️ Check Cypress Matrix status
+        if: ${{ needs.cypress-tests.result != 'success' }}
+        run: exit 1

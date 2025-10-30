@@ -1,0 +1,33 @@
+name: Dependency Review
+on:
+  merge_group:
+    types: [checks_requested]
+
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  dependency-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Shallow clone as we don't need the git history (the action uses the github api to get the diff))
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high # Will fail on high and critical severity vulnerabilities
+          vulnerability-check: true
+          comment-summary-in-pr: on-failure # Adds a comment only if vulnerabilities are found
+          fail-on-scopes: runtime

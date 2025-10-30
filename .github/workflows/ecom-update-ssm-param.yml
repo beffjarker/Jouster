@@ -1,0 +1,86 @@
+name: Ecom Update SSM param
+
+env:
+  NODE_VERSION: '20.12.1'
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      ssmNames:
+        type: string
+        description: Full SSM string parameter name (case sensitive) (accepts comma separated list)
+        required: true
+      ssmDescription:
+        type: string
+        description: (Optional) Description of the SSM parameter
+        required: false
+      ssmType:
+        type: choice
+        description: Full SSM string parameter name (case sensitive)
+        required: true
+        options:
+          - String
+          - SecureString
+          - StringList
+      ssmValue:
+        type: string
+        description: SSM parameter new value (use value 'DELETE' to delete the parameter)
+        required: true
+
+jobs:
+  validation:
+    runs-on:
+      group: self-hosted-nonprod
+      labels: nonprod
+    name: Validate Workflow
+    steps:
+      - name: Checkout verify actor action
+        uses: actions/checkout@v4
+        with:
+          repository: RepublicServicesRepository/gha-verify-actor
+          ref: refs/heads/main
+          token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          persist-credentials: false
+          path: ./.github/actions/verify-actor
+
+      - name: Verify Actor
+        uses: ./.github/actions/verify-actor
+        with:
+          github_token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          whitelist: WebeWizard,acgilardi,santhoshkadali,lamasa1,nikhilramoju,myapRS,jfrenchrepublicservices,haarsma,shubhgithubaccount,brus99,sbohmer-rs,beffjarker
+
+  update-ssm-parameter:
+    runs-on:
+      group: self-hosted-nonprod
+      labels: nonprod
+    needs: [validation]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure AWS credentials (ecom)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_DEV_ROLE }}
+          role-session-name: 'github_actions-rscom_ecom_sso-dev'
+          aws-region: us-west-2
+
+      - name: Update SSM string parameter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SSM_NAMES: ${{github.event.inputs.ssmNames}}
+          SSM_DESCRIPTION: ${{github.event.inputs.ssmDescription}}
+          SSM_TYPE: ${{github.event.inputs.ssmType}}
+          SSM_VALUE: ${{github.event.inputs.ssmValue}}
+        run: |
+          node scripts/ecom-update-ssm-param.js

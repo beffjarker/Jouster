@@ -1,0 +1,96 @@
+name: Deploy Unified-Wp Prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'The git reference to deploy (typically a branch or sha)'
+        required: true
+        default: 'release-uwp-X.X.X'
+      version:
+        description: 'The semantic version of the tag to create'
+        required: true
+        default: 'vX.X.X'
+
+env:
+  ENVIRONMENT: prod
+  NODE_VERSION: '20.12.1'
+  NODE_OPTIONS: '--max_old_space_size=7168'
+  REMOTE_BASE_URL: '.aura-prod.awsext.repsrv.com'
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.projects.outputs.projects }}
+
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Get Apps
+        id: projects
+        run: |
+          PROJECTS=($(bin/get-apps.js -l unified-wp api));
+          PROJECTS_JSON=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${PROJECTS[@]}" | jq -c -M '{"project": . }');
+          echo "projects=${PROJECTS_JSON}" >> $GITHUB_OUTPUT
+          echo ""
+          echo "Projects to deploy:"
+          echo ${PROJECTS[@]}
+
+  deploy-aura-prod:
+    needs: setup
+
+    permissions:
+      id-token: write
+      contents: write
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.projects) }}
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref }}
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔑 Configure AWS credentials (Unified-Wp)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: startsWith(matrix.project, 'unified-wp') || startsWith(matrix.project, 'uwp')
+        with:
+          role-to-assume: ${{ vars.AURA_OIDC_SSO_PROD_ROLE }}
+          role-session-name: 'github_actions-aura_sso-prod'
+          aws-region: us-west-2
+
+      - name: 🛣️ Create Infrastructure
+        run: |
+          npx nx deploy ${{ matrix.project }} --stage=prod --configuration=production
+
+      - name: ✅ Create Release
+        uses: comnoco/create-release-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          commitish: ${{ github.event.inputs.git_ref }}
+          tag_name: ${{ matrix.project }}/${{ github.event.inputs.version }}
+          release_name: ${{ matrix.project }}/${{ github.event.inputs.version }}

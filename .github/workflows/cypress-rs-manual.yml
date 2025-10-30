@@ -1,0 +1,591 @@
+name: RS Cypress Manual
+run-name: RS Cypress Manual (${{ github.event.inputs.projects }})
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        description: Tag of the tests you want to run
+        required: true
+        default: '@regression'
+      browser:
+        type: choice
+        description: Browser you want tests to run on
+        default: 'chrome'
+        required: true
+        options:
+          - chrome
+          - firefox
+      projects:
+        type: choice
+        description: Project you want to tests to run on
+        default: 'rs-frontend-e2e'
+        required: true
+        options:
+          - 'rs-frontend-e2e'
+          - 'rs-header-e2e'
+          - 'rs-footer-e2e'
+          - 'rs-shop-e2e'
+      tests_per_machine:
+        type: choice
+        description: Number of tests to run on each machine
+        required: true
+        default: '10'
+        options:
+          - '5'
+          - '10'
+          - '15'
+          - '20'
+      test_env:
+        type: choice
+        description: Env you want to run your tests on
+        default: uat
+        required: true
+        options:
+          - qa
+          - uat
+      baseurl:
+        type: string
+        description: baseurl to run against
+        default: 'https://uat1.aws.repsrv.com'
+        required: true
+
+env:
+  NODE_VERSION: '20.12.1'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  cy-prep:
+    runs-on: ubuntu-latest
+    outputs:
+      author: ${{ steps.cy-info.outputs.author }}
+      branch: ${{ github.ref_name }}
+      browser: ${{ github.event.inputs.browser }}
+      tag: ${{ github.event.inputs.tag }}
+      test_env: ${{ github.event.inputs.test_env }}
+      baseurl: ${{ github.event.inputs.baseurl }}
+      instances: ${{ steps.instances.outputs.instances }}
+      group: ${{ steps.instances.outputs.instances }}
+      projects: ${{ github.event.inputs.projects }}
+      build-id: ${{ steps.cy-info.outputs.build-id }}
+      email: ${{ steps.cy-info.outputs.email }}
+      message: ${{ steps.cy-info.outputs.message }}
+      remote: ${{ steps.cy-info.outputs.remote }}
+      sha: ${{ steps.cy-info.outputs.sha }}
+      env: ${{ github.event.inputs.test_env }}
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Create local reference to master
+        if: github.ref != 'refs/heads/master'
+        run: git fetch origin master
+
+      - name: 🎁 Get Affected Base
+        id: base
+        run: |
+          BASE="remotes/origin/master"
+          echo "name=${BASE}" >> $GITHUB_OUTPUT
+
+      - name: 🎁 Get Necessary Cypress information
+        id: cy-info
+        run: |
+          AUTHOR=$(git log -1 --pretty=%an)
+          EMAIL=$(git log -1 --pretty=%ae)
+          BROWSER="${{ github.event.inputs.browser }}"
+          TAG="${{ github.event.inputs.tag }}"
+          PROJECTS="${{ github.event.inputs.projects }}"
+          REMOTE=$(git config --get remote.origin.url)
+          SHA=$(git log -1 --pretty=%H)
+          SPECS=$(grep -ERl "${TAG}" "apps/${PROJECTS}/src/" | tr '\n' ',')
+          SPECS=${SPECS::-1}
+          echo $SPECS
+          echo "author=${AUTHOR}" >> $GITHUB_OUTPUT
+          echo "email=${EMAIL}" >> $GITHUB_OUTPUT
+          echo "build-id=${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+          echo "projects=${PROJECTS}" >> $GITHUB_OUTPUT
+          echo "remote=${REMOTE}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+          echo "browser=${BROWSER}" >> $GITHUB_OUTPUT
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          echo "message<<$EOF" >> $GITHUB_OUTPUT
+          git log -1 --pretty=%B >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
+          echo "specs=${SPECS}" >> $GITHUB_OUTPUT
+
+      - name: ♾️ Set Instances
+        id: instances
+        run: |
+          # Debug information
+          echo "Debug: Starting Set Instances"
+          echo "TESTS_PER_MACHINE: ${{ github.event.inputs.tests_per_machine }}"
+          echo "SPECS: ${{ steps.cy-info.outputs.specs }}"
+
+          # arguments
+          TESTS_PER_MACHINE=${{ github.event.inputs.tests_per_machine }}
+
+          # declared variables
+          INSTANCES="["
+          declare -i NUM_INSTANCES
+
+          # Debug array creation
+          echo "Creating SPEC_ARRAY from specs"
+          IFS=',' read -ra SPEC_ARRAY <<< "${{ steps.cy-info.outputs.specs }}"
+          echo "Number of specs found: ${#SPEC_ARRAY[@]}"
+
+          # get the number of instances based on the number of tests and tests per instance
+          NUM_INSTANCES=$((${#SPEC_ARRAY[@]} / $TESTS_PER_MACHINE))
+          REMAINDER=$(((${#SPEC_ARRAY[@]} - 5) % $TESTS_PER_MACHINE))
+
+          echo "Debug: NUM_INSTANCES=$NUM_INSTANCES"
+          echo "Debug: REMAINDER=$REMAINDER"
+
+          if [ $REMAINDER -gt 0 ]; then
+            NUM_INSTANCES+=1
+            echo "Debug: Added instance for remainder. New NUM_INSTANCES=$NUM_INSTANCES"
+          fi
+
+          # create instance strings
+          for (( i=1; i<=$NUM_INSTANCES; i++ )); do
+            INSTANCES+="\"group$i\","
+            echo "Debug: Added group$i"
+          done
+
+          INSTANCES=${INSTANCES::-1}
+          INSTANCES+="]"
+          echo "Debug: Final INSTANCES=$INSTANCES"
+          echo "instances=${INSTANCES}" >> $GITHUB_OUTPUT
+
+      - name: Debug Job Outputs
+        run: |
+          echo "Event Type: ${{ github.event_name }}"
+          echo "Project: ${{ steps.cy-info.outputs.projects }}"
+          echo "Tag: ${{ steps.cy-info.outputs.tag }}"
+          echo "Browser: ${{ steps.cy-info.outputs.browser }}"
+          echo "Group: ${{ steps.instances.outputs.instances }}"
+
+  cypress-tests:
+    name: cypress-tests (${{ matrix.GROUP_VARS }})
+    needs: [cy-prep]
+    runs-on:
+      group: self-hosted-nonprod
+      labels: nonprod
+    strategy:
+      fail-fast: false
+      matrix:
+        GROUP_VARS: ${{ fromJSON(needs.cy-prep.outputs.instances) }}
+    outputs:
+      cypress_run_number: ${{ steps.extract-run-details.outputs.cypress_run_number }}
+      CYPRESS_REPORT_TOKEN: ${{ steps.ssm.outputs.CYPRESS_REPORT_TOKEN }}
+      cypress_run_url: ${{ steps.extract-run-details.outputs.cypress_run_url }}
+
+    steps:
+      - name: Process Build Id
+        id: build-id
+        run: |
+          PROJECT="${{ needs.cy-prep.outputs.projects }}"
+          BUILD_ID="${{ needs.cy-prep.outputs.build-id }}"
+          echo "build-id=${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+
+      - name: 🖨️ Print needed info
+        run: |
+          echo "Needed Information"
+          echo "author: ${{ needs.cy-prep.outputs.author }}"
+          echo "branch: ${{ github.ref_name }}"
+          echo "build-id: ${{ steps.build-id.outputs.build-id }}"
+          echo "email: ${{ needs.cy-prep.outputs.email }}"
+          echo "env: ${{ needs.cy-prep.outputs.env }}"
+          echo "message: ${{ needs.cy-prep.outputs.message }}"
+          echo "project: ${{ needs.cy-prep.outputs.projects }}"
+          echo "remote: ${{ needs.cy-prep.outputs.remote }}"
+          echo "sha: ${{ needs.cy-prep.outputs.sha }}"
+          echo "browser: ${{ needs.cy-prep.outputs.browser }}"
+          echo "tag: ${{ needs.cy-prep.outputs.tag }}"
+          echo "group: ${{ matrix.GROUP_VARS }}"
+
+      - name: 🎁 Cypress Cloud Record Key Secret Name
+        id: cy-cloud
+        run: |
+          RECORD_KEY=$(echo "${{needs.cy-prep.outputs.projects}}_RECORD_KEY" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          echo "RECORD_KEY: ${RECORD_KEY}"
+          echo "record-key=${RECORD_KEY}" >> $GITHUB_OUTPUT
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CYPRESS_OIDC_ROLE }}
+          role-session-name: 'github_actions-cypress-rs-manual'
+          aws-region: us-west-2
+
+      - name: Get SSM parameters
+        id: ssm
+        run: |
+          echo "CY_AUTH0_CLIENT_SECRET=$(aws ssm get-parameter --name /digital/github/CY_AUTH0_CLIENT_SECRET --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "CYPRESS_REPORT_TOKEN=$(aws ssm get-parameter --name /digital/github/CYPRESS_REPORT_TOKEN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "CY_AZURE_CLIENT_ID=$(aws ssm get-parameter --name /digital/github/CY_AZURE_CLIENT_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "CY_AZURE_CLIENT_SECRET=$(aws ssm get-parameter --name /digital/github/CY_AZURE_CLIENT_SECRET --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "CY_AZURE_TENANT_ID=$(aws ssm get-parameter --name /digital/github/CY_AZURE_TENANT_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🧪 Cypress Tests (UI) [RS]
+        id: cypress
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BROWSER: ${{ needs.cy-prep.outputs.browser }}
+          BASE_URL: ${{ needs.cy-prep.outputs.baseurl }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          CY_AZURE_CLIENT_ID: ${{ steps.ssm.outputs.CY_AZURE_CLIENT_ID }}
+          CY_AZURE_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AZURE_CLIENT_SECRET }}
+          CY_AZURE_TENANT_ID: ${{ steps.ssm.outputs.CY_AZURE_TENANT_ID }}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          ENV: ${{ needs.cy-prep.outputs.test_env }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ needs.cy-prep.outputs.projects }}
+          RECORD_KEY: ${{ (github.event.inputs.projects == 'rs-shop-e2e' && vars[steps.cy-cloud.outputs.record-key]) || secrets[steps.cy-cloud.outputs.record-key] }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: ${{ needs.cy-prep.outputs.tag }}
+          GROUP: ${{ needs.cy-prep.outputs.group }}
+          GROUP_VARS: ${{ matrix.GROUP_VARS }}
+        run: |
+          # Debug project selection
+          echo "Debug project selection:"
+          echo "needs.cy-prep.outputs.projects: ${{ needs.cy-prep.outputs.projects }}"
+          echo "PROJECT env var: ${PROJECT}"
+
+          # Validate required variables
+          if [ -z "$PROJECT" ]; then
+            echo "Error: PROJECT is not set"
+            exit 1
+          fi
+          if [ -z "$BROWSER" ]; then
+            echo "Error: BROWSER is not set"
+            exit 1
+          fi
+          if [ -z "$BASE_URL" ]; then
+            echo "Error: BASE_URL is not set"
+            exit 1
+          fi
+          if [ -z "$ENV" ]; then
+            echo "Error: ENV is not set"
+            exit 1
+          fi
+
+          # Run Cypress with validated variables
+          npx nx e2e ${PROJECT} -- \
+            --env.grepTags="${TAG}" \
+            --skipServe=true \
+            --record \
+            --key="${RECORD_KEY}" \
+            --parallel \
+            --ci-build-id "${BUILD_ID}" \
+            --group CI \
+            --browser "${BROWSER}" \
+            --baseUrl="${BASE_URL}" \
+            --env.env="${ENV}" \
+            --env.CY_AUTH0_CLIENT_ID="${CY_AUTH0_CLIENT_ID}" \
+            --env.CY_AZURE_CLIENT_ID="${CY_AZURE_CLIENT_ID}" \
+            --env.CY_AZURE_CLIENT_SECRET="${CY_AZURE_CLIENT_SECRET}" \
+            --env.CY_AZURE_TENANT_ID="${CY_AZURE_TENANT_ID}" \
+            --env.CY_AUTH0_CLIENT_SECRET="${CY_AUTH0_CLIENT_SECRET}" | tee cypress-output.log
+
+      - name: Extract Cypress Run Details
+        id: extract-run-details
+
+        run: |
+          RUN_URL=$(grep -oP 'https://cloud.cypress.io/projects/[a-zA-Z0-9]*/runs/[0-9]*' cypress-output.log | head -1 || echo "")
+          echo "Extracted Cypress Run URL: $RUN_URL"
+          echo "cypress_run_url=${RUN_URL}" >> "$GITHUB_OUTPUT"
+
+          RUN_NUMBER=$(echo "$RUN_URL" | grep -o '[0-9]*$')
+          if [ -n "$RUN_NUMBER" ]; then
+            echo "cypress_run_number=${RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "Extracted Cypress Run Number: $RUN_NUMBER"
+          else
+            echo "Failed to extract Cypress run number"
+            exit 1
+          fi
+
+      - name: Debug Before Upload
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          echo "Matrix GROUP_VARS value: ${{ matrix.GROUP_VARS }}"
+          echo "Looking for reports in:"
+          find apps/${{ needs.cy-prep.outputs.projects }}/reports/ -name "mochawesome*.json" -ls || echo "No files found in initial search"
+
+      # Create a directory and copy files there before upload
+      - name: Prepare Files for Upload
+        if: ${{ !cancelled() }}
+        continue-on-error: true
+        run: |
+          UPLOAD_DIR="reports-to-upload"
+          mkdir -p $UPLOAD_DIR
+
+          # Try to find and copy files, but don't fail if none found
+          if find apps/${{ needs.cy-prep.outputs.projects }}/reports/ -name "mochawesome*.json" -exec cp {} $UPLOAD_DIR/ \; ; then
+            echo "Files copied successfully"
+          else
+            echo "No files found to copy"
+          fi
+
+          echo "Files ready for upload (if any):"
+          ls -la $UPLOAD_DIR/ || echo "Upload directory is empty"
+
+      # Upload the reports from each test run
+      - name: Upload Reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-reports-${{ matrix.GROUP_VARS }}
+          path: reports-to-upload
+          if-no-files-found: warn
+
+      - name: Debug Report Location
+        run: |
+          echo "Matrix GROUP_VARS value: ${{ matrix.GROUP_VARS }}"
+          echo "Looking for reports in:"
+          find apps/${{ needs.cy-prep.outputs.projects }}/reports/ -name "mochawesome*.json" -ls
+
+  # New job to merge reports after all tests complete
+  merge-reports:
+    needs: [cy-prep, cypress-tests]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🖥️ Setup Node Version
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Download all reports to a specific directory
+      - name: Download Reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cypress-reports-*
+          merge-multiple: true
+          path: downloaded-reports
+
+      - name: Debug Downloaded Files
+        run: |
+          echo "Current directory structure:"
+          pwd
+          ls -R
+
+          echo "\nLooking for mochawesome files:"
+          find . -name "mochawesome*.json" -ls
+
+          echo "\nContent of downloaded-reports:"
+          ls -la downloaded-reports || echo "downloaded-reports directory not found"
+
+          echo "\nFull directory tree:"
+          tree || (apt-get update && apt-get install -y tree && tree)
+
+      - name: Prepare Directory Structure
+        run: |
+          echo "Creating directory structure..."
+          mkdir -p apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/
+
+          echo "\nSearching for mochawesome files..."
+          find downloaded-reports -name "mochawesome*.json" -print
+
+          echo "\nCopying files..."
+          if find downloaded-reports -name "mochawesome*.json" -exec cp {} apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/ \; ; then
+            echo "Files copied successfully"
+          else
+            echo "No files found to copy"
+            exit 1
+          fi
+
+          echo "\nVerifying copied files:"
+          ls -la apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/
+
+      - name: Install Dependencies
+        run: |
+          npm install -g mochawesome-merge mochawesome-report-generator
+          sudo apt-get update && sudo apt-get install -y jq  # Install native jq instead of npm version
+
+      - name: Merge Reports
+        run: |
+          echo "Current directory:"
+          pwd
+
+          echo "\nVerifying report files exist:"
+          ls -la apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/
+
+          echo "\nAttempting to merge reports..."
+          mochawesome-merge "apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/mochawesome*.json" > "apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/index.json" || {
+            echo "Error merging reports. Directory contents:"
+            find . -name "mochawesome*.json" -ls
+            exit 1
+          }
+
+      - name: Format Report
+        run: |
+          if [ -f "apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/index.json" ]; then
+            /usr/bin/jq '
+            def calc_pass_percent:
+              if .stats.tests == 0 then 0
+              else (.stats.passes / .stats.tests * 100) | floor
+              end;
+            {
+              stats: {
+                suites: .stats.suites,
+                tests: .stats.tests,
+                passes: .stats.passes,
+                pending: .stats.pending,
+                failures: .stats.failures,
+                duration: .stats.duration,
+                passPercent: calc_pass_percent,
+                start: .stats.start,
+                end: .stats.end
+              },
+              results: [.results[] | {
+                suites: .suites,
+                tests: .tests,
+                passes: .passes,
+                pending: .pending,
+                failures: .failures,
+                duration: .duration,
+                fullFile: .fullFile,
+                file: .file,
+                title: .title,
+                failedTests: [.suites[].tests[] | select(.fail == true) | {
+                  title: .title,
+                  code: .code,
+                  err: .err
+                }]
+              }]
+            }' "apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/index.json" > "apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/formatted.json"
+
+            mv "apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/formatted.json" "apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/index.json"
+          else
+            echo "index.json not found!"
+            exit 1
+          fi
+
+      - name: Set opslevel-service variable
+        id: opslevel-service-var
+        if: ${{ !cancelled() && (needs.cy-prep.outputs.projects == 'rs-frontend-e2e' || needs.cy-prep.outputs.projects == 'rs-shop-e2e' || needs.cy-prep.outputs.projects == 'rs-footer-e2e' || needs.cy-prep.outputs.projects == 'rs-header-e2e') }}
+        run: |
+          PROJECT=${{ needs.cy-prep.outputs.projects }}
+          PROJECT_FORMATTED=$(echo "$PROJECT" | sed -e "s/-/_/g" )
+          echo "PROJECT: ${PROJECT_FORMATTED}"
+          echo "Setting opslevel-service variable for project: $PROJECT"
+          echo "opslevel-service=${PROJECT_FORMATTED}" >> $GITHUB_OUTPUT
+
+      - name: Report Cypress To Opslevel
+        if: ${{ !cancelled() && (needs.cy-prep.outputs.projects == 'rs-frontend-e2e' || needs.cy-prep.outputs.projects == 'rs-shop-e2e' || needs.cy-prep.outputs.projects == 'rs-footer-e2e' || needs.cy-prep.outputs.projects == 'rs-header-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: regression
+          opslevel-service: ${{ steps.opslevel-service-var.outputs.opslevel-service }}
+          report-path: apps/${{ needs.cy-prep.outputs.projects }}/reports/.jsons/index.json
+
+  cypress-extract-results:
+    if: ${{ !cancelled() }}
+    needs: [cy-prep, cypress-tests, merge-reports]
+    runs-on: ubuntu-latest
+    env:
+      BRANCH_NAME: ${{ github.ref_name }}
+      CYPRESS_RUN_NUMBER: ${{ needs.cypress-tests.outputs.cypress_run_number }}
+      CYPRESS_PROJECT_NAME: ${{ github.event.inputs.projects == 'rs-shop-e2e' && github.event.inputs.projects || format('digital-platform-{0}', github.event.inputs.projects) }}
+      CYPRESS_REPORT_TOKEN: ${{ needs.cypress-tests.outputs.CYPRESS_REPORT_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.CYPRESS_OIDC_ROLE }}
+          role-session-name: 'github_actions-cypress-rs-manual-extract'
+          aws-region: us-west-2
+
+      - name: Extract Test Results
+        run: |
+          rm -f scripts/extract-regression-results/output/test-results.csv
+          npx ts-node scripts/extract-regression-results/extract-cypress-results.ts
+        env:
+          CYPRESS_REPORT_TOKEN: ${{ needs.cypress-tests.outputs.CYPRESS_REPORT_TOKEN }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          CYPRESS_RUN_NUMBER: ${{ needs.cypress-tests.outputs.cypress_run_number }}
+          CYPRESS_PROJECT_NAME: ${{ github.event.inputs.projects == 'rs-shop-e2e' && github.event.inputs.projects || format('digital-platform-{0}', github.event.inputs.projects) }}
+
+      - name: Upload Results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-test-results-${{ github.event.inputs.projects }}-${{ needs.cypress-tests.outputs.cypress_run_number }}
+          path: ${{ github.event.inputs.projects == 'rs-shop-e2e' && format('scripts/extract-regression-results/output/{0}-{1}.csv', github.event.inputs.projects, needs.cypress-tests.outputs.cypress_run_number) || format('scripts/extract-regression-results/output/digital-platform-{0}-{1}.csv', github.event.inputs.projects, needs.cypress-tests.outputs.cypress_run_number) }}
+          retention-days: 5
+
+  cypress-status:
+    if: ${{ !cancelled() }}
+    needs: [cy-prep, cypress-tests, merge-reports, cypress-extract-results]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🖨️ Print Status
+        run: |
+          echo "Project: ${{ needs.cy-prep.outputs.projects }}"
+          echo "Group: ${{ needs.cy-prep.outputs.group }}"
+          echo "Test Result: ${{ needs.cypress-tests.result }}"
+
+      - name: ✔️ Check Cypress Matrix status
+        if: ${{ needs.cy-prep.outputs.projects != '' && needs.cy-prep.outputs.group != '[]' && needs.cypress-tests.result != 'success' }}
+        run: exit 1
+
+  cypress-cloud-run:
+    name: Cypress Cloud Run
+    if: ${{ !cancelled() }}
+    needs: [cypress-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔗 Cypress Cloud URL
+        run: |
+          RUN_URL=${{ needs.cypress-tests.outputs.cypress_run_url }}
+          echo "### Cypress Cloud Dashboard" >> $GITHUB_STEP_SUMMARY
+          echo "$RUN_URL" >> $GITHUB_STEP_SUMMARY
