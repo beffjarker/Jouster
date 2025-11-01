@@ -1,171 +1,96 @@
-# Copilot & AI Assistant Instructions for Jouster
+# Copilot Instructions for Jouster
 
 > **Purpose:**
-> This file provides explicit, actionable rules for Copilot, LLMs, and human contributors working in the Jouster project. Follow these instructions to ensure code quality, consistency, and effective AI assistance.
+> Core AI behavior rules and essential guidelines for GitHub Copilot working in the Jouster project.
+> 
+> **Note:** This file is optimized for GitHub Copilot's 3000 token limit. For detailed guidance:
+> - Full AI policy → [.github/instructions/ai-usage-guide.md](./instructions/ai-usage-guide.md)
+> - Development workflows → [.github/instructions/development.md](./instructions/development.md)
+> - Contribution guidelines → [CONTRIBUTING.md](../CONTRIBUTING.md)
+> - Nx-specific rules → [.github/instructions/nx.instructions.md](./instructions/nx.instructions.md)
 
 ---
 
-## 🚨 ABSOLUTE RULE: NEVER CLAIM 100% CERTAINTY
+## 🚨 Core AI Behavior Rules
 
-**AI ASSISTANTS:** You must NEVER claim 100% certainty, completion, or verification about ANYTHING without explicit human confirmation.
+**CRITICAL:** AI must NEVER claim 100% certainty. Maximum confidence is 99%.
 
-**FORBIDDEN PHRASES:**
-- ❌ "This is 100% correct"
-- ❌ "I'm completely sure"
-- ❌ "This is verified"
-- ❌ "This is complete"
-- ❌ "Everything is ready"
-- ❌ "This will definitely work"
-
-**REQUIRED APPROACH:**
-- ✅ Use tentative language ("appears", "suggests", "likely")
-- ✅ State confidence levels explicitly (percentages)
+**Required approach:**
+- ✅ Use tentative language ("appears", "suggests", "likely", "should")
+- ✅ State confidence levels explicitly (70-90% = High, 40-70% = Moderate, <40% = Low)
 - ✅ Always include verification steps
-- ✅ Request user confirmation
-- ✅ Acknowledge AI limitations
+- ✅ Request user confirmation before declaring completion
+- ✅ Acknowledge AI limitations (cannot test, cannot verify, cannot guarantee)
 
-**See detailed policy below.**
+**Example format:**
+```
+Based on [evidence], this appears to be [conclusion].
 
----
-
-## ⚠️ CRITICAL: AI Response Verification Policy
-
-**ABSOLUTE RULE:** AI/LLM responses must NEVER claim 100% certainty about ANYTHING without explicit human verification.
-
-### Core Principles
-
-1. **NEVER say "100%"** - AI cannot be 100% certain about anything
-2. **NEVER claim "complete"** - Always await user confirmation
-3. **NEVER claim "verified"** - Only humans can verify
-4. **NEVER claim "guaranteed"** - AI cannot make guarantees
-5. **NEVER claim "definitely"** - Express uncertainty appropriately
-
-### Required Language
-
-**Instead of absolute statements, ALWAYS use tentative language:**
-
-❌ **NEVER SAY:**
-- "This is 100% correct"
-- "I'm completely sure"
-- "This is definitely the problem"
-- "I've verified that..."
-- "This will work"
-- "This is complete"
-- "The setup is ready"
-- "Everything is configured correctly"
-
-✅ **ALWAYS SAY:**
-- "Based on [evidence], this **appears** to be correct"
-- "The analysis **suggests** that..."
-- "This **likely** indicates..."
-- "I **recommend verifying** by..."
-- "This **should** work, **but please test** to confirm"
-- "The infrastructure **appears ready**, **pending user verification**"
-- "The setup **seems** correct, **but requires human confirmation**"
-- "To the best of my analysis, **with X% confidence**..."
-
-### Mandatory Human Verification
-
-**Always require human verification for:**
-- ✅ Code functionality (user must test)
-- ✅ Data accuracy (user must check sources)
-- ✅ Metrics and statistics (user must verify calculations)
-- ✅ Documentation claims (user must validate facts)
-- ✅ Architecture recommendations (user must approve)
-- ✅ Security configurations (user must audit)
-- ✅ Deployment status (user must confirm)
-- ✅ Problem resolution (user must verify fixed)
-
-**Never claim verification without:**
-- Explicit user confirmation ("I tested it and it works")
-- Observable proof shown to user
-- User acceptance of the result
-
-### Confidence Levels
-
-**Always include confidence levels in responses:**
-
-- 🟢 **High Confidence (70-90%)** - Multiple sources confirm, clear evidence
-  - Example: "Based on the error message and stack trace, I'm **about 80% confident** this is a dependency issue. **Please verify by checking package.json.**"
-
-- 🟡 **Moderate Confidence (40-70%)** - Some evidence, but gaps exist
-  - Example: "The symptoms **suggest** a configuration problem (moderate confidence ~60%). **I recommend verifying the .env file.**"
-
-- 🔴 **Low Confidence (<40%)** - Limited evidence, needs investigation
-  - Example: "This **might** be related to caching, but I'm **only ~30% confident**. **Let's investigate further by...**"
-
-### Verification Requirements
-
-**For every response, include:**
-
-1. **Confidence level** - Explicit percentage or qualitative assessment
-2. **Evidence basis** - What sources/observations inform the conclusion
-3. **Verification steps** - How the user can confirm accuracy
-4. **Limitations** - What the AI cannot know or verify
-5. **Request for confirmation** - Explicitly ask user to verify
-
-**Example Response Format:**
-
-```markdown
-Based on [evidence], I [tentative statement].
-
-**Confidence:** ~70% (High)
-**Basis:** [file contents, error messages, documentation]
-**Verification:** Please confirm by [specific test/check]
-**Limitations:** I cannot verify [X] without user testing
-
-Can you confirm this works as expected?
+Confidence: ~80% (High)
+Verification: Please test by [specific action]
 ```
 
-### The 100% Certainty Rule
+**Full policy:** See [.github/instructions/ai-usage-guide.md](./instructions/ai-usage-guide.md)
 
-**ABSOLUTE RULE:** AI can NEVER claim 100% certainty. Maximum confidence is 99%.
+---
 
-**The ONLY exception:**
-- ✅ Human has merged code to production (main branch) AND confirmed it works
-- Even then, AI should say: "Based on your confirmation of the production merge, this **appears** to be ~99% complete"
+## Project Context
 
-**Why 100% is impossible for AI:**
-- AI cannot verify production deployments
-- AI cannot test in real environments
-- AI cannot confirm human requirements are met
-- AI cannot guarantee zero bugs or edge cases
-- AI can hallucinate or misinterpret context
+**Workspace:** Nx monorepo (v16.10.0, npm, TypeScript/Angular)
 
-**Even when:**
-- ✅ Code passes all tests
-- ✅ Builds successfully
-- ✅ Deployed to staging
-- ✅ Manual testing complete
-- ❌ **Still use ~99% confidence** until human confirms production success
+**Structure:**
+- `apps/` - jouster-ui (Angular), backend (Node.js)
+- `libs/` - Shared code (always reuse, never duplicate)
+- `docs/` - Documentation
+- `infrastructure/` - Terraform/IaC
+- `.github/` - CI/CD, workflows
 
-### AI Limitations to Acknowledge
+**Key Rule:** Always use semantic search before coding to find existing patterns.
 
-**Always acknowledge that AI cannot:**
-- ❌ Run code in user's actual environment
-- ❌ Access real-time system state
-- ❌ Guarantee code will compile/run
-- ❌ Verify external system behavior
-- ❌ Confirm user requirements are met
-- ❌ Test in production environments
-- ❌ Validate business logic correctness
-- ❌ Ensure security without audit
-- ❌ **Ever claim 100% certainty** - maximum is 99%
+---
 
-### This Policy Applies To
+## Coding Standards
 
-**Everything. No exceptions.**
+- **Style:** 2 spaces, 120 char lines, single quotes, always semicolons
+- **Naming:** camelCase (vars), PascalCase (classes), kebab-case (files)
+- **TypeScript:** Never use `any`, always type everything
+- **Tests:** Jest/Cypress, 80% coverage, `.spec.ts` files alongside code
+- **Docs:** JSDoc for public APIs, update README with changes
 
-- Code generation and refactoring
-- Data analysis and reporting
-- Documentation and technical writing
-- Performance metrics and statistics
-- Architecture and design recommendations
-- Bug fixes and troubleshooting
-- Configuration and setup
-- Deployment and infrastructure
-- Security recommendations
-- Test coverage and quality
+---
+
+## Git Workflow
+
+**Branches:**
+- `[initials]-[ticket]-[description]` (e.g., `jb-US1234-add-login`)
+- `[initials]-OP-[description]` (operational/non-ticket work)
+
+**Commits:** Conventional Commits format
+```
+feat(app-name): add feature
+fix(lib-name): resolve bug
+docs: update guide
+```
+
+**PRs:** Against `develop`, must pass lint/test/build, 1+ review required
+
+---
+
+## Security Critical
+
+- **Never commit:** secrets, API keys, credentials (.env only)
+- **Never reference:** dev-journal/ or dev-tools/ in public PRs/docs (may contain PII)
+- **Never expose:** API keys in logs or console output
+- **Always validate:** user input, sanitize output
+
+---
+
+## Nx Usage
+
+- **Generate code:** `nx generate @nx/angular:component` (use generators, not manual files)
+- **Commands:** `nx serve`, `nx build`, `nx test`, `nx affected --target=test`
+- **Cache:** `nx reset` to clear cache
+- **Details:** See [.github/instructions/nx.instructions.md](./instructions/nx.instructions.md)
 
 ---
 
@@ -529,27 +454,47 @@ class UserProfile {}
 ### Shell Detection Strategy
 
 1. **Check environment info** provided at the start of the session
-2. **Look for shell indicators** in command outputs (e.g., `PS C:\>` for PowerShell, `$` for bash)
+2. **Look for shell indicators** in command outputs (e.g., `C:\>` for cmd.exe, `PS C:\>` for PowerShell, `$` for bash)
 3. **Use appropriate syntax** for the detected shell
-4. **Default to bash** if shell cannot be determined on Unix-like systems
-5. **Default to PowerShell** if shell cannot be determined on Windows
+4. **Default to cmd.exe** on Windows unless PowerShell is explicitly indicated
+5. **Default to bash** if shell cannot be determined on Unix-like systems
 
 ### Command Execution Strategy (All Shells)
 
-1. **ALWAYS pipe large or complex output to temporary files** for reading
-2. **Use absolute paths** with proper escaping for the shell
+1. **ALWAYS redirect large or complex output to temporary files** for reading
+2. **Use proper path syntax** for the shell (backslashes for Windows, forward slashes for Unix)
 3. **Verify commands work** in the user's actual shell environment
+
+### cmd.exe-Specific Patterns (Windows Command Prompt)
+
+**✅ Use these patterns for cmd.exe:**
+
+```cmd
+REM For directory listings with potential large output:
+dir /s /b "C:\path\with spaces" > tmp\dir-output.txt
+
+REM For git commands with large output:
+git log --oneline --author="name" > tmp\git-output.txt
+
+REM For npm/node commands:
+npm list > tmp\npm-list.txt
+
+REM For finding files:
+dir /s /b *.ts > tmp\ts-files.txt
+
+REM Then read the temporary file with read_file tool
+```
+
+**❌ NEVER do this in cmd.exe:**
+
+```
+Get-ChildItem -Path "path"    # PowerShell syntax - FAILS in cmd.exe
+ls -la /path                  # bash syntax - FAILS in cmd.exe
+```
 
 ### PowerShell-Specific Patterns (When PowerShell Detected)
 
-**❌ NEVER do this in PowerShell:**
-
-```
-dir /b "C:\path\with spaces"  # cmd.exe syntax - FAILS in PowerShell
-ls C:\path | grep pattern     # bash syntax - FAILS in PowerShell
-```
-
-**✅ ALWAYS do this in PowerShell:**
+**✅ Use these patterns for PowerShell:**
 
 ```powershell
 # For directory listings with potential large output:
@@ -560,52 +505,57 @@ Get-ChildItem -Path "C:\path" -Filter "*.ts" | Out-File -FilePath "tmp\search-ou
 
 # For git commands with large output:
 git log --oneline --author="name" | Out-File -FilePath "tmp\git-output.txt"
-
-# Then read the temporary file:
-# Use read_file tool to read tmp\git-output.txt
 ```
 
-### Bash-Specific Patterns (When Bash/Zsh/sh Detected)
+### Bash-Specific Patterns (Unix/Linux/Mac)
 
 **✅ Use standard Unix patterns:**
 
 ```bash
 # For directory listings with potential large output:
-ls -la /path/to/directory > /tmp/dir-output.txt
+ls -la /path/to/directory > tmp/dir-output.txt
 
 # For searching/filtering:
-find /path -name "*.ts" > /tmp/search-output.txt
+find /path -name "*.ts" > tmp/search-output.txt
 
 # For git commands with large output:
-git log --oneline --author="name" > /tmp/git-output.txt
-
-# Then read the temporary file
+git log --oneline --author="name" > tmp/git-output.txt
 ```
 
 ### Temporary File Management
 
-**PowerShell (Windows):**
+**Windows (cmd.exe or PowerShell):**
 
-- **Location:** Always use `tmp\` (relative path from project root) for command output files
+- **Location:** Always use `tmp\` (relative path with backslash from project root)
 - **Naming:** Use descriptive names: `dir-output.txt`, `git-log-output.txt`, `search-results.txt`
 - **Cleanup:** Temporary output files are gitignored and can be overwritten
 
-**Bash/Unix:**
+**Unix/Linux/Mac (bash/zsh/sh):**
 
-- **Location:** Use `/tmp/` or project-specific temp directory
+- **Location:** Use `tmp/` (relative path with forward slash) or `/tmp/`
 - **Naming:** Use descriptive names: `dir-output.txt`, `git-log-output.txt`, `search-results.txt`
 - **Cleanup:** Files in `/tmp/` are typically cleaned automatically; project temp files should be gitignored
 
 ### Common Commands by Shell
 
+**cmd.exe (Windows Command Prompt):**
+
+| Task           | cmd.exe Command                           |
+| -------------- | ----------------------------------------- |
+| List directory | `dir "path"`                              |
+| Recursive list | `dir /s /b "path"`                        |
+| Filter files   | `dir /s /b "path\*.ts"`                   |
+| Output to file | `command > path\file.txt`                 |
+| Search content | `findstr /s /i "pattern" "path\*.ts"`     |
+
 **PowerShell:**
 
 | Task           | PowerShell Command                              |
-| -------------- | ----------------------------------------------- | -------------------------- |
+| -------------- | ----------------------------------------------- |
 | List directory | `Get-ChildItem -Path "path"` or `ls`            |
 | Recursive list | `Get-ChildItem -Path "path" -Recurse`           |
 | Filter files   | `Get-ChildItem -Path "path" -Filter "*.ts"`     |
-| Output to file | `command                                        | Out-File -FilePath "path"` |
+| Output to file | `command | Out-File -FilePath "path"`           |
 | Search content | `Select-String -Path "path" -Pattern "pattern"` |
 
 **Bash/Unix:**
@@ -623,7 +573,7 @@ git log --oneline --author="name" > /tmp/git-output.txt
 - **Prevents command failures** due to shell-specific syntax issues
 - **Handles large outputs** that exceed terminal buffer limits
 - **Enables reliable data analysis** by reading structured file content
-- **Avoids cross-shell syntax confusion** (PowerShell vs bash vs cmd.exe)
+- **Avoids cross-shell syntax confusion** (cmd.exe vs PowerShell vs bash)
 - **Works consistently** across different development environments
 
 ---
