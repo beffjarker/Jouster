@@ -94,26 +94,34 @@ docs: update guide
 
 ---
 
-## Terminal & Shell Commands (cmd.exe)
+## Terminal & Shell Commands
 
-**CRITICAL:** User's shell is cmd.exe. Output redirection is MANDATORY.
+**CRITICAL:** Always detect the shell type before running commands. Check environment info for shell indicators.
 
-**Always redirect output to tmp\ files:**
+**Shell Detection:**
+- **cmd.exe** (Windows): Look for `C:\>` prompt or environment info showing cmd.exe
+- **PowerShell** (Windows): Look for `PS C:\>` prompt or pwsh/powershell in environment
+- **bash/zsh/sh** (Linux/macOS): Look for `$` or `#` prompt, or environment showing bash/zsh
+
+**Output Redirection (MANDATORY for all shells):**
+
 ```cmd
-REM ALWAYS do this:
+REM cmd.exe (Windows):
 git status > tmp\git-status.txt 2>&1 && type tmp\git-status.txt
 dir /s /b *.ts > tmp\files.txt && type tmp\files.txt
-npm list > tmp\npm-list.txt 2>&1 && type tmp\npm-list.txt
 
-REM NEVER do this (output often invisible):
-git status
-dir /s /b *.ts
-npm list
+REM PowerShell (Windows):
+git status | Out-File tmp\git-status.txt; Get-Content tmp\git-status.txt
+Get-ChildItem -Recurse *.ts | Out-File tmp\files.txt; Get-Content tmp\files.txt
+
+# bash/zsh/sh (Linux/macOS):
+git status > tmp/git-status.txt 2>&1 && cat tmp/git-status.txt
+find . -name "*.ts" > tmp/files.txt && cat tmp/files.txt
 ```
 
-**Why:** cmd.exe output is frequently empty/invisible without redirection. Always pipe to tmp\ files you can read.
+**Why:** Terminal output can be invisible/empty without redirection, especially in cmd.exe. Always redirect to tmp/ files you can read.
 
-**If file appears empty:** Double-check by redirecting command output to a temp file, then read that file.
+**If output appears empty:** Always double-check by redirecting to a temp file and reading that file.
 
 ---
 
