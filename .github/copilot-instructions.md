@@ -94,6 +94,29 @@ docs: update guide
 
 ---
 
+## Terminal & Shell Commands (cmd.exe)
+
+**CRITICAL:** User's shell is cmd.exe. Output redirection is MANDATORY.
+
+**Always redirect output to tmp\ files:**
+```cmd
+REM ALWAYS do this:
+git status > tmp\git-status.txt 2>&1 && type tmp\git-status.txt
+dir /s /b *.ts > tmp\files.txt && type tmp\files.txt
+npm list > tmp\npm-list.txt 2>&1 && type tmp\npm-list.txt
+
+REM NEVER do this (output often invisible):
+git status
+dir /s /b *.ts
+npm list
+```
+
+**Why:** cmd.exe output is frequently empty/invisible without redirection. Always pipe to tmp\ files you can read.
+
+**If file appears empty:** Double-check by redirecting command output to a temp file, then read that file.
+
+---
+
 ## Quick Reference Checklist
 
 - **NEVER claim 100% certainty** - Always use tentative language and require human verification
