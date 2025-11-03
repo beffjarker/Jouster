@@ -1,14 +1,11 @@
 name: Deploy PR Preview Environment
 
 on:
-  workflow_dispatch:
-  # Disabled - timing out on npm install
-  # Using pr-preview-validation.yml instead
-  # pull_request:
-  #   types: [opened, synchronize, reopened]
-  #   branches:
-  #     - main
-  #     - develop
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
 
 permissions:
   pull-requests: write
@@ -22,16 +19,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js and Install Dependencies
-        uses: ./.github/actions/setup-node-install
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: '20.19.0'
-          install-command: 'npm ci --prefer-offline --no-audit --ignore-scripts'
-          retry-count: '2'
+          cache: 'npm'
 
-      - name: Run necessary postinstall scripts
-        run: npx cypress install
-        continue-on-error: true
+      - name: Install dependencies with timeout
+        run: |
+          timeout 8m npm install --prefer-offline --no-audit --ignore-scripts --legacy-peer-deps || npm ci --ignore-scripts --legacy-peer-deps
+        timeout-minutes: 10
 
       - name: Build application
         run: npm run build:prod
