@@ -1,11 +1,14 @@
 name: Deploy PR Preview Environment
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
-      - develop
+  workflow_dispatch:
+  # Disabled - timing out on npm install
+  # Using pr-preview-validation.yml instead
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
+  #   branches:
+  #     - main
+  #     - develop
 
 permissions:
   pull-requests: write
