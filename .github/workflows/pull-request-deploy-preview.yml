@@ -19,14 +19,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
         with:
           node-version: '20.19.0'
-          cache: 'npm'
+          install-command: 'npm ci --prefer-offline --no-audit --ignore-scripts'
+          retry-count: '2'
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Run necessary postinstall scripts
+        run: npx cypress install
+        continue-on-error: true
 
       - name: Build application
         run: npm run build:prod
