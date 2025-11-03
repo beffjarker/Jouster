@@ -25,10 +25,9 @@ jobs:
           node-version: '20.19.0'
           cache: 'npm'
 
-      - name: Install dependencies with timeout
-        run: |
-          timeout 8m npm install --prefer-offline --no-audit --ignore-scripts --legacy-peer-deps || npm ci --ignore-scripts --legacy-peer-deps
-        timeout-minutes: 10
+      - name: Install dependencies with force flag
+        run: npm ci --force --ignore-scripts
+        timeout-minutes: 5
 
       - name: Build application
         run: npm run build:prod
