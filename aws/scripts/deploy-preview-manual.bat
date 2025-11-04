@@ -13,7 +13,7 @@ if "%PR_NUMBER%"=="" (
     exit /b 1
 )
 
-set BUCKET_NAME=jouster-preview-pr%PR_NUMBER%-feature-v002-preview-test
+set BUCKET_NAME=jouster-preview-pr%PR_NUMBER%
 set PREVIEW_URL=http://%BUCKET_NAME%.s3-website-us-west-2.amazonaws.com
 
 echo ========================================
