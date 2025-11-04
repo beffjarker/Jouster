@@ -1,11 +1,14 @@
 name: Deploy PR Preview Environment
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-    branches:
-      - main
-      - develop
+  workflow_dispatch:
+  # DISABLED: npm install consistently times out in GitHub Actions
+  # Use manual deployment: aws/scripts/deploy-preview-manual.bat <pr-number>
+  # pull_request:
+  #   types: [opened, synchronize, reopened]
+  #   branches:
+  #     - main
+  #     - develop
 
 permissions:
   pull-requests: write

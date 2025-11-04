@@ -1,9 +1,12 @@
 name: PR Preview and Validation
 
 on:
-  pull_request:
-    branches: [develop]
-    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+  # DISABLED: npm install consistently times out in GitHub Actions
+  # Use manual deployment: aws/scripts/deploy-preview-manual.bat <pr-number>
+  # pull_request:
+  #   branches: [develop]
+  #   types: [opened, synchronize, reopened]
 
 permissions:
   id-token: write
@@ -27,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '20.19.0'
           cache: 'npm'
 
       - name: Install dependencies

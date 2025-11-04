@@ -1,0 +1,57 @@
+name: Build and Upload Preview Artifact
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+
+permissions:
+  contents: read
+
+jobs:
+  build-artifact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Restore cached dist
+        id: cache-dist
+        uses: actions/cache@v4
+        with:
+          path: dist/apps/jouster-ui/browser
+          key: dist-${{ github.sha }}
+
+      - name: Check if build needed
+        id: check-build
+        run: |
+          if [ -d "dist/apps/jouster-ui/browser" ]; then
+            echo "build_needed=false" >> $GITHUB_OUTPUT
+          else
+            echo "build_needed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Use pre-built dist if available
+        if: steps.check-build.outputs.build_needed == 'false'
+        run: echo "Using cached build from previous run"
+
+      - name: Build locally and upload
+        if: steps.check-build.outputs.build_needed == 'true'
+        run: |
+          echo "⚠️ GitHub Actions npm install is broken for this project"
+          echo "📦 Please build locally and push the dist folder:"
+          echo ""
+          echo "    npm run build:prod"
+          echo "    git add -f dist/apps/jouster-ui/browser"
+          echo "    git commit -m 'chore: add pre-built dist for preview'"
+          echo "    git push"
+          echo ""
+          echo "Or use manual deployment:"
+          echo "    npm run build:prod"
+          echo "    aws s3 sync dist/apps/jouster-ui/browser s3://jouster-preview-pr${{ github.event.pull_request.number }}"
+          exit 1
+
