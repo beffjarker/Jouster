@@ -4,7 +4,7 @@ inputs:
   node-version:
     description: 'Node.js version to use'
     required: false
-    default: '20.12.1'
+    default: '20.19.0'
   install-command:
     description: 'npm install command to run'
     required: false
@@ -50,7 +50,7 @@ runs:
       if: steps.node_modules_cache.outputs.cache-hit != 'true'
       uses: nick-fields/retry@v3
       with:
-        timeout_minutes: 10
+        timeout_minutes: 20
         max_attempts: ${{ inputs.retry-count }}
         retry_wait_seconds: ${{ inputs.retry-delay }}
         command: ${{ inputs.install-command }}
