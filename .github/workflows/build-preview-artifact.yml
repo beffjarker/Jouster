@@ -37,21 +37,15 @@ jobs:
 
       - name: Use pre-built dist if available
         if: steps.check-build.outputs.build_needed == 'false'
-        run: echo "Using cached build from previous run"
+        run: echo "✅ Using cached build from previous run"
 
-      - name: Build locally and upload
+      - name: Setup Node.js and Install Dependencies
         if: steps.check-build.outputs.build_needed == 'true'
-        run: |
-          echo "⚠️ GitHub Actions npm install is broken for this project"
-          echo "📦 Please build locally and push the dist folder:"
-          echo ""
-          echo "    npm run build:prod"
-          echo "    git add -f dist/apps/jouster-ui/browser"
-          echo "    git commit -m 'chore: add pre-built dist for preview'"
-          echo "    git push"
-          echo ""
-          echo "Or use manual deployment:"
-          echo "    npm run build:prod"
-          echo "    aws s3 sync dist/apps/jouster-ui/browser s3://jouster-preview-pr${{ github.event.pull_request.number }}"
-          exit 1
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: '20.19.0'
+
+      - name: Build application
+        if: steps.check-build.outputs.build_needed == 'true'
+        run: npm run build:prod
 
