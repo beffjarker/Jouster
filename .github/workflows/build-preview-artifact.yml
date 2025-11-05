@@ -13,7 +13,7 @@ permissions:
 jobs:
   build-artifact:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 60
 
     steps:
       - name: Checkout code
@@ -44,6 +44,7 @@ jobs:
         uses: ./.github/actions/setup-node-install
         with:
           node-version: '20.19.0'
+          install-command: 'npm ci --legacy-peer-deps --omit=optional --prefer-offline --no-audit'
 
       - name: Build application
         if: steps.check-build.outputs.build_needed == 'true'
