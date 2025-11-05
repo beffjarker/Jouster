@@ -2,7 +2,7 @@ name: Cleanup S3 Buckets
 run-name: Cleanup S3 Buckets (${{ github.event.inputs.team }}/${{ github.event.inputs.region }})
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
 
 on:
   workflow_dispatch:

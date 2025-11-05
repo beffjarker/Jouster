@@ -17,7 +17,7 @@ on:
         default: 'please type prod to deploy to prod environment'
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
   ENVIRONMENT: ${{ github.event.inputs.environment }}
   NODE_OPTIONS: '--max_old_space_size=7168'
   REMOTE_BASE_URL: '.rscom-prod.awsext.repsrv.com'

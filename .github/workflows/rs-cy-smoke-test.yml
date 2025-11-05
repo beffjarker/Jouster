@@ -5,7 +5,7 @@ on:
     - cron: '0 12 * * *' # runs every day at 12PM UTC
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
   NODE_OPTIONS: '--max_old_space_size=7168'
 
 jobs:

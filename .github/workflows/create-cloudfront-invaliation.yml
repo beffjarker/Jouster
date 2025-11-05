@@ -1,7 +1,7 @@
 name: Create CloudFront Invalidation
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
 
 run-name: Create CloudFront Invalidation (${{ github.event.inputs.team }}/${{ github.event.inputs.project }}/${{ github.event.inputs.environment }}/${{ github.event.inputs.git_ref || github.ref_name }})
 on:

@@ -1,7 +1,7 @@
 name: Check Affected Applications
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
 
 on:
   pull_request:

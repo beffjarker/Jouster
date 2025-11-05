@@ -4,7 +4,7 @@ name:
   # It validates the actor, sets up the environment, and invokes the Lambda with a user-supplied JSON payload.
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
   AWS_REGION: 'us-west-2'
   ROLE_SESSION_NAME: 'github_actions-rscom_ecom_sso-dev'
 

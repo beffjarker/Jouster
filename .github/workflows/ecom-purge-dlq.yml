@@ -1,7 +1,7 @@
 name: Ecom Purge DLQ
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
 
 permissions:
   id-token: write

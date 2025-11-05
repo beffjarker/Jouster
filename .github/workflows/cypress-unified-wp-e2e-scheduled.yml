@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
   TAG: '@regression'
   BROWSER: 'chrome'
   TESTS_PER_MACHINE: '20'

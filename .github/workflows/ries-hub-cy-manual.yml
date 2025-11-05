@@ -59,7 +59,7 @@ on:
         default: 'https://ries-hub-ui-master.awsdev.repsrv.com/'
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
 
 jobs:
   environment:

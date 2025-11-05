@@ -7,7 +7,7 @@ on:
 
 env:
   ENVIRONMENT: uat
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
   NODE_OPTIONS: '--max_old_space_size=7168'
 
 jobs:

@@ -1,7 +1,7 @@
 name: Deploy Nx Apps (master)
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
 
 permissions:
   id-token: write

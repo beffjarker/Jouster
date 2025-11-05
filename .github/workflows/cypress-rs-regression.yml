@@ -34,7 +34,7 @@ on:
           - '20'
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
   BASEURL: 'https://uat1.aws.repsrv.com'
   ENVIRONMENT: uat
 

@@ -27,7 +27,7 @@ on:
         default: 'https://rs-frontend-master.rscom-nonprod.awsext.repsrv.com'
 
 env:
-  NODE_VERSION: '20.12.1'
+  NODE_VERSION: '20.19.0'
   DEFAULT_TAG: ${{ github.event.inputs.tag || '@regression' }}
   DEFAULT_BROWSER: ${{ github.event.inputs.browser || 'chrome' }}
   DEFAULT_TESTS_PER_MACHINE: ${{ github.event.inputs.tests_per_machine || '10' }}
