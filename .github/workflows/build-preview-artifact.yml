@@ -13,10 +13,7 @@ permissions:
 jobs:
   build-artifact:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
-    # TEMPORARILY DISABLED: npm install takes >30 minutes on GitHub Actions
-    # Re-enable once dependency installation is optimized
-    if: false
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code
@@ -47,7 +44,7 @@ jobs:
         uses: ./.github/actions/setup-node-install
         with:
           node-version: '20.19.0'
-          install-command: 'npm ci --legacy-peer-deps --omit=optional --prefer-offline --no-audit'
+          install-command: 'npm install --prefer-offline --no-audit --no-fund'
 
       - name: Build application
         if: steps.check-build.outputs.build_needed == 'true'
