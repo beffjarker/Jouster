@@ -35,4 +35,3 @@ jobs:
           echo ""
           echo "✅ This check passes to allow PR merge."
           echo "================================================"
-          edit-mode: replace
