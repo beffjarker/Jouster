@@ -33,6 +33,7 @@ jobs:
         uses: ./.github/actions/setup-node-install
         with:
           node-version: ${{ env.NODE_VERSION }}
+          install-command: 'npm ci --legacy-peer-deps --omit=optional --prefer-offline --no-audit'
 
       - name: Find affected applications
         id: check
