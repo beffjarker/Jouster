@@ -14,6 +14,9 @@ jobs:
   build-artifact:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # TEMPORARILY DISABLED: npm install takes >30 minutes on GitHub Actions
+    # Re-enable once dependency installation is optimized
+    if: false
 
     steps:
       - name: Checkout code

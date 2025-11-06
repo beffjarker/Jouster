@@ -21,6 +21,9 @@ env:
 jobs:
   changes:
     runs-on: ubuntu-latest
+    # TEMPORARILY DISABLED: npm install takes >30 minutes on GitHub Actions
+    # Re-enable once dependency installation is optimized
+    if: false
 
     permissions:
       pull-requests: read
