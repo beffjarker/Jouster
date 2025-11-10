@@ -1,0 +1,183 @@
+name: Deploy PR Preview from Artifact
+
+on:
+  workflow_run:
+    workflows: ["Build and Upload Preview Artifact"]
+    types:
+      - completed
+
+permissions:
+  pull-requests: write
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get PR number
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const {data: pullRequests} = await github.rest.pulls.list({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              head: `${context.repo.owner}:${context.payload.workflow_run.head_branch}`
+            });
+
+            if (pullRequests.length === 0) {
+              core.setFailed('No open PR found for this branch');
+              return;
+            }
+
+            const prNumber = pullRequests[0].number;
+            core.setOutput('number', prNumber);
+            core.setOutput('sha', context.payload.workflow_run.head_sha);
+
+            console.log(`Found PR #${prNumber}`);
+
+      - name: Download build artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: jouster-ui-build-pr${{ steps.pr.outputs.number }}
+          path: dist/browser
+          workflow: build-preview-artifact.yml
+          run_id: ${{ github.event.workflow_run.id }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Generate preview bucket name
+        id: bucket
+        run: |
+          PR_NUM="${{ steps.pr.outputs.number }}"
+          BUCKET_NAME="jouster-preview-pr${PR_NUM}"
+          echo "name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+          echo "url=http://${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com" >> $GITHUB_OUTPUT
+
+      - name: Create S3 bucket (if it doesn't exist)
+        run: |
+          BUCKET_NAME="${{ steps.bucket.outputs.name }}"
+
+          # Check if bucket exists
+          if ! aws s3 ls "s3://${BUCKET_NAME}" 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "Bucket already exists: ${BUCKET_NAME}"
+          else
+            echo "Creating bucket: ${BUCKET_NAME}"
+            aws s3 mb "s3://${BUCKET_NAME}" --region us-west-2
+
+            # Configure bucket for static website hosting
+            aws s3 website "s3://${BUCKET_NAME}" \
+              --index-document index.html \
+              --error-document index.html
+
+            # Set bucket policy for public read access
+            cat > /tmp/bucket-policy.json << EOF
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Sid": "PublicReadGetObject",
+                "Effect": "Allow",
+                "Principal": "*",
+                "Action": "s3:GetObject",
+                "Resource": "arn:aws:s3:::${BUCKET_NAME}/*"
+              }
+            ]
+          }
+          EOF
+
+            aws s3api put-bucket-policy \
+              --bucket "${BUCKET_NAME}" \
+              --policy file:///tmp/bucket-policy.json
+
+            # Disable block public access
+            aws s3api put-public-access-block \
+              --bucket "${BUCKET_NAME}" \
+              --public-access-block-configuration \
+                "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+          fi
+
+      - name: Deploy to S3
+        run: |
+          echo "Deploying to S3 bucket: ${{ steps.bucket.outputs.name }}"
+          aws s3 sync dist/browser/ "s3://${{ steps.bucket.outputs.name }}" \
+            --delete \
+            --cache-control "public, max-age=3600" \
+            --metadata-directive REPLACE
+
+          echo "Deployment complete!"
+          echo "Preview URL: ${{ steps.bucket.outputs.url }}"
+
+      - name: Comment preview URL on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = parseInt('${{ steps.pr.outputs.number }}');
+            const previewUrl = '${{ steps.bucket.outputs.url }}';
+            const runUrl = `${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+
+            // Check if a preview comment already exists
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+
+            const botComment = comments.data.find(comment =>
+              comment.user.type === 'Bot' &&
+              comment.body.includes('🎉 Preview Environment Deployed')
+            );
+
+            const commentBody = `## 🎉 Preview Environment Deployed!
+
+            Your preview environment is now available:
+
+            🔗 **Preview URL:** ${previewUrl}
+            📦 **Artifact:** \`jouster-ui-build-pr${prNumber}\`
+            🔗 **Deployment Run:** [View Deployment](${runUrl})
+
+            ### Testing Instructions:
+
+            1. Visit the preview URL above
+            2. Test your changes
+            3. Report any issues in this PR
+
+            ---
+            *This preview environment will be automatically deleted when the PR is closed or merged.*
+            `;
+
+            if (botComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: commentBody,
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody,
+              });
+            }
+
