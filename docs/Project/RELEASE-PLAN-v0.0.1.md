@@ -91,7 +91,7 @@ git push --tags
 - [ ] Mark as latest release
 - [ ] Publish release
 
-**GitHub URL:** https://github.com/beffjarker/Jouster/releases/new
+**GitHub URL:** https://github.com/YOUR_USERNAME/Jouster/releases/new
 
 #### 4. **Deploy to Production** ⚠️ HIGH
 **Priority:** P1 (Important)  

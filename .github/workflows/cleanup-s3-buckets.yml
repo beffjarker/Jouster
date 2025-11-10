@@ -1,0 +1,128 @@
+name: Cleanup S3 Buckets
+run-name: Cleanup S3 Buckets (${{ github.event.inputs.team }}/${{ github.event.inputs.region }})
+
+env:
+  NODE_VERSION: '20.19.0'
+
+on:
+  workflow_dispatch:
+    inputs:
+      team:
+        type: choice
+        description: Cleanup Orphaned S3 buckets from this team
+        required: true
+        options:
+          - sheer-energy
+          - moneyball
+          - dotcom
+          - aura
+          - unified-wp
+          - reporting
+          - trash-titans
+      region:
+        type: choice
+        description: Run in this AWS Region
+        required: true
+        default: us-west-2
+        options:
+          - us-east-1
+          - us-west-2
+
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  validation:
+    runs-on: ubuntu-latest
+    name: Validate Workflow
+    steps:
+      - name: Checkout verify actor action
+        uses: actions/checkout@v4
+        with:
+          repository: RepublicServicesRepository/gha-verify-actor
+          ref: refs/heads/main
+          token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          persist-credentials: false
+          path: ./.github/actions/verify-actor
+
+      - name: Verify Actor
+        uses: ./.github/actions/verify-actor
+        with:
+          github_token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          whitelist: tstackhouse,pathrph,abiggers
+
+  cleanup-s3-buckets:
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: read
+
+    runs-on: ubuntu-latest
+    needs: [validation]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # TBD
+      # - name: Configure AWS credentials (RIES Hub)
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   if: ${{ inputs.team == 'sheer-energy' }}
+      #   with:
+      #     role-to-assume: ${{ vars.RIES_HUB_OIDC_SSO_DEV_ROLE }}
+      #     role-session-name: 'github_actions-ries_hub_sso-dev'
+      #     aws-region: us-west-2
+
+      - name: Configure AWS credentials (RScom)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ inputs.team == 'dotcom' || inputs.team == 'trash-titans'}}
+        with:
+          role-to-assume: ${{ vars.RSCOM_OIDC_SSO_DEV_ROLE }}
+          role-session-name: 'github_actions-rscom_sso-dev'
+          aws-region: us-west-2
+
+      - name: Configure AWS credentials (ECom)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ inputs.team == 'moneyball' }}
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_DEV_ROLE }}
+          role-session-name: 'github_actions-rscom_ecom_sso-dev'
+          aws-region: us-west-2
+
+      - name: Configure AWS credentials (AURA & Unified-WP & Reporting)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ inputs.team == 'aura' || inputs.team == 'unified-wp' || inputs.team == 'reporting'}}
+        with:
+          role-to-assume: ${{ vars.AURA_OIDC_SSO_DEV_ROLE }}
+          role-session-name: 'github_actions-aura_sso-dev'
+          aws-region: us-west-2
+
+      # Fallback if no credentials are set from above
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure AWS credentials (Access Key)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ ! env.AWS_ACCESS_KEY_ID }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_NONPROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_NONPROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Remove S3 Buckets With No Branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/cleanup-s3-buckets.js -t ${{ inputs.team }} -r ${{ inputs.region }}

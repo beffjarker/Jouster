@@ -1,829 +1,633 @@
-# Copilot & LLM Instructions for Nx Monorepo
+# Copilot Instructions for Jouster
 
 > **Purpose:**
-> This file provides explicit, actionable rules for Copilot, LLMs, and human contributors working in this Nx-based monorepo. Follow these instructions to ensure code quality, consistency, and effective AI assistance.
+> Core AI behavior rules and essential guidelines for GitHub Copilot working in the Jouster project.
+> 
+> **Note:** This file is optimized for GitHub Copilot's 3000 token limit. For detailed guidance:
+> - Full AI policy → [.github/instructions/ai-usage-guide.md](./instructions/ai-usage-guide.md)
+> - Development workflows → [.github/instructions/development.md](./instructions/development.md)
+> - Contribution guidelines → [CONTRIBUTING.md](../CONTRIBUTING.md)
+> - Nx-specific rules → [.github/instructions/nx.instructions.md](./instructions/nx.instructions.md)
 
 ---
 
-## 🚨 CRITICAL: ENVIRONMENT DETECTION FIRST
+## 🚨 Core AI Behavior Rules
 
-**BEFORE doing ANYTHING, you MUST detect and verify the environment.**
+**CRITICAL:** AI must NEVER claim 100% certainty. Maximum confidence is 99%.
 
-### **Step 1: Detect Operating System & Shell**
+**Required approach:**
+- ✅ Use tentative language ("appears", "suggests", "likely", "should")
+- ✅ State confidence levels explicitly (70-90% = High, 40-70% = Moderate, <40% = Low)
+- ✅ Always include verification steps
+- ✅ Request user confirmation before declaring completion
+- ✅ Acknowledge AI limitations (cannot test, cannot verify, cannot guarantee)
 
-Check `environment_info` context OR run:
+**Example format:**
+```
+Based on [evidence], this appears to be [conclusion].
 
-```bash
-# Windows detection
-echo %OS% > temp-os-check.txt 2>&1
-type temp-os-check.txt
-
-# Check default shell
-echo %COMSPEC% > temp-shell-check.txt 2>&1
-type temp-shell-check.txt
+Confidence: ~80% (High)
+Verification: Please test by [specific action]
 ```
 
-**Confirmed Environment for This Project:**
-- **OS:** Windows
-- **Shell:** cmd.exe (Command Prompt) with PowerShell available
-- **Command Syntax:** Windows-specific
-- **Path Separators:** Backslash `\`
-- **Output Redirection:** `> temp-file.txt 2>&1` then `type temp-file.txt`
-- **Cleanup:** `del temp-*.txt`
-
-### **Step 2: ALWAYS Pipe Command Output to Temp Files**
-
-**CRITICAL:** In this JetBrains IntelliJ environment, command output may not be visible in terminal due to a known Copilot integration bug.
-
-**MANDATORY Pattern:**
-```bash
-# WRONG - Will not see output
-git status
-npm list
-node script.js
-
-# CORRECT - Always redirect to temp file
-git status > temp-git-status.txt 2>&1
-type temp-git-status.txt
-del temp-git-status.txt
-
-npm list --depth=0 > temp-npm-packages.txt 2>&1
-type temp-npm-packages.txt
-del temp-npm-packages.txt
-
-node script.js > temp-script-output.txt 2>&1
-type temp-script-output.txt
-del temp-script-output.txt
-```
-
-**This applies to 100% of commands that produce output.**
-
-### **Step 3: Credential Management**
-
-**CRITICAL Security Rules:**
-
-✅ **DO:**
-- Read credentials from `.env` files (git-ignored) for local operations
-- Read credentials from `dev-tools/.env` for API integrations
-- Read credentials from `aws/credentials` for AWS operations
-- Use credentials silently in the background to connect on user's behalf
-- Keep all credential access implicit and automated
-
-❌ **DON'T:**
-- NEVER commit credentials to git
-- NEVER echo credentials to console/logs
-- NEVER mention credential values in responses
-- NEVER ask user for credentials if they're in .env files
-- NEVER expose credentials in public documentation
-- NEVER include credentials in code examples
-
-**Example - Correct Credential Usage:**
-```bash
-# WRONG - Asks user for credentials
-echo "Please enter your API key:"
-
-# CORRECT - Silently reads from .env
-node script-that-uses-dotenv.js > temp-output.txt 2>&1
-type temp-output.txt
-```
-
-**Files with credentials (NEVER commit these):**
-- `.env` (all variants: .env.local, .env.qa, .env.staging, .env.production)
-- `aws/credentials`
-- `aws/config`
-- `dev-tools/.env`
-- `dev-journal/` (entire directory)
+**Full policy:** See [.github/instructions/ai-usage-guide.md](./instructions/ai-usage-guide.md)
 
 ---
 
-## 🚨 CRITICAL PRINCIPLE: NEVER ASSUME - ALWAYS VERIFY
+## Project Context
 
-**BEFORE making ANY statement about the project state, you MUST verify it first.**
+**Workspace:** Nx monorepo (v16.10.0, npm, TypeScript/Angular)
 
-### **What This Means:**
+**Structure:**
+- `apps/` - jouster-ui (Angular), backend (Node.js)
+- `libs/` - Shared code (always reuse, never duplicate)
+- `docs/` - Documentation
+- `infrastructure/` - Terraform/IaC
+- `.github/` - CI/CD, workflows
 
-❌ **NEVER SAY:**
-- "You don't have X configured"
-- "You need to set up Y"
-- "X is missing"
-- "You should create Z"
-- "Your token doesn't have permissions"
+**Key Rule:** Always use semantic search before coding to find existing patterns.
 
-✅ **ALWAYS DO FIRST:**
-```bash
-# Check if something exists
-git remote -v > temp-remote-check.txt 2>&1
-type temp-remote-check.txt
+---
 
-# Check if files exist
-dir /B .env* > temp-env-files.txt 2>&1
-type temp-env-files.txt
+## Coding Standards
 
-# Check git configuration
-git config --list > temp-git-config.txt 2>&1
-type temp-git-config.txt
+- **Style:** 2 spaces, 120 char lines, single quotes, always semicolons
+- **Naming:** camelCase (vars), PascalCase (classes), kebab-case (files)
+- **TypeScript:** Never use `any`, always type everything
+- **Tests:** Jest/Cypress, 80% coverage, `.spec.ts` files alongside code
+- **Docs:** JSDoc for public APIs, update README with changes
 
-# Check deployment scripts
-dir /B aws\scripts\deploy-*.bat > temp-deploy-scripts.txt 2>&1
-type temp-deploy-scripts.txt
+---
 
-# Check current state
-git status > temp-git-status.txt 2>&1
-type temp-git-status.txt
+## Git Workflow
+
+**Branches:**
+- `[initials]-[ticket]-[description]` (e.g., `jb-US1234-add-login`)
+- `[initials]-OP-[description]` (operational/non-ticket work)
+
+**Commits:** Conventional Commits format
+```
+feat(app-name): add feature
+fix(lib-name): resolve bug
+docs: update guide
 ```
 
-### **Verification Checklist - Run BEFORE Making Statements:**
+**PRs:** Against `develop`, must pass lint/test/build, 1+ review required
 
-Before saying anything about the project state, verify:
+---
 
-1. **Git Configuration**
-   ```bash
-   git remote -v > temp-git-remote.txt 2>&1
-   git branch -a > temp-git-branches.txt 2>&1
-   git config --list > temp-git-config.txt 2>&1
-   ```
+## Security Critical
 
-2. **GitHub Integration**
-   ```bash
-   # Check if repository exists on GitHub (via remote)
-   git ls-remote --heads origin > temp-github-check.txt 2>&1
-   ```
+- **Never commit:** secrets, API keys, credentials (.env only)
+- **Never reference:** dev-journal/ or dev-tools/ in public PRs/docs (may contain PII)
+- **Never expose:** API keys in logs or console output
+- **Always validate:** user input, sanitize output
 
-3. **Deployment Infrastructure**
-   ```bash
-   # List deployment scripts
-   dir /B aws\scripts\deploy-*.bat aws\scripts\deploy-*.sh > temp-deploy-list.txt 2>&1
-   
-   # Check package.json for deployment commands
-   type package.json | findstr "deploy" > temp-deploy-commands.txt 2>&1
-   ```
+---
 
-4. **Environment Files**
-   ```bash
-   dir /B .env* > temp-env-list.txt 2>&1
-   ```
+## Nx Usage
 
-5. **Build State**
-   ```bash
-   dir /B dist > temp-build-check.txt 2>&1
-   ```
+- **Generate code:** `nx generate @nx/angular:component` (use generators, not manual files)
+- **Commands:** `nx serve`, `nx build`, `nx test`, `nx affected --target=test`
+- **Cache:** `nx reset` to clear cache
+- **Details:** See [.github/instructions/nx.instructions.md](./instructions/nx.instructions.md)
 
-6. **Running Processes**
-   ```bash
-   netstat -ano | findstr ":4200 :3000 :8000" > temp-ports-check.txt 2>&1
-   ```
+---
 
-### **Examples of Proper Verification:**
+## Terminal & Shell Commands
 
-**Example 1: Before suggesting GitHub setup**
-```bash
-# DON'T assume GitHub isn't configured
-# DO check first:
-git remote -v > temp-remote.txt 2>&1
-type temp-remote.txt
+**CRITICAL:** Always detect the shell type before running commands. Check environment info for shell indicators.
 
-# Then say:
-# "I can see you have/don't have a GitHub remote configured"
+**Shell Detection:**
+- **cmd.exe** (Windows): Look for `C:\>` prompt or environment info showing cmd.exe
+- **PowerShell** (Windows): Look for `PS C:\>` prompt or pwsh/powershell in environment
+- **bash/zsh/sh** (Linux/macOS): Look for `$` or `#` prompt, or environment showing bash/zsh
+
+**Output Redirection (MANDATORY for all shells):**
+
+```cmd
+REM cmd.exe (Windows):
+git status > tmp\git-status.txt 2>&1 && type tmp\git-status.txt
+dir /s /b *.ts > tmp\files.txt && type tmp\files.txt
+
+REM PowerShell (Windows):
+git status | Out-File tmp\git-status.txt; Get-Content tmp\git-status.txt
+Get-ChildItem -Recurse *.ts | Out-File tmp\files.txt; Get-Content tmp\files.txt
+
+# bash/zsh/sh (Linux/macOS):
+git status > tmp/git-status.txt 2>&1 && cat tmp/git-status.txt
+find . -name "*.ts" > tmp/files.txt && cat tmp/files.txt
 ```
 
-**Example 2: Before suggesting deployment setup**
-```bash
-# DON'T assume deployment isn't ready
-# DO check first:
-dir /B aws\scripts\deploy-*.bat > temp-deploys.txt 2>&1
-type temp-deploys.txt
+**Why:** Terminal output can be invisible/empty without redirection, especially in cmd.exe. Always redirect to tmp/ files you can read.
 
-# Then say:
-# "I can see you have these deployment scripts: [list them]"
-```
-
-**Example 3: Before suggesting token permissions**
-```bash
-# DON'T assume token lacks permissions
-# DO check first:
-cd dev-tools
-node github/check-token-scopes.js > temp-scopes.txt 2>&1
-type temp-scopes.txt
-
-# Then say:
-# "Your token has these scopes: [list them]"
-```
-
-### **Golden Rule:**
-
-> **"If you haven't verified it with a command that outputs to a temp file and read that file, you don't know it."**
+**If output appears empty:** Always double-check by redirecting to a temp file and reading that file.
 
 ---
 
 ## Quick Reference Checklist
 
-- 🚨 **DETECT ENVIRONMENT FIRST** (OS, shell, path separators before ANY command)
-- 🚨 **NEVER ASSUME - ALWAYS VERIFY FIRST** (Check actual state before making statements)
-- 🚨 **ALWAYS redirect ALL command output to temporary files** (output may not be visible)
-- 🚨 **NEVER run commands without `> temp-file.txt 2>&1`**
-- 🚨 **ALWAYS read temp files with `type` (Windows) or `cat` (Unix) before drawing conclusions**
-- 🚨 **USE credentials from .env files silently** (never ask, never echo, never commit)
-- **NEVER commit .env files or secrets to git**
-- **ALWAYS use environment-specific .env files** (.env.local, .env.qa, .env.staging, .env.production)
-- **ALWAYS validate environment before running commands**
-- **ALWAYS clean up temp files after reading them**
+- **NEVER claim 100% certainty** - Always use tentative language and require human verification
+- **NEVER say "complete" or "verified"** - Always await explicit user confirmation
+- **Always include confidence levels** - State your certainty percentage and verification steps
+- **Use the scientific method for problem-solving:** Observe, research, hypothesize, experiment, analyze, solve, verify
+- **Never claim completion without user verification:** Always await user confirmation before marking work as complete
+- **Cite sources for all claims:** Reference GitHub (PRs/commits), documentation, or other verifiable sources for achievements and facts
+- Analyze the workspace/project structure before any change
+- Use semantic search to find code, docs, and patterns—never assume
+- Never duplicate logic; always reuse or reference code in `libs/`
+- Follow Nx conventions and use Nx tools/generators for project/config changes
+- Use clear, consistent naming and coding standards
+- Write and update tests and documentation with every change
+- Use Conventional Commits and proper branch naming
+- Never commit secrets or sensitive data (API keys in .env only)
+- Never reference dev-journal/ or dev-tools/ in public PRs or documentation (exception: these instructions only - may contain PII/credentials)
+- Always review Copilot/LLM suggestions for correctness, security, and style
+- **Always include verification recommendations in responses**
+- When debugging, document your investigation process and findings
+- When in doubt, search the workspace or ask for clarification
 
 ---
 
-## 1. Environment Management - CRITICAL
+## 1. How to Use This File
 
-### **Environment Hierarchy**
+- **LLMs (Copilot, ChatGPT, etc.):** Treat every rule as mandatory. **NEVER claim 100% certainty about anything.** Use tentative language ("appears to", "suggests", "likely", "should") in all responses. Always include confidence levels, verification steps, and explicitly request user confirmation. Use semantic search and Nx tools before generating or editing code. If unsure, search for examples or ask for clarification. **Never declare work "complete", "verified", "ready", or "guaranteed" without explicit user confirmation.** Always cite sources (GitHub PRs/commits, documentation) when referencing facts or decisions. **Express all conclusions with appropriate confidence levels (percentage or qualitative) and acknowledge limitations.**
+- **Humans:** Review and follow these rules for all code, config, and documentation changes. Use as a checklist for PRs and reviews. **ALWAYS verify AI-generated content before using or submitting it.** Never trust AI claims of 100% certainty - always test and validate yourself.
 
-This project follows a standard environment progression with proper secret management:
+---
+
+## 2. Workspace & Project Structure
+
+- **Monorepo:** Nx-managed, with top-level folders:
+  - `apps/`: Application entry points (APIs, frontends, etc.)
+  - `libs/`: Shared libraries (UI, utilities, services, domain models, etc.)
+  - `infrastructure/`: Terraform or other infrastructure-as-code modules
+  - `tools/`: Custom scripts and Nx plugins
+  - `docs/`: Documentation
+  - `bin/`: Executable scripts
+  - `tmp/`: Temporary files for command output (gitignored)
+  - `dev-journal/`: Personal notes, work tracking, internal documentation (gitignored, local only)
+  - `dev-tools/`: Development tools and utilities (gitignored, local only)
+- Each app/lib may have its own `src/` with `lib/`, `assets/`, `environments/`.
+- **Nx conventions:** Use `project.json` in app/lib roots, and centralized config in `nx.json`, `workspace.json`, `tsconfig.base.json`.
+- **Reuse:** Reference shared code from `libs/`—never duplicate logic in `apps/`.
+- **Infrastructure:** Follow `modules/`, `nonprod/`, `prod/` folder patterns.
+- **Naming:** Use consistent naming for files, folders, and symbols. Example: `user-profile.service.ts` (kebab-case).
+- **Local-only folders:** Always use relative paths for `tmp/`, `dev-journal/`, and `dev-tools/` - never absolute paths
+
+---
+
+## 3. Code Generation & Semantic Search
+
+- **Always** analyze the workspace and project structure before making suggestions or changes.
+- **Always** use semantic search to:
+  - Find code, comments, or docs before making assumptions.
+  - Discover conventions, types, and patterns to ensure consistency.
+- **Never** duplicate logic—reuse or reference existing code.
+- **If unsure:** Use semantic search to find examples in the codebase.
+- **For config/infrastructure:** Find and follow similar files/modules.
+- **If in doubt:** Ask for clarification or use semantic search to reduce ambiguity.
+
+---
+
+## 4. Coding Standards & Style
+
+- Indentation: 2 spaces, never tabs.
+- Max line length: 120 characters.
+- Strings: Use single quotes in TypeScript/JavaScript unless the string contains a single quote.
+- Trailing commas: Always in multi-line objects/arrays.
+- Semicolons: Always in TypeScript/JavaScript.
+- Naming:
+  - camelCase for variables/functions
+  - PascalCase for classes/interfaces
+  - kebab-case for file names
+
+**Example:**
+
+```ts
+// Good
+const userName = 'Alice';
+class UserProfile {}
+// File: user-profile.service.ts
+```
+
+---
+
+## 5. Testing Guidelines
+
+- Place test files alongside code, using `.spec.ts` or `.spec.js` suffix.
+- Use Jest for unit/integration, Cypress for e2e.
+- Mock external dependencies/services.
+- Name test cases clearly.
+- **Target:** ≥80% code coverage on new code.
+
+---
+
+## 6. Documentation Standards
+
+- Use JSDoc/TSDoc for functions, classes, interfaces.
+- Comment complex logic/business rules.
+- Each app/lib must have a `README.md` (purpose, usage, setup).
+- **Always** update docs with code changes.
+
+---
+
+## 7. Pull Request & Review Process
+
+- **Commit messages:** Use Conventional Commits, reference affected app/lib in parentheses.
+  - **Example:** `feat(unified-wp-common): add new login endpoint`
+- **Branch names:**
+  - **Feature/Bug branches:** `[initials]-[rallyticketnumber]-[short-description]`
+    - **Example:** `pd-US2234-update-roles`
+  - **Operational branches:** `[initials]-OP-[optional-description]`
+    - **Example:** `jb-OP-copilot-instructions` or `jb-OP`
+    - Use for non-Rally work: documentation updates, tooling, configurations
+  - **Official Strategy:** See [RS.com Branching Strategy](https://republicservices.atlassian.net/wiki/spaces/WMD/pages/886014943/RS.com+Branching+Strategy) on Confluence for complete guidelines
+- All code must pass lint, test, and build checks before merging.
+- At least one code review required for all PRs.
+- **Code reviews:** Must be performed by code owners as defined in `.github/CODEOWNERS`.
+
+### Rally Integration Best Practices
+
+**⚠️ CRITICAL RULE: Rally and Confluence updates require explicit user consent**
+
+- **NEVER** create, update, or modify Rally items without pausing for user approval
+- **NEVER** create, update, or modify Confluence pages without pausing for user approval
+- **ALWAYS** provide a brief summary of what will be updated/created/modified
+- **WAIT** for explicit user consent before proceeding with any Rally or Confluence operations
+
+**🔒 SECURITY: Rally and Confluence API Access**
+
+- **ALWAYS** use API keys from `.env` file for Rally and Confluence access
+- **NEVER** commit `.env` file or expose API keys in code
+- **NEVER** reference API keys, tokens, or credentials in public PRs, documentation, or commit messages
+- **NEVER** log or display API keys in console output
+- API keys are for local development and CI/CD only - keep them secure
+
+- **Reference Rally IDs** in commits for features and bug fixes: `feat(rs-shop): add authentication [US12345]`
+- **Rally Item Types:**
+  - `US####` - User Stories (new features, enhancements)
+  - `DE####` - Defects (bug fixes, issues)
+  - `TA####` - Tasks (technical work, maintenance, refactoring)
+- **PR Requirements:**
+  - Include Rally ID in PR title
+  - Link to Rally item in PR description
+  - Update Rally status when PR is merged
+- **Target Metrics:**
+  - Rally reference rate >80% for feat/fix commits
+  - Commit-to-Rally traceability >70%
+
+### Confluence Integration Best Practices
+
+**Atlassian Confluence** is the team's wiki and knowledge management platform for documentation.
+
+**Confluence Terminology:**
+
+- **Space** - A collection of related pages (e.g., "Engineering", "Digital Platform")
+- **Page** - A single wiki page with content (equivalent to a document)
+- **Parent/Child Pages** - Hierarchical page organization
+- **Labels** - Tags for categorizing and discovering pages
+- **Page Tree** - The hierarchical navigation structure
+- **Macros** - Dynamic content modules (e.g., code blocks, diagrams, tables of contents)
+- **Attachments** - Files linked to pages
+- **Comments** - Discussion threads on pages
+- **Restrictions** - Page-level access controls
+
+**When to Create Confluence Pages:**
+
+- New features requiring setup or configuration
+- Breaking changes or major refactors
+- Cross-team integrations or dependencies
+- Production incidents and their resolutions (Post-Mortems)
+- Team processes and standards
+- Architectural Decision Records (ADRs)
+- API documentation and integration guides
+
+**Page Organization:**
+
+- **Use Page Hierarchy:** Create parent pages for major topics, child pages for details
+- **Consistent Naming:** Use clear, descriptive titles (e.g., "RS Shop - Direct Bill Configuration")
+- **Space Structure:** Organize pages within appropriate spaces
+- **Breadcrumbs:** Leverage parent-child relationships for navigation
+
+**Documentation Types:**
+
+- **Technical Design Documents (TDDs):** Architecture decisions, API designs, data models
+- **How-To Guides:** Setup instructions, configuration guides, deployment procedures
+- **Troubleshooting Guides:** Common issues, debugging steps, error resolutions
+- **Runbooks:** Operational procedures, incident response, maintenance tasks
+- **Post-Mortems:** Production incident analysis and lessons learned
+- **ADRs (Architectural Decision Records):** Document architectural choices and rationale
+
+**Confluence Best Practices:**
+
+- **Use Page Templates:** Leverage Confluence templates for consistency (TDD, API Doc, Runbook, ADR)
+- **Add Table of Contents:** Use the TOC macro for long pages
+- **Include Diagrams:** Use draw.io integration or attach architecture diagrams
+- **Code Snippets:** Use code block macros with syntax highlighting
+- **Keep Current:** Add "Last Updated" dates, archive outdated pages
+- **Cross-Link:** Link to related pages, PRs, Rally items, and GitHub repositories
+- **Use Labels Consistently:** Apply standard labels for discoverability (e.g., #api, #architecture, #troubleshooting)
+- **Page Restrictions:** Use sparingly - prefer open access for team collaboration
+- **Watch Pages:** Set up notifications for pages you own or contribute to
+
+**Rally-Confluence Integration:**
+
+- **Bi-directional Links:** Add Confluence page URLs in Rally items, reference Rally IDs (US####, DE####) in pages
+- **Traceability Chain:** Rally Item → PR → Code → Confluence Documentation
+- **When to Link:**
+  - Link Technical Design Documents to related User Stories
+  - Link Troubleshooting Guides to related Defects
+  - Link Post-Mortems to incident Tasks
+  - Link API documentation to feature Stories
+
+**Page Maintenance:**
+
+- **Review Quarterly:** Check for outdated information
+- **Archive Old Content:** Move obsolete pages to an "Archive" space
+- **Update Ownership:** Ensure pages have current owners/contacts
+- **Version History:** Use Confluence's built-in version control, don't duplicate pages for versions
+
+---
+
+## 8. Dependency Management
+
+- Add dependencies with `npm install --save` or `--save-dev`.
+- Remove unused dependencies promptly.
+- Prefer internal `libs/` over external packages.
+- Regularly update dependencies for security.
+
+---
+
+## 9. Error Handling & Logging
+
+- Use shared logger utility; **never** use `console.log` in production.
+- Handle errors gracefully; provide meaningful messages.
+- **Never** expose sensitive info in logs/errors.
+
+---
+
+## 10. Security & Compliance
+
+- **Never** commit secrets or sensitive data.
+- Use environment variables for config/secrets.
+- **Atlassian API keys:** Use from .env for Rally/Confluence access, never commit or expose publicly
+- Validate all user input; sanitize outputs.
+- Run dependency vulnerability scans regularly.
+- **Never** reference `dev-journal/` or `dev-tools/` in public PRs, documentation, or external communications.
+  - `dev-journal/` and `dev-tools/` are private workspace folders (in `.gitignore`)
+  - Used for personal notes, work tracking, internal documentation, and development utilities only
+  - **EXCEPTION:** These instructions (`.github/copilot-instructions.md`) are the ONLY place where dev-journal/dev-tools may be referenced
+    - _Yes, we see the irony of documenting "never reference dev-journal" while referencing it here_ 😄
+    - Instructions are internal documentation for the team
+    - Instructions are in source control, not in public-facing docs or PRs
+  - **SECURITY CRITICAL:** Do NOT include dev-journal or dev-tools content in:
+    - PR titles or descriptions
+    - Commit messages
+    - Public documentation (README, wiki, external docs)
+    - Code comments
+    - Log files or error messages
+  - **Why this matters:** Dev folders may contain:
+    - Personal information (PII)
+    - API keys or credentials during testing
+    - Customer names or sensitive business data
+    - Unreviewed thoughts or incomplete analysis
+    - Proprietary tooling or scripts
+  - Always use relative paths (e.g., `dev-journal/notes.md` or `dev-tools/scripts/analyze.js`, not `C:\dev\digital-platform\dev-journal\notes.md`)
+- **Never** expose API keys, tokens, or credentials in logs, console output, or error messages
+
+---
+
+## 11. Performance & Optimization
+
+- Avoid unnecessary computations/re-renders in UI.
+- Use memoization/caching where appropriate.
+- Lazy load modules/assets when possible.
+
+---
+
+## 12. CI/CD & Automation
+
+- All code must pass CI checks before merging.
+- CI/CD config files are in `.github/` or `tools/`.
+- Use status checks to enforce code quality/test coverage.
+
+---
+
+## 13. Platform-Specific Conventions
+
+- **Frontend:** Follow accessibility (ARIA, keyboard nav) and i18n best practices.
+- **Backend:** Structure/document API endpoints consistently.
+- **Infrastructure:** Use module/environment folder patterns as above.
+
+---
+
+## 14. Internationalization & Accessibility
+
+- Use i18n libraries for all user-facing text.
+- Ensure all UI components are accessible.
+
+---
+
+## 15. Common Pitfalls & Anti-Patterns
+
+- **Never** use `any` in TypeScript unless absolutely necessary.
+- **Never** manipulate the DOM directly; use framework abstractions.
+- **Never** duplicate logic; always check for reusable code in `libs/`.
+
+---
+
+## 16. Copilot & LLM Usage
+
+- Use Copilot/LLM suggestions as a starting point—**always** review and edit code.
+- Prompt Copilot/LLMs with clear, specific instructions.
+- Use semantic search to find examples/patterns before generating code.
+- Review Copilot/LLM-generated code for correctness, security, and style before committing.
+- **NEVER claim 100% confidence** - Always recommend verification of:
+  - Code functionality (test it)
+  - Data accuracy (check sources)
+  - Metrics and statistics (verify calculations)
+  - Documentation claims (cite sources)
+  - Architecture recommendations (validate assumptions)
+- **Include verification steps** in all responses involving:
+  - Performance data or metrics
+  - Code analysis or refactoring suggestions
+  - Documentation or technical writing
+  - Bug fixes or troubleshooting
+- **Cite sources** when providing factual information (Rally tickets, GitHub commits, documentation)
+- **Mark confidence levels** (High/Medium/Low) when uncertain
+- **Encourage human validation** - AI can hallucinate, misinterpret context, or make logical errors
+
+---
+
+## 17. Nx-Specific Guidance
+
+- **Always** use Nx tools and generators for project/config changes.
+- Refer to `.github/instructions/nx.instructions.md` for Nx-specific rules and flows.
+- Use the Nx MCP server and tools as available.
+- If your workspace is configured with MCP servers, see `.vscode/mcp.json` for server details and endpoints. Use these for advanced Nx automation, code generation, and workspace analysis.
+
+---
+
+## 18. If Unsure
+
+- **If you are unsure about a pattern, convention, or implementation:**
+  - Use semantic search to find examples in the codebase.
+  - Review Nx documentation and `.github/instructions/nx.instructions.md`.
+  - Ask for clarification if ambiguity remains.
+
+---
+
+## 19. Terminal Commands & Shell Detection
+
+**CRITICAL RULE:** Always detect the user's shell before executing terminal commands. Apply shell-specific syntax based on detection.
+
+### Shell Detection Strategy
+
+1. **Check environment info** provided at the start of the session
+2. **Look for shell indicators** in command outputs (e.g., `C:\>` for cmd.exe, `PS C:\>` for PowerShell, `$` for bash)
+3. **Use appropriate syntax** for the detected shell
+4. **Default to cmd.exe** on Windows unless PowerShell is explicitly indicated
+5. **Default to bash** if shell cannot be determined on Unix-like systems
+
+### Command Execution Strategy (All Shells)
+
+1. **ALWAYS redirect large or complex output to temporary files** for reading
+2. **Use proper path syntax** for the shell (backslashes for Windows, forward slashes for Unix)
+3. **Verify commands work** in the user's actual shell environment
+
+### cmd.exe-Specific Patterns (Windows Command Prompt)
+
+**✅ Use these patterns for cmd.exe:**
+
+```cmd
+REM For directory listings with potential large output:
+dir /s /b "C:\path\with spaces" > tmp\dir-output.txt
+
+REM For git commands with large output:
+git log --oneline --author="name" > tmp\git-output.txt
+
+REM For npm/node commands:
+npm list > tmp\npm-list.txt
+
+REM For finding files:
+dir /s /b *.ts > tmp\ts-files.txt
+
+REM Then read the temporary file with read_file tool
+```
+
+**❌ NEVER do this in cmd.exe:**
 
 ```
-Local Development → QA/Preview → Staging → Production
-     (.env)      (.env.qa)   (.env.staging) (.env.production)
+Get-ChildItem -Path "path"    # PowerShell syntax - FAILS in cmd.exe
+ls -la /path                  # bash syntax - FAILS in cmd.exe
 ```
 
-### **Environment Files Structure**
+### PowerShell-Specific Patterns (When PowerShell Detected)
 
-```
-project-root/
-├── .env                    # Local development ONLY (git-ignored)
-├── .env.example            # Template (COMMITTED - no secrets)
-├── .env.local              # Alternative local (git-ignored)
-├── .env.qa                 # QA/Preview environment (git-ignored)
-├── .env.staging            # Staging environment (git-ignored)
-├── .env.production         # Production environment (git-ignored)
-└── .gitignore              # Ensures all .env* files are ignored
-```
+**✅ Use these patterns for PowerShell:**
 
-### **What Goes in Each Environment**
-
-#### `.env` (Local Development)
-- Local database connections (localhost:8000)
-- Development AWS credentials (jouster-dev IAM user)
-- Test API keys (Last.fm, Instagram sandbox)
-- Debug settings (verbose logging enabled)
-- **PURPOSE:** Developer workspace testing
-
-#### `.env.qa` (QA/Preview)
-- QA database endpoints
-- Preview AWS resources (jouster-qa-* buckets)
-- Test API keys with limited quota
-- Integration test settings
-- **PURPOSE:** Automated testing, PR previews
-
-#### `.env.staging` (Staging)
-- Staging database endpoints
-- Staging AWS resources (jouster-staging-*)
-- Production-like API keys (rate-limited)
-- Production-like settings (minimal logging)
-- **PURPOSE:** Pre-production validation, client demos
-
-#### `.env.production` (Production)
-- Production database endpoints
-- Production AWS resources (jouster-prod-*)
-- Production API keys (full access)
-- Optimized settings (error-only logging)
-- **PURPOSE:** Live customer-facing application
-
-### **Environment Variable Loading**
-
-**Priority Order (highest to lowest):**
-1. System environment variables
-2. `.env.production` (if NODE_ENV=production)
-3. `.env.staging` (if NODE_ENV=staging)
-4. `.env.qa` (if NODE_ENV=qa)
-5. `.env.local` (local overrides)
-6. `.env` (default local)
-
-### **Critical Security Rules**
-
-✅ **DO:**
-- Keep `.env.example` updated with all required variables (NO VALUES)
-- Use separate AWS IAM users per environment
-- Rotate credentials regularly (90 days max)
-- Use AWS Secrets Manager for production secrets
-- Document every environment variable in `.env.example`
-- Validate required env vars at application startup
-- Store credentials in git-ignored files (`.env`, `dev-journal/`, `dev-tools/.env`)
-
-❌ **DON'T:**
-- **NEVER commit any `.env*` file except `.env.example`**
-- Don't use production credentials in dev/staging
-- Don't share `.env` files via Slack/email or public channels
-- Don't hardcode secrets in source code
-- Don't mix environment credentials
-- Don't push dev-journal or dev-tools to git (they're already git-ignored)
-
-### **Why Git-Ignored Files Are Safe**
-
-Files in these locations are **never pushed to GitHub** and stay local:
-- `.env`, `.env.qa`, `.env.staging`, `.env.production` - Git-ignored
-- `dev-journal/` - Git-ignored (entire directory)
-- `dev-tools/` - Git-ignored (entire directory)
-
-**This means:**
-- ✅ Credentials in these files stay on your local machine
-- ✅ Safe to reference in Copilot conversations for local development
-- ✅ Can be backed up separately (encrypted external drives, private cloud)
-- ✅ Each developer has their own copies with their own credentials
-
-### **Copilot Access to Git-Ignored Files**
-
-**IMPORTANT:** Copilot CAN and SHOULD access git-ignored files for development assistance:
-
-✅ **Copilot can read and reference:**
-- `.env` files (all environments) - To help configure, validate, and troubleshoot
-- `dev-journal/` - To understand context, history, and past decisions
-- `dev-tools/.env` - To help with API integrations and automation
-- Any git-ignored local files needed for development
-
-✅ **Why this is safe:**
-- Git-ignored files never leave your local machine
-- Not committed to version control
-- Not shared publicly
-- Each developer has their own separate copies
-- Conversation context stays local to your IDE
-
-✅ **How Copilot uses this access:**
-- Read `.env` to validate required variables exist
-- Help configure environment-specific settings
-- Troubleshoot credential issues (wrong format, missing scopes, etc.)
-- Reference dev-journal for context continuity
-- Test and debug dev-tools scripts
-
-❌ **What Copilot will NOT do:**
-- Suggest committing .env files to git
-- Share credentials outside your local environment
-- Recommend storing secrets in code
-- Expose credentials in generated code that gets committed
-
-### **Environment Switching**
-
-**Windows (PowerShell):**
 ```powershell
-# Set environment
-$env:NODE_ENV = "qa"
-npm start
+# For directory listings with potential large output:
+Get-ChildItem -Path "C:\path\with spaces" -Recurse | Out-File -FilePath "tmp\dir-output.txt"
 
-# Or load specific file
-$env:DOTENV_CONFIG_PATH = ".env.qa"
-npm start
+# For searching/filtering:
+Get-ChildItem -Path "C:\path" -Filter "*.ts" | Out-File -FilePath "tmp\search-output.txt"
+
+# For git commands with large output:
+git log --oneline --author="name" | Out-File -FilePath "tmp\git-output.txt"
 ```
 
-**Unix/Linux/Mac (bash):**
+### Bash-Specific Patterns (Unix/Linux/Mac)
+
+**✅ Use standard Unix patterns:**
+
 ```bash
-# Set environment
-NODE_ENV=qa npm start
+# For directory listings with potential large output:
+ls -la /path/to/directory > tmp/dir-output.txt
 
-# Or load specific file
-DOTENV_CONFIG_PATH=.env.qa npm start
+# For searching/filtering:
+find /path -name "*.ts" > tmp/search-output.txt
+
+# For git commands with large output:
+git log --oneline --author="name" > tmp/git-output.txt
 ```
 
-### **Validating Environment Setup**
+### Temporary File Management
 
-Always verify environment configuration before deployment:
+**Windows (cmd.exe or PowerShell):**
 
-```javascript
-// config/env-validator.js
-const requiredVars = [
-  'AWS_ACCESS_KEY_ID',
-  'AWS_SECRET_ACCESS_KEY',
-  'AWS_REGION',
-  'NODE_ENV',
-  'PORT',
-];
+- **Location:** Always use `tmp\` (relative path with backslash from project root)
+- **Naming:** Use descriptive names: `dir-output.txt`, `git-log-output.txt`, `search-results.txt`
+- **Cleanup:** Temporary output files are gitignored and can be overwritten
 
-requiredVars.forEach(varName => {
-  if (!process.env[varName]) {
-    console.error(`❌ Missing required environment variable: ${varName}`);
-    process.exit(1);
-  }
-});
-```
+**Unix/Linux/Mac (bash/zsh/sh):**
 
-### **CRITICAL: AWS Credentials by Environment**
+- **Location:** Use `tmp/` (relative path with forward slash) or `/tmp/`
+- **Naming:** Use descriptive names: `dir-output.txt`, `git-log-output.txt`, `search-results.txt`
+- **Cleanup:** Files in `/tmp/` are typically cleaned automatically; project temp files should be gitignored
 
-| Environment | IAM User | Access Level | Use Case |
-|-------------|----------|--------------|----------|
-| **Local** | `jouster-dev` | Limited (dev resources only) | Development testing |
-| **QA** | `jouster-qa` | Limited (qa resources only) | CI/CD, PR previews |
-| **Staging** | `jouster-staging` | Full (staging resources) | Pre-prod validation |
-| **Production** | `jouster-prod` | Full (prod resources) | Live application |
-| **Admin** | `jouster-admin` | Admin (IAM management) | Infrastructure setup ONLY |
+### Common Commands by Shell
 
-**⚠️ NEVER use admin credentials in application code!**
+**cmd.exe (Windows Command Prompt):**
+
+| Task           | cmd.exe Command                           |
+| -------------- | ----------------------------------------- |
+| List directory | `dir "path"`                              |
+| Recursive list | `dir /s /b "path"`                        |
+| Filter files   | `dir /s /b "path\*.ts"`                   |
+| Output to file | `command > path\file.txt`                 |
+| Search content | `findstr /s /i "pattern" "path\*.ts"`     |
+
+**PowerShell:**
+
+| Task           | PowerShell Command                              |
+| -------------- | ----------------------------------------------- |
+| List directory | `Get-ChildItem -Path "path"` or `ls`            |
+| Recursive list | `Get-ChildItem -Path "path" -Recurse`           |
+| Filter files   | `Get-ChildItem -Path "path" -Filter "*.ts"`     |
+| Output to file | `command | Out-File -FilePath "path"`           |
+| Search content | `Select-String -Path "path" -Pattern "pattern"` |
+
+**Bash/Unix:**
+
+| Task           | Bash Command             |
+| -------------- | ------------------------ |
+| List directory | `ls -la path`            |
+| Recursive list | `find path -type f`      |
+| Filter files   | `find path -name "*.ts"` |
+| Output to file | `command > path`         |
+| Search content | `grep -r "pattern" path` |
+
+### Why This Matters
+
+- **Prevents command failures** due to shell-specific syntax issues
+- **Handles large outputs** that exceed terminal buffer limits
+- **Enables reliable data analysis** by reading structured file content
+- **Avoids cross-shell syntax confusion** (cmd.exe vs PowerShell vs bash)
+- **Works consistently** across different development environments
 
 ---
 
-### ⚠️ CRITICAL RULE - NO EXCEPTIONS
+## 20. Example Prompts & Responses
 
-> **⚠️ KNOWN BUG:** This is a known issue with Copilot in JetBrains IntelliJ IDEs. Command output from the `run_in_terminal` tool may not be visible in the terminal window, requiring all commands to redirect output to temporary files for reading.
+**Prompt:**
 
-**EVERY command MUST redirect output to a temporary file:**
-```
-command > temp-output.txt 2>&1
-```
+> Add a new shared date utility to the monorepo.
 
-**Why:** Command output may not be visible in the terminal due to a Copilot integration bug with JetBrains IDEs. Without redirection, you cannot see results.
+**Ideal LLM Response:**
 
-**Required pattern:**
-1. Run command with redirection: `command > temp-file.txt 2>&1`
-2. Read the temp file: `type temp-file.txt` (Windows) or `cat temp-file.txt` (Unix)
-3. Clean up: `del temp-file.txt` (Windows) or `rm temp-file.txt` (Unix)
-
-**This applies to ALL commands including:**
-- git commands (status, log, diff, remote)
-- npm/node commands (install, list, run)
-- nx commands (run, affected, list)
-- File operations (dir, ls, find)
-- Network commands (curl, ping)
-- ANY command that produces output
-
-## 2. Command Execution & Environment Detection
-
-### **CRITICAL: Always Check Environment First**
-
-Before executing ANY terminal command, you MUST:
-
-1. **Detect the Operating System:**
-   - Check `environment_info` for OS and default shell (Windows uses cmd.exe/PowerShell, Unix uses bash)
-
-2. **ALWAYS redirect output to temporary text files:**
-   - Command output may not be visible due to JetBrains IntelliJ Copilot bug (see above)
-   - Always use: `command > temp-output.txt 2>&1`
-   - Read the temp file after execution
-   - Clean up temp files after reading
-
-### **Command Execution Patterns**
-
-#### Windows (cmd.exe):
-```cmd
-REM Redirect output to temp file
-command > temp-output.txt 2>&1
-
-REM Read the file
-type temp-output.txt
-
-REM Clean up
-del temp-output.txt
-```
-
-### **Examples: Correct vs Incorrect**
-
-❌ **WRONG - No redirection:**
-```cmd
-git status
-npm list
-node script.js
-```
-
-✅ **CORRECT - Always redirect:**
-```cmd
-git status > git-status.txt 2>&1
-type git-status.txt
-del git-status.txt
-
-npm list --depth=0 > npm-packages.txt 2>&1
-type npm-packages.txt
-del npm-packages.txt
-
-node script.js > script-output.txt 2>&1
-type script-output.txt
-del script-output.txt
-```
-
-### **Temporary File Naming Convention**
-
-Use descriptive names that indicate what the output contains:
-- `git-status.txt` - Git repository status
-- `npm-packages.txt` - Installed packages list
-- `env-validation.txt` - Environment validation results
-- `test-results.txt` - Test execution output
-- `build-output.txt` - Build process output
-
-**Note:** These temp files are meant to be read once and deleted. Don't commit them to git.
-
-#### Windows (PowerShell):
-```powershell
-# Redirect output to temp file
-command > temp-output.txt 2>&1
-
-# Read the file
-Get-Content temp-output.txt
-
-# Clean up
-Remove-Item temp-output.txt
-```
-
-#### Unix/Linux/Mac (bash):
-```bash
-# Redirect output to temp file
-command > temp-output.txt 2>&1
-
-# Read the file
-cat temp-output.txt
-
-# Clean up
-rm temp-output.txt
-```
-
-### **Example Workflow**
-
-```powershell
-# 1. Run command with output redirect (Windows/PowerShell)
-npm list --depth=0 > npm-packages.txt 2>&1
-
-# 2. Read the output file
-Get-Content npm-packages.txt
-
-# 3. Use the information from the file
-# ... process the data ...
-
-# 4. Clean up
-Remove-Item npm-packages.txt
-```
-
-### **Temporary File Naming Convention**
-
-- Use descriptive names: `git-status.txt`, `npm-install-output.txt`, `test-results.txt`
-- Include timestamps if running same command multiple times: `build-output-20251022.txt`
-- Store in project root or designated temp directory
-- **ALWAYS clean up after reading** unless the file contains important debug info
-
-### **Commands That Must Use Output Redirection**
-
-- `git status`, `git log`, `git diff`
-- `npm install`, `npm list`, `npm audit`
-- `nx run`, `nx affected`, `nx graph`
-- `dir`, `ls`, `find`, `grep`
-- Any command that produces more than a few lines of output
+- Use semantic search to check for existing date utilities in `libs/`.
+- If none exist, generate a new library in `libs/` using Nx generators.
+- Place the utility in the new/existing shared lib, following naming and code style conventions.
+- Add tests alongside the utility with `.spec.ts` suffix.
+- Update or create `README.md` for the lib.
 
 ---
 
-## 5. Code Generation & Semantic Search
+**Summary:**
 
-### **CRITICAL: Always Use the Correct Node Version**
-
-This project uses **Node v20.12.1** as specified in `.nvmrc`. Before running any npm/node/nx commands, ensure you're using the correct version.
-
-### **Version Managers by Platform**
-
-- **Windows:** [nvm-windows](https://github.com/coreybutler/nvm-windows) - Recommended
-- **Unix/Linux/Mac:** [nvm](https://github.com/nvm-sh/nvm) - Standard tool
-
-### **Version Switching Workflow**
-
-**Before ANY npm/node/nx command:**
-
-1. **Check current Node version:**
-   ```powershell
-   node --version > node-version.txt 2>&1
-   Get-Content node-version.txt
-   ```
-
-2. **If version mismatch detected, switch:**
-   ```powershell
-   # Windows (nvm-windows)
-## 3. Node Version Management
-   
-   # Unix/Linux/Mac (nvm)
-   nvm use
-   ```
-
-3. **Verify the switch:**
-   ```powershell
-   node --version
-   ```
-
-### **Automatic Version Switching Options**
-
-#### Option 1: Manual Check (Current Setup)
-- Run `nvm use 20.12.1` before starting work
-- Verify with `node --version`
-
-#### Option 2: Shell Hook (Unix/Linux/Mac)
-Add to `.bashrc` or `.zshrc`:
-```bash
-autoload -U add-zsh-hook
-load-nvmrc() {
-  local node_version="$(nvm version)"
-  local nvmrc_path="$(nvm_find_nvmrc)"
-  if [ -n "$nvmrc_path" ]; then
-    local nvmrc_node_version=$(nvm version "$(cat "${nvmrc_path}")")
-    if [ "$nvmrc_node_version" = "N/A" ]; then
-      nvm install
-    elif [ "$nvmrc_node_version" != "$node_version" ]; then
-      nvm use
-    fi
-  fi
-}
-add-zsh-hook chpwd load-nvmrc
-load-nvmrc
-```
-
-#### Option 3: IDE Integration
-- **VS Code:** Install "Volta" or "nvm" extension for auto-switching
-- **JetBrains IDEs:** Configure Node interpreter to use nvm-managed versions
-- **WebStorm:** Settings → Languages & Frameworks → Node.js → use nvm path
-
-#### Option 4: Volta (Alternative to nvm)
-- Cross-platform Node version manager
-- Automatic version switching per project
-- Install: `https://volta.sh`
-- Usage: `volta pin node@20.12.1` (creates entry in package.json)
-
-### **Best Practice Recommendation**
-
-For this Windows environment:
-1. ✅ **Use nvm-windows** (already installed - version 1.2.2)
-2. ✅ **Run `nvm use 20.12.1`** at project start
-3. ✅ **Add to npm scripts** for consistency:
-   ```json
-   "prestart": "nvm use 20.12.1",
-   "prebuild": "nvm use 20.12.1"
-   ```
-
-### **Current Status**
-- **Installed:** nvm-windows 1.2.2 ✅
-- **Active Version:** v24.9.0 ⚠️ (Should be v20.12.1)
-- **Required Version:** v20.12.1 (from `.nvmrc`)
-- **Action Needed:** Run `nvm use 20.12.1`
-
----
-
-## 4. Developer Journal - Personal Context & History
-
-### **Overview**
-
-Each developer maintains a personal development journal in `dev-journal/` (root level) that is **git-ignored** and serves as:
-- **Session history** - Work logs, decisions, and progress tracking
-- **Context memory** - Helps Copilot understand past decisions and patterns
-- **Career tracking** - Achievements, skills growth, and goals
-- **Learning repository** - TIL entries and discovered patterns
-
-### **How Copilot Uses the Journal**
-
-**At Session Start:**
-- Check for recent session files in `dev-journal/sessions/` to understand context
-- Ask user: "Should I reference your recent journal entries for context?"
-- Review last session's "Next Steps" to continue work seamlessly
-
-**During Work:**
-- When making significant decisions, offer to document in journal
-- After solving complex problems, suggest adding to learnings
-- Log important file changes and their rationale
-- Track blockers and resolution approaches
-
-**Session End:**
-- Offer to summarize accomplishments in journal
-- Update "Next Steps" for next session
-- Log any unresolved blockers
-
-### **Journal Structure**
-
-```
-dev-journal/                     # Root-level personal journal
-├── README.md                    # Journal system documentation
-├── session-template.md          # Template for new session entries
-├── quick-start-guide.md         # Getting started instructions
-├── decision-template.md         # Architecture Decision Record template
-├── sessions/                    # Daily work logs (YYYY-MM-DD-topic.md)
-├── decisions/                   # Architecture Decision Records (ADRs)
-├── learnings/                   # TIL (Today I Learned) entries
-├── career/                      # Achievements, skills, goals
-- ✅ **Copilot can access journal entries** - To provide context and continuity
-- ✅ **Safe to store:** Code patterns, decisions, learnings, file references, credential notes
-```
-
-**Copilot Access to Dev-Journal:**
-- ✅ Can read session entries to understand recent work
-- ✅ Can reference past decisions and solutions
-- ✅ Can continue work based on "Next Steps" from previous sessions
-- ✅ Can help document new decisions and learnings
-- ✅ Safe because dev-journal/ is git-ignored and stays local
-### **Useful Commands to Offer**
-
-- "Update today's dev journal with what we accomplished"
-- "Check my journal for similar issues we've solved"
-- "Add this decision to the journal: [decision details]"
-- "Summarize this week's progress from my journal"
-- "Have we encountered this error before? Check journal"
-- "Log this learning: [pattern/discovery]"
-
-### **Helper Script Available**
-
-Users can use `journal.bat` (Windows) for quick journal management:
-```cmd
-journal new [topic]          # Create new session
-journal decision [topic]     # Create decision record
-journal learning [topic]     # Create TIL entry
-journal list                 # List recent sessions
-journal last                 # Open most recent session
-journal today                # Open today's session
-journal search [term]        # Search all entries
-journal backup               # Backup journal
-```
-
-### **Privacy & Security - CRITICAL**
-
-- ✅ **NEVER suggest committing journal content** - It's git-ignored for a reason
-- ✅ **Copilot can access dev-tools/.env** - To help configure and troubleshoot (git-ignored)
-- ✅ **Treat journal content as confidential** - May contain personal reflections
-- ❌ **Don't suggest:** Moving journal files outside dev-journal/
-- ✅ **Safe to store:** Code patterns, decisions, learnings, file references, credential notes
-- ✅ Can read `dev-tools/.env` to help with GitHub API setup
-
-- Journal uses **Markdown format** for IntelliJ compatibility
-- Can be added to **Favorites** panel (Alt+2) for quick access
-- Use **Ctrl+Shift+F** to search across journal entries
-- Create **Live Templates** for common journal patterns
-- Set up **File Watchers** for auto-formatting
-
----
-
-## 5. Developer Tools - Personal Utilities & API Integrations
-
-### **Overview**
-
-Each developer can maintain personal development tools in `dev-tools/` (root level) that is **git-ignored** and contains:
-- **GitHub integrations** - Create gists, manage repos, automate workflows
-- **API clients** - Custom API integrations and testing utilities
-- **Automation scripts** - Personal productivity and workflow tools
-- **Utilities** - Helper functions and CLI tools
-
-### **Security - CRITICAL**
-
-- ✅ **NEVER commit dev-tools/** - Contains API keys and personal tokens
-- ✅ **Use .env for all secrets** - Following dotenv best practices
-- ✅ **Validate keys exist** - Scripts check for required environment variables
-- ❌ **Don't share .env files** - Each developer has their own keys
-### **Structure**
-- ❌ **Don't suggest:** Moving journal files outside dev-journal/
-
-### **IntelliJ/JetBrains Best Practices**
-
-```
-dev-tools/                       # Root-level personal tools (git-ignored)
-**Copilot Access:**
-- ✅ Can read `dev-tools/.env` to help with GitHub API setup
-- ✅ Can validate token scopes and permissions
-- ✅ Can troubleshoot credential-related errors
-- ✅ Can test API connections and authentication
-- ✅ Safe because dev-tools/ is git-ignored and stays local
-
-├── .env                         # API keys (NEVER COMMIT)
-├── .env.example                 # Template for required keys
-├── package.json                 # Tool dependencies
-├── github/                      # GitHub API integrations
-│   ├── create-gist.js          # Create gists from files/content
-│   ├── list-repos.js           # List repositories
-│   └── github-utils.js         # Shared GitHub utilities
-├── api-clients/                 # Custom API clients
-├── scripts/                     # Automation scripts
-└── utils/                       # Shared utilities
-    ├── config.js               # Environment variable loader
-    └── logger.js               # Colored console output
-```
-
-- ✅ **Copilot can access dev-tools/.env** - To help configure and troubleshoot (git-ignored)
-### **Quick Start**
-
-```cmd
-
-# Use tools
-npm run gist -- --file mycode.js
-npm run repos -- --sort stars
-node github/create-gist.js --help
-```
-
-### **Structure**
-
-```
-dev-tools/                       # Root-level personal tools (git-ignored)
-### **Available Tools**
-
-**GitHub Tools:**
-- `create-gist.js` - Create gists from files or content
-- `list-repos.js` - List and filter repositories
-
-**Utilities:**
-- `config.js` - Safe environment variable loading with validation
-- `logger.js` - Colored console output for better readability
-
-### **When to Suggest Using dev-tools**
-
-- User wants to create a GitHub gist from code
-- User needs to automate GitHub operations
-- User wants to test external APIs
-- User needs custom productivity scripts
-- User mentions API integrations or automation
-
-### **Example Prompts**
-
-- "Create a gist from this code snippet"
-- "List my GitHub repositories sorted by stars"
-- "Add a new API client for [service]"
-- "Create a script to automate [task]"
-
----
-
-## 6. Workspace & Project Structure
+- Follow these rules for all code, config, and documentation changes.
+- Prioritize reuse, clarity, and security.
+- When in doubt, search the workspace or ask for clarification.
+- These instructions are for both Copilot/LLMs and human contributors.

@@ -1,0 +1,231 @@
+name: Deploy RS Frontend RC
+
+on:
+  push:
+    branches:
+      - release-rs-*
+
+env:
+  ENVIRONMENT: uat
+  NODE_VERSION: '20.19.0'
+  NODE_OPTIONS: '--max_old_space_size=7168'
+
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      projects: ${{ steps.projects.outputs.projects }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Get Apps
+        id: projects
+        run: |
+          PROJECTS=($(bin/get-apps.js -l dotcom geolocation circularity bulk-waste));
+          PROJECTS_JSON=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${PROJECTS[@]}" | jq -c -M '{"project": . }');
+          echo "projects=${PROJECTS_JSON}" >> $GITHUB_OUTPUT
+          echo ""
+          echo "Projects to deploy:"
+          echo ${PROJECTS[@]}
+
+  deploy-release-candidate:
+    needs: setup
+
+    permissions:
+      id-token: write
+      contents: read
+
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.setup.outputs.projects) }}
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref }}
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🌳 Format branch name
+        id: git-branch
+        run: |
+          BRANCH_NAME=$( \
+            ./bin/format-branch-name.sh \
+            --branch-name="${{ github.ref }}" \
+            --field-separator=/
+          )
+          echo "name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+
+      - name: 🔑 Configure AWS credentials (RScom)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: startsWith(matrix.project, 'rs-')
+        with:
+          role-to-assume: ${{ vars.RSCOM_OIDC_SSO_DEV_ROLE }}
+          role-session-name: 'github_actions-rscom_sso-dev'
+          aws-region: us-west-2
+
+      - name: 🌳 Get Aura RC Base URLs
+        id: aura-base
+        run: |
+          AURA_UI_BASE=$( \
+            aws --region=us-west-2 \
+              servicediscovery \
+              get-instance \
+              --service-id srv-hrrar5n3oliqb4u7 \
+              --instance-id rc \
+              --query Instance.Attributes.BASE_URL \
+              --output text \
+          )
+          AURA_API_BASE=$( \
+            aws --region=us-west-2 \
+              servicediscovery \
+              get-instance \
+              --service-id srv-zifqjlifs3jb5x53 \
+              --instance-id rc \
+              --query Instance.Attributes.BASE_PATH \
+              --output text \
+          )
+
+          echo "aura_ui_base=${AURA_UI_BASE}" >> $GITHUB_OUTPUT
+          echo "aura_api_base=${AURA_API_BASE}" >> $GITHUB_OUTPUT
+
+      - name: 🌳 Get Unified-Wp RC Base URLs
+        id: unified-wp-base
+        run: |
+          UNIFIED_WP_UI_BASE=$( \
+            aws --region=us-west-2 \
+              servicediscovery \
+              get-instance \
+              --service-id srv-hu24wzzyzytwnxej \
+              --instance-id rc \
+              --query Instance.Attributes.BASE_URL \
+              --output text \
+          )
+          UNIFIED_WP_API_BASE=$( \
+            aws --region=us-west-2 \
+              servicediscovery \
+              get-instance \
+              --service-id srv-ahsblx7g7hijgabk \
+              --instance-id rc \
+              --query Instance.Attributes.BASE_URL \
+              --output text \
+          )
+
+          echo "unified_wp_ui_base=${UNIFIED_WP_UI_BASE}" >> $GITHUB_OUTPUT
+          echo "unified_wp_api_base=${UNIFIED_WP_API_BASE}" >> $GITHUB_OUTPUT
+
+      - name: 🌳 Get Reporting RC Base URLs
+        id: reporting-base
+        run: |
+          REPORTING_UI_BASE=$( \
+            aws --region=us-west-2 \
+              servicediscovery \
+              get-instance \
+              --service-id srv-udohj4zwprzpxkmz \
+              --instance-id rc \
+              --query Instance.Attributes.BASE_URL \
+              --output text \
+          )
+          REPORTING_API_BASE=$( \
+            aws --region=us-west-2 \
+              servicediscovery \
+              get-instance \
+              --service-id srv-qxvrrhgwn5e2be5g \
+              --instance-id rc \
+              --query Instance.Attributes.BASE_URL \
+              --output text \
+          )
+
+          echo "reporting_ui_base=${REPORTING_UI_BASE}" >> $GITHUB_OUTPUT
+          echo "reporting_api_base=${REPORTING_API_BASE}" >> $GITHUB_OUTPUT
+
+      - name: 🌳 Get RSW Account UI RC Base URL
+        id: rsw-account-ui-base
+        run: |
+          RSW_UI_BASE=$( \
+            aws --region=us-west-2 \
+              servicediscovery \
+              get-instance \
+              --service-id srv-qzqymzlfmt43l3cz \
+              --instance-id rc \
+              --query Instance.Attributes.BASE_URL \
+              --output text \
+          )
+          echo "rsw_ui_base=${RSW_UI_BASE}" >> $GITHUB_OUTPUT
+
+      - name: 🛣️ Create Infrastructure
+        env:
+          REMOTE_BASE_URL: '-${{ steps.git-branch.outputs.name }}.rscom-nonprod.awsext.repsrv.com'
+          AURA_UI_BASE_URL: '${{ steps.aura-base.outputs.aura_ui_base }}'
+          AURA_API_BASE_URL: '${{ steps.aura-base.outputs.aura_api_base }}'
+          UNIFIED_WP_UI_BASE_URL: '${{ steps.unified-wp-base.outputs.unified_wp_ui_base }}'
+          UNIFIED_WP_API_BASE_URL: '${{ steps.unified-wp-base.outputs.unified_wp_api_base }}'
+          REPORTING_API_BASE_URL: '${{ steps.reporting-base.outputs.reporting_api_base }}'
+          REPORTING_UI_BASE_URL: '${{ steps.reporting-base.outputs.reporting_ui_base }}'
+          RSW_UI_BASE_URL: '${{ steps.rsw-account-ui-base.outputs.rsw_ui_base }}'
+          AURA_ENABLED: true
+          WASTE_PROFILE_ENABLED: true
+          REPORTING_ENABLED: true
+          RSW_ACCOUNT_ENABLED: true
+          SM_UI_ENABLED: false
+
+        run: |
+          npx nx run-many \
+            --target=deploy \
+            --projects='${{ matrix.project }}' \
+            --stage=${{ steps.git-branch.outputs.name }} \
+            --configuration=rc
+
+      - name: 🉑 Attach preview to UAT1
+        if: ${{ matrix.project == 'rs-frontend' }}
+        run: |
+          node ./bin/attach-uat-url.js -p rs-frontend -b ${{ steps.git-branch.outputs.name }}
+
+  # WIP testing using a refactored job
+  # prepare:
+  #   permissions:
+  #     id-token: write
+  #     contents: read
+
+  #   steps:
+  #     - name: ✔️ Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: ${{ github.event.inputs.git_ref }}
+
+  #     - name: 🌳 Format branch name
+  #       id: git-branch
+  #       run: |
+  #         BRANCH_NAME=$( \
+  #           ./bin/format-branch-name.sh \
+  #           --branch-name="${{ github.ref }}" \
+  #           --field-separator=/
+  #         )
+  #         echo "name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+
+  # deploy-release-candidate:
+  #   uses: ./.github/workflows/_deploy-rs-mfe.yml
+  #   needs: prepare
+  #   strategy:
+  #     matrix:
+  #       project: ['rs-frontend', 'rs-header', 'rs-footer', 'rs-sustainability']
+  #   with:
+  #     app-name: ${{matrix.project}}
+  #     stage: ${{ needs.prepare.outputs.stage }}
+  #     environment: uat
+  #     configuration: dev
+  #     aws-role-to-assume: ${{ vars.RSCOM_OIDC_SSO_DEV_ROLE }}
+  #     aws-region: us-west-2
+  #     github-ref: ${{ github.event.inputs.git_ref }}
+  #   secrets: inherit

@@ -1,0 +1,178 @@
+name: Cleanup Lambda@Edge Functions
+
+env:
+  NODE_VERSION: '20.19.0'
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      git_ref:
+        description: 'Branch to delete lambdas for'
+        required: false
+        type: string
+    secrets:
+      # RIES_HUB_OIDC_SSO_QA_ROLE:
+      #   required: true
+      RSCOM_OIDC_SSO_DEV_ROLE:
+        required: true
+      ECOM_OIDC_SSO_DEV_ROLE:
+        required: true
+      AURA_OIDC_SSO_DEV_ROLE:
+        required: true
+      AWS_NONPROD_ACCESS_KEY_ID:
+        required: true
+      AWS_NONPROD_SECRET_ACCESS_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'Branch to delete from (leave blank to use the branch dropdown above)'
+        required: false
+
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  discover-lambdas:
+    name: Discover Lambdas
+    runs-on: ubuntu-latest
+    outputs:
+      lambdas: ${{ steps.lambdas.outputs.lambdas }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🕵️ Discover Lambdas
+        id: lambdas
+        run: |
+          EDGE_LAMBDAS=($(bin/get-edge-functions.js | jq --compact-output))
+          echo "lambdas=${EDGE_LAMBDAS}" >> $GITHUB_OUTPUT
+          echo "### Edge Lambdas Configured" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${EDGE_LAMBDAS}" | jq . >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  delete-lambdas:
+    name: delete (${{ matrix.app }}/${{ matrix.func }})
+    needs: [discover-lambdas]
+    if: ${{ github.event.inputs.git_ref || github.head_ref || github.ref_name }} != 'master'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # prevents deletion failure from cancelling other deletions
+      matrix:
+        include: ${{ fromJSON(needs.discover-lambdas.outputs.lambdas) }}
+
+    steps:
+      - name: 🕵️ Check if Branch Exists
+        id: branch-exists
+        uses: GuillaumeFalourd/branch-exists@v1
+        with:
+          branch: ${{ github.event.inputs.git_ref || github.head_ref || github.ref_name }}
+
+      - name: ✔️ Checkout Branch
+        if: steps.branch-exists.outputs.exists == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref || github.head_ref || github.ref_name }}
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: ✔️ Checkout Master
+        if: steps.branch-exists.outputs.exists == 'false'
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 📝 Format branch name
+        id: git-branch
+        run: |
+          BRANCH_NAME=$( \
+            ./bin/format-branch-name.sh \
+            --branch-name="${{ github.event.inputs.git_ref || github.head_ref || github.ref_name }}" \
+            --field-separator=/
+          )
+          echo "name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+
+      # TBD
+      # - name: Configure AWS credentials (RIES Hub)
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   if: startsWith(matrix.app, 'ries-hub')
+      #   with:
+      #     role-to-assume: ${{ vars.RIES_HUB_OIDC_SSO_QA_ROLE }}
+      #     role-session-name: 'github_actions-ries_hub_sso-qa'
+      #     aws-region: us-west-2
+
+      - name: Configure AWS credentials (RScom & RSW Account)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ startsWith(matrix.app, 'rs-') || startsWith(matrix.app, 'rsw-')  || startsWith(matrix.app, 'sm-')}}
+        with:
+          role-to-assume: ${{ vars.RSCOM_OIDC_SSO_DEV_ROLE }}
+          role-session-name: 'github_actions-rscom_sso-dev'
+          aws-region: us-east-1
+
+      - name: Configure AWS credentials (ecom)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: startsWith(matrix.app, 'ecom-')
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_DEV_ROLE }}
+          role-session-name: 'github_actions-rscom_ecom_sso-dev'
+          aws-region: us-west-2
+
+      - name: Configure AWS credentials (AURA & Unified-WP & Reporting)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ startsWith(matrix.app, 'aura-') || startsWith(matrix.app, 'unified-wp') || startsWith(matrix.app, 'uwp')  || startsWith(matrix.app, 'reporting')}}
+        with:
+          role-to-assume: ${{ vars.AURA_OIDC_SSO_DEV_ROLE }}
+          role-session-name: 'github_actions-aura_sso-dev'
+          aws-region: us-west-2
+
+      - name: Configure AWS credentials (Access Key)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ ! env.AWS_ACCESS_KEY_ID }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_NONPROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_NONPROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: 🕵️ Check if function exists
+        id: function-exists
+        continue-on-error: true
+        run: |
+          aws --region us-east-1 lambda get-function --function-name ${{ matrix.app }}-${{ steps.git-branch.outputs.name }}-${{ matrix.func }}
+
+      # Will retry every minute for up to an hour (Lambda@Edge can take some
+      # time to propagate repica deletions which must be deleted before the
+      # function itself can be deleted)
+      - name: 🗑️ Delete Lambda@Edge Function
+        uses: nick-fields/retry@v3.0.0
+        if: steps.function-exists.outcome == 'success'
+        with:
+          timeout_seconds: 60
+          max_attempts: 60
+          retry_wait_seconds: 60
+          retry_on: error
+          command: |
+            aws --region us-east-1 lambda delete-function --function-name ${{ matrix.app }}-${{ steps.git-branch.outputs.name }}-${{ matrix.func }}

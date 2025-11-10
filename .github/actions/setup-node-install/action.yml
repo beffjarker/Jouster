@@ -1,0 +1,64 @@
+name: 'Setup Node.js and Install Dependencies'
+description: 'Sets up Node.js, caches dependencies, and runs npm install with retry capability'
+inputs:
+  node-version:
+    description: 'Node.js version to use'
+    required: false
+    default: '20.19.0'
+  install-command:
+    description: 'npm install command to run'
+    required: false
+    default: 'npm install --prefer-offline --no-audit --no-fund'
+  cache-npm:
+    description: 'Whether to cache npm'
+    required: false
+    default: 'true'
+  retry-count:
+    description: 'Number of retry attempts for npm install'
+    required: false
+    default: '2'
+  retry-delay:
+    description: 'Delay between retry attempts in seconds'
+    required: false
+    default: '5'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 🖥️ Setup Node Version
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+
+    # This is the cache for the node_modules folder. It is based on the package-lock.json file.
+    # If the package-lock.json file changes, the cache will be invalidated and the dependencies will be reinstalled.
+    # Otherwise, the dependencies will be restored from the cache.
+    - name: 🗄️ Cache Node.js dependencies
+      id: node_modules_cache
+      uses: actions/cache@v4
+      env:
+        cache-name: node_modules
+        cache-fingerprint: ${{ inputs.node-version }}-${{ hashFiles('package-lock.json') }}
+      with:
+        path: |
+          ./node_modules
+          ~/.cache/Cypress
+        key: ${{ env.cache-name }}-${{ runner.os }}-${{ env.cache-fingerprint }}
+
+    - name: ⬇️ Install Dependencies (with retry)
+      if: steps.node_modules_cache.outputs.cache-hit != 'true'
+      uses: nick-fields/retry@v3
+      with:
+        timeout_minutes: 20
+        max_attempts: ${{ inputs.retry-count }}
+        retry_wait_seconds: ${{ inputs.retry-delay }}
+        command: ${{ inputs.install-command }}
+        shell: bash
+
+    # Due to cross-runner issues (i.e. different directory structures), the cypress binaries
+    # may not be properly restored from cache. This step ensures that Cypress is correctly installed.
+    # See: https://github.com/actions/cache/issues/1127
+    - name: ☑️ Ensure Cypress is Installed
+      shell: bash
+      run: npx cypress verify || npx cypress install

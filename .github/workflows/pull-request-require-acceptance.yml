@@ -1,0 +1,64 @@
+name: Required Pull Request Labels
+on:
+  merge_group:
+    types: [checks_requested]
+
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+    branches:
+      - master
+
+jobs:
+  label:
+    name: Check PR Labels
+    runs-on: ubuntu-latest
+    steps:
+      # Check if the PR has the accepted label and don't fail the check if not
+      - name: Check for "accepted" label
+        id: is-accepted
+        uses: mheap/github-action-required-labels@v5
+        if: github.event_name == 'pull_request'
+        with:
+          mode: exactly
+          count: 1
+          labels: 'accepted'
+          exit_type: success
+
+      - name: Require "accepted" or "operational" label
+        uses: mheap/github-action-required-labels@v5
+        if: github.event_name == 'pull_request'
+        with:
+          mode: exactly
+          count: 1
+          labels: 'accepted, operational'
+          add_comment: true
+          message: |
+            This PR may not be merged until one of the following labels is added:
+
+            - "accepted" if this PR is related to a story or defect in Rally and is accepted
+            - "operational" if this PR is not related to a story or defect in Rally
+
+      # If the PR has the "accepted" label, require one of the "bug" or "enhancement" labels
+      - name: Require "bug" or "enhancement" label
+        if: steps.is-accepted.outputs.status == 'success' && github.event_name == 'pull_request'
+        uses: mheap/github-action-required-labels@v5
+        with:
+          mode: exactly
+          count: 1
+          labels: 'bug, enhancement'
+          add_comment: true
+          message: |
+            This PR may not be merged until one of the following labels is added:
+
+            - "bug" if this PR is a fix for a Defect
+            - "enhancement" if this PR is for a User Story
+
+      - name: Forbid "don't merge" label
+        uses: mheap/github-action-required-labels@v5
+        if: github.event_name == 'pull_request'
+        with:
+          mode: exactly
+          count: 0
+          labels: "don't merge"
+          add_comment: true
+          message: "This PR may not be merged because you've added the label {{ provided }}. You'll need to remove it before this PR can be merged."

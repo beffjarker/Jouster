@@ -1,0 +1,450 @@
+name: ECOM Cypress Manual
+'on':
+  workflow_dispatch:
+    inputs:
+      tag:
+        type: string
+        description: Tag of the tests you want to run
+        required: true
+        default: '@regression'
+      projects:
+        type: choice
+        description: Project you want to tests to run on
+        default: ecom-shop-api-e2e
+        required: true
+        options:
+          - ecom-shop-api-e2e
+          - ecom-promo-api-e2e
+      tests_per_machine:
+        type: choice
+        description: Number of tests to run on each machine
+        default: '5'
+        required: true
+        options:
+          - '1'
+          - '5'
+          - '6'
+          - '7'
+          - '8'
+          - '9'
+          - '10'
+      baseurl:
+        type: string
+        description: 'Base URL to run against. Common options:
+          - https://ecom-shop-api-stg.rscom-nonprod.awsext.repsrv.com/stg
+          - https://ecom-shop-api-qa.rscom-nonprod.awsext.repsrv.com/master
+          - https://ecom-promo-api-stg.rscom-nonprod.awsext.repsrv.com/stg
+          - https://ecom-promo-api-qa.rscom-nonprod.awsext.repsrv.com/master'
+        default: 'https://ecom-shop-api-qa.rscom-nonprod.awsext.repsrv.com/master'
+        required: true
+      test_env:
+        type: choice
+        description: Env you want to run your tests on
+        default: qa
+        required: true
+        options:
+          - qa
+          - stg
+      promo_test_env:
+        type: choice
+        description: Env you want promos to be made in
+        default: https://ecom-promo-api-qa.rscom-nonprod.awsext.repsrv.com/master
+        options:
+          - https://ecom-promo-api-stg.rscom-nonprod.awsext.repsrv.com/stg
+          - https://ecom-promo-api-qa.rscom-nonprod.awsext.repsrv.com/master
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  NODE_VERSION: '20.19.0'
+
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  cy-prep:
+    runs-on: ubuntu-latest
+    outputs:
+      author: '${{ steps.cy-info.outputs.author }}'
+      branch: '${{ steps.git-branch.outputs.name }}'
+      build-id: '${{ steps.cy-info.outputs.build-id }}'
+      email: '${{ steps.cy-info.outputs.email }}'
+      env: '${{ github.event.inputs.test_env }}'
+      promo_env: '${{ github.event.inputs.promo_test_env }}'
+      message: '${{ steps.cy-info.outputs.message }}'
+      remote: '${{ steps.cy-info.outputs.remote }}'
+      sha: '${{ steps.cy-info.outputs.sha }}'
+      projects: '${{ github.event.inputs.projects }}'
+      specs: '${{ steps.cy-info.outputs.specs }}'
+      group: '${{ steps.instances.outputs.instances }}'
+      record-key: '${{ steps.cy-cloud.outputs.record-key }}'
+      epcc-store-id: '${{ steps.store-secrets.outputs.epcc-store-id }}'
+      epcc-store-client-id: '${{ steps.store-secrets.outputs.epcc-store-client-id }}'
+      epcc-store-client-secret: '${{ steps.store-secrets.outputs.epcc-store-client-secret }}'
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Configure AWS credentials (ECOMMERCE)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_DEV_ROLE  }}
+          role-session-name: 'github_actions-rscom_ecom_sso-dev'
+          aws-region: us-west-2
+
+      - name: "\U0001F4DD Format branch name"
+        id: git-branch
+        run: |
+          BRANCH_NAME=$( \
+            ./bin/format-branch-name.sh \
+            --branch-name="${{ github.head_ref || github.ref_name }}" \
+            --field-separator=/
+          )
+          echo "name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+
+      - name: 🎁 Cypress Cloud Record Key Secret Name
+        id: cy-cloud
+        run: |
+          RECORD_KEY=$(echo "${{github.event.inputs.projects}}_RECORD_KEY" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          echo "RECORD_KEY: ${RECORD_KEY}"
+          echo "record-key=${RECORD_KEY}" >> $GITHUB_OUTPUT
+
+      - name: Set Store Secrets
+        id: store-secrets
+        run: |
+          EPCC_STORE_ID=$(echo "EPCC_STORE_ID_${{ github.event.inputs.test_env }}" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          EPCC_STORE_CLIENT_ID=$(echo "EPCC_STORE_CLIENT_ID_${{github.event.inputs.test_env}}" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          EPCC_STORE_CLIENT_SECRET=$(echo "EPCC_STORE_CLIENT_SECRET_${{github.event.inputs.test_env}}" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          echo "EPCC_STORE_ID: ${EPCC_STORE_ID}"
+          echo "EPCC_STORE_CLIENT_ID: ${EPCC_STORE_CLIENT_ID}"
+          echo "EPCC_STORE_CLIENT_SECRET: ${EPCC_STORE_CLIENT_SECRET}"
+          echo "epcc-store-id=${EPCC_STORE_ID}" >> $GITHUB_OUTPUT
+          echo "epcc-store-client-id=${EPCC_STORE_CLIENT_ID}" >> $GITHUB_OUTPUT
+          echo "epcc-store-client-secret=${EPCC_STORE_CLIENT_SECRET}" >> $GITHUB_OUTPUT
+
+      - name: temp test
+        run: |
+          echo "${{ steps.store-secrets.outputs.epcc-store-id }}"
+
+      - name: 'Get Necessary Cypress information'
+        id: cy-info
+        run: |
+          AUTHOR=$(git log -1 --pretty=%an)
+          EMAIL=$(git log -1 --pretty=%ae)
+          MESSAGE=$(git log -1 --pretty=%B | tr '\n' ' ' | sed 's/"/\\"/g')
+          PROJECTS=${{ github.event.inputs.projects }}
+          BASE_URL=${{ github.event.inputs.baseurl }}
+
+          echo "Project directory contents:"
+          ls -la apps/${{ github.event.inputs.projects }}
+
+          echo "Looking for specs with tag ${{ github.event.inputs.tag }}:"
+          find "apps/${{ github.event.inputs.projects }}" -type f -exec grep -l "${{ github.event.inputs.tag }}" {} \;
+
+          SPECS=$(find "apps/${{ github.event.inputs.projects }}" -type f -exec grep -l "${{ github.event.inputs.tag }}" {} \; | tr '\n' ',')
+          SPECS=${SPECS::-1}
+          echo "Found specs: ${SPECS}"
+
+          echo "author=${AUTHOR}" >> $GITHUB_OUTPUT
+          echo "email=${EMAIL}" >> $GITHUB_OUTPUT
+          echo "baseUrl=${BASE_URL}" >> $GITHUB_OUTPUT
+          echo "build-id=sha-${SHA}-time-$(date +"%s")" >> $GITHUB_OUTPUT
+          echo "message=${MESSAGE}" >> $GITHUB_OUTPUT
+          echo "projects=${PROJECTS}" >> $GITHUB_OUTPUT
+          echo "remote=${REMOTE}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+          echo "specs=${SPECS}" >> $GITHUB_OUTPUT
+
+      - name: ♾️ Set Instances
+        id: instances
+        run: |
+          # Use the input value for tests per machine
+          TESTS_PER_MACHINE=${{ github.event.inputs.tests_per_machine }}
+
+          # declared variables
+          INSTANCES="["
+          declare -i NUM_INSTANCES
+
+          # get the number of instances based on the number of tests and tests per instance
+          IFS=',' read -ra SPEC_ARRAY <<< "${{ steps.cy-info.outputs.specs }}"
+          NUM_INSTANCES=$((${#SPEC_ARRAY[@]} / $TESTS_PER_MACHINE))
+          REMAINDER=$((${#SPEC_ARRAY[@]} % $TESTS_PER_MACHINE))
+
+          if [ $REMAINDER -gt 0 ]; then
+            NUM_INSTANCES+=1
+          fi
+
+          # create instance strings
+          for (( i=1; i<=$NUM_INSTANCES; i++))
+          do
+            INSTANCES+="\"group$i\","
+          done
+
+          INSTANCES=${INSTANCES::-1}
+          INSTANCES+="]"
+          echo "${INSTANCES}"
+          echo "instances=${INSTANCES}" >> $GITHUB_OUTPUT
+
+  cypress-tests:
+    name: 'cypress-tests (${{ matrix.GROUP_VARS }})'
+    needs:
+      - cy-prep
+    runs-on:
+      group: self-hosted-nonprod
+      labels: nonprod
+    outputs:
+      cypress_run_number: ${{ steps.extract-run-number.outputs.cypress_run_number }}
+    strategy:
+      fail-fast: false
+      matrix:
+        GROUP_VARS: '${{ fromJSON(needs.cy-prep.outputs.group) }}'
+    steps:
+      - name: 'Print needed info'
+        run: |
+          echo "Needed Information"
+          echo "author: ${{ needs.cy-prep.outputs.author }}"
+          echo "branch: ${{ needs.cy-prep.outputs.branch }}"
+          echo "baseUrl: ${{ github.event.inputs.baseurl }}"
+          echo "env: ${{ github.event.inputs.test_env }}"
+          echo "promo_env: ${{ github.event.inputs.promo_test_env }}"
+          echo "build-id: ${{ needs.cy-prep.outputs.build-id }}"
+          echo "email: ${{ needs.cy-prep.outputs.email }}"
+          echo "message: ${{ needs.cy-prep.outputs.message }}"
+          echo "project: ${{ github.event.inputs.projects }}"
+          echo "remote: ${{ needs.cy-prep.outputs.remote }}"
+          echo "sha: ${{ needs.cy-prep.outputs.sha }}"
+          echo "record key: ${{ secrets.ECOM_RECORD_KEY }}"
+          echo "specs: ${{ needs.cy-prep.outputs.specs }}"
+          echo "group: ${{ matrix.GROUP_VARS }}"
+
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_DEV_ROLE  }}
+          role-session-name: 'github_actions-rscom_ecom_sso-dev'
+          aws-region: us-west-2
+
+      - name: Get SSM parameters
+        id: ssm
+        run: |
+          echo "PRICING_API_KEY=$(aws ssm get-parameter --name /digital/ecom-shop-api/qa/PRICING_API_KEY --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "PRICING_BASE_URL_EXTERNAL=$(aws ssm get-parameter --name /digital/ecom-shop-api/qa/PRICING_BASE_URL_EXTERNAL --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "MASHERY_API_KEY=$(aws ssm get-parameter --name /digital/ecom-data-mgmt/qa/MASHERY_API_KEY --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 'Cypress Tests (API) [ECOM]'
+        id: cypress-tests
+        continue-on-error: true
+        env:
+          GROUP_VARS: '${{ matrix.GROUP_VARS }}'
+          AUTHOR: '${{ needs.cy-prep.outputs.author }}'
+          BRANCH: '${{ needs.cy-prep.outputs.branch }}'
+          BASE_URL: '${{ github.event.inputs.baseurl }}'
+          BUILD_ID: '${{ needs.cy-prep.outputs.build-id }}'
+          EMAIL: '${{ needs.cy-prep.outputs.email }}'
+          ENV: '${{ github.event.inputs.test_env }}'
+          PRICING_BASE_URL_EXTERNAL: ${{ steps.ssm.outputs.PRICING_BASE_URL_EXTERNAL }}
+          PRICING_API_KEY: ${{ steps.ssm.outputs.PRICING_API_KEY }}
+          PROMO_ENV: '${{ github.event.inputs.promo_test_env }}'
+          MESSAGE: '${{ needs.cy-prep.outputs.message }}'
+          PROJECT: '${{ github.event.inputs.projects }}'
+          REMOTE: '${{ needs.cy-prep.outputs.remote }}'
+          REPUBLIC_SYSTEM_PAT: '${{ secrets.REPUBLIC_SYSTEM_PAT }}'
+          SHA: '${{ needs.cy-prep.outputs.sha }}'
+          SPECS: '${{ needs.cy-prep.outputs.specs }}'
+          TAG: '${{ github.event.inputs.tag }}'
+          GROUP: '${{ needs.cy-prep.outputs.group }}'
+          MASHERY_API_KEY: '${{ steps.ssm.outputs.MASHERY_API_KEY }}'
+          ECOM_RECORD_KEY: '${{ secrets[needs.cy-prep.outputs.record-key] }}'
+          STORE_CLIENT_ID: '${{ secrets[needs.cy-prep.outputs.epcc-store-client-id] }}'
+          STORE_CLIENT_SECRET: '${{ secrets[needs.cy-prep.outputs.epcc-store-client-secret] }}'
+          STORE_ID: '${{ secrets[needs.cy-prep.outputs.epcc-store-id] }}'
+          ECOM_PROMO_AUTH_KEY: '${{ secrets.ECOM_PROMO_AUTH_KEY }}'
+        run: |
+          npx nx e2e ${PROJECT} -- \
+            --env.grepTags=${TAG} \
+            --skipServe=true \
+            --record \
+            --key=${ECOM_RECORD_KEY} \
+            --parallel \
+            --ci-build-id ${BUILD_ID} \
+            --baseUrl=${BASE_URL} \
+            --env.env=${ENV} \
+            --env.ecomPromoBaseUrl=${PROMO_ENV} \
+            --env.ecomPromoAuthKey=${ECOM_PROMO_AUTH_KEY} \
+            --config experimentalRunAllSpecs=false \
+            --reporter-options "reportDir=reports/run-${{ matrix.GROUP_VARS }}" | tee cypress-output.log
+
+      - name: Extract Cypress Run Number
+        id: extract-run-number
+        run: |
+          RUN_URL=$(grep -oP 'https://cloud.cypress.io/projects/[a-zA-Z0-9]*/runs/[0-9]*' cypress-output.log | head -1 || echo "")
+          RUN_NUMBER=$(echo "$RUN_URL" | grep -o '[0-9]*$')
+          if [ -n "$RUN_NUMBER" ]; then
+            echo "cypress_run_number=${RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "Extracted Cypress Run Number: $RUN_NUMBER"
+          else
+            echo "Failed to extract Cypress run number"
+            exit 1
+          fi
+
+      - name: Upload ${{ github.event.inputs.projects }} artifacts
+        if: ${{ !cancelled() }}
+        run: |
+          REPORT_DIR="apps/${{ github.event.inputs.projects }}/reports/run-${{ matrix.GROUP_VARS }}"
+
+          # Create directory if it doesn't exist
+          mkdir -p "$REPORT_DIR"
+
+          # If no test results exist, create dummy files with current timestamp
+          if [ ! -f "$REPORT_DIR/index.json" ]; then
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+            echo "{\"stats\":{\"suites\":0,\"tests\":0,\"passes\":0,\"pending\":0,\"failures\":0,\"start\":\"$TIMESTAMP\",\"end\":\"$TIMESTAMP\",\"duration\":0},\"results\":[]}" > "$REPORT_DIR/index.json"
+            echo '<html><body><h1>No tests run in this group</h1></body></html>' > "$REPORT_DIR/index.html"
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: cypress-${{github.event.inputs.projects}}-${{ matrix.GROUP_VARS }}-artifacts
+          path: apps/${{ github.event.inputs.projects }}/reports/run-${{ matrix.GROUP_VARS }}
+          if-no-files-found: error
+
+  merge-all-reports:
+    needs: cypress-tests
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cypress-${{github.event.inputs.projects}}-*-artifacts
+          path: all-artifacts
+
+      - name: Merge All Reports
+        run: |
+          # Install required packages
+          npm install -g mochawesome-merge mochawesome-report-generator > /dev/null 2>&1
+
+          # Setup and merge reports
+          mkdir -p json-files
+
+          # Copy and rename each JSON file with unique numbers
+          counter=1
+          find all-artifacts -name "index.json" | while read file; do
+            cp "$file" "json-files/report-${counter}.json"
+            echo "Copied $file to json-files/report-${counter}.json"
+            counter=$((counter + 1))
+          done
+
+          echo "JSON files to be merged:"
+          ls -l json-files/
+
+          # Generate final reports
+          mkdir -p final-report
+          mochawesome-merge "json-files/*.json" > final-report/index.json
+
+          echo "Content of merged report:"
+          cat final-report/index.json | grep -A 5 '"stats":'
+
+          marge final-report/index.json --reportDir final-report --inline
+
+          # Verify files exist
+          if [ -f "final-report/index.json" ] && [ -f "final-report/index.html" ]; then
+            echo "Reports generated successfully"
+            ls -lh final-report/index.*
+          else
+            echo "Error: One or more report files are missing"
+            ls -la final-report/
+            exit 1
+          fi
+
+      - name: Set Opslevel Service Name
+        id: opslevel-service-var
+        run: |
+          # Transform hyphens to underscores in the service name
+          SERVICE_NAME=$(echo "${{ github.event.inputs.projects }}" | tr '-' '_')
+          echo "OPSLEVEL_SERVICE=${SERVICE_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Report Cypress To Opslevel
+        if: github.event.inputs.projects == 'ecom-shop-api-e2e' || github.event.inputs.projects == 'ecom-promo-api-e2e'
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: regression
+          opslevel-service: ${{ steps.opslevel-service-var.outputs.OPSLEVEL_SERVICE }}
+          report-path: final-report/index.json
+          parallel: false
+
+  cypress-extract-results:
+    if: ${{ !cancelled() }}
+    needs: [cy-prep, cypress-tests]
+    runs-on: ubuntu-latest
+    env:
+      BRANCH_NAME: ${{ github.ref_name }}
+      CYPRESS_RUN_NUMBER: ${{ needs.cypress-tests.outputs.cypress_run_number }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ ! env.AWS_ACCESS_KEY_ID }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_NONPROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_NONPROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Get SSM parameters
+        id: ssm
+        run: |
+          echo "CYPRESS_REPORT_TOKEN=$(aws ssm get-parameter --name /digital/github/CYPRESS_REPORT_TOKEN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+
+      - name: Set CYPRESS_PROJECT_NAME
+        id: set-project-name
+        run: echo "CYPRESS_PROJECT_NAME=digital-platform-${{ github.event.inputs.projects }}" | sed 's/-e2e//' >> $GITHUB_OUTPUT
+
+      - name: Extract Test Results
+        run: |
+          rm -f scripts/extract-regression-results/output/test-results.csv
+          npx ts-node scripts/extract-regression-results/extract-cypress-results.ts
+        env:
+          CYPRESS_REPORT_TOKEN: ${{ steps.ssm.outputs.CYPRESS_REPORT_TOKEN }}
+          BRANCH_NAME: ${{ github.ref_name }}
+          CYPRESS_RUN_NUMBER: ${{ needs.cypress-tests.outputs.cypress_run_number }}
+          CYPRESS_PROJECT_NAME: ${{ steps.set-project-name.outputs.CYPRESS_PROJECT_NAME }}
+
+      - name: Upload Results
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-test-results-${{ steps.set-project-name.outputs.CYPRESS_PROJECT_NAME }}-${{ needs.cypress-tests.outputs.cypress_run_number }}
+          path: scripts/extract-regression-results/output/${{ steps.set-project-name.outputs.CYPRESS_PROJECT_NAME }}-${{ needs.cypress-tests.outputs.cypress_run_number }}.csv
+          retention-days: 5

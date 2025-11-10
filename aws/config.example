@@ -1,0 +1,40 @@
+# AWS Config Template
+# Copy this file to: aws/config
+# This file configures AWS CLI profiles
+# NEVER commit the actual aws/config file to git!
+
+[default]
+region = us-west-2
+output = json
+
+[profile jouster-dev]
+region = us-west-2
+output = json
+
+[profile admin]
+region = us-west-2
+output = json
+
+[profile jouster-qa]
+region = us-west-2
+output = json
+
+[profile jouster-staging]
+region = us-west-2
+output = json
+
+[profile jouster-prod]
+region = us-west-2
+output = json
+
+# Usage:
+# - AWS CLI will use [default] profile by default
+# - Use --profile flag to specify a profile: aws s3 ls --profile admin
+# - Or set AWS_PROFILE environment variable: set AWS_PROFILE=admin (Windows) or export AWS_PROFILE=admin (Unix)
+#
+# Security Notes:
+# - This file contains NO secrets (only region and output format)
+# - Actual credentials go in aws/credentials (which is git-ignored)
+# - Keep this file consistent across team members
+# - Update when adding new AWS profiles
+

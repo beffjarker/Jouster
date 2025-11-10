@@ -1,0 +1,79 @@
+name: Ecom Update Order Contact Info (prod)
+
+env:
+  NODE_VERSION: '20.19.0'
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      tableEnv:
+        type: choice
+        description: Environment to update
+        required: true
+        options:
+          - prod
+      orderId:
+        type: string
+        description: OrderID to update
+        required: true
+      newData:
+        type: string
+        description: JSON Stringified body of new paymentContactInfo (copy from `add-pmt-contact' logs)
+        required: true
+
+jobs:
+  validation:
+    runs-on:
+      group: self-hosted-nonprod
+      labels: nonprod
+    name: Validate Workflow
+    steps:
+      - name: Checkout verify actor action
+        uses: actions/checkout@v4
+        with:
+          repository: RepublicServicesRepository/gha-verify-actor
+          ref: refs/heads/main
+          token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          persist-credentials: false
+          path: ./.github/actions/verify-actor
+
+      - name: Verify Actor
+        uses: ./.github/actions/verify-actor
+        with:
+          github_token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          whitelist: WebeWizard,acgilardi,santhoshkadali,lamasa1,nikhilramoju,myapRS,jfrenchrepublicservices,haarsma,shubhgithubaccount,brus99,sbohmer-rs,beffjarker
+
+  update-contact-info:
+    runs-on:
+      group: self-hosted-nonprod
+      labels: nonprod
+    needs: [validation]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure AWS credentials (ecom)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_PROD_ROLE }}
+          role-session-name: 'github_actions-rscom_ecom_sso-prod'
+          aws-region: us-west-2
+
+      - name: Update Contact Info
+        env:
+          ORDER_ENV: ${{github.event.inputs.tableEnv}}
+          ORDER_ID: ${{github.event.inputs.orderId}}
+          PAYMENT_CONTACT_INFO: ${{github.event.inputs.newData}}
+        run: |
+          echo "Updating contact info for orderId: ${{ github.event.inputs.orderId }} in ${{ github.event.inputs.tableEnv }} environment"
+          node ./scripts/ecom-update-contactinfo.js

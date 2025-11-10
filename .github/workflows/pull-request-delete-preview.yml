@@ -1,0 +1,84 @@
+name: Delete PR Preview Environment
+
+on:
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+      - develop
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  cleanup-preview:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Generate preview bucket name
+        id: bucket
+        run: |
+          # Create same bucket name used in deployment
+          BRANCH_NAME="${{ github.head_ref }}"
+          SAFE_BRANCH=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]' | cut -c1-30)
+          BUCKET_NAME="jouster-preview-pr${{ github.event.pull_request.number }}-${SAFE_BRANCH}"
+          echo "name=$BUCKET_NAME" >> $GITHUB_OUTPUT
+
+      - name: Delete preview environment
+        run: |
+          chmod +x ./aws/scripts/cleanup-preview.sh
+          ./aws/scripts/cleanup-preview.sh "${{ steps.bucket.outputs.name }}" || echo "Bucket may not exist or already deleted"
+
+      - name: Comment cleanup status on PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.issue.number;
+
+            const commentBody = `## 🧹 Preview Environment Cleaned Up
+
+            The preview environment for this PR has been deleted.
+
+            📦 **Bucket:** \`${{ steps.bucket.outputs.name }}\`
+            🔢 **PR:** #${prNumber}
+            ⏰ **Deleted:** ${new Date().toISOString()}
+
+            ---
+
+            *All resources have been removed from AWS S3.*`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: commentBody,
+            });
+
+      - name: Remove preview label
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: 'preview-deployed'
+              });
+            } catch (error) {
+              console.log('Label may not exist:', error.message);
+            }
+

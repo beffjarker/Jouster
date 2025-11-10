@@ -28,14 +28,14 @@ GET /api/instagram/:username
 
 **Example:**
 ```
-GET http://localhost:3001/api/instagram/beffjarker
+GET http://localhost:3001/api/instagram/yourusername
 ```
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Found 10 posts for @beffjarker",
+  "message": "Found 10 posts for @yourusername",
   "data": [
     {
       "id": "post_id",

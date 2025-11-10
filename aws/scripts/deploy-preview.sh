@@ -21,8 +21,9 @@ echo "🌍 Region: us-west-2"
 echo "========================================"
 
 # Check if build directory exists
-if [ ! -d "dist/apps/jouster-ui" ]; then
+if [ ! -d "dist/apps/jouster-ui/browser" ]; then
     echo "❌ Build directory not found. Make sure 'npm run build:prod' was successful."
+    echo "Expected: dist/apps/jouster-ui/browser"
     exit 1
 fi
 
@@ -65,7 +66,7 @@ aws s3api put-bucket-policy \
     --policy file:///tmp/bucket-policy.json
 
 echo "[5/6] Uploading files to S3..."
-aws s3 sync dist/apps/jouster-ui/ "s3://$BUCKET_NAME" \
+aws s3 sync dist/apps/jouster-ui/browser/ "s3://$BUCKET_NAME" \
     --delete \
     --cache-control "max-age=86400" \
     --exclude "*.map"

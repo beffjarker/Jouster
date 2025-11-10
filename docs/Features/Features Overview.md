@@ -42,7 +42,7 @@
 - **Testing**: Unit tests with @ngneat/spectator and Jest
 
 ### Instagram Integration ⏳ **IN PROGRESS**
-- **Graph API**: Photography portfolio integration for @beffjarker
+- **Graph API**: Photography portfolio integration
 - **Content**: Recent posts, engagement metrics, media galleries
 - **Fallback**: Enhanced mock data for development
 - **Status**: API setup complete, UI integration in progress
