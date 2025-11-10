@@ -82,12 +82,21 @@ jobs:
             echo "Creating bucket: ${BUCKET_NAME}"
             aws s3 mb "s3://${BUCKET_NAME}" --region us-west-2
 
+            # IMPORTANT: Disable block public access FIRST before setting public policy
+            echo "Disabling Block Public Access..."
+            aws s3api put-public-access-block \
+              --bucket "${BUCKET_NAME}" \
+              --public-access-block-configuration \
+                "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
+
             # Configure bucket for static website hosting
+            echo "Configuring static website hosting..."
             aws s3 website "s3://${BUCKET_NAME}" \
               --index-document index.html \
               --error-document index.html
 
             # Set bucket policy for public read access
+            echo "Setting bucket policy for public read access..."
             cat > /tmp/bucket-policy.json << 'EOF'
           {
             "Version": "2012-10-17",
@@ -107,13 +116,14 @@ jobs:
               --bucket "${BUCKET_NAME}" \
               --policy file:///tmp/bucket-policy.json
 
-            # Disable block public access
+            echo "Bucket configuration complete!"
+          else
+            echo "Bucket already exists: ${BUCKET_NAME}"
+            echo "Ensuring Block Public Access is disabled..."
             aws s3api put-public-access-block \
               --bucket "${BUCKET_NAME}" \
               --public-access-block-configuration \
                 "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
-          else
-            echo "Bucket already exists: ${BUCKET_NAME}"
           fi
 
       - name: Deploy to S3
