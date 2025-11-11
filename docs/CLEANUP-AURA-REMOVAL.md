@@ -165,6 +165,9 @@ If you want to remove ALL aura references (including from shared files), you wou
 **Branch**: main  
 **Commit**: df58050
 
+**Note**: Additional cleanup was performed to remove ALL non-Jouster workflows.  
+**See**: `docs/CLEANUP-WORKFLOWS-REMOVAL.md` for complete workflow cleanup details.
+
 ---
 
 *Cleanup completed: November 11, 2025*
