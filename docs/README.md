@@ -54,25 +54,104 @@
 ```
 docs/
 ├── .obsidian/           # Obsidian vault configuration
-├── AI/                  # AI and automation documentation
-├── Architecture/        # System and component architecture
-├── Development/         # Development guides and setup
-├── Features/           # Feature-specific documentation
-├── Integrations/       # API and service integrations
-├── Project/            # Project overview and management
-├── Tools/              # Development tools and workflows
-├── templates/          # Obsidian note templates
-├── assets/             # Images and other assets
-└── aws/                # AWS deployment and infrastructure
+├── AI/                  # AI and automation documentation (5 files)
+│   ├── AI and Automation Overview.md
+│   ├── Agents.md
+│   ├── Claude.md
+│   ├── Conversation History.md
+│   └── session-2025-10-14-security-implementation.md
+├── Architecture/        # System and component architecture (3 files)
+│   ├── Architecture.md
+│   ├── Flash Experiments Architecture.md
+│   └── System Architecture Overview.md
+├── Development/         # Development guides and setup (7 files)
+│   ├── CSS Flexbox Guide.md
+│   ├── Development Setup Guide.md
+│   ├── Flexbox Implementation Summary.md
+│   ├── Linting Best Practices.md
+│   ├── Spectator Testing Guide.md
+│   ├── Testing Documentation.md
+│   └── WSL2 Installation.md
+├── Features/           # Feature-specific documentation (3 files)
+│   ├── Complete Flash Experiments Analysis.md
+│   ├── Features Overview.md
+│   └── Flash Experiments.md
+├── Integrations/       # API and service integrations (5 files)
+│   ├── API Integration Overview.md
+│   ├── Backend API.md
+│   ├── Instagram Graph API Setup.md
+│   ├── Instagram Setup.md
+│   └── Last.fm API Integration.md
+├── Project/            # Project overview and management (2 files)
+│   ├── Library and Best Practices References.md
+│   └── Project Overview.md
+├── Tools/              # Development tools and workflows (2 files)
+│   ├── Development Tools.md
+│   └── Tools and Workflows Overview.md
+├── templates/          # Obsidian note templates (2 files)
+│   ├── API-Integration-Template.md
+│   └── Feature-Documentation-Template.md
+└── aws/                # AWS deployment and infrastructure (4 files)
+    ├── preview-environments.md
+    ├── qa-environment.md
+    ├── ROUTE53-SETUP-GUIDE.md
+    └── staging-environment.md
+├── Development/         # Development guides and setup (7 files)
+│   ├── CSS Flexbox Guide.md
+│   ├── Development Setup Guide.md
+│   ├── Flexbox Implementation Summary.md
+│   ├── Linting Best Practices.md
+│   ├── Spectator Testing Guide.md
+│   ├── Testing Documentation.md
+│   └── WSL2 Installation.md
+├── Features/           # Feature-specific documentation (3 files)
+│   ├── Complete Flash Experiments Analysis.md
+│   ├── Features Overview.md
+│   └── Flash Experiments.md
+├── Integrations/       # API and service integrations (5 files)
+│   ├── API Integration Overview.md
+│   ├── Backend API.md
+│   ├── Instagram Graph API Setup.md
+│   ├── Instagram Setup.md
+│   └── Last.fm API Integration.md
+├── Project/            # Project overview and management (2 files)
+## 📦 Recent Updates
+
+**October 22, 2025** - Consolidated documentation from separate `vault` folder:
+- ✅ Merged 36 markdown files into unified `docs/` structure
+- ✅ Added comprehensive AI/Automation documentation (Claude, Agents)
+- ✅ Included detailed architecture documents (Flash Experiments Architecture)
+- ✅ Consolidated all development guides (CSS/Flexbox, Testing, Linting, WSL2)
+- ✅ Unified API integration documentation (Last.fm, Instagram)
+- ✅ Complete feature analysis and references
+
+---
+
+│   ├── Library and Best Practices References.md
+│   └── Project Overview.md
+├── Tools/              # Development tools and workflows (2 files)
+│   ├── Development Tools.md
+│   └── Tools and Workflows Overview.md
+├── templates/          # Obsidian note templates (2 files)
+│   ├── API-Integration-Template.md
+│   └── Feature-Documentation-Template.md
+└── aws/                # AWS deployment and infrastructure (4 files)
+    ├── preview-environments.md
+    ├── qa-environment.md
+    ├── ROUTE53-SETUP-GUIDE.md
+    └── staging-environment.md
 ```
 
 ## 🔧 Technical Documentation
 
 This vault now contains:
-- **AWS Infrastructure** - Deployment scripts and infrastructure as code
-- **Email Management** - S3-based email handling system
-- **Conversation History** - DynamoDB integration for AI chat persistence
-- **Development Workflows** - Nx monorepo setup and CI/CD
+- **AWS Infrastructure** - Deployment scripts for preview, QA, and staging environments
+- **Architecture** - System design, component architecture, and Flash experiments
+- **Development** - CSS/Flexbox guides, testing strategies, linting, and WSL2 setup
+- **AI Integration** - Claude AI, agents, and conversation history with DynamoDB
+- **API Integrations** - Last.fm, Instagram Graph API, and backend services
+- **Features** - Complete Flash experiments analysis and feature documentation
+- **Tools & Workflows** - Development tools, CI/CD, and Nx monorepo setup
 
 ## 📋 Using This Vault
 

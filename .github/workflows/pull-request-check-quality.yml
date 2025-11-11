@@ -1,0 +1,1474 @@
+name: Check Quality
+
+on:
+  merge_group:
+    types: [checks_requested]
+
+  pull_request:
+    branches:
+      - master
+    paths-ignore:
+      - '/apps/ries-hub-marklogic-dhs/**'
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '/apps/ries-hub-marklogic-dhs/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20.19.0'
+  NODE_OPTIONS: '--max_old_space_size=7168'
+
+jobs:
+  checks-prep:
+    name: Prepare Checks
+    runs-on: ubuntu-latest
+    outputs:
+      base: ${{steps.base.outputs.base }}
+      date: ${{steps.date.outputs.date }}
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 🌳 Get Affected Base
+        id: base
+        run: |
+          BASE=$GITHUB_REF_NAME
+
+          # This runs after a PR is merged into `master`
+          if [[ $BASE == "master" ]]; then
+            BASE="remotes/origin/$BASE~1"
+
+          # This is for the merge queue
+          elif [[ $GITHUB_EVENT_NAME == "merge_group" ]]; then
+            BASE="remotes/origin/master"
+
+          # This is for normal PRs
+          else
+            BASE="remotes/origin/$GITHUB_BASE_REF"
+          fi
+
+          echo "base=${BASE}" >> $GITHUB_OUTPUT
+
+      - name: Check duplicate commit messages
+        run: |
+          git checkout ${{ github.head_ref || github.ref_name }}
+          DUPLICATE_MESSAGES=$(git log --pretty=format:"%s" --first-parent origin/master..HEAD | sort | uniq -d)
+          if [ -n "$DUPLICATE_MESSAGES" ]; then
+            echo "Found commits with identical commit messages:"
+            echo "$DUPLICATE_MESSAGES"
+            exit 1
+          fi
+
+      - name: 📅 Get current date
+        id: date
+        run: echo "date=$(date +'%Y-%m-%d')" >> $GITHUB_OUTPUT
+
+  affected-projects:
+    name: Get Affected Projects
+    runs-on: ubuntu-latest
+    needs: checks-prep
+    outputs:
+      base: ${{ steps.affected.outputs.base }}
+      projects: ${{ steps.affected.outputs.projects }}
+      has-projects: ${{ steps.affected.outputs.has-projects }}
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📋 Get Affected projects
+        id: affected
+        run: |
+          BASE=${{ needs.checks-prep.outputs.base }}
+          PROJECTS=$(npx nx print-affected --base=${{ needs.checks-prep.outputs.base }} --type=app | jq -c -M '.projects')
+          HAS_PROJECTS=$(echo $PROJECTS | jq 'length != 0')
+
+          # Pipe to the github output
+          echo "base=${BASE}" >> $GITHUB_OUTPUT
+          echo "projects=${PROJECTS}" >> $GITHUB_OUTPUT
+          echo "has-projects=${HAS_PROJECTS}" >> $GITHUB_OUTPUT
+
+  lint-pr:
+    name: Run Linting
+    runs-on: ubuntu-latest
+    needs: checks-prep
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ ! env.AWS_ACCESS_KEY_ID }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_NONPROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_NONPROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: ♻️ Check code formatting
+        run: npx nx format:check --base=${{ needs.checks-prep.outputs.base }}
+
+      - name: 🧺 Lint affected apps and libs
+        run: npx nx affected --target=lint --base=${{ needs.checks-prep.outputs.base }} --parallel
+
+  unit-test-pr:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest-8-cores
+    needs: checks-prep
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ ! env.AWS_ACCESS_KEY_ID }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_NONPROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_NONPROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      # Cache the jest cache across runs for improved test performance
+      - name: 🗃️ Cache Jest
+        id: jest-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/jest_rs/**
+          key: ${{ runner.os }}-jest-cache
+
+      # Cache the code coverage so we can run affected tests
+      - name: 🗃️ Cache Unit Test Coverage
+        id: coverage-cache
+        uses: actions/cache@v4
+        with:
+          path: coverage/**
+          key: ${{ runner.os }}-coverage
+
+      # This is generally what we will want to run, and the cache should hit >99% of the time
+      - name: 🧪 Unit test affected apps and libs
+        if: steps.coverage-cache.outputs.cache-hit == 'true'
+        run: npx nx affected --target=test --base=${{ needs.checks-prep.outputs.base }} --maxWorkers=1 --parallel --max-parallel=4 --ci --codeCoverage
+
+      # If there is no cached code coverage, we want to run all the tests
+      - name: 🧪 Unit test all apps and libs
+        if: steps.coverage-cache.outputs.cache-hit != 'true'
+        run: npx nx run-many --all --target=test --maxWorkers=1 --parallel --max-parallel=4 --ci --codeCoverage
+
+      - name: Install lcov
+        run: sudo apt-get update && sudo apt-get install -y lcov
+
+      - name: 🗜️ Compress Coverage results
+        run: |
+          tar -czvf coverage.tgz coverage
+
+      - name: 🗄️ Store unit test coverage results
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage
+          path: coverage.tgz
+
+  report-coverage-prep:
+    name: Get Affected Apps for Coverage
+    runs-on: ubuntu-latest
+    needs: unit-test-pr
+
+    outputs:
+      projects: ${{ steps.matrix.outputs.projects }}
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: ⬇️ Fetch Main Branch
+        if: github.event_name != 'push'
+        run: git fetch origin master:master
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Output format: {"project":["rs-frontend","rs-header"]}
+      - name: 🗄️ Calculate Changes
+        id: matrix
+        run: |
+          # The ($(...)) syntax is used to capture the output of the command as an array
+          PROJECTS=($(npx nx show projects --with-target=coverage-report --affected))
+
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/master" ]; then
+            PROJECTS=($(npx nx show projects --with-target=coverage-report))
+          fi
+
+          JSON=$(jq --compact-output --null-input '$ARGS.positional' --args -- "${PROJECTS[@]}" | jq -c -M '{"project": . }');
+
+          echo "projects=${JSON//'%'/'%25'}" >> $GITHUB_OUTPUT
+          echo ""
+          echo "Projects"
+          echo $JSON
+
+  report-coverage:
+    name: Report Coverage (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    needs: report-coverage-prep
+    if: ${{ needs.report-coverage-prep.outputs.projects != 'null' }}
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.report-coverage-prep.outputs.projects) }}
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Retrieve unit test coverage results
+        uses: actions/download-artifact@v4
+        continue-on-error: false
+        with:
+          name: code-coverage
+
+      - name: 🗜️ Uncompress Coverage results
+        run: |
+          tar -xvzf coverage.tgz
+          rm coverage.tgz
+
+      - name: 🗂️ Combine coverage reports
+        run: |
+          # Combine the coverage reports into a single report
+          npx nx run-many --projects=${{matrix.project}} --target=coverage-report
+
+      - name: 📬 Send coverage results to opslevel
+        uses: RepublicServicesRepository/gha-unit-to-opslevel@v2
+        with:
+          # total-passing-percent: "${{ env.passing_percent }}"
+          # lcov: 'coverage/apps/${{ matrix.project }}/combined-lcov.info'
+          # is-main-branch: ${{ github.ref == 'refs/heads/master' }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          opslevel_alias: ${{ matrix.project }}
+          cover_percentage: 0
+          cover_directory: 'coverage/apps/${{ matrix.project }}/merged'
+          report_directory: 'coverage/apps/${{ matrix.project }}/merged'
+          comment_id: ${{ matrix.project }}
+
+  build-test-pr:
+    name: Build Affected Apps & Libs
+    runs-on: ubuntu-latest-4-cores
+    needs: checks-prep
+
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ ! env.AWS_ACCESS_KEY_ID }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_NONPROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_NONPROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: 🏭 Build affected apps and libs
+        run: npx nx affected --target=build --base=${{ needs.checks-prep.outputs.base }} --prod
+
+  pr-quality-check-results:
+    name: PR Quality Checks Passed
+    runs-on: ubuntu-latest
+    if: ${{ !cancelled() }}
+
+    needs:
+      - lint-pr
+      - unit-test-pr
+      - build-test-pr
+
+    steps:
+      - name: 🖨️ Print Quality Checks Results
+        run: |
+          echo "lint-pr result: ${{ needs.lint-pr.result }}"
+          echo "unit-test-pr result: ${{ needs.unit-test-pr.result }}"
+          echo "build-test-pr result: ${{ needs.build-test-pr.result }}"
+          echo "proceed: ${{ needs.lint-pr.result == 'success' && needs.unit-test-pr.result == 'success' && needs.build-test-pr.result == 'success' }}"
+      - name: ✔️ Check Statuses
+        if: ${{ needs.lint-pr.result != 'success' || needs.unit-test-pr.result != 'success' || needs.build-test-pr.result != 'success'  }}
+        run: exit 1
+
+  cy-prep:
+    name: Prepare Cypress
+    runs-on: ubuntu-latest
+    outputs:
+      author: ${{ steps.cy-info.outputs.author }}
+      branch: ${{ steps.git-branch.outputs.name }}
+      build-id: ${{ steps.cy-info.outputs.build-id }}
+      email: ${{ steps.cy-info.outputs.email }}
+      message: ${{ steps.cy-info.outputs.message }}
+      remote: ${{ steps.cy-info.outputs.remote }}
+      sha: ${{ steps.cy-info.outputs.sha }}
+      projects: ${{ steps.instances.outputs.projects }}
+      has-projects: ${{ steps.cy-info.outputs.has-projects }}
+    steps:
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ ! env.AWS_ACCESS_KEY_ID }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_NONPROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_NONPROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: 🎁 Get Affected Base
+        id: base
+        run: |
+          BASE=$GITHUB_REF_NAME
+
+          # This runs after a PR is merged into `master`
+          if [[ $BASE == "master" ]]; then
+            BASE="remotes/origin/$BASE~1"
+
+          # This is for the merge queue
+          elif [[ $GITHUB_EVENT_NAME == "merge_group" ]]; then
+            BASE="remotes/origin/master"
+
+          # This is for normal PRs
+          else
+            BASE="remotes/origin/$GITHUB_BASE_REF"
+          fi
+
+          echo "name=${BASE}" >> $GITHUB_OUTPUT
+
+      - name: 📝 Format branch name
+        id: git-branch
+        run: |
+          BRANCH_NAME=$( \
+            ./bin/format-branch-name.sh \
+            --branch-name="${{ github.head_ref || github.ref_name }}" \
+            --field-separator=/
+          )
+          echo "name=${BRANCH_NAME}" >> $GITHUB_OUTPUT
+
+      - name: 🎁 Get Necessary Cypress information
+        id: cy-info
+        run: |
+          AUTHOR=$(git log -1 --pretty=%an)
+          EMAIL=$(git log -1 --pretty=%ae)
+          MESSAGE=$(git log -1 --pretty=%B)
+          PROJECTS=$(./bin/cy-rs-projects-json.sh ${{ steps.base.outputs.name }} ${{ steps.git-branch.outputs.name }})
+          HAS_PROJECTS=$(echo $PROJECTS | jq 'length > 0')
+          REMOTE=$(git config --get remote.origin.url)
+          SHA=$(git log -1 --pretty=%H)
+          echo $PROJECTS | jq -M
+          echo "author=${AUTHOR}" >> $GITHUB_OUTPUT
+          echo "email=${EMAIL}" >> $GITHUB_OUTPUT
+          echo "build-id=${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+          echo "has-projects=${HAS_PROJECTS}" >> $GITHUB_OUTPUT
+          echo "message=${MESSAGE}" >> $GITHUB_OUTPUT
+          echo "projects=${PROJECTS}" >> $GITHUB_OUTPUT
+          echo "remote=${REMOTE}" >> $GITHUB_OUTPUT
+          echo "sha=${SHA}" >> $GITHUB_OUTPUT
+
+      - name: ♾️ Set Instances
+        id: instances
+        run: |
+          PROJECTS=$(./bin/set-instances.sh ${{ steps.base.outputs.name }} ${{ steps.git-branch.outputs.name }} ${{ vars.INSTANCE_LIMIT }})
+          echo "projects=${PROJECTS}" >> $GITHUB_OUTPUT
+
+  cypress-tests:
+    name: Run Cypress Tests (${{ matrix.projects.id }})
+    needs: [cy-prep, pr-quality-check-results]
+    if: join(fromJson(needs.cy-prep.outputs.projects).projects) != ''
+    permissions:
+      id-token: write
+      contents: read
+    runs-on:
+      group: self-hosted-nonprod
+      labels: ${{ contains(fromJSON('["ecom-shop-api-e2e", "ries-hub-ui-e2e", "rs-frontend-e2e", "rs-shop-e2e", "unified-wp-e2e", "sm-ui-e2e"]'), matrix.projects.target.project) && 'nonprod-large' || 'nonprod' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.cy-prep.outputs.projects) }}
+
+    timeout-minutes: 150
+
+    steps:
+      - name: Process Build Id
+        id: build-id
+        run: |
+          echo ${{ matrix.projects.target.project }}
+          echo ${{ needs.cy-prep.outputs.build-id }}
+          echo "ecom-env=${{ needs.cy-prep.outputs.branch == 'master' && 'qa' || 'dev' }}" >> $GITHUB_OUTPUT
+          echo "build-id=${{ github.run_id }}-${{ github.run_attempt }}" >> $GITHUB_OUTPUT
+
+      - name: 🖨️ Print needed info
+        run: |
+          echo "Needed Information"
+          echo The ip of this runner is $(hostname)
+          echo "author: ${{ needs.cy-prep.outputs.author }}"
+          echo "branch: ${{ needs.cy-prep.outputs.branch }}"
+          echo "build-id": ${{ steps.build-id.outputs.build-id }}
+          echo "email: ${{ needs.cy-prep.outputs.email }}"
+          echo "message: ${{ needs.cy-prep.outputs.message }}"
+          echo "project: ${{ matrix.projects.target.project }}"
+          echo "configuration: ${{ matrix.projects.target.configuration }}"
+          echo "remote: ${{ needs.cy-prep.outputs.remote }}"
+          echo "sha: ${{ needs.cy-prep.outputs.sha }}"
+          echo "record key: ${{ needs.cy-prep.outputs.record-key }}"
+          echo "stage: ${{ matrix.projects.overrides.stage }}"
+
+      - name: 🎁 Cypress Cloud Record Key Secret Name
+        id: cy-cloud
+        run: |
+          RECORD_KEY=$(echo "${{matrix.projects.target.project}}_RECORD_KEY" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          echo "RECORD_KEY: ${RECORD_KEY}"
+          echo "record-key=${RECORD_KEY}" >> $GITHUB_OUTPUT
+
+      - name: 🛒🎁 EPCC-Store Secrets for ECOMMERCE e2e tests
+        id: cy-epcc-store
+        run: |
+          EPCC_STORE_ID=$(echo "EPCC_STORE_ID_${{steps.build-id.outputs.ecom-env}}" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          EPCC_STORE_CLIENT_ID=$(echo "EPCC_STORE_CLIENT_ID_${{steps.build-id.outputs.ecom-env}}" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          EPCC_STORE_CLIENT_SECRET=$(echo "EPCC_STORE_CLIENT_SECRET_${{steps.build-id.outputs.ecom-env}}" | sed -e "s/-/_/g" | tr '[:lower:]' '[:upper:]')
+          echo "EPCC_STORE_ID: ${EPCC_STORE_ID}"
+          echo "EPCC_STORE_CLIENT_ID: ${EPCC_STORE_CLIENT_ID}"
+          echo "EPCC_STORE_CLIENT_SECRET: ${EPCC_STORE_CLIENT_SECRET}"
+          echo "epcc-store-id=${EPCC_STORE_ID}" >> $GITHUB_OUTPUT
+          echo "epcc-store-client-id=${EPCC_STORE_CLIENT_ID}" >> $GITHUB_OUTPUT
+          echo "epcc-store-client-secret=${EPCC_STORE_CLIENT_SECRET}" >> $GITHUB_OUTPUT
+
+      - name: ✔️ Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          filter: tree:0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: ⬇️ Install Global Cypress
+        run: npm install -g cypress@13.13.1
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        if: ${{ ! env.AWS_ACCESS_KEY_ID }}
+        with:
+          aws-access-key-id: ${{ secrets.AWS_NONPROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_NONPROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Get SSM parameters
+        id: ssm
+        run: |
+          echo "CY_AUTH0_CLIENT_SECRET=$(aws ssm get-parameter --name /digital/github/CY_AUTH0_CLIENT_SECRET --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "CY_AZURE_CLIENT_ID=$(aws ssm get-parameter --name /digital/github/CY_AZURE_CLIENT_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "CY_AZURE_CLIENT_SECRET=$(aws ssm get-parameter --name /digital/github/CY_AZURE_CLIENT_SECRET --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "CY_AZURE_TENANT_ID=$(aws ssm get-parameter --name /digital/github/CY_AZURE_TENANT_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials (ECOMMERCE)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: startsWith(matrix.projects.target.project, 'ecom-')
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_DEV_ROLE  }}
+          role-session-name: 'github_actions-rscom_ecom_sso-dev'
+          aws-region: us-west-2
+
+      - name: Configure AWS credentials (rs-public-customer-api)
+        if: ${{ startsWith(matrix.projects.target.project, 'rs-public-') || startsWith(matrix.projects.target.project, 'sm-api-') || startsWith(matrix.projects.target.project, 'reporting-api-e2e') || startsWith(matrix.projects.target.project, 'unified-wp-api-e2e') }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.RSCOM_OIDC_SSO_DEV_ROLE}}
+          role-session-name: 'github_actions-rscom_sso-dev'
+          aws-region: us-west-2
+
+      - name: Get SSM parameters
+        id: ssm-ecom
+        run: |
+          echo "PRICING_API_KEY=$(aws ssm get-parameter --name /digital/ecom-shop-api/qa/PRICING_API_KEY --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "PRICING_BASE_URL_EXTERNAL=$(aws ssm get-parameter --name /digital/ecom-shop-api/qa/PRICING_BASE_URL_EXTERNAL --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "FIS_AUTHORIZATION_TOKEN=$(aws ssm get-parameter --name /digital/ecom-shop-api/qa/FIS_AUTHORIZATION_TOKEN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "ECOM_BATCH_EVENTS_ROLE=$(aws ssm get-parameter --name /digital/ecom-shop-api/qa/ECOM_BATCH_EVENTS_ROLE --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "ECOM_BATCH_EVENTS_SQS_URL=$(aws ssm get-parameter --name /digital/ecom-shop-api/qa/ECOM_BATCH_EVENTS_SQS_URL --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "ECOM_BATCH_EVENTS_SQS_ARN=$(aws ssm get-parameter --name /digital/ecom-shop-api/qa/EECOM_BATCH_EVENTS_SQS_ARN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "MASHERY_API_KEY=$(aws ssm get-parameter --name /digital/ecom-data-mgmt/qa/MASHERY_API_KEY --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+
+      - name: Get SSM parameters (rs-public-customer-api)
+        id: ssm-rs-public-customer-api
+        run: |
+          echo "RS_PUBLIC_API_CACHE_CONNECT_TIMEOUT_MILS=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/RS_PUBLIC_API_CACHE_CONNECT_TIMEOUT_MILS --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "FIS_BASE_URL=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/FIS_BASE_URL --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "FIS_CLIENT_ID=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/FIS_CLIENT_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "ACN_API_KEY=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/ACN_API_KEY --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "ACN_HMAC_SECRET=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/ACN_HMAC_SECRET --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "ACN_AES_SECRET=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/ACN_AES_SECRET --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "SALESFORCE_CLIENT_ID=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/SALESFORCE_CLIENT_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "SALESFORCE_CLIENT_SECRET=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/SALESFORCE_CLIENT_SECRET --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "SALESFORCE_USERNAME=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/SALESFORCE_USERNAME --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "SALESFORCE_PASSWORD=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/SALESFORCE_PASSWORD --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "SALESFORCE_AUTH_ENDPOINT=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/SALESFORCE_AUTH_ENDPOINT  --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "PARDOT_BUSINESS_UNIT_ID=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/PARDOT_BUSINESS_UNIT_ID  --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "COVEO_API_KEY=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/COVEO_API_KEY --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "FIS_AUTHORIZATION_ENDPOINT=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/FIS_AUTHORIZATION_ENDPOINT --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "FIS_AUTHORIZATION_TOKEN=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/FIS_AUTHORIZATION_TOKEN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "FIS_AUTHORIZATION_API_KEY=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/FIS_AUTHORIZATION_API_KEY --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "BRITEVERIFY_API_KEY=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/BRITEVERIFY_API_KEY --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "COMMUNICATION_METHODS_GET_MASHERY_CACHE_TTL=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/COMMUNICATION_METHODS_GET_MASHERY_CACHE_TTL --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AUTH0_DOMAIN=$(aws ssm get-parameter --name /digital/rs-payment-api/qa/AUTH0_DOMAIN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "MY_RESOURCE_ALLOWED_JWT_AUDIENCES=$(aws ssm get-parameter --name /digital/rs-payment-api/qa/MY_RESOURCE_ALLOWED_JWT_AUDIENCES --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "MASHERY_API_KEY=$(aws ssm get-parameter --name /digital/rs-public-customer-api/qa/MASHERY_API_KEY --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker (Required by Ecom)
+        uses: docker/setup-docker-action@v4
+
+      - name: 🧪 Cypress Tests (UI) [RS]
+        if: ${{ !startsWith(matrix.projects.target.project, 'aura-') && !startsWith(matrix.projects.target.project, 'ries-hub-') && !startsWith(matrix.projects.target.project, 'sm-')&& !startsWith(matrix.projects.target.project, 'ecom-') && !startsWith(matrix.projects.target.project, 'unified-wp') && !startsWith(matrix.projects.target.project, 'uwp') && !startsWith(matrix.projects.target.project, 'reporting') && !startsWith(matrix.projects.target.project, 'rs-public-customer-api') && endsWith(matrix.projects.target.project, '-e2e') }}
+        id: cypress
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          PROJECT_NAMES: ${{ needs.cy-prep.outputs.projects_names }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          CY_AZURE_CLIENT_ID: ${{ steps.ssm.outputs.CY_AZURE_CLIENT_ID }}
+          CY_AZURE_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AZURE_CLIENT_SECRET }}
+          CY_AZURE_TENANT_ID: ${{ steps.ssm.outputs.CY_AZURE_TENANT_ID }}
+          RECORD_KEY: ${{ (matrix.projects.target.project == 'rs-shop-e2e' && vars[steps.cy-cloud.outputs.record-key]) || secrets[steps.cy-cloud.outputs.record-key] }}
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx reset
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser electron --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI --env.CY_AUTH0_CLIENT_ID=${CY_AUTH0_CLIENT_ID} --env.CY_AUTH0_CLIENT_SECRET=${CY_AUTH0_CLIENT_SECRET} --env.CY_AZURE_CLIENT_ID=${CY_AZURE_CLIENT_ID} --env.CY_AZURE_CLIENT_SECRET=${CY_AZURE_CLIENT_SECRET} --env.CY_AZURE_TENANT_ID=${CY_AZURE_TENANT_ID}
+
+      - name: 🧪 Cypress Tests (RS PUBLIC CUSTOMER API) [RS-PUBLIC-CUSTOMER-API-E2E]
+        if: ${{ startsWith(matrix.projects.target.project, 'rs-public-customer-api') && endsWith(matrix.projects.target.project, '-e2e') }}
+        id: cypress-rs-public-customer-api
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          AWS_REGION: 'us-west-2'
+          RECORD_KEY: ${{ (matrix.projects.target.project == 'rs-public-customer-api-e2e' && vars[steps.cy-cloud.outputs.record-key]) || secrets[steps.cy-cloud.outputs.record-key] }}
+          BRITEVERIFY_API_KEY: ${{ steps.ssm-rs-public-customer-api.outputs.BRITEVERIFY_API_KEY }}
+          BRITEVERIFY_ENDPOINT: https://bpi.briteverify.com/emails.json
+          BRITEVERIFY_EMAIL_VALIDATION_CACHE_TTL: 300
+          COMMUNICATION_METHODS_GET_MASHERY_CACHE_TTL: ${{ steps.ssm-rs-public-customer-api.outputs.COMMUNICATION_METHODS_GET_MASHERY_CACHE_TTL }}
+          MASHERY_BASE_URL_EXTERNAL: https://qa.api.republicservices.com
+          MASHERY_API_KEY: ${{ steps.ssm-rs-public-customer-api.outputs.MASHERY_API_KEY }}
+          MASHERY_ADDRESSES_AUTOCOMPLETE_CACHE_TTL: 300
+          MASHERY_ADDRESSES_GET_CACHE_TTL: 300
+          FIS_AUTHORIZATION_ENDPOINT: ${{ steps.ssm-rs-public-customer-api.outputs.FIS_AUTHORIZATION_ENDPOINT }}
+          FIS_AUTHORIZATION_TOKEN: ${{ steps.ssm-rs-public-customer-api.outputs.FIS_AUTHORIZATION_TOKEN }}
+          FIS_AUTHORIZATION_API_KEY: ${{ steps.ssm-rs-public-customer-api.outputs.FIS_AUTHORIZATION_API_KEY }}
+          FIS_AUTHORIZATION_CACHE_TTL_SECS: 540
+          FIS_AUTHORIZATION_REQUEST_TIMEOUT: 10000
+          FIS_AUTHORIZATION_SIGNAL_TIMEOUT: 10000
+          FIS_AUTHORIZATION_RETRY_COUNT: 3
+          FIS_BASE_URL: ${{ steps.ssm-rs-public-customer-api.outputs.FIS_BASE_URL }}
+          FIS_CLIENT_ID: ${{ steps.ssm-rs-public-customer-api.outputs.FIS_CLIENT_ID }}
+          FIS_REQUEST_TIMEOUT: 10000
+          FIS_SIGNAL_TIMEOUT: 10000
+          FIS_RETRY_COUNT: 3
+          ACN_BASE_URL: https://api.acn-nonprod.awsext.repsrv.com/qa
+          ACN_API_KEY: ${{ steps.ssm-rs-public-customer-api.outputs.ACN_API_KEY }}
+          ACN_HMAC_SECRET: ${{ steps.ssm-rs-public-customer-api.outputs.ACN_HMAC_SECRET }}
+          ACN_AES_SECRET: ${{ steps.ssm-rs-public-customer-api.outputs.ACN_AES_SECRET }}
+          SALESFORCE_AUTH_TOKEN_CACHE_TTL: 600
+          SALESFORCE_CLIENT_ID: ${{ steps.ssm-rs-public-customer-api.outputs.SALESFORCE_CLIENT_ID }}
+          SALESFORCE_CLIENT_SECRET: ${{ steps.ssm-rs-public-customer-api.outputs.SALESFORCE_CLIENT_SECRET }}
+          SALESFORCE_USERNAME: ${{ steps.ssm-rs-public-customer-api.outputs.SALESFORCE_USERNAME }}
+          SALESFORCE_PASSWORD: ${{ steps.ssm-rs-public-customer-api.outputs.SALESFORCE_PASSWORD }}
+          SALESFORCE_AUTH_ENDPOINT: ${{ steps.ssm-rs-public-customer-api.outputs.SALESFORCE_PASSWORD }}
+          PARDOT_SUBMISSION_ENDPOINT: https://info.republicservices.com/
+          PARDOT_QUERY_ENDPOINT: https://pi.pardot.com/api/v5/objects/form-handler-fields
+          PARDOT_QUERY_FORMS_CACHE_TTL: 3600
+          PARDOT_BUSINESS_UNIT_ID: ${{ steps.ssm-rs-public-customer-api.outputs.PARDOT_BUSINESS_UNIT_ID }}
+          PARDOT_TIMEOUT: 10000
+          COVEO_SEARCH_CONTEXT_TOKEN_ENDPOINT: https://republicservicesnonproduction37vhfml2.org.coveo.com/rest/search/v2/token
+          COVEO_SEARCH_CONTEXT_TOKEN_CACHE_TTL: 43200
+          COVEO_SEARCH_CONTEXT_TOKEN_TIMEOUT: 10000
+          COVEO_API_KEY: ${{ steps.ssm-rs-public-customer-api.outputs.COVEO_API_KEY }}
+          APP_NOTIFICATION_EMAIL: default
+          DEFAULT_API_TIMEOUT_MILS: 20000
+          DEFAULT_CACHE_TTL_SECS: 120
+          CACHE_URL: 'localhost:6379'
+          CACHE_CONNECT_TIMEOUT_MILS: ${{ steps.ssm-rs-public-customer-api.outputs.CACHE_CONNECT_TIMEOUT_MILS }}
+          RS_PUBLIC_API_CACHE_CONNECT_TIMEOUT_MILS: ${{ steps.ssm-rs-public-customer-api.outputs.RS_PUBLIC_API_CACHE_CONNECT_TIMEOUT_MILS }}
+          CUSTOMER_SERVICE_PROFILES_CACHE_TTL: 300
+          PREFERENCES_CHANNELS_CACHE_TTL: 300
+          GET_PICKUP_SCHEDULE_MAX_DATE_RANGE: 365
+          GET_PICKUP_SCHEDULE_LOOKBACK_THRESHOLD: 30
+          PUBLIC_PICKUP_MAX_ACCOUNTS: 5
+          PUBLIC_PICKUP_MAX_SITES: 5
+          PUBLIC_PICKUP_ACCOUNTS_PAGE_SIZE: 2
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser chrome --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI
+
+      - name: 🧪 Cypress Tests (UI) [RIES Hub]
+        if: ${{ startsWith(matrix.projects.target.project, 'ries-hub-') && endsWith(matrix.projects.target.project, '-e2e') }}
+        id: cypress-ries
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
+          AUTH0_AUDIENCE: ${{ secrets.AUTH0_AUDIENCE }}
+          AUTH0_MANAGEMENT_AUDIENCE: ${{ secrets.AUTH0_MANAGEMENT_AUDIENCE }}
+          AUTH0_BASEURL: ${{ secrets.AUTH0_BASEURL }}
+          AUTH0_CLIENT_ID: ${{ secrets.AUTH0_CLIENT_ID }}
+          AUTH0_SECRET: ${{ secrets.AUTH0_SECRET }}
+          AUTH0_CONNECTION: ${{ secrets.AUTH0_CONNECTION }}
+          AUTH0_ID_PREPEND: ${{ secrets.AUTH0_ID_PREPEND }}
+          AUTH0_MANAGEMENT_API_PATH: ${{ secrets.AUTH0_MANAGEMENT_API_PATH }}
+          AUTH0_SCOPE_BASE: ${{ secrets.AUTH0_SCOPE_BASE }}
+          AUTH0_SCOPE_READ: ${{ secrets.AUTH0_SCOPE_READ }}
+          AUTH0_USER_DATA_NAMESPACE: ${{ secrets.AUTH0_USER_DATA_NAMESPACE }}
+          RECORD_KEY: ${{ secrets[steps.cy-cloud.outputs.record-key] }}
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --env.grepTags=${TAG} --parallel ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --ci-build-id ${BUILD_ID}
+
+      - name: Configure AWS credentials (AURA)
+        uses: aws-actions/configure-aws-credentials@v4
+        if: startsWith(matrix.projects.target.project, 'aura-') || startsWith(matrix.projects.target.project, 'unified-wp') || startsWith(matrix.projects.target.project, 'uwp') || startsWith(matrix.projects.target.project, 'reporting')
+        with:
+          role-to-assume: ${{ vars.AURA_OIDC_SSO_DEV_ROLE }}
+          role-session-name: 'github_actions-aura_sso-dev'
+          aws-region: us-west-2
+          audience: sts.amazonaws.com
+
+      - name: Get SSM parameters
+        if: ${{ startsWith(matrix.projects.target.project, 'aura-api') && endsWith(matrix.projects.target.project, '-e2e') }}
+        id: aura-ssm
+        run: |
+          echo "RSCOM_API_DOMAIN=$(aws ssm get-parameter --name /digital/aura-api/qa/RSCOM_API_DOMAIN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AURA_API_RETRY_COUNT=$(aws ssm get-parameter --name /digital/aura-api/qa/AURA_API_RETRY_COUNT --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "COR1_API_DOMAIN=$(aws ssm get-parameter --name /digital/aura-api/qa/COR1_API_DOMAIN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "COR2_API_DOMAIN=$(aws ssm get-parameter --name /digital/aura-api/qa/COR2_API_DOMAIN --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "COR1_API_URL=$(aws ssm get-parameter --name /digital/aura-api/qa/COR1_API_URL --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "COR2_API_URL=$(aws ssm get-parameter --name /digital/aura-api/qa/COR2_API_URL --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AUTH0_CUSTOMER_ROLE_ID=$(aws ssm get-parameter --name /digital/aura-api/qa/AUTH0_CUSTOMER_ROLE_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AUTH0_COORDINATOR_ROLE_ID=$(aws ssm get-parameter --name /digital/aura-api/qa/AUTH0_COORDINATOR_ROLE_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AUTH0_ANALYST_ROLE_ID=$(aws ssm get-parameter --name /digital/aura-api/qa/AUTH0_ANALYST_ROLE_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AUTH0_SALES_ROLE_ID=$(aws ssm get-parameter --name /digital/aura-api/qa/AUTH0_SALES_ROLE_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AUTH0_CUSTOMER_DESIGNATED_SIGNER_ROLE_ID=$(aws ssm get-parameter --name /digital/aura-api/qa/AUTH0_CUSTOMER_DESIGNATED_SIGNER_ROLE_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AUTH0_CUSTOMER_SAMSARA_ROLE_ID=$(aws ssm get-parameter --name /digital/aura-api/qa/AUTH0_CUSTOMER_SAMSARA_ROLE_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AUTH0_SCALE_ATTENDANT_ROLE_ID=$(aws ssm get-parameter --name /digital/aura-api/qa/AUTH0_SCALE_ATTENDANT_ROLE_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+          echo "AUTH0_CUSTOMER_MANIFEST_VISIBILITY_ROLE_ID=$(aws ssm get-parameter --name /digital/aura-api/qa/AUTH0_CUSTOMER_MANIFEST_VISIBILITY_ROLE_ID --with-decryption --query 'Parameter.Value' --output text)" >> $GITHUB_OUTPUT
+
+      - name: 🧪 Cypress Tests (UI) [AURA-UI]
+        if: ${{ startsWith(matrix.projects.target.project, 'aura-app-bar') || startsWith(matrix.projects.target.project, 'aura-profile') && endsWith(matrix.projects.target.project, '-e2e') }}
+        id: cypress-aura-ui
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          PROJECT_NAMES: ${{ needs.cy-prep.outputs.projects_names }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx reset
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser electron --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI --env.CY_AUTH0_CLIENT_ID=${CY_AUTH0_CLIENT_ID} --env.CY_AUTH0_CLIENT_SECRET=${CY_AUTH0_CLIENT_SECRET}
+
+      - name: 🧪 Cypress Tests (API) [AURA-API]
+        if: ${{ startsWith(matrix.projects.target.project, 'aura-api') && endsWith(matrix.projects.target.project, '-e2e') }}
+        id: cypress-aura-api
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          AWS_REGION: 'us-west-2'
+          AUTH0_BASEURL: 'mr-dev-digital.republicservices-dev.auth0.com'
+          AUTH0_MANAGEMENT_AUDIENCE: 'https://mr-dev-digital.republicservices-dev.auth0.com/api/v2/'
+          AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          AUTH0_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          RSCOM_API_DOMAIN: ${{ steps.aura-ssm.outputs.RSCOM_API_DOMAIN }}
+          AURA_API_RETRY_COUNT: ${{ steps.aura-ssm.outputs.AURA_API_RETRY_COUNT }}
+          COR1_API_DOMAIN: ${{ steps.aura-ssm.outputs.COR1_API_DOMAIN }}
+          COR2_API_DOMAIN: ${{ steps.aura-ssm.outputs.COR2_API_DOMAIN }}
+          COR1_API_URL: ${{ steps.aura-ssm.outputs.COR1_API_URL }}
+          COR2_API_URL: ${{ steps.aura-ssm.outputs.COR2_API_URL }}
+          AUTH0_CUSTOMER_ROLE_ID: ${{ steps.aura-ssm.outputs.AUTH0_CUSTOMER_ROLE_ID }}
+          AUTH0_COORDINATOR_ROLE_ID: ${{ steps.aura-ssm.outputs.AUTH0_COORDINATOR_ROLE_ID }}
+          AUTH0_ANALYST_ROLE_ID: ${{ steps.aura-ssm.outputs.AUTH0_ANALYST_ROLE_ID }}
+          AUTH0_SALES_ROLE_ID: ${{ steps.aura-ssm.outputs.AUTH0_SALES_ROLE_ID }}
+          AUTH0_CUSTOMER_DESIGNATED_SIGNER_ROLE_ID: ${{ steps.aura-ssm.outputs.AUTH0_CUSTOMER_DESIGNATED_SIGNER_ROLE_ID }}
+          AUTH0_CUSTOMER_SAMSARA_ROLE_ID: ${{ steps.aura-ssm.outputs.AUTH0_CUSTOMER_SAMSARA_ROLE_ID }}
+          AUTH0_SCALE_ATTENDANT_ROLE_ID: ${{ steps.aura-ssm.outputs.AUTH0_SCALE_ATTENDANT_ROLE_ID }}
+          AUTH0_CUSTOMER_MANIFEST_VISIBILITY_ROLE_ID: ${{ steps.aura-ssm.outputs.AUTH0_CUSTOMER_MANIFEST_VISIBILITY_ROLE_ID }}
+          AUTH0_RS_TRANSPORTER_ROLE_ID: ${{ steps.aura-ssm.outputs.AUTH0_RS_TRANSPORTER_ROLE_ID }}
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser chrome --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI --env.CY_AUTH0_CLIENT_ID=${CY_AUTH0_CLIENT_ID} --env.CY_AUTH0_CLIENT_SECRET=${CY_AUTH0_CLIENT_SECRET}
+
+      - name: 🧪 Cypress Tests (API) [AURA-COR-SERVICE]
+        if: ${{ startsWith(matrix.projects.target.project, 'aura-cor-service') && endsWith(matrix.projects.target.project, '-e2e') }}
+        id: cypress-aura-cor-service
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          AWS_REGION: 'us-west-2'
+          AUTH0_BASEURL: 'mr-dev-digital.republicservices-dev.auth0.com'
+          AUTH0_MANAGEMENT_AUDIENCE: 'https://mr-dev-digital.republicservices-dev.auth0.com/api/v2/'
+          AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          AUTH0_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          AURA_API_RETRY_COUNT: ${{ vars.AURA_API_RETRY_COUNT }}
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser chrome --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI
+
+      - name: 🧪 Cypress Tests (UI) [Unified-WP]
+        if: ${{ startsWith(matrix.projects.target.project, 'unified-wp') && endsWith(matrix.projects.target.project, '-e2e') }}
+        id: cypress-unified-wp-ui
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          AWS_REGION: 'us-west-2'
+          AUTH0_BASEURL: 'mr-dev-digital.republicservices-dev.auth0.com'
+          AUTH0_MANAGEMENT_AUDIENCE: 'https://mr-dev-digital.republicservices-dev.auth0.com/api/v2/'
+          UWP_COR_API_DOMAIN: 'https://cor2testproxy.repsrv.com'
+          UWP_COR_API_URL: 'https://cor2testproxy.repsrv.com'
+          UWP_SW_API_URL: 'https://ries-hub-ui-master.awsdev.repsrv.com/api/facilities'
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser chrome --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI
+
+      - name: 🧪 Cypress Tests (API) [UWP]
+        if: ${{ startsWith(matrix.projects.target.project, 'uwp') && endsWith(matrix.projects.target.project, '-e2e') }}
+        id: cypress-unified-wp-api
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          AWS_REGION: 'us-west-2'
+          AUTH0_BASEURL: 'mr-dev-digital.republicservices-dev.auth0.com'
+          AUTH0_MANAGEMENT_AUDIENCE: 'https://mr-dev-digital.republicservices-dev.auth0.com/api/v2/'
+          UWP_COR_API_DOMAIN: 'https://cor2testproxy.repsrv.com'
+          UWP_COR_API_URL: 'https://cor2testproxy.repsrv.com'
+          UWP_SW_API_URL: 'https://ries-hub-ui-master.awsdev.repsrv.com/api/facilities'
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser chrome --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI
+
+      - name: 🧪 Cypress Tests (UI) [REPORTING-UI]
+        if: ${{ startsWith(matrix.projects.target.project, 'reporting-e2e') }}
+        id: cypress-reporting-ui
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          PROJECT_NAMES: ${{ needs.cy-prep.outputs.projects_names }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx reset
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser electron --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI --env.CY_AUTH0_CLIENT_ID=${CY_AUTH0_CLIENT_ID} --env.CY_AUTH0_CLIENT_SECRET=${CY_AUTH0_CLIENT_SECRET}
+
+      - name: 🧪 Cypress Tests (API) [REPORTING]
+        if: ${{ startsWith(matrix.projects.target.project, 'reporting-api-') }}
+        id: cypress-reporting
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          AWS_REGION: 'us-west-2'
+        run: |
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser chrome --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI --env.CY_AUTH0_CLIENT_ID=${CY_AUTH0_CLIENT_ID} --env.CY_AUTH0_CLIENT_SECRET=${CY_AUTH0_CLIENT_SECRET}
+
+      - name: 🧪 Cypress Tests (API) [Service Management]
+        if: ${{ startsWith(matrix.projects.target.project, 'sm-api-e2e') }}
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+          AUTH0_DOMAIN: ${{steps.ssm-rs-public-customer-api.outputs.AUTH0_DOMAIN}}
+          MY_RESOURCE_ALLOWED_JWT_AUDIENCES: ${{steps.ssm-rs-public-customer-api.outputs.MY_RESOURCE_ALLOWED_JWT_AUDIENCES}}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          AWS_REGION: 'us-west-2'
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser chrome --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI
+
+      - name: 🧪 Cypress Tests (UI) [Service Management]
+        if: ${{ startsWith(matrix.projects.target.project, 'sm-ui-e2e') }}
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          PROJECT_NAMES: ${{ needs.cy-prep.outputs.projects_names }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          CY_AUTH0_CLIENT_ID: ${{ vars.CY_AUTH0_CLIENT_ID }}
+          CY_AUTH0_CLIENT_SECRET: ${{ steps.ssm.outputs.CY_AUTH0_CLIENT_SECRET }}
+          RECORD_KEY: ${{ vars[steps.cy-cloud.outputs.record-key] }}
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx reset
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --browser electron --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI
+
+      - name: 🔑 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_NONPROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_NONPROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: 🐳 Setup docker-compose
+        uses: KengoTODA/actions-setup-docker-compose@v1
+        with:
+          version: '2.24.6'
+
+      - name: 🧪 Cypress Tests (ECOMMERCE)
+        if: ${{ startsWith(matrix.projects.target.project, 'ecom-') && endsWith(matrix.projects.target.project, '-e2e') }}
+        env:
+          AUTHOR: ${{ needs.cy-prep.outputs.author }}
+          BRANCH: ${{ needs.cy-prep.outputs.branch }}
+          BUILD_ID: ${{ steps.build-id.outputs.build-id }}
+          COMMIT_INFO_MESSAGE: ${{github.event.pull_request.title}}
+          COMMIT_INFO_SHA: ${{github.event.pull_request.head.sha}}
+          EMAIL: ${{ needs.cy-prep.outputs.email }}
+          MESSAGE: ${{ needs.cy-prep.outputs.message }}
+          PROJECT: ${{ matrix.projects.target.project }}
+          CONFIGURATION: ${{ matrix.projects.target.configuration }}
+          REMOTE: ${{ needs.cy-prep.outputs.remote }}
+          REPUBLIC_SYSTEM_PAT: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          SHA: ${{ needs.cy-prep.outputs.sha }}
+          TAG: '@CI'
+          STAGE: ${{ matrix.projects.overrides.stage }}
+          AWS_ACCESS_KEY_ID: ${{ env.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_DEFAULT_REGION }}
+          NODE_OPTIONS: '--max_old_space_size=7168'
+          ENVIRONMENT: ${{ env.BRANCH == 'master' && 'qa' || 'dev' }}
+          MASHERY_API_KEY: ${{ steps.ssm-ecom.outputs.MASHERY_API_KEY }}
+          MASHERY_BASE_URL_EXTERNAL: https://qa.api.republicservices.com
+          DEFAULT_API_TIMEOUT_MILS: 20000
+          ECOM_RECORD_KEY: ${{ secrets[steps.cy-cloud.outputs.record-key] }}
+          DYNAMODB_ENDPOINT: 'http://localhost:8000'
+          DYNAMODB_REGION: 'ddblocal'
+          SQS_ENDPOINT: 'http://localhost:9324'
+          SNS_ENDPOINT: 'http://localhost:4002'
+          SSM_ENDPOINT: 'http://localhost:4566'
+          ECOM_ORDER_EVENTS_SQS_URL: http://localhost:9324/000000000000/ecom-order-events-dev
+          ECOM_ORDER_EVENTS_SQS_ARN: 'arn:aws:sqs:us-west-2:000000000000:ecom-order-events-dev'
+          ECOM_ORDER_XML_SQS_URL: http://localhost:9324/000000000000/ecom-order-xml-dev
+          ECOM_ORDER_XML_SQS_ARN: arn:aws:sqs:us-west-2:000000000000:ecom-order-xml-dev
+          ORDER_DETAILS_CONFIRMATION_URL: https://preview-internal.rscom-nonprod.awsext.repsrv.com:8051/shop/order-details/[[orderHashKey]]?ff=ecom-shop2
+          ECOM_ORDER_XML_ROLE: na
+          ECOM_ORDER_NOTIFICATION_TOPIC_SNS_ARN: arn:aws:sns:us-west-2:123456789012:ecom-order-notification-topic-dev
+          ECOM_ORDER_CONFIRMATION_SQS_ARN: 'arn:aws:sqs:us-west-2:000000000000:ecom-order-confirmation-dev'
+          ECOM_SHIPPING_EVENTS_SQS_ARN: arn:aws:sqs:us-west-2:000000000000:ecom-shipping-events-dev
+          ECOM_ORDER_REPORTING_SQS_ARN: arn:aws:sqs:us-west-2:000000000000:ecom-order-reporting-dev
+          STORE_ID: ${{ secrets[steps.cy-epcc-store.outputs.epcc-store-id] }}
+          STORE_CLIENT_ID: ${{ secrets[steps.cy-epcc-store.outputs.epcc-store-client-id] }}
+          STORE_CLIENT_SECRET: ${{ secrets[steps.cy-epcc-store.outputs.epcc-store-client-secret] }}
+          ECOM_SLS_SECURITY_GROUP_ID: na
+          DEV_EVENT_ENABLED_ORDER_TO_DYNAMO: true
+          DEV_EVENT_ENABLED_SHIPMENT_XML: true
+          DEV_EVENT_ENABLED_ORDER_XML: true
+          DEV_EVENT_ENABLED_ORDER_REPORTING: true
+          DEV_EVENT_ENABLED_ORDER_CONFIRMATION: true
+          PROMO_TABLE_NAME: 'ecom-promo-dev'
+          ECOM_PROMO_AUTH_KEY: ${{ secrets.ECOM_PROMO_AUTH_KEY }}
+          PROMO_API_USER: 'asdf'
+          PROMO_API_PASS: 'asdf'
+          FIS_RETRY_COUNT: 3
+          SPLUNK_FIREHOSE_ARN: 123
+          ECOM_APPCONFIG: 'infrastructure-local/ecom/appconfig'
+          ECOM_APPS_ID: 123,
+          EPCC_RECONCILE_SCHEDULE: 'rate(24 hours)'
+          MDM_DB_CONNECTION_STRING: ''
+          MDM_DB_RO_PASSWORD: ''
+          MDM_DB_RO_USERNAME: ''
+          ECOM_EPCC_RECONCILE_ROLE: na
+          CACHE_URL_PROTOCOL: 'redis://'
+          CACHE_URL: 'localhost:6379'
+          CACHE_CONNECT_TIMEOUT_MILS: 11000
+          PRICING_BASE_URL_EXTERNAL: ${{ steps.ssm-ecom.outputs.PRICING_BASE_URL_EXTERNAL }}
+          PRICING_API_KEY: ${{ steps.ssm-ecom.outputs.PRICING_API_KEY }}
+          FIS_AUTHORIZATION_TOKEN: ${{ steps.ssm-ecom.outputs.FIS_AUTHORIZATION_TOKEN }}
+          ECOM_BATCH_EVENTS_ROLE: ${{ steps.ssm-ecom.outputs.ECOM_BATCH_EVENTS_ROLE }}
+          ECOM_BATCH_EVENTS_SQS_URL: ${{ steps.ssm-ecom.outputs.ECOM_BATCH_EVENTS_SQS_URL }}
+          ECOM_BATCH_EVENTS_SQS_ARN: ${{ steps.ssm-ecom.outputs.ECOM_BATCH_EVENTS_SQS_ARN }}
+          ECOM_CSA_S3_BUCKET: 'ecom-csa-dev'
+          ECOM_MUNI_ORDER_EVENTS_ROLE: 'na'
+          ECOM_MUNI_ORDER_EVENTS_SQS_ARN: 'arn:aws:sqs:us-west-2:000000000000:ecom-muni-order-events-dev'
+          ECOM_MUNI_ORDER_EVENTS_SQS_URL: 'http://localhost:9324/000000000000/ecom-muni-order-events-dev'
+          TIBCO_MUNI_INTEGRATION_URL: 'default'
+          TIBCO_MUNI_INTEGRATION_API_KEY: 'default'
+          FIS_ECOM_APP_SPECIFIC_CUSTOMER_ID: 'default'
+          CART_TABLE_NAME: 'ecom-cart-dev'
+          ECOM_PREP_ACCOUNT_ROLE: 'na'
+        run: |
+          mkdir -p apps/${{ matrix.projects.target.project }}/reports/.jsons
+          npx nx e2e ${PROJECT} -- --stage=${STAGE} --env.grepTags=${TAG} ${CONFIGURATION:+"--configuration $CONFIGURATION"} --record --key=${ECOM_RECORD_KEY} --parallel --ci-build-id ${BUILD_ID} --group CI
+
+      - name: Set opslevel-service variable
+        id: opslevel-service-var
+        if: ${{ !cancelled() && (matrix.projects.target.project == 'aura-api-e2e' || matrix.projects.target.project == 'aura-cor-service-e2e' || matrix.projects.target.project == 'reporting-api-e2e' || matrix.projects.target.project == 'rs-shop-e2e' || matrix.projects.target.project == 'ecom-shop-api-e2e' || matrix.projects.target.project == 'ecom-promo-api-e2e' || matrix.projects.target.project == 'rs-frontend-e2e')  }}
+        run: |
+          PROJECT=$(echo "${{matrix.projects.target.project}}" | sed -e "s/-/_/g" )
+          echo "PROJECT: ${PROJECT}"
+          echo "Setting opslevel-service variable for project: ${{ matrix.projects.target.project }}"
+          ARTIFACT_NAME=${{ matrix.projects.id }}
+          ARTIFACT_NAME=${ARTIFACT_NAME//:/-}
+          echo "ARTIFACT_NAME=${ARTIFACT_NAME}" >> $GITHUB_ENV
+          echo "OPSLEVEL_SERVICE=${PROJECT}" >> $GITHUB_OUTPUT
+          echo "PROJECT=${PROJECT}" >> $GITHUB_ENV
+
+      - name: Prepare Files for Upload
+        if: ${{ !cancelled() }}
+        id: prepare-files
+        run: |
+          # Set up variables
+          PROJECT=${{ matrix.projects.target.project }}
+
+          # Sanitize the group ID by replacing colons and other invalid characters
+          GROUP_ID="${{ matrix.projects.id }}"
+          GROUP_ID=$(echo "$GROUP_ID" | sed -e 's/[:"<>|*?\r\n\/\\]/-/g')
+
+          # Add timestamp to ensure uniqueness
+          TIMESTAMP=$(date +%s)
+
+          # Create unique artifact name
+          ARTIFACT_NAME="cypress-${PROJECT}-${GROUP_ID}-${TIMESTAMP}"
+
+          # Create unified upload directory structure
+          UPLOAD_DIR="upload-artifacts/${PROJECT}"
+          mkdir -p "$UPLOAD_DIR/.jsons"
+
+          echo "Checking for reports in various locations..."
+
+          # Check and copy from .jsons directory
+          if [ -d "apps/$PROJECT/reports/.jsons" ]; then
+            echo "Found .jsons directory at apps/$PROJECT/reports/.jsons"
+            cp -r apps/$PROJECT/reports/.jsons/* "$UPLOAD_DIR/.jsons/" 2>/dev/null || true
+          fi
+
+          # Copy from standard reports directory
+          if [ -d "apps/$PROJECT/reports" ]; then
+            echo "Found reports directory at apps/$PROJECT/reports"
+            find "apps/$PROJECT/reports" -type f -not -path "*/\.*" -exec cp {} "$UPLOAD_DIR/" \; 2>/dev/null || true
+          fi
+
+          # Copy from mochawesome directory
+          if [ -d "apps/$PROJECT/mochawesome-report" ]; then
+            echo "Found mochawesome-report directory"
+            cp -r apps/$PROJECT/mochawesome-report/* "$UPLOAD_DIR/" 2>/dev/null || true
+          fi
+
+          # Look for any mochawesome JSON files
+          echo "Searching for mochawesome json files..."
+          find "apps/$PROJECT" -name "mochawesome*.json" -exec cp {} "$UPLOAD_DIR/.jsons/" \; 2>/dev/null || true
+
+          # Check if we got any files
+          if [ -z "$(find "$UPLOAD_DIR" -type f)" ]; then
+            echo "No reports found - creating empty report"
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+            echo "{\"stats\":{\"suites\":0,\"tests\":0,\"passes\":0,\"pending\":0,\"failures\":1,\"start\":\"$TIMESTAMP\",\"end\":\"$TIMESTAMP\",\"duration\":0},\"results\":[]}" > "$UPLOAD_DIR/index.json"
+          fi
+
+          echo "Files ready for upload in $UPLOAD_DIR:"
+          find "$UPLOAD_DIR" -type f -ls
+
+          echo "upload-dir=$UPLOAD_DIR" >> $GITHUB_OUTPUT
+          echo "artifact-name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
+
+      - name: Upload artifacts
+        if: ${{ !cancelled() && (matrix.projects.target.project == 'aura-api-e2e' || matrix.projects.target.project == 'aura-cor-service-e2e' || matrix.projects.target.project == 'reporting-api-e2e' || matrix.projects.target.project == 'rs-shop-e2e' || matrix.projects.target.project == 'ecom-shop-api-e2e' || matrix.projects.target.project == 'ecom-promo-api-e2e' || matrix.projects.target.project == 'rs-frontend-e2e') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.prepare-files.outputs.artifact-name }}
+          path: ${{ steps.prepare-files.outputs.upload-dir }}
+          if-no-files-found: warn
+
+  merge-reports:
+    name: Merge Cypress Reports
+    needs: [cy-prep, cypress-tests]
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download Reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: cypress-*
+          path: downloaded-reports
+          merge-multiple: false
+
+      - name: Install Dependencies
+        run: |
+          npm install -g mochawesome-merge mochawesome-report-generator
+          sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Process Reports
+        id: process
+        run: |
+          echo "Starting report processing..."
+
+          # Create base directory
+          echo "Creating base directory..."
+          mkdir -p processed-reports
+
+          # Debug: Show all downloaded artifacts
+          echo "Contents of downloaded-reports directory:"
+          if find downloaded-reports -type f | grep -q .; then
+            echo "Files found in downloaded-reports:"
+            find downloaded-reports -type f -exec ls -l {} \;
+            echo "files_found=true" >> $GITHUB_OUTPUT
+          else
+            echo "No contents found in downloaded-reports directory. Skipping report processing."
+            echo "files_found=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # First, find all cypress directories
+          echo "Finding all cypress test directories..."
+          cypress_dirs=$(find downloaded-reports -maxdepth 1 -type d -name 'cypress-*')
+          echo "Found cypress directories:"
+          echo "$cypress_dirs"
+
+          # Define regex patterns
+          SERVICE_PATTERN="^(rs|ecom|aura|ries-hub|uwp|unified-wp)-[a-z-]+-e2e$"
+          CYPRESS_PATTERN="^cypress-([a-z-]+-e2e)-\1.*$"
+
+          # Extract the base service names (e.g. ecom-shop-api-e2e, ecom-promo-api-e2e)
+          echo "Extracting base service names..."
+          declare -A services
+          for dir in $cypress_dirs; do
+            base_dir=$(basename "$dir")
+            # Try to extract service name using both patterns
+            if [[ $base_dir =~ cypress-((rs|ecom|aura|ries-hub|uwp|unified-wp)-[a-z-]+-e2e) ]]; then
+              service="${BASH_REMATCH[1]}"
+              echo "Processing directory: $dir"
+              echo "Extracted service name: $service"
+
+              if [ ! -z "$service" ]; then
+                services["$service"]=1
+              fi
+            fi
+          done
+
+          echo "Unique services found:"
+          for service in "${!services[@]}"; do
+            echo "- $service"
+          done
+
+          # Process each unique service
+          for service in "${!services[@]}"; do
+            echo "========================================="
+            echo "Processing service: $service"
+            echo "========================================="
+
+            # Create service directory
+            mkdir -p "processed-reports/$service/.jsons"
+
+            # Find all JSON files for this service
+            echo "Finding all report files for $service..."
+            report_files=$(find downloaded-reports -type f -name "*.json")
+
+            if [ -z "$report_files" ]; then
+              echo "No JSON files found for $service"
+            else
+              echo "Found these report files:"
+              echo "$report_files" | tr ' ' '\n'
+
+              # Copy all JSON files to the service's .jsons directory
+              echo "Copying JSON files to processed-reports/$service/.jsons/"
+              while IFS= read -r file; do
+                if [ ! -z "$file" ] && echo "$file" | grep -q "$service"; then
+                  cp "$file" "processed-reports/$service/.jsons/"
+                  echo "Copied: $file"
+                fi
+              done <<< "$report_files"
+
+              # Debug: Show contents of .jsons directory
+              echo "Contents of processed-reports/$service/.jsons/:"
+              ls -la "processed-reports/$service/.jsons/"
+            fi
+
+            # Merge reports
+            echo "Merging reports for $service..."
+            if [ -n "$(ls -A processed-reports/$service/.jsons/)" ]; then
+              mochawesome-merge "processed-reports/$service/.jsons/*.json" > "processed-reports/$service/temp.json"
+
+              # Calculate duration
+              DURATION_MS=$(jq -r '.stats.duration' "processed-reports/$service/temp.json")
+
+              # Create final report
+              jq --arg duration "$DURATION_MS" \
+              '
+              .stats.duration = ($duration | tonumber) |
+              .
+              ' "processed-reports/$service/temp.json" > "processed-reports/$service/index.json"
+
+              rm "processed-reports/$service/temp.json"
+
+              # Show merged report statistics
+              echo "Merged report statistics for $service:"
+              jq -r '
+                .stats |
+                "Total Suites: \(.suites)\n" +
+                "Total Tests: \(.tests)\n" +
+                "Passes: \(.passes)\n" +
+                "Failures: \(.failures)\n" +
+                "Pending: \(.pending)\n" +
+                "Duration: \(.duration)ms"
+              ' "processed-reports/$service/index.json"
+            else
+              echo "No JSON files found to merge for $service"
+              # Create empty report
+              TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+              echo "{\"stats\":{\"suites\":0,\"tests\":0,\"passes\":0,\"pending\":0,\"failures\":1,\"start\":\"$TIMESTAMP\",\"end\":\"$TIMESTAMP\",\"duration\":0},\"results\":[]}" > "processed-reports/$service/index.json"
+            fi
+
+            echo "----------------------------------------"
+          done
+
+          # Generate final output for GitHub Actions
+          SERVICES=$(printf "%s\n" "${!services[@]}" | jq -R -s -c 'split("\n")[:-1]')
+          echo "Final processed services: $SERVICES"
+          echo "services=$SERVICES" >> $GITHUB_OUTPUT
+
+          if [ "${#services[@]}" -gt 0 ]; then
+            echo "has_report=true" >> $GITHUB_OUTPUT
+            echo "Reports were successfully processed"
+          else
+            echo "has_report=false" >> $GITHUB_OUTPUT
+            echo "No reports were found to process"
+          fi
+
+          # Show final structure of processed-reports
+          echo "Final structure of processed-reports directory:"
+          find processed-reports -type f -exec ls -l {} \;
+
+      - name: Validate Service Names
+        id: validate-services
+        run: |
+          # Define regex patterns
+          SERVICE_PATTERN="^(rs|ecom|aura|ries-hub|uwp|unified-wp)-[a-z-]+-e2e$"
+          CYPRESS_PATTERN="^cypress-([a-z-]+-e2e)-\1.*$"
+
+          # Get services array
+          SERVICES='${{ steps.process.outputs.services }}'
+
+          # Validate each service
+          INVALID_SERVICES=()
+          for service in $(echo "$SERVICES" | jq -r '.[]'); do
+            if [[ $service =~ cypress-* ]]; then
+              if ! [[ $service =~ $CYPRESS_PATTERN ]]; then
+                INVALID_SERVICES+=("$service")
+              fi
+            elif ! [[ $service =~ $SERVICE_PATTERN ]]; then
+              INVALID_SERVICES+=("$service")
+            fi
+          done
+
+          # Check if any services were invalid
+          if [ ${#INVALID_SERVICES[@]} -ne 0 ]; then
+            echo "Invalid service names found:"
+            printf '%s\n' "${INVALID_SERVICES[@]}"
+            exit 1
+          fi
+
+          echo "All service names validated successfully"
+
+      - name: Report to Opslevel - ecom-shop-api-e2e
+        if: ${{steps.process.outputs.files_found == 'true' && contains(fromJSON(steps.process.outputs.services), 'ecom-shop-api-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: ci
+          opslevel-service: ecom_shop_api_e2e
+          report-path: processed-reports/ecom-shop-api-e2e/index.json
+
+      - name: Report Cypress To Opslevel
+        if: ${{ !cancelled() && steps.process.outputs.files_found == 'true' && (matrix.projects.target.project == 'aura-api-e2e' || matrix.projects.target.project == 'aura-cor-service-e2e'|| matrix.projects.target.project == 'reporting-api-e2e' || matrix.projects.target.project == 'rs-shop-e2e' || matrix.projects.target.project == 'ecom-shop-api-e2e' || matrix.projects.target.project == 'ecom-promo-api-e2e' || matrix.projects.target.project == 'rs-frontend-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: ci
+          opslevel-service: ecom_shop_api_e2e
+          report-path: processed-reports/ecom-shop-api-e2e/index.json
+
+      - name: Report to Opslevel - ecom-promo-api-e2e
+        if: ${{ steps.process.outputs.files_found == 'true' &&  contains(fromJSON(steps.process.outputs.services), 'ecom-promo-api-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: ci
+          opslevel-service: ecom_promo_api_e2e
+          report-path: processed-reports/ecom-promo-api-e2e/index.json
+
+      - name: Report to Opslevel - rs-frontend-e2e
+        if: ${{ steps.process.outputs.files_found == 'true' && contains(fromJSON(steps.process.outputs.services), 'rs-frontend-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: ci
+          opslevel-service: rs_frontend_e2e
+          report-path: processed-reports/rs-frontend-e2e/index.json
+
+      - name: Report to Opslevel - rs-shop-e2e
+        if: ${{ steps.process.outputs.files_found == 'true' && contains(fromJSON(steps.process.outputs.services), 'rs-shop-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: ci
+          opslevel-service: rs_shop_e2e
+          report-path: processed-reports/rs-shop-e2e/index.json
+
+      - name: Report to Opslevel - rs-footer-e2e
+        if: ${{ steps.process.outputs.files_found == 'true' && contains(fromJSON(steps.process.outputs.services), 'rs-footer-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: ci
+          opslevel-service: rs_footer_e2e
+          report-path: processed-reports/rs-footer-e2e/index.json
+
+      - name: Report to Opslevel - rs-header-e2e
+        if: ${{ steps.process.outputs.files_found == 'true' && contains(fromJSON(steps.process.outputs.services), 'rs-header-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: ci
+          opslevel-service: rs_header_e2e
+          report-path: processed-reports/rs-header-e2e/index.json
+
+      - name: Report to Opslevel - aura-api-e2e
+        if: ${{ steps.process.outputs.files_found == 'true' && contains(fromJSON(steps.process.outputs.services), 'aura-api-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: ci
+          opslevel-service: aura_api_e2e
+          report-path: processed-reports/aura-api-e2e/index.json
+
+      - name: Report to Opslevel - aura-cor-service-e2e
+        if: ${{ steps.process.outputs.files_found == 'true' && contains(fromJSON(steps.process.outputs.services), 'aura-cor-service-e2e') }}
+        uses: RepublicServicesRepository/gha-cypress_to_opslevel@latest
+        with:
+          run-type: ci
+          opslevel-service: aura_cor_service_e2e
+          report-path: processed-reports/aura-cor-service-e2e/index.json
+
+  cypress-status:
+    name: Cypress Quality Checks Passed
+    if: ${{ !cancelled() }}
+    needs: [cy-prep, cypress-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🖨️ print cypress-tests result
+        run: |
+          echo "has-projects: ${{ needs.cy-prep.outputs.has-projects }}"
+          echo "result: ${{ needs.cypress-tests.result }}"
+          echo "proceed: ${{ needs.cy-prep.outputs.has-projects == 'false' || needs.cypress-tests.result == 'success' }}"
+
+      - name: ✔️ Check Cypress Matrix status
+        if: ${{ needs.cy-prep.outputs.has-projects == 'true' && needs.cypress-tests.result == 'failure' }}
+        run: exit 1

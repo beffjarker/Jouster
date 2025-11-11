@@ -1,0 +1,90 @@
+name: Ecom Deploy Feature Flags (prod)
+
+env:
+  NODE_VERSION: '20.19.0'
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        description: Version Number to clone (will alter flags specified below)
+        required: true
+      feature-flags:
+        type: string
+        description: Comma separated flags and values to set OR blank (ex. ecom-v2-configure:true,ecom-v2-products:false)
+        required: false
+      version-label:
+        type: string
+        description: Unique Version Label (length 16 max) (v2.0.0 OR v2.0.0_revert)
+        required: true
+
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  validation:
+    runs-on: ubuntu-latest
+    name: Validate Workflow
+    steps:
+      - name: Checkout verify actor action
+        uses: actions/checkout@v4
+        with:
+          repository: RepublicServicesRepository/gha-verify-actor
+          ref: refs/heads/main
+          token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          persist-credentials: false
+          path: ./.github/actions/verify-actor
+
+      - name: Verify Actor
+        uses: ./.github/actions/verify-actor
+        with:
+          github_token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          whitelist: WebeWizard,acgilardi,santhoshkadali,lamasa1,nikhilramoju,myapRS,jfrenchrepublicservices,haarsma,shubhgithubaccount,brus99,sbohmer-rs,beffjarker,UshaValluri
+
+  deploy-feature-flags:
+    runs-on: ubuntu-latest
+    needs: [validation]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Configure AWS credentials (ecom)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_PROD_ROLE }}
+          role-session-name: 'github_actions-rscom_ecom_sso-prod'
+          aws-region: us-west-2
+
+      - name: Deploy Feature Flags Version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLICATION_NAME: ecom-apps-prod
+          ENVIRONMENT_NAME: prod
+          DEPLOYMENT_STRATEGY_NAME: immediate_deployment
+          CONFIGURATION_NAME: ecom-feature-flags-prod
+          CONFIGURATION_VERSION: ${{github.event.inputs.version}}
+          FEATURE_FLAGS: ${{github.event.inputs.feature-flags}}
+          VERSION_LABEL: ${{github.event.inputs.version-label}}
+        run: |
+          node scripts/ecom-deploy-feature-flags.js

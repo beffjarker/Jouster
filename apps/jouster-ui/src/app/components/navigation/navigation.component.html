@@ -28,7 +28,7 @@
     <!-- Navigation Menu -->
     <ul class="nav-menu" role="menubar">
       <li
-        *ngFor="let item of navigationItems; trackBy: trackByPath"
+        *ngFor="let item of visibleNavigationItems; trackBy: trackByPath"
         class="nav-item"
         [class.active]="isActiveRoute(item.path)"
         role="none">

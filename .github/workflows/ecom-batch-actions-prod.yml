@@ -1,0 +1,94 @@
+name:
+  Ecom Batch Actions Prod
+  # This workflow triggers the create-batch Lambda for batch processing in e-commerce environments.
+  # It validates the actor, sets up the environment, and invokes the Lambda with a user-supplied JSON payload.
+
+env:
+  AWS_REGION: 'us-west-2'
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      payload:
+        description: 'JSON payload for create-batch Lambda'
+        required: true
+        type: string
+
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  validation:
+    name: Validate Workflow
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout verify actor action
+        uses: actions/checkout@v4
+        with:
+          repository: RepublicServicesRepository/gha-verify-actor
+          ref: refs/heads/main
+          token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          persist-credentials: false
+          path: ./.github/actions/verify-actor
+
+      - name: Read Authorized Users
+        id: auth-users
+        run: |
+          WHITELIST=$(tr '\n' ',' < scripts/ecom-authorized-users.txt | sed 's/,$//')
+          echo "whitelist=$WHITELIST" >> $GITHUB_OUTPUT
+
+      - name: Verify Actor
+        uses: ./.github/actions/verify-actor
+        with:
+          github_token: ${{ secrets.REPUBLIC_SYSTEM_PAT }}
+          whitelist: ${{ steps.auth-users.outputs.whitelist }}
+
+  invoke-create-batch:
+    name: Invoke Create Batch Lambda
+    runs-on: ubuntu-latest
+    needs: [validation]
+    steps:
+      - name: Configure AWS credentials (ecom)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.ECOM_OIDC_SSO_PROD_ROLE }}
+          role-session-name: 'github_actions-rscom_ecom_sso-prod'
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Wrap payload in body property
+        id: wrap-payload
+        run: |
+          RAW_PAYLOAD='${{ github.event.inputs.payload }}'
+          # Escape double quotes for JSON string
+          ESCAPED_PAYLOAD=$(echo "$RAW_PAYLOAD" | sed 's/"/\\"/g')
+          echo "WRAPPED_PAYLOAD={\"body\": \"$ESCAPED_PAYLOAD\"}" >> $GITHUB_ENV
+
+      - name: Invoke create-batch Lambda
+        run: |
+          aws lambda invoke \
+            --function-name ecom-data-mgmt-prod-create-batch-events \
+            --payload "$WRAPPED_PAYLOAD" \
+            --cli-binary-format raw-in-base64-out \
+            --region  ${{ env.AWS_REGION }} \
+            response.json
+
+      - name: Log Lambda result
+        run: |
+          echo "Lambda response:"
+          cat response.json

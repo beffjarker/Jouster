@@ -9,6 +9,8 @@ interface NavigationItem {
   label: string;
   icon: string;
   description?: string;
+  requiresAuth?: boolean; // True if item requires authentication
+  isPublic?: boolean; // True if item is available without auth (default: false)
 }
 
 @Component({
@@ -25,16 +27,74 @@ export class NavigationComponent implements OnInit, OnDestroy {
   public currentRoute = '';
   public isMobile = false;
 
+  // TODO: Wire up actual authentication service
+  // For now, this simulates logged-out state
+  public isAuthenticated = false;
+
   public navigationItems: NavigationItem[] = [
-    { path: '/', label: 'Flash Experiments', icon: '🎨', description: '56+ interactive presets' },
-    { path: '/highlights', label: 'Highlights', icon: '⭐', description: 'Featured content' },
-    { path: '/timeline', label: 'Timeline', icon: '📅', description: 'Interactive visualization' },
-    { path: '/conversation-history', label: 'Conversations', icon: '💬', description: 'Chat history & analysis' },
-    { path: '/fibonacci', label: 'Fibonacci', icon: '🔢', description: 'Mathematical visualizations' },
-    { path: '/music', label: 'Music', icon: '🎵', description: 'Music player & listening history' },
-    { path: '/emails', label: 'Emails', icon: '📧', description: 'Email management' },
-    { path: '/about', label: 'About', icon: 'ℹ️', description: 'About this project' },
-    { path: '/contact', label: 'Contact', icon: '📞', description: 'Get in touch' }
+    {
+      path: '/',
+      label: 'Flash Experiments',
+      icon: '🎨',
+      description: '56+ interactive presets',
+      isPublic: true // Public - Flash experiments home page
+    },
+    {
+      path: '/highlights',
+      label: 'Highlights',
+      icon: '⭐',
+      description: 'Featured content',
+      requiresAuth: true // Requires login
+    },
+    {
+      path: '/timeline',
+      label: 'Timeline',
+      icon: '📅',
+      description: 'Interactive visualization',
+      requiresAuth: true // Requires login
+    },
+    {
+      path: '/conversation-history',
+      label: 'Conversations',
+      icon: '💬',
+      description: 'Chat history & analysis',
+      requiresAuth: true // Requires login
+    },
+    {
+      path: '/fibonacci',
+      label: 'Fibonacci',
+      icon: '🔢',
+      description: 'Mathematical visualizations',
+      requiresAuth: true // Requires login
+    },
+    {
+      path: '/music',
+      label: 'Music',
+      icon: '🎵',
+      description: 'Music player & listening history',
+      requiresAuth: true // Requires login
+    },
+    {
+      path: '/emails',
+      label: 'Emails',
+      icon: '📧',
+      description: 'Email management',
+      requiresAuth: true // Requires login
+    },
+    {
+      path: '/about',
+      label: 'About',
+      icon: 'ℹ️',
+      description: 'About this project',
+      isPublic: true // Public - About section
+    },
+    {
+      path: '/contact',
+      label: 'Contact',
+      icon: '📞',
+      description: 'Get in touch',
+      isPublic: true // Public - Contact section
+    }
   ];
 
   constructor(private router: Router) {}
@@ -97,6 +157,21 @@ export class NavigationComponent implements OnInit, OnDestroy {
       return this.currentRoute === '/';
     }
     return this.currentRoute.startsWith(path);
+  }
+
+  /**
+   * Get navigation items visible to current user
+   * Public items (home, about, contact) are always visible
+   * Auth-required items only visible when logged in
+   */
+  public get visibleNavigationItems(): NavigationItem[] {
+    if (this.isAuthenticated) {
+      // Show all items when authenticated
+      return this.navigationItems;
+    }
+
+    // Show only public items when not authenticated
+    return this.navigationItems.filter(item => item.isPublic === true);
   }
 
   public onNavigate(path: string) {

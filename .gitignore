@@ -1,9 +1,41 @@
 # See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
-# Environment variables
+# Environment variables - CRITICAL SECURITY
+# NEVER commit these files - they contain secrets!
 .env
 .env.local
+.env.qa
+.env.preview
+.env.staging
+.env.production
 .env.*.local
+*.env
+.env.*
+# Only .env.example should be committed (template with no secrets)
+
+# AWS Credentials - NEVER COMMIT
+aws/credentials
+aws/config
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+# AWS access key CSV exports from IAM
+*accessKeys.csv
+*_accessKeys.csv
+# Scripts with hardcoded credentials (use .env instead)
+**/init-tables.bat
+**/init-tables.sh
+aws/scripts/setup-github-actions.ps1
+aws/scripts/setup-github-actions.ps1.backup
+*.backup
+
+# Secrets and certificates
+secrets/
+certs/
+*.crt
+*.cer
 
 # compiled output
 dist
@@ -49,3 +81,24 @@ Thumbs.db
 .github/instructions/nx.instructions.md
 
 .angular
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# Security scanning results
+.snyk
+vulnerability-report.json
+
+# Personal development journal - NEVER COMMIT (local workspace only)
+dev-journal/
+
+# Personal developer tools and utilities - NEVER COMMIT (contains API keys)
+dev-tools/
+dev-tools/.env
+dev-tools/node_modules/
+

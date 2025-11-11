@@ -1,0 +1,354 @@
+name: Workflow Metrics Analysis
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  # Manual trigger with page input
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: 'Maximum number of pages to fetch (100 runs per page)'
+        required: false
+        default: '10'
+        type: string
+
+jobs:
+  analyze-workflows:
+    name: Analyze Workflow Metrics
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Calculate Workflow Statistics
+        id: workflow-stats
+        run: |
+          # Set max pages
+          MAX_PAGES="${{ github.event.inputs.max_pages || '10' }}"
+
+          echo "Analyzing workflows (up to $MAX_PAGES pages, 100 runs per page)"
+
+          # Get workflow runs (paginate through all results)
+          WORKFLOW_RUNS=()
+          PAGE=1
+
+          echo "Fetching workflow runs (100 per page)..."
+          while [ $PAGE -le $MAX_PAGES ]; do
+            echo "Fetching page $PAGE..."
+            PAGE_DATA=$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "repos/${{ github.repository }}/actions/workflows/pull-request-check-quality.yml/runs?per_page=100&page=$PAGE" \
+              --jq '.workflow_runs[]')
+
+            if [ -z "$PAGE_DATA" ]; then
+              echo "No more data found after page $((PAGE-1))"
+              break
+            fi
+
+            WORKFLOW_RUNS+=("$PAGE_DATA")
+            echo "Retrieved $(echo "$PAGE_DATA" | wc -l) runs from page $PAGE"
+            PAGE=$((PAGE + 1))
+
+            # Optional: Add a small delay to be nice to the API
+            sleep 1
+          done
+
+          TOTAL_RUNS=${#WORKFLOW_RUNS[@]}
+          echo "Total runs fetched: $TOTAL_RUNS"
+
+          # Process runs and calculate durations
+          PROCESSED_RUNS=()
+          echo "Processing runs and calculating durations..."
+          while IFS= read -r run; do
+            run_number=$(echo "$run" | jq -r '.run_number')
+            conclusion=$(echo "$run" | jq -r '.conclusion')
+            branch=$(echo "$run" | jq -r '.head_branch')
+            url=$(echo "$run" | jq -r '.html_url')
+            started_at=$(echo "$run" | jq -r '.run_started_at')
+            updated_at=$(echo "$run" | jq -r '.updated_at')
+            created_at=$(echo "$run" | jq -r '.created_at')
+
+            if [ "$started_at" != "null" ] && [ "$updated_at" != "null" ]; then
+              start_time=$(date -d "$started_at" +%s)
+              end_time=$(date -d "$updated_at" +%s)
+              duration=$((end_time - start_time))
+              duration_minutes=$((duration / 60))
+
+              echo "Run #$run_number duration: $duration_minutes minutes (from $started_at to $updated_at)"
+
+              PROCESSED_RUNS+=("{\"run_number\": $run_number, \"conclusion\": \"$conclusion\", \"branch\": \"$branch\", \"duration\": $duration_minutes, \"created_at\": \"$created_at\", \"url\": \"$url\"}")
+            fi
+          done < <(printf '%s\n' "${WORKFLOW_RUNS[@]}" | jq -c '.')
+
+          # Combine into JSON array
+          RUNS_JSON=$(printf '%s\n' "${PROCESSED_RUNS[@]}" | jq -s '.')
+
+          # Calculate statistics with 2 decimal places
+          STATS=$(echo "$RUNS_JSON" | jq '
+            . as $data |
+            length as $total |
+            map(select(.conclusion != "cancelled")) as $completed_runs |
+            ($completed_runs | length) as $completed_total |
+            (map(select(.conclusion == "success")) | length) as $success_count |
+            {
+              "total_runs": $total,
+              "successful_runs": $success_count,
+              "failed_runs": map(select(.conclusion == "failure")) | length,
+              "cancelled_runs": map(select(.conclusion == "cancelled")) | length,
+              "completed_total": $completed_total,
+              "average_duration": ($completed_runs | if length > 0 then (map(.duration) | add) / length else 0 end | round),
+              "min_duration": ($completed_runs | map(.duration) | min // 0),
+              "max_duration": ($completed_runs | map(.duration) | max // 0),
+              "median_duration": ($completed_runs | if length > 0 then sort_by(.duration) | .[length/2 | floor].duration else 0 end),
+              "success_rate": (($success_count * 100 / $total) | round * 0.01),
+              "longest_runs": ($data | map(select(.conclusion == "failure")) | sort_by(-.duration) | .[0:5])
+            }
+          ')
+
+          # Save stats to JSON file for dashboard
+          echo "$STATS" > workflow_stats.json
+
+          # Store key metrics as outputs
+          echo "average_duration=$(echo "$STATS" | jq -r '.average_duration')" >> $GITHUB_OUTPUT
+          echo "success_rate=$(echo "$STATS" | jq -r '.success_rate')" >> $GITHUB_OUTPUT
+          echo "total_runs=$(echo "$STATS" | jq -r '.total_runs')" >> $GITHUB_OUTPUT
+
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate HTML Dashboard
+        run: |
+          cat << EOF > index.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Workflow Metrics Dashboard</title>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+            <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+          </head>
+          <body>
+            <div class="container mt-5">
+              <h1>Workflow Metrics Dashboard</h1>
+              <div class="row">
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-body">
+                      <h5 class="card-title">Success Rate</h5>
+                      <canvas id="successRate"></canvas>
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card">
+                    <div class="card-body">
+                      <h5 class="card-title">Duration Statistics</h5>
+                      <canvas id="durationStats"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="row mt-4">
+                <div class="col-12">
+                  <div class="card">
+                    <div class="card-body">
+                      <h5 class="card-title">Longest Running Failed Jobs</h5>
+                      <div class="table-responsive">
+                        <table class="table">
+                          <thead>
+                            <tr>
+                              <th>Run #</th>
+                              <th>Duration (mins)</th>
+                              <th>Branch</th>
+                              <th>Status</th>
+                              <th>Link</th>
+                            </tr>
+                          </thead>
+                          <tbody id="longestRuns">
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <script>
+              const stats = $(cat workflow_stats.json);
+
+              // Success Rate Pie Chart
+              new Chart(document.getElementById('successRate'), {
+                type: 'pie',
+                data: {
+                  labels: ['Success', 'Failed', 'Cancelled'],
+                  datasets: [{
+                    data: [
+                      stats.successful_runs,
+                      stats.failed_runs,
+                      stats.cancelled_runs
+                    ],
+                    backgroundColor: ['#28a745', '#dc3545', '#6c757d']
+                  }]
+                }
+              });
+
+              // Duration Box Plot
+              new Chart(document.getElementById('durationStats'), {
+                type: 'bar',
+                data: {
+                  labels: ['Min', 'Average', 'Max'],
+                  datasets: [{
+                    data: [
+                      stats.min_duration,
+                      stats.average_duration,
+                      stats.max_duration
+                    ],
+                    backgroundColor: '#007bff'
+                  }]
+                },
+                options: {
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      title: {
+                        display: true,
+                        text: 'Duration (minutes)'
+                      }
+                    }
+                  }
+                }
+              });
+
+              // Populate longest runs table
+              const tbody = document.getElementById('longestRuns');
+              stats.longest_runs.forEach(run => {
+                tbody.innerHTML += \`
+                  <tr>
+                    <td>\${run.run_number}</td>
+                    <td>\${run.duration}</td>
+                    <td>\${run.branch}</td>
+                    <td>\${run.conclusion}</td>
+                    <td><a href="\${run.url}" target="_blank">View</a></td>
+                  </tr>
+                \`;
+              });
+            </script>
+          </body>
+          </html>
+          EOF
+
+      - name: Create Artifact Directory
+        run: |
+          mkdir -p dashboard
+          mv index.html dashboard/
+          mv workflow_stats.json dashboard/
+
+      - name: Create README
+        run: |
+          cat << EOF > dashboard/README.md
+          # Workflow Metrics Dashboard
+
+          This dashboard shows metrics and analytics for your GitHub Actions workflows.
+
+          ## Quick Start
+
+          1. **Start a local server** (choose one):
+          \`\`\`bash
+          # Using Python 3
+          python3 -m http.server 8000
+
+          # Using Python 2
+          python -m SimpleHTTPServer 8000
+
+          # Using Node.js
+          npx http-server
+
+          # Using PHP
+          php -S localhost:8000
+          \`\`\`
+
+          2. **View the Dashboard**:
+             - Open your browser to \`http://localhost:8000\`
+             - You should see the visualization dashboard
+
+          ## Files Included
+          - \`index.html\` - The dashboard interface
+          - \`workflow_stats.json\` - Raw metrics data
+          - \`README.md\` - This file
+
+          ## Dashboard Features
+          - Success/Failure rate visualization
+          - Duration statistics
+          - Longest running failed jobs
+          - Interactive charts and tables
+
+          ## Troubleshooting
+          - If charts don't load, make sure you're using a local server (not opening the HTML file directly)
+          - Check that all files are in the same directory
+          - Ensure you have internet access (for loading Chart.js and Bootstrap)
+          EOF
+
+      - name: Upload Dashboard
+        id: upload-artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: workflow-dashboard
+          path: dashboard/
+          retention-days: 90
+
+      - name: Add Artifact Link to Summary
+        run: |
+          {
+            echo "# Workflow Metrics Dashboard"
+            echo
+            echo "## 📊 View Dashboard"
+            echo "1. Download the [workflow-dashboard artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})"
+            echo "2. Unzip the downloaded file"
+            echo "3. Follow instructions in README.md to view the dashboard"
+            echo
+            echo "## 📈 Quick Stats"
+            echo "- Success Rate: $(jq -r '.success_rate' dashboard/workflow_stats.json)%"
+            echo "- Total Runs: $(jq -r '.total_runs' dashboard/workflow_stats.json)"
+            echo "- Failed Runs: $(jq -r '.failed_runs' dashboard/workflow_stats.json)"
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Generate Summary Report
+        run: |
+          {
+            echo "# Workflow Analysis Report"
+            echo
+            echo "## Statistics"
+            echo "\`\`\`json"
+            cat dashboard/workflow_stats.json
+            echo "\`\`\`"
+            echo
+            echo "## Key Metrics"
+            echo "- Success Rate: $(jq -r '.success_rate' dashboard/workflow_stats.json)%"
+            echo "- Total Runs: $(jq -r '.total_runs' dashboard/workflow_stats.json)"
+            echo "- Failed Runs: $(jq -r '.failed_runs' dashboard/workflow_stats.json)"
+            echo
+            echo "## Longest Failed Runs"
+            echo "| Run # | Duration | Status |"
+            echo "|-------|----------|--------|"
+            jq -r '.longest_runs[] | "| \(.run_number) | \(.duration) mins | \(.conclusion) |"' dashboard/workflow_stats.json
+          } >> $GITHUB_STEP_SUMMARY
+
+      - name: Check Success Rate
+        if: ${{ !cancelled() }}
+        run: |
+          SUCCESS_RATE=$(jq -r '.success_rate' dashboard/workflow_stats.json)
+          if (( $(echo "$SUCCESS_RATE < 80" | bc -l) )); then
+            echo "⚠️ Warning: Success rate is below 80% (${SUCCESS_RATE}%)"
+            echo "Consider investigating frequent failures"
+          fi
+
+      - name: Get Artifact URL
+        uses: actions/github-script@v6
+        id: get-artifact-url
+        with:
+          script: |
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId
+            });
+            const artifact = artifacts.data.artifacts.find(a => a.name === 'workflow-dashboard');
+            return artifact ? artifact.archive_download_url : '';

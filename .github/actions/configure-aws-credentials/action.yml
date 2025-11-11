@@ -1,0 +1,80 @@
+name: 'Configure AWS Credentials'
+description: 'Configure AWS credentials based on project type with standardized role assumptions and fallback options'
+
+inputs:
+  project:
+    description: 'Project name to determine which AWS role to assume'
+    required: true
+  environment:
+    description: 'Environment (dev or prod [or qa or stg for specific ECom deployments])'
+    required: false
+    default: 'dev'
+  aws-region:
+    description: 'AWS region'
+    required: false
+    default: 'us-west-2'
+  fallback-access-key-id:
+    description: 'Fallback AWS Access Key ID (for legacy access key authentication)'
+    required: false
+  fallback-secret-access-key:
+    description: 'Fallback AWS Secret Access Key (for legacy access key authentication)'
+    required: false
+
+outputs:
+  configured-method:
+    description: 'Method used to configure credentials (role-assumption or access-key)'
+    value: ${{ steps.determine-method.outputs.method }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get Account
+      id: account
+      uses: actions/github-script@v7
+      env:
+        PROJECT: ${{ inputs.project }}
+      with:
+        script: |
+          const path = require('path');
+          const getAccount = require(path.join(process.env.GITHUB_ACTION_PATH, 'get-account-from-project.js'));
+          return getAccount({ github, context, core });
+
+    - name: Set environment-specific role variables
+      id: set-roles
+      uses: actions/github-script@v7
+      env:
+        ACCOUNT: ${{ steps.account.outputs.account }}
+        ENVIRONMENT: ${{ inputs.environment }}
+      with:
+        script: |
+          const path = require('path');
+          const setRole = require(path.join(process.env.GITHUB_ACTION_PATH, 'set-role-from-account.js'));
+          setRole({ github, context, core });
+
+    - name: Configure AWS credentials (Role-based)
+      if: ${{ steps.set-roles.outputs.role-arn }}
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ steps.set-roles.outputs.role-arn }}
+        role-session-name: 'github_actions-${{ inputs.project }}-${{ inputs.environment }}'
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Configure AWS credentials (Fallback - Access Key)
+      if: ${{ !env.AWS_ACCESS_KEY_ID && inputs.fallback-access-key-id && inputs.fallback-secret-access-key }}
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ inputs.fallback-access-key-id }}
+        aws-secret-access-key: ${{ inputs.fallback-secret-access-key }}
+        aws-region: ${{ inputs.aws-region }}
+
+    - name: Determine configuration method
+      id: determine-method
+      shell: bash
+      run: |
+        if [[ -n "${{ steps.set-roles.outputs.role-arn }}" ]]; then
+          echo "method=role-assumption" >> $GITHUB_OUTPUT
+        elif [[ -n "${{ inputs.fallback-access-key-id }}" && -n "${{ inputs.fallback-secret-access-key }}" ]]; then
+          echo "method=access-key" >> $GITHUB_OUTPUT
+        else
+          echo "method=none" >> $GITHUB_OUTPUT
+        fi

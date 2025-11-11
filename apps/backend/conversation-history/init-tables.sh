@@ -25,7 +25,7 @@ aws dynamodb create-table \
         AttributeName=conversationId,KeyType=HASH \
         AttributeName=timestamp,KeyType=RANGE \
     --billing-mode PAY_PER_REQUEST \
-    --region us-east-1
+    --region us-west-2
 
 # Create conversation metadata table
 aws dynamodb create-table \
@@ -36,7 +36,7 @@ aws dynamodb create-table \
     --key-schema \
         AttributeName=conversationId,KeyType=HASH \
     --billing-mode PAY_PER_REQUEST \
-    --region us-east-1
+    --region us-west-2
 
 echo "Tables created successfully!"
 echo "You can access DynamoDB Admin at: http://localhost:8001"

@@ -7,6 +7,8 @@
 
 Jouster is an interactive web platform featuring 56+ Flash experiment presets, timeline visualization, and conversation history management. Built with Angular and deployed on AWS infrastructure.
 
+<!-- Last updated: November 2, 2025 -->
+
 ## 🌐 Live Application
 
 **Production Site**: [http://jouster-org-static.s3-website-us-east-1.amazonaws.com](http://jouster-org-static.s3-website-us-east-1.amazonaws.com)
@@ -180,7 +182,7 @@ Jouster/
 {
   "deploymentConfig": {
     "domain": "jouster.org",
-    "region": "us-east-1",
+    "region": "us-west-2",
     "s3Bucket": "jouster-org-static"
   }
 }

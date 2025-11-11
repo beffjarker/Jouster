@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - develop
-  pull_request:
+  # PRs now handled by pr-preview-validation.yml workflow
 
 permissions:
   actions: read
@@ -14,6 +14,7 @@ permissions:
 jobs:
   main:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,10 +24,14 @@ jobs:
       # Cache node_modules
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20.19.0'
           cache: 'npm'
 
-      - run: npm ci
+      # Install dependencies
+      - name: Install dependencies
+        run: npm ci
+        timeout-minutes: 20
+
       - run: npx cypress install
 
       # Run tests, linting, and build
@@ -38,6 +43,7 @@ jobs:
 
   # Quality checks specific to PRs
   pr-checks:
+    timeout-minutes: 30
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
@@ -47,10 +53,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: '20.19.0'
           cache: 'npm'
 
-      - run: npm ci
+      # Install dependencies
+      - name: Install dependencies
+        run: npm ci
+        timeout-minutes: 20
 
       # Check for dependency issues
       - name: Validate dependencies

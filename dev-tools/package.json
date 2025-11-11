@@ -1,0 +1,30 @@
+{
+  "name": "@jouster/dev-tools",
+  "version": "1.0.0",
+  "description": "Personal developer tools and utilities",
+  "private": true,
+  "scripts": {
+    "gist": "node github/create-gist.js",
+    "repos": "node github/list-repos.js",
+    "test": "node --version && echo 'Dev tools ready!'"
+  },
+  "keywords": [
+    "dev-tools",
+    "github",
+    "automation",
+    "utilities"
+  ],
+  "author": "Jouster Developer",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@octokit/rest": "^20.0.2",
+    "axios": "^1.6.2",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "dotenv": "^16.3.1"
+  },
+  "engines": {
+    "node": ">=20.12.1"
+  }
+}
+

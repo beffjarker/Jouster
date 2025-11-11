@@ -1,0 +1,321 @@
+name: Deploy RSCOM API
+run-name: Deploy RSCOM API - (${{ inputs.branch }}) & (${{ inputs.application }}) to (${{ inputs.environment }})
+
+permissions:
+  id-token: write
+  contents: write
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Environment:'
+        required: true
+        default: 'qa'
+        type: choice
+        options:
+          - qa
+          - stg
+          - prod
+      application:
+        description: 'Application:'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - rs-account-api
+          - rs-address-api
+          - rs-customer-api
+          - rs-payment-api
+          - rs-public-customer-api
+          - sm-api
+          - all
+      branch:
+        description: 'Branch to Deploy:'
+        required: true
+        default: 'master'
+        type: string
+
+concurrency:
+  group: 'deploy-rscom-api-${{ inputs.environment }}'
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: ${{ vars.NODE_VERSION }}
+  RSCOM_OIDC_SSO_ROLE: ${{ vars.RSCOM_OIDC_SSO_ROLE }}
+  REGION: 'us-west-2'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment == 'prod' && 'rscom-prod' || 'rscom-nonprod' }}
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      vcsBranch: ${{ steps.parameters.outputs.vcsBranch }}
+      releaseBranch: ${{ steps.parameters.outputs.releaseBranch }}
+      nodeVersion: ${{ env.NODE_VERSION }}
+      role: ${{ env.RSCOM_OIDC_SSO_ROLE }}
+
+    steps:
+      - name: 📢 Parameters Received
+        id: parameters
+        env:
+          VCS_BRANCH: 'master'
+          RELEASE_BRANCH: 'release-rscom-api'
+        run: | #shell
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          echo "vcsBranch=${VCS_BRANCH}" >> $GITHUB_OUTPUT
+          echo "releaseBranch=${RELEASE_BRANCH}" >> $GITHUB_OUTPUT
+
+          echo "Environment: [${{ inputs.environment == 'prod' && 'rscom-prod' || 'rscom-nonprod' }}]"
+          echo "Node Version: [${{ vars.NODE_VERSION }}]"
+          echo "Role: [${{ vars.RSCOM_OIDC_SSO_ROLE }}]"
+
+      - name: 🧾 Initial Checkout (${{ steps.parameters.outputs.vcsBranch }})
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.parameters.outputs.vcsBranch }}
+          fetch-depth: 0
+
+      - name: 📦 Setup Matrix
+        id: matrix
+        run: | #shell
+          if [ "${{ inputs.application }}" == "all" ]; then
+            echo "matrix={\"include\":[\
+            {\"application\":\"rs-address-api\"}, \
+            {\"application\":\"rs-account-api\"}, \
+            {\"application\":\"rs-customer-api\"}, \
+            {\"application\":\"rs-payment-api\"}, \
+            {\"application\":\"rs-public-customer-api\"}, \
+            {\"application\":\"sm-api\"} \
+            ]}" >> $GITHUB_OUTPUT
+          else
+            echo "matrix={\"include\":[\
+            {\"application\":\"${{ inputs.application }}\"} \
+            ]}" >> $GITHUB_OUTPUT
+          fi
+          echo -e "Matrix:\n$matrix"
+
+      - name: 🖥️ Setup Git Config
+        run: | #shell
+          echo "Setting up Git config for release tagging"
+          git config --global user.name "republic-system"
+          git config --global user.email "republic-system@repsrv.com"
+
+      - name: 🔄 Checkout or Create Branch
+        env:
+          REPO: digital-platform
+          INPUT_BRANCH: ${{ inputs.branch }}
+          RELEASE_BRANCH: ${{ steps.parameters.outputs.releaseBranch }}
+        run: | #shell
+          echo "Checking out or creating branch: ${INPUT_BRANCH}"
+          git fetch origin
+
+          # Check if the branch exists in the remote repository (True | False)
+          if git show-ref --verify --quiet "refs/remotes/origin/${INPUT_BRANCH}"; then
+            echo "Branch [${INPUT_BRANCH}] exists. Checking it out..."
+            git checkout ${INPUT_BRANCH}
+
+          # If branch does NOT exist and is a valid release branch aimed at Production environment, we need to exit:
+          elif [[ "${INPUT_BRANCH}" == "${RELEASE_BRANCH}-"* ]] && [[ "${{ inputs.environment }}" == 'prod' ]]; then
+            echo "Branch [${INPUT_BRANCH}] does not exist. Exiting..."
+            echo "Branch [${INPUT_BRANCH}] does not exist. Exiting..." >> $GITHUB_STEP_SUMMARY
+            exit 1
+
+          # If branch does NOT exist and is a valid release branch aimed at Staging environment, lets create it now:
+          elif [[ "${INPUT_BRANCH}" == "${RELEASE_BRANCH}-"* ]] && [[ "${{ inputs.environment }}" == 'stg' ]]; then
+            echo "Branch [${INPUT_BRANCH}] does not exist. Creating it..."
+            git checkout -b ${INPUT_BRANCH}
+            git push https://oauth2:${{ secrets.GITHUB_TOKEN }}@github.com/RepublicServicesRepository/${REPO}.git ${INPUT_BRANCH}
+
+          # If branch does NOT exist and is NOT aimed at Staging environment, lets exit to be safe:
+          else
+            echo "Branch [${INPUT_BRANCH}] does not exist and is not a valid release candidate. Exiting..."
+            echo "Branch [${INPUT_BRANCH}] does not exist and is not a valid release candidate. Exiting..." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+  # ------------------------------------------------------------------------------------------------------- #
+
+  deploy:
+    needs: [setup]
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+
+    steps:
+      - name: 🧾 Checkout Branch (${{ inputs.branch }})
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+
+      - name: 🛠️ Setup Node.js and Install Dependencies
+        uses: ./.github/actions/setup-node-install
+        with:
+          node-version: ${{ needs.setup.outputs.nodeVersion }}
+
+      - name: 🔑 Configure AWS credentials (${{ inputs.environment == 'prod' && 'prod' || 'nonprod' }})
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ needs.setup.outputs.role }}
+          role-session-name: github_actions_rscom_api
+          aws-region: ${{ env.REGION }}
+          mask-aws-account-id: 'no'
+
+      - name: 🛣️ Create Infrastructure (${{ matrix.application }})
+        env:
+          NODE_OPTIONS: '--max_old_space_size=7168'
+          STAGE: ${{ inputs.environment }}
+          BRANCH: ${{ inputs.branch }}
+        run: | #shell
+          echo "Creating infrastructure for application: ${{ matrix.application }}"
+          npx nx run-many \
+            --target=deploy \
+            --projects='${{ matrix.application }}' \
+            --stage=${{ inputs.environment }} \
+            --configuration=${{ inputs.environment }}
+
+  # ------------------------------------------------------------------------------------------------------- #
+
+  tag_release:
+    needs: [setup, deploy]
+    runs-on: ubuntu-latest
+    if: ${{ inputs.environment == 'prod' && startsWith(inputs.branch, needs.setup.outputs.releaseBranch) }}
+
+    steps:
+      - name: ✔️ Self Checkout (${{ inputs.branch }})
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.branch }}
+          fetch-depth: 0
+
+      - name: 🖥️ Setup Git Config
+        run: | #shell
+          echo "Setting up Git config for release tagging"
+          git config --global user.name "republic-system"
+          git config --global user.email "republic-system@repsrv.com"
+
+      - name: 📦 Create Release Tag
+        id: create_release
+        env:
+          REPO: digital-platform
+          INPUT_BRANCH: ${{ inputs.branch }}
+          RELEASE_BRANCH: ${{ needs.setup.outputs.releaseBranch }}
+          TAG_PREFIX: 'rscom-api/v' #X.Y.Z || run_number
+        run: | #shell
+          echo "Creating release tag for branch: ${INPUT_BRANCH}"
+          if [[ "${INPUT_BRANCH}" == "${RELEASE_BRANCH}-"* ]]; then
+            echo "Release branch detected: ${INPUT_BRANCH}"
+
+            # Extract the version from the branch name: Allows release-rscom-api-X.Y.Z[a-z], s.t. X.Y.Z or X.Y.Za, X.Y.Zb, etc.
+            version=`echo "${INPUT_BRANCH}" | sed -E "s/^${RELEASE_BRANCH}-([0-9]+\.[0-9]+\.[0-9]+[a-z]?)$/\1/"`
+
+            if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+[a-z]?$ ]]; then
+              echo "No valid semantic version found in branch [${INPUT_BRANCH}]. Falling back to run ID."
+              version="${{ github.run_number }}"
+            fi
+
+            if [[ -z "${version}" ]]; then
+              echo "No version found in branch [${INPUT_BRANCH}]. Falling back to run ID."
+              version="${{ github.run_number }}"
+            fi
+          else
+            version="${{ github.run_number }}" # Fallback to run number if not a release branch
+          fi
+
+          tag="${TAG_PREFIX}${version}"
+          echo "Version: $version"
+          echo "Tag: $tag"
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
+
+      - name: 🖥️ Check If Tag Exists
+        id: check_tag
+        env:
+          PROJECT: rscom-api
+          TAG: ${{ steps.create_release.outputs.tag }}
+        run: | #shell
+          echo "Checking if tag [${TAG}] exists"
+          TAG_COUNT=$(git tag -l "$TAG" | wc -l)
+
+          if [ "$TAG_COUNT" -gt 0 ]; then
+            echo "Tag [$TAG] already exists — Creating New Unique Tag."
+            timestamp=$(date -u +"%Y.%m.%d.%H.%M.%S")
+            tag="${PROJECT}/v${timestamp}"
+            echo "Formatted tag: [$tag]"
+            echo "New Unique Tag: [$tag]" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Tag [$TAG] does not exist — Proceeding with Current Release Tag."
+            tag="${TAG}"
+          fi
+
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
+
+      - name: ✅ Create Release
+        uses: comnoco/create-release-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          commitish: ${{ github.ref }}
+          tag_name: ${{ steps.check_tag.outputs.tag }}
+          release_name: ${{ steps.check_tag.outputs.tag }}
+
+      - name: 🗑️ Cleanup Historical Release Branches
+        if: ${{ startsWith(inputs.branch, needs.setup.outputs.releaseBranch) }}
+        env:
+          HISTORICAL_BRANCH_LIMIT: 3
+          INPUT_BRANCH: ${{ inputs.branch }}
+          RELEASE_BRANCH: ${{ needs.setup.outputs.releaseBranch }}
+        run: | #shell
+          echo "Starting Cleanup for Release Branches"
+
+          # Get ALL of the Matching Release Branches Sorted by Creation Date
+          branches=$(git branch -r --sort=creatordate | grep "$RELEASE_BRANCH" | sed 's/origin\///' | sort -r)
+
+          # Build the Keep/Trim Release Branch Lists
+          echo "-------------------------------------------"
+          branches_to_keep=$(echo "$branches" | head -n $HISTORICAL_BRANCH_LIMIT)
+          for b2k in $branches_to_keep; do
+            echo "Keeping branch: [$b2k]"
+          done
+          echo "-------------------------------------------"
+          branches_to_delete=$(echo "$branches" | tail -n +$((HISTORICAL_BRANCH_LIMIT + 1)))
+          for b2d in $branches_to_delete; do
+            echo "Deleting branch: [$b2d]"
+          done
+          echo "-------------------------------------------"
+
+          # Delete the Old Release Branches based on HISTORICAL_BRANCH_LIMIT
+          # - Do not delete the current branch, master, main, or develop branches
+          for branch in $branches_to_delete; do
+            if [[
+                "${branch}" != "master" &&
+                "${branch}" != "main" &&
+                "${branch}" != "develop" &&
+                "${branch}" != "${INPUT_BRANCH}"
+              ]]; then
+              echo "Deleting branch [${branch}] from remote."
+              git push origin --delete "$branch" || echo "Branch [${branch}] does not exist on remote."
+            else
+              echo "Branch [${branch}] is a protected branch. Skipping deletion."
+            fi
+          done
+
+      - name: 📢 Summary Update
+        run: | #shell
+          echo "Updating GitHub Summary with release information"
+          echo '### Release Information' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Release Tag: ${{ steps.create_release.outputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ------------------------------------------------------------------------------------------------------- #

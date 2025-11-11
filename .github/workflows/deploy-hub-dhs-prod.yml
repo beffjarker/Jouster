@@ -1,0 +1,65 @@
+name: Deploy Hub DHS PROD
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: 'The git reference to deploy (typically a branch or sha)'
+        required: true
+        default: 'release-hub-X.X.X'
+      version:
+        description: 'The semantic version of the tag to create'
+        required: true
+        default: 'vX.X.X'
+
+jobs:
+  environment:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Inputs Received
+        run: |
+          echo '### Base branch' >> $GITHUB_STEP_SUMMARY
+          echo "${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}" >> $GITHUB_STEP_SUMMARY
+          echo '### Inputs' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ toJSON(inputs) }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  deploy-hub-dhs-prod:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_PROD_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_PROD_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Invoke codebuild
+        uses: aws-actions/aws-codebuild-run-build@v1.0.16
+        with:
+          project-name: digital-platform-hub-dhs-prod-codebuild
+          buildspec-override: apps/ries-hub-marklogic-dhs/buildspec.yml
+          env-vars-for-codebuild: |
+            DHS_USERNAME,
+            DHS_PASSWORD,
+            DHS_ENVIRONMENT
+        env:
+          DHS_USERNAME: ${{ secrets.RIES_HUB_PROD_DHS_USERNAME }}
+          DHS_PASSWORD: ${{ secrets.RIES_HUB_PROD_DHS_PASSWORD }}
+          DHS_ENVIRONMENT: prod
+
+      - name: Create Hub DHS Release
+        uses: comnoco/create-release-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          commitish: ${{ github.event.inputs.git_ref }}
+          tag_name: ries-hub-dhs/${{ github.event.inputs.version }}
+          release_name: ries-hub-dhs/${{ github.event.inputs.version }}
