@@ -7,11 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0] - 2025-11-11
+## [0.5.0] - 2025-11-11
 
-### 🎉 First Production Release!
+### 🎯 Pre-Release: HTTPS Infrastructure & Auth-Based Navigation
 
-This is the first production-ready release of Jouster, bringing professional HTTPS infrastructure, authentication-ready navigation, and a robust deployment pipeline.
+This release brings professional HTTPS infrastructure and authentication-ready navigation. **This is a pre-production release** - full production (1.0.0) will follow after proper staging verification.
+
+**Note**: Version 1.0.0 was prematurely released without proper staging verification. This has been reverted to 0.5.0 to follow the correct release process with human testing at each stage.
 
 ### Added
 - **HTTPS Infrastructure** 🔒
@@ -30,6 +32,7 @@ This is the first production-ready release of Jouster, bringing professional HTT
 - **Deployment Infrastructure** 🚀
   - QA Environment: http://qa.jouster.org for testing
   - Preview Environments: Automated preview deployment for every PR
+  - Staging Environment: Ready for pre-production testing
   - Automated GitHub Actions workflows for CI/CD
   - S3-based static hosting with CloudFront distribution
 
@@ -38,13 +41,14 @@ This is the first production-ready release of Jouster, bringing professional HTT
   - Authentication implementation roadmap (`docs/AUTH-MENU-TODO.md`)
   - Deployment workflows and troubleshooting
   - Comprehensive session summaries
+  - Workflow cleanup documentation
 
 ### Changed
-- **Breaking**: All HTTP traffic now automatically redirects to HTTPS (transparent to users)
 - **Navigation**: Menu items dynamically filtered - only 3 public items visible when not authenticated
 - **Region Migration**: Infrastructure migrated to us-west-2 for optimized performance
-  - S3 buckets and DynamoDB in us-west-2
+  - S3 buckets and resources in us-west-2
   - ACM certificate remains in us-east-1 (CloudFront requirement)
+- **Repository Cleanup**: Removed 61 non-Jouster GitHub workflows (81% reduction, 75 → 14 workflows)
 
 ### Fixed
 - **Preview Environments**: Removed CSP `upgrade-insecure-requests` header that prevented HTTP preview environments from loading
@@ -56,6 +60,7 @@ This is the first production-ready release of Jouster, bringing professional HTT
 - **SSL Certificate**: Auto-renewing ACM certificate (valid until Nov 2026)
 - **Custom Domain**: https://jouster.org
 - **QA Environment**: http://qa.jouster.org
+- **Staging Environment**: Ready for deployment
 - **Preview Pattern**: http://jouster-preview-pr{number}.s3-website-us-west-2.amazonaws.com
 
 ### Security
