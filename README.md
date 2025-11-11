@@ -182,7 +182,7 @@ Jouster/
 {
   "deploymentConfig": {
     "domain": "jouster.org",
-    "region": "us-east-1",
+    "region": "us-west-2",
     "s3Bucket": "jouster-org-static"
   }
 }

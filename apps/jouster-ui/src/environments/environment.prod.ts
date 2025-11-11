@@ -19,13 +19,4 @@ export const environment = {
   requireSecureConnection: true,
   upgradeInsecureRequests: true
 };
-// Development Environment Configuration
-export const environment = {
-  production: false,
-  apiUrl: 'http://localhost:3000/api',
-  wsUrl: 'ws://localhost:3000',
-  baseUrl: 'http://localhost:4200',
-  forceHttps: false,
-  enableDevTools: true
-};
 

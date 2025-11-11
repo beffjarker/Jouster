@@ -112,7 +112,7 @@ This is the first official versioned release of Jouster - establishing a baselin
 ### Deployment
 - **Current**: AWS S3 static website hosting
 - **Build Size**: 96.75 kB compressed (optimized production build)
-- **Live URL**: http://jouster-org-static.s3-website-us-east-1.amazonaws.com
+- **Live URL**: http://jouster-org-static.s3-website-us-west-2.amazonaws.com
 
 ### Known Issues
 - jouster.org domain not configured (DNS/CloudFront setup pending)

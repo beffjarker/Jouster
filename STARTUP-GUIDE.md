@@ -140,7 +140,7 @@ npm run check:ports          # Verify available ports
 ### Site Not Loading
 ```bash
 # Check AWS deployment
-aws s3 ls s3://jouster-org-static --region us-east-1
+aws s3 ls s3://jouster-org-static --region us-west-2
 
 # Redeploy if needed
 .\deploy-aws-manual.bat
