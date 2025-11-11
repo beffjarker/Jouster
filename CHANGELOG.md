@@ -7,14 +7,81 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned for Next Release
-- jouster.org domain configuration with CloudFront
-- Terraform infrastructure as code
-- CI/CD pipeline with GitHub Actions
+## [1.0.0] - 2025-11-11
+
+### 🎉 First Production Release!
+
+This is the first production-ready release of Jouster, bringing professional HTTPS infrastructure, authentication-ready navigation, and a robust deployment pipeline.
+
+### Added
+- **HTTPS Infrastructure** 🔒
+  - CloudFront CDN distribution (E3EQJ0O0PJTVVX) with global content delivery
+  - Free SSL certificate (ACM) with automatic renewal
+  - Custom domain: https://jouster.org
+  - Automatic HTTP → HTTPS redirect for all traffic
+  - TLS 1.2+ enforcement for security
+
+- **Auth-Based Navigation** 🎨
+  - Smart menu filtering based on authentication status
+  - Public items always visible: Flash Experiments, About, Contact
+  - Auth-required items hidden until login: Highlights, Timeline, Conversations, Fibonacci, Music, Emails
+  - Infrastructure ready for authentication service integration
+
+- **Deployment Infrastructure** 🚀
+  - QA Environment: http://qa.jouster.org for testing
+  - Preview Environments: Automated preview deployment for every PR
+  - Automated GitHub Actions workflows for CI/CD
+  - S3-based static hosting with CloudFront distribution
+
+- **Documentation** 📚
+  - Complete SSL/HTTPS setup guides
+  - Authentication implementation roadmap (`docs/AUTH-MENU-TODO.md`)
+  - Deployment workflows and troubleshooting
+  - Comprehensive session summaries
+
+### Changed
+- **Breaking**: All HTTP traffic now automatically redirects to HTTPS (transparent to users)
+- **Navigation**: Menu items dynamically filtered - only 3 public items visible when not authenticated
+- **Region Migration**: Infrastructure migrated to us-west-2 for optimized performance
+  - S3 buckets and DynamoDB in us-west-2
+  - ACM certificate remains in us-east-1 (CloudFront requirement)
+
+### Fixed
+- **Preview Environments**: Removed CSP `upgrade-insecure-requests` header that prevented HTTP preview environments from loading
+- **QA Deployment**: Fixed Route53 hosted zone ID extraction to handle multiple zones correctly
+- **Build Process**: Resolved environment file permission and caching issues
+
+### Infrastructure
+- **CloudFront Distribution**: E3EQJ0O0PJTVVX
+- **SSL Certificate**: Auto-renewing ACM certificate (valid until Nov 2026)
+- **Custom Domain**: https://jouster.org
+- **QA Environment**: http://qa.jouster.org
+- **Preview Pattern**: http://jouster-preview-pr{number}.s3-website-us-west-2.amazonaws.com
+
+### Security
+- TLS 1.2+ minimum encryption
+- HTTPS-only access in production
+- Public S3 bucket policies restricted to website hosting
+- No credentials or secrets committed
+- Content Security Policy headers ready for deployment
+
+### Performance
+- Global CloudFront CDN reduces latency
+- Gzip compression enabled
+- Browser caching optimized
+- Regional deployment (us-west-2) for primary users
+
+---
+
+## [Unreleased] - Previous Plans
+
+### Planned for Future Releases
+- User authentication and login system
 - Backend API deployment to AWS Lambda
 - Production DynamoDB integration
 - Enhanced testing coverage
 - Performance monitoring and analytics
+- Terraform infrastructure as code (Phase 2)
 
 ## [0.0.2] - 2025-10-28
 
