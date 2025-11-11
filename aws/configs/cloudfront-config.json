@@ -21,7 +21,7 @@
         "Items": [
             {
                 "Id": "jouster-s3-origin",
-                "DomainName": "jouster-org-static.s3-website-us-east-1.amazonaws.com",
+                "DomainName": "jouster-org-static.s3-website-us-west-2.amazonaws.com",
                 "CustomOriginConfig": {
                     "HTTPPort": 80,
                     "HTTPSPort": 443,
