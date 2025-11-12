@@ -36,7 +36,7 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo [3/5] Deploying application to staging S3 bucket (green environment)...
 REM Deploy from the correct browser directory to root of S3 bucket
-aws s3 sync dist/jouster/browser/ s3://stg.jouster.org --delete --region us-west-2
+aws s3 sync dist/apps/jouster-ui/browser/ s3://stg.jouster.org --delete --region us-west-2
 if %ERRORLEVEL% NEQ 0 (
     echo ❌ Deployment failed!
     pause

@@ -87,7 +87,7 @@ jobs:
     - name: Deploy to staging S3 bucket (green environment)
       run: |
         echo "Deploying to staging environment (green)..."
-        aws s3 sync dist/jouster/browser/ s3://stg.jouster.org --delete --region us-west-2
+        aws s3 sync dist/apps/jouster-ui/browser/ s3://stg.jouster.org --delete --region us-west-2
         echo "✅ Deployment to stg.jouster.org complete!"
 
     - name: Setup staging DNS if needed
