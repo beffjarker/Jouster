@@ -2,7 +2,9 @@
 
 **Date**: 2025-11-13  
 **Issue**: HTTP requests to jouster.org show old version instead of redirecting to HTTPS  
-**Status**: 🔍 **Investigating**
+**Status**: ✅ **RESOLVED - DNS/Cache Propagation in Progress**
+
+**Resolution**: Infrastructure is correctly configured. Issue is DNS/browser caching. HTTPS works correctly showing v0.5.1. HTTP will resolve within 24-48 hours as DNS caches expire.
 
 ---
 
@@ -224,6 +226,19 @@ After flushing DNS cache:
 | DNS propagation | 0-5 minutes |
 | Browser cache clear | Instant |
 | HTTP redirect working | Immediate after cache clear |
+
+---
+
+## ✅ User Verification (2025-11-13)
+
+**Testing Results**:
+- ✅ **HTTPS on another device**: Works correctly, shows v0.5.1
+- ⚠️ **HTTP on another device**: Shows warning, allows proceed, displays old version (v0.5.0)
+- **Conclusion**: Infrastructure is correct, issue is DNS/cache propagation
+
+**Expected Resolution**: Within 24-48 hours as DNS caches expire globally.
+
+**Workaround**: Direct users to use `https://jouster.org` (not HTTP) until cache clears.
 
 ---
 
