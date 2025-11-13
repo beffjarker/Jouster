@@ -2,6 +2,7 @@
 // HTTPS-only configuration for jouster.org
 export const environment = {
   production: true,
+  version: '0.5.0', // TODO: Automate version injection from package.json during build
 
   // Force HTTPS for all URLs
   apiUrl: 'https://jouster.org/api',
