@@ -61,22 +61,36 @@
 
 ## 📋 Short-term Next Steps (This Week)
 
-### 3. ✅ Clean Up Old S3 Buckets
+### 3. ✅ Clean Up Old S3 Buckets - PHASE 1 COMPLETE
 
 **Status**: ✅ **COMPLETE** (2025-11-13)  
-**Time Taken**: 5 minutes
+**Time Taken**: 10 minutes total
 
-**Buckets Deleted**:
+**Round 1 - Production Buckets** (5 min):
 - ✅ `jouster-org-green` (us-east-1) - DELETED
 - ✅ `jouster-org-static` (us-east-1) - DELETED
 - ✅ `jouster-org-main` (us-east-1) - DELETED
 
-**Remaining Production Buckets**:
-- ✅ `jouster-org-west` (us-west-2) - Current production
-- ✅ `stg.jouster.org` (us-west-2) - Staging
-- ✅ `qa.jouster.org` (us-west-2) - QA
+**Round 2 - PR Previews & Orphans** (5 min):
+- ✅ `jouster-preview-pr-4` - DELETED (orphan from Oct 7)
+- ✅ `jouster-preview-pr-5` - DELETED (orphan from Oct 13)
+- ✅ `jouster-preview-pr15` - DELETED (orphan from Nov 11)
+- ✅ `jouster-qa-blue` - DELETED (empty, unused)
+- ✅ `jouster-qa-green` - DELETED (empty, unused)
+- ✅ `staging.jouster.org` - DELETED (duplicate, unused)
 
-**Documentation**: See `docs/S3-BUCKET-CLEANUP-SUMMARY.md`
+**Remaining Active Buckets** (7 total):
+- ✅ `jouster-org-west` (us-west-2) - Production
+- ✅ `stg.jouster.org` (us-west-2) - Staging (active)
+- ✅ `qa.jouster.org` (us-west-2) - QA
+- ✅ `www.jouster.org` - WWW redirect
+- ✅ `jouster-dev-bucket` - Development
+- ✅ `jouster-email` - Email service
+- ✅ `jouster-email-west` - Email service (us-west-2)
+
+**Result**: ✅ Clean, organized bucket structure with no orphans!
+
+**Documentation**: See `docs/S3-BUCKET-CLEANUP-SUMMARY.md` and `docs/AWS-CLEANUP-PHASE1.md`
 
 ---
 
