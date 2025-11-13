@@ -1,0 +1,203 @@
+name: Scheduled Cleanup - Orphaned Resources
+
+on:
+  schedule:
+    # Run every Sunday at 3 AM UTC
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    # Allow manual trigger
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (no deletions)'
+        required: false
+        default: 'true'
+        type: boolean
+
+env:
+  AWS_REGION: us-west-2
+
+permissions:
+  contents: read
+  issues: write  # To create issue if orphans found
+
+jobs:
+  scan-and-cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Scan for orphaned preview buckets
+        id: scan
+        run: |
+          echo "🔍 Scanning for orphaned preview buckets..."
+
+          # List all preview buckets
+          PREVIEW_BUCKETS=$(aws s3 ls | grep 'jouster-preview-pr' | awk '{print $3}' || echo "")
+
+          if [ -z "$PREVIEW_BUCKETS" ]; then
+            echo "✅ No preview buckets found"
+            echo "orphans=" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "Found preview buckets:"
+          echo "$PREVIEW_BUCKETS"
+
+          ORPHANS=""
+
+          # Check each bucket against open PRs
+          for BUCKET in $PREVIEW_BUCKETS; do
+            # Extract PR number from bucket name (e.g., jouster-preview-pr15 -> 15)
+            PR_NUM=$(echo "$BUCKET" | sed 's/jouster-preview-pr//')
+
+            echo ""
+            echo "Checking bucket: $BUCKET (PR #$PR_NUM)"
+
+            # Check if PR is closed
+            PR_STATE=$(gh pr view "$PR_NUM" --json state --jq '.state' 2>/dev/null || echo "NOT_FOUND")
+
+            if [ "$PR_STATE" == "CLOSED" ] || [ "$PR_STATE" == "MERGED" ] || [ "$PR_STATE" == "NOT_FOUND" ]; then
+              echo "⚠️  PR #$PR_NUM is $PR_STATE - bucket is orphaned"
+
+              # Get bucket size
+              BUCKET_SIZE=$(aws s3 ls "s3://${BUCKET}" --recursive --summarize 2>/dev/null | grep "Total Size" | awk '{print $3}' || echo "unknown")
+
+              ORPHANS="${ORPHANS}${BUCKET}|${PR_NUM}|${PR_STATE}|${BUCKET_SIZE}
+"
+            else
+              echo "✅ PR #$PR_NUM is $PR_STATE - bucket is active"
+            fi
+          done
+
+          # Save orphans list
+          echo "orphans<<EOF" >> $GITHUB_OUTPUT
+          echo "$ORPHANS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          if [ -n "$ORPHANS" ]; then
+            echo ""
+            echo "📋 Found orphaned buckets:"
+            echo "$ORPHANS"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete orphaned buckets
+        if: steps.scan.outputs.orphans != '' && (github.event.inputs.dry_run != 'true' || github.event_name == 'schedule')
+        run: |
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          ORPHANS="${{ steps.scan.outputs.orphans }}"
+
+          echo "🗑️  Processing orphaned buckets..."
+          echo "Dry run mode: $DRY_RUN"
+          echo ""
+
+          while IFS='|' read -r BUCKET PR_NUM PR_STATE BUCKET_SIZE; do
+            if [ -n "$BUCKET" ]; then
+              echo "Processing: $BUCKET (PR #$PR_NUM, $PR_STATE, Size: $BUCKET_SIZE bytes)"
+
+              if [ "$DRY_RUN" == "true" ]; then
+                echo "[DRY RUN] Would delete bucket: $BUCKET"
+              else
+                echo "Deleting bucket: $BUCKET"
+                aws s3 rb "s3://${BUCKET}" --force && echo "✅ Deleted successfully" || echo "❌ Failed to delete"
+              fi
+              echo ""
+            fi
+          done <<< "$ORPHANS"
+
+      - name: Create issue for orphaned resources
+        if: steps.scan.outputs.orphans != '' && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const orphans = `${{ steps.scan.outputs.orphans }}`;
+            const orphanLines = orphans.trim().split('\n').filter(line => line);
+
+            let tableRows = '';
+            let totalSize = 0;
+
+            for (const line of orphanLines) {
+              const [bucket, prNum, prState, size] = line.split('|');
+              if (bucket) {
+                const sizeKB = Math.round(parseInt(size || 0) / 1024);
+                totalSize += parseInt(size || 0);
+                tableRows += `| \`${bucket}\` | #${prNum} | ${prState} | ${sizeKB} KB |\n`;
+              }
+            }
+
+            const totalSizeKB = Math.round(totalSize / 1024);
+
+            const issueBody = `## 🧹 Orphaned Resources Detected
+
+            The scheduled cleanup job found **${orphanLines.length}** orphaned S3 bucket(s) from closed PRs.
+
+            ### Orphaned Buckets
+
+            | Bucket Name | PR | State | Size |
+            |-------------|----|-  ------|------|
+            ${tableRows}
+
+            **Total Size**: ${totalSizeKB} KB
+
+            ### Actions Taken
+
+            ✅ Buckets have been automatically deleted by the cleanup workflow.
+
+            ### Prevention
+
+            These orphaned buckets indicate that the PR cleanup workflow may have failed. Common causes:
+            - Workflow permissions issues
+            - AWS API rate limiting
+            - Network connectivity issues
+
+            **Next Steps**: Review the [cleanup workflow logs](https://github.com/${{ github.repository }}/actions/workflows/branch-delete-cleanup.yml) to identify and fix the root cause.
+
+            ---
+            *This issue was automatically created by the [Scheduled Cleanup workflow](https://github.com/${{ github.repository }}/actions/workflows/scheduled-cleanup.yml).*
+            `;
+
+            // Create the issue
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🧹 Orphaned Resources Cleanup Report - ${new Date().toISOString().split('T')[0]}`,
+              body: issueBody,
+              labels: ['infrastructure', 'automated', 'cleanup']
+            });
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 📊 Scheduled Cleanup Summary"
+          echo ""
+          echo "**Run Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "**Trigger**: ${{ github.event_name }}"
+
+          ORPHANS="${{ steps.scan.outputs.orphans }}"
+          if [ -z "$ORPHANS" ]; then
+            echo ""
+            echo "✅ **Result**: No orphaned resources found - infrastructure is clean!"
+          else
+            ORPHAN_COUNT=$(echo "$ORPHANS" | grep -c 'jouster-preview' || echo "0")
+            echo ""
+            echo "⚠️  **Result**: Found $ORPHAN_COUNT orphaned bucket(s)"
+
+            if [ "${{ github.event.inputs.dry_run }}" == "true" ]; then
+              echo "🔍 **Mode**: Dry run - no deletions performed"
+            else
+              echo "🗑️  **Mode**: Live - orphaned resources deleted"
+            fi
+          fi
+
