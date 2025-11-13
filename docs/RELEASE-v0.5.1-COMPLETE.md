@@ -53,17 +53,26 @@ Successfully merged PR #19 (Version Logging) to production as v0.5.1. This relea
 ### 8. ✅ Staging Deployment
 - **Environment**: stg.jouster.org
 - **Status**: ✅ Deployed successfully
-- **URL**: https://stg.jouster.org (HTTP only - S3 static website)
+- **URL**: http://stg.jouster.org (S3 static website)
+
+### 9. ✅ Production Deployment
+- **Environment**: jouster.org
+- **Status**: ✅ **DEPLOYED TO PRODUCTION**
+- **URL**: https://jouster.org
+- **Version**: v0.5.1
+- **Region**: ✅ **Migrated to us-west-2**
 
 ---
 
 ## 🚀 Production Deployment Status
 
-### Current State
+### ✅ COMPLETE - v0.5.1 Live in Production
 
-**Production** uses a **Blue/Green deployment** with CloudFront:
-- **Blue Environment**: Currently active (v0.5.0)
-- **Green Environment**: Currently inactive
+**Production Migration Completed**:
+- ✅ CloudFront updated to point to us-west-2 bucket
+- ✅ Deployed v0.5.1 to `jouster-org-west` (us-west-2)
+- ✅ CloudFront cache invalidated
+- ✅ All regions standardized to us-west-2 (except ACM certificates in us-east-1)
 - **URL**: https://jouster.org
 
 ### Next Steps for Production Deployment
@@ -109,12 +118,12 @@ Create `.github/workflows/production-deploy.yml` for automated production deploy
 
 ## 📊 Deployment Summary
 
-| Environment | Status | Version | URL | Notes |
-|-------------|--------|---------|-----|-------|
-| **Development** | ✅ Updated | v0.5.1 | Local | Via `npm run serve` |
-| **QA** | ✅ Deployed | v0.5.1 | https://qa.jouster.org | Auto-deployed from develop |
-| **Staging** | ✅ Deployed | v0.5.1 | http://stg.jouster.org | Auto-deployed from main |
-| **Production** | ⏳ Pending | v0.5.0 | https://jouster.org | Manual blue/green switch needed |
+| Environment | Status | Version | URL | Region | Notes |
+|-------------|--------|---------|-----|--------|-------|
+| **Development** | ✅ Updated | v0.5.1 | Local | N/A | Via `npm run serve` |
+| **QA** | ✅ Deployed | v0.5.1 | https://qa.jouster.org | us-west-2 | Auto-deployed from develop |
+| **Staging** | ✅ Deployed | v0.5.1 | http://stg.jouster.org | us-west-2 | Auto-deployed from main (S3 static) |
+| **Production** | ✅ **DEPLOYED** | v0.5.1 | https://jouster.org | **us-west-2** | ✅ **LIVE** - CloudFront + S3 |
 
 ---
 
@@ -162,14 +171,14 @@ Environment: Production
 - [x] All features work normally
 
 ### Staging Environment (http://stg.jouster.org)
-- [ ] Application loads successfully
-- [ ] Version logging displays in console
-- [ ] Version shows: "🎮 Jouster v0.5.1"
-- [ ] Environment shows: "Environment: Production"
-- [ ] All features work normally
+- [x] Application loads successfully
+- [x] Version logging displays in console
+- [x] Version shows: "🎮 Jouster v0.5.1"
+- [x] Environment shows: "Environment: Production"
+- [x] All features work normally
 
 ### Production Environment (https://jouster.org)
-- [ ] Application loads successfully
+- [ ] Application loads successfully (verify after cache invalidation completes ~5 min)
 - [ ] Version logging displays in console
 - [ ] Version shows: "🎮 Jouster v0.5.1"
 - [ ] Environment shows: "Environment: Production"
@@ -234,7 +243,9 @@ Environment: Production
 - ✅ GitFlow completed (main merged back to develop)
 - ✅ QA deployment successful
 - ✅ Staging deployment successful
-- ⏳ Production deployment pending manual switch
+- ✅ **Production deployment COMPLETE**
+- ✅ **Region migration to us-west-2 complete**
+- ✅ **CloudFront cache invalidated**
 
 ---
 
