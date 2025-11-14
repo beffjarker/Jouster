@@ -1,0 +1,161 @@
+name: Cleanup Resources on Branch Delete
+
+on:
+  delete:
+    # Triggers when any branch is deleted
+
+env:
+  AWS_REGION: us-west-2
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup-branch-resources:
+    # Only run if a branch was deleted (not a tag)
+    if: github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Log branch deletion event
+        run: |
+          echo "🗑️  Branch deleted: ${{ github.event.ref }}"
+          echo "Repository: ${{ github.repository }}"
+          echo "Deleted by: ${{ github.actor }}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Generate resource names from branch
+        id: resources
+        run: |
+          # Get branch name and sanitize for S3 bucket naming
+          BRANCH_NAME="${{ github.event.ref }}"
+          echo "Original branch: ${BRANCH_NAME}"
+
+          # Sanitize: lowercase, remove non-alphanumeric except hyphens, limit length
+          SANITIZED=$(echo "$BRANCH_NAME" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9-' | cut -c1-40)
+
+          # Generate potential bucket names
+          BUCKET_NAME="jouster-branch-${SANITIZED}"
+          FEATURE_BUCKET="jouster-feature-${SANITIZED}"
+
+          echo "sanitized=${SANITIZED}" >> $GITHUB_OUTPUT
+          echo "bucket=${BUCKET_NAME}" >> $GITHUB_OUTPUT
+          echo "feature_bucket=${FEATURE_BUCKET}" >> $GITHUB_OUTPUT
+
+          echo "Potential bucket names:"
+          echo "  - ${BUCKET_NAME}"
+          echo "  - ${FEATURE_BUCKET}"
+
+      - name: Check and delete branch-specific S3 bucket
+        continue-on-error: true
+        id: delete-branch-bucket
+        run: |
+          BUCKET="${{ steps.resources.outputs.bucket }}"
+
+          echo "🔍 Checking for bucket: ${BUCKET}"
+
+          if aws s3 ls "s3://${BUCKET}" 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "⚠️  Bucket does not exist: ${BUCKET}"
+            echo "status=not_found" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Bucket found: ${BUCKET}"
+            echo "📋 Bucket contents:"
+            aws s3 ls "s3://${BUCKET}" --recursive --summarize || true
+
+            echo "🗑️  Deleting bucket and contents..."
+            aws s3 rb "s3://${BUCKET}" --force
+
+            echo "✅ Bucket deleted successfully"
+            echo "status=deleted" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check and delete feature bucket variant
+        continue-on-error: true
+        id: delete-feature-bucket
+        run: |
+          BUCKET="${{ steps.resources.outputs.feature_bucket }}"
+
+          echo "🔍 Checking for feature bucket: ${BUCKET}"
+
+          if aws s3 ls "s3://${BUCKET}" 2>&1 | grep -q 'NoSuchBucket'; then
+            echo "⚠️  Bucket does not exist: ${BUCKET}"
+            echo "status=not_found" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Bucket found: ${BUCKET}"
+            echo "📋 Bucket contents:"
+            aws s3 ls "s3://${BUCKET}" --recursive --summarize || true
+
+            echo "🗑️  Deleting bucket and contents..."
+            aws s3 rb "s3://${BUCKET}" --force
+
+            echo "✅ Bucket deleted successfully"
+            echo "status=deleted" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check and delete DNS records
+        continue-on-error: true
+        id: delete-dns
+        run: |
+          SANITIZED="${{ steps.resources.outputs.sanitized }}"
+          DNS_NAME="${SANITIZED}.jouster.org"
+
+          echo "🔍 Checking for DNS records: ${DNS_NAME}"
+
+          # Get hosted zone ID
+          ZONE_ID=$(aws route53 list-hosted-zones \
+            --query "HostedZones[?Name=='jouster.org.'].Id" \
+            --output text | head -n1 | sed 's|/hostedzone/||')
+
+          if [ -z "$ZONE_ID" ]; then
+            echo "⚠️  No Route53 hosted zone found"
+            echo "status=no_zone" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "✅ Found hosted zone: ${ZONE_ID}"
+
+          # Check if CNAME record exists
+          RECORD=$(aws route53 list-resource-record-sets \
+            --hosted-zone-id "$ZONE_ID" \
+            --query "ResourceRecordSets[?Name=='${DNS_NAME}.']" \
+            --output json)
+
+          if [ "$RECORD" == "[]" ]; then
+            echo "⚠️  No DNS record found for ${DNS_NAME}"
+            echo "status=not_found" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Found DNS record for ${DNS_NAME}"
+            echo "Record: ${RECORD}"
+            echo "⚠️  Skipping DNS deletion - requires manual cleanup"
+            echo "To delete manually, use: aws route53 change-resource-record-sets"
+            echo "status=found_skipped" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Summary of cleanup actions
+        if: always()
+        run: |
+          echo "## 📊 Branch Cleanup Summary"
+          echo ""
+          echo "**Branch**: ${{ github.event.ref }}"
+          echo "**Deleted by**: ${{ github.actor }}"
+          echo ""
+          echo "### Resources Checked:"
+          echo "- Branch bucket: ${{ steps.delete-branch-bucket.outputs.status || 'not_checked' }}"
+          echo "- Feature bucket: ${{ steps.delete-feature-bucket.outputs.status || 'not_checked' }}"
+          echo "- DNS records: ${{ steps.delete-dns.outputs.status || 'not_checked' }}"
+          echo ""
+
+          if [ "${{ steps.delete-branch-bucket.outputs.status }}" == "deleted" ] || \
+             [ "${{ steps.delete-feature-bucket.outputs.status }}" == "deleted" ]; then
+            echo "✅ Successfully cleaned up resources for deleted branch"
+          else
+            echo "ℹ️  No resources found to clean up"
+          fi
+
