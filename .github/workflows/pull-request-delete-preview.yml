@@ -36,6 +36,8 @@ jobs:
           echo "url=http://${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com" >> $GITHUB_OUTPUT
 
       - name: Delete preview S3 bucket and contents
+        continue-on-error: true
+        id: delete-s3
         run: |
           BUCKET_NAME="${{ steps.bucket.outputs.name }}"
 
@@ -46,6 +48,7 @@ jobs:
           if aws s3 ls "s3://${BUCKET_NAME}" 2>&1 | grep -q 'NoSuchBucket'; then
             echo "⚠️  Bucket does not exist: ${BUCKET_NAME}"
             echo "Nothing to clean up."
+            echo "status=not_found" >> $GITHUB_OUTPUT
           else
             echo "✅ Bucket found: ${BUCKET_NAME}"
 
@@ -58,9 +61,12 @@ jobs:
             aws s3 rb "s3://${BUCKET_NAME}" --force
 
             echo "✅ Bucket deleted successfully: ${BUCKET_NAME}"
+            echo "status=deleted" >> $GITHUB_OUTPUT
           fi
 
       - name: Delete Route53 DNS records (if they exist)
+        continue-on-error: true
+        id: delete-dns
         run: |
           BUCKET_NAME="${{ steps.bucket.outputs.name }}"
           DNS_NAME="${BUCKET_NAME}.jouster.org"
@@ -109,6 +115,8 @@ jobs:
           fi
 
       - name: Delete CloudFront distribution (if it exists)
+        continue-on-error: true
+        id: delete-cloudfront
         run: |
           BUCKET_NAME="${{ steps.bucket.outputs.name }}"
 
