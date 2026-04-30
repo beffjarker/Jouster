@@ -95,12 +95,36 @@ lerna-debug.log*
 vulnerability-report.json
 
 # Personal development journal - NEVER COMMIT (local workspace only)
-dev-journal/
+# Exception: catalog/MOC reference files are tracked as documentation.
+# NOTE: "dir/" blanket-ignores block re-inclusion; use "dir/*" to allow exceptions.
+dev-journal/*
+!dev-journal/references/
+dev-journal/references/*
+!dev-journal/references/literature/
+dev-journal/references/literature/*
+!dev-journal/references/literature/README.md
+!dev-journal/references/literature/_index.md
 
 # Personal developer tools and utilities - NEVER COMMIT (contains API keys)
-dev-tools/
+# Exception: source scripts, configs, and docs (no secrets) are tracked
+dev-tools/*
 dev-tools/.env
 dev-tools/node_modules/
+!dev-tools/README.md
+!dev-tools/package.json
+!dev-tools/scripts/
+dev-tools/scripts/*
+!dev-tools/scripts/README.md
+!dev-tools/scripts/*.js
+!dev-tools/utils/
+dev-tools/utils/*
+!dev-tools/utils/*.js
+!dev-tools/github/
+dev-tools/github/*
+!dev-tools/github/*.js
+!dev-tools/api-clients/
+dev-tools/api-clients/*
+!dev-tools/api-clients/README.md
 
 
 .claude/worktrees

@@ -6,11 +6,74 @@ Personal automation scripts and utilities.
 
 ```
 scripts/
-├── README.md              # This file
-├── backup-journal.js      # Backup dev-journal to cloud/external
-├── clean-temp.js          # Clean temporary files
-└── [your-script].js       # Your custom scripts
+├── README.md                    # This file
+├── gutenberg-downloader.js      # Download & convert Project Gutenberg works to Obsidian Markdown
+├── backup-journal.js            # Backup dev-journal to cloud/external
+├── clean-temp.js                # Clean temporary files
+└── [your-script].js             # Your custom scripts
 ```
+
+---
+
+## `gutenberg-downloader.js`
+
+Downloads public-domain works from [Project Gutenberg](https://www.gutenberg.org/) and converts them
+to Obsidian-compatible Markdown files split by chapter.
+
+**Output structure:**
+
+```
+dev-journal/references/literature/
+  {author-slug}/
+    _index.md              ← Author overview
+    {title-slug}/
+      _index.md            ← Book overview with chapter list
+      ch-01.md             ← Chapter 1
+      ch-02.md             ← Chapter 2
+      ...
+```
+
+**Quick start:**
+
+```bash
+# Install dependencies (first time only)
+cd dev-tools && npm install
+
+# List all catalog works
+npm run gutenberg:list
+
+# Dry-run (preview without writing)
+npm run gutenberg:dry-run
+
+# Download the full catalog (skips already-downloaded books)
+npm run gutenberg:all
+
+# Download a single book by Gutenberg ID
+npm run gutenberg -- --id 11
+
+# Download all works by an author slug
+npm run gutenberg -- --author lewis-carroll
+```
+
+**All options:**
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--id <id>` | Download single book by Gutenberg ID | — |
+| `--author <slug>` | Download all works for author slug | — |
+| `--all` | Process entire catalog | — |
+| `--list` | List catalog without downloading | — |
+| `--output <path>` | Output directory | `dev-journal/references/literature` |
+| `--dry-run` | Preview without writing | `false` |
+| `--skip-existing` | Skip already-downloaded books | `false` |
+| `--delay <ms>` | Politeness delay between requests (ms) | `2000` |
+| `--verbose` | Show detailed output | `false` |
+
+**Catalog size:** 47 works across 22 authors (Lewis Carroll, Poe, Dostoevsky, Doyle, Baum, Thompson,
+Shakespeare, Twain, Austen, Shelley, Stoker, Homer, Wells, Verne, Burroughs, Smith, Lindsay,
+Nietzsche, Plato, Sun Tzu, Machiavelli, Marcus Aurelius).
+
+See `dev-journal/references/literature/README.md` for the full catalog with Gutenberg IDs.
 
 ## Creating a New Script
 
