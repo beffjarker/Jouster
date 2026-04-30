@@ -6,6 +6,10 @@
   "scripts": {
     "gist": "node github/create-gist.js",
     "repos": "node github/list-repos.js",
+    "gutenberg": "node scripts/gutenberg-downloader.js",
+    "gutenberg:list": "node scripts/gutenberg-downloader.js --list",
+    "gutenberg:all": "node scripts/gutenberg-downloader.js --all --skip-existing",
+    "gutenberg:dry-run": "node scripts/gutenberg-downloader.js --all --dry-run",
     "test": "node --version && echo 'Dev tools ready!'"
   },
   "keywords": [
