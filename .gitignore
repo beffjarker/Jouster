@@ -102,3 +102,6 @@ dev-tools/
 dev-tools/.env
 dev-tools/node_modules/
 
+
+.claude/worktrees
+.claude/settings.local.json
