@@ -1,8 +1,9 @@
 const nx = require('@nx/eslint-plugin');
-const baseConfig = require('../../.eslintrc.json');
 
 module.exports = [
-  ...baseConfig,
+  ...nx.configs['flat/base'],
+  ...nx.configs['flat/typescript'],
+  ...nx.configs['flat/javascript'],
   ...nx.configs['flat/angular'],
   ...nx.configs['flat/angular-template'],
   {
@@ -29,6 +30,8 @@ module.exports = [
   {
     files: ['**/*.html'],
     // Override or add rules here
-    rules: {},
+    rules: {
+      '@angular-eslint/template/prefer-control-flow': 'off',
+    },
   },
 ];
