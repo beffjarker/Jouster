@@ -74,6 +74,7 @@ jobs:
           echo "url=http://${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com" >> $GITHUB_OUTPUT
 
       - name: Create S3 bucket (if it doesn't exist)
+        if: github.actor != 'dependabot[bot]'
         run: |
           BUCKET_NAME="${{ steps.bucket.outputs.name }}"
 
@@ -120,6 +121,7 @@ jobs:
           echo "Bucket configuration complete!"
 
       - name: Deploy to S3
+        if: github.actor != 'dependabot[bot]'
         run: |
           echo "Deploying to S3 bucket: ${{ steps.bucket.outputs.name }}"
           aws s3 sync dist/apps/jouster-ui/browser/ "s3://${{ steps.bucket.outputs.name }}" \
@@ -131,6 +133,7 @@ jobs:
           echo "Preview URL: ${{ steps.bucket.outputs.url }}"
 
       - name: Comment build success on PR
+        if: github.actor != 'dependabot[bot]'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
