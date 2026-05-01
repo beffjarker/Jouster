@@ -30,8 +30,8 @@
     "express-validator": "^7.3.0",
     "helmet": "^8.1.0",
     "hpp": "^0.2.3",
-    "mailparser": "^3.7.5",
-    "nodemailer": "^7.0.11",
+    "mailparser": "^3.9.8",
+    "nodemailer": "^8.0.7",
     "uuid": "^14.0.0",
     "xss-clean": "^0.1.4"
   },
