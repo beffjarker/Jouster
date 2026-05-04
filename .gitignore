@@ -11,7 +11,11 @@
 .env.*.local
 *.env
 .env.*
-# Only .env.example should be committed (template with no secrets)
+# Only .env.example and .env.*.example/.env.*.template files should be committed
+# (templates with placeholder values, no real secrets)
+!.env.example
+!.env.*.example
+!.env.*.template
 
 # AWS Credentials - NEVER COMMIT
 aws/credentials
