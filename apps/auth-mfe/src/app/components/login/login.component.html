@@ -1,0 +1,112 @@
+<div class="login-container">
+  <div class="login-card">
+    <!-- Environment Badge -->
+    <div class="environment-badge" [class]="environmentName">
+      {{ environmentName | uppercase }}
+      <span *ngIf="useMockAuth" class="mock-badge">≡ƒÄ⌐ MOCK</span>
+    </div>
+
+    <!-- Logo/Header -->
+    <div class="login-header">
+      <h1>≡ƒÄ« Jouster</h1>
+      <h2>Sign In</h2>
+      <p *ngIf="useMockAuth" class="wonderland-subtitle">
+        Welcome to Wonderland
+      </p>
+    </div>
+
+    <!-- Error Message -->
+    <div *ngIf="errorMessage" class="error-message" (click)="clearError()">
+      <span class="error-icon">ΓÜá∩╕Å</span>
+      {{ errorMessage }}
+      <button class="close-btn" aria-label="Close error">├ù</button>
+    </div>
+
+    <!-- Login Form -->
+    <form (ngSubmit)="onLogin()" class="login-form">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input
+          id="username"
+          type="text"
+          [(ngModel)]="username"
+          name="username"
+          placeholder="Enter your username"
+          [disabled]="isLoading"
+          autocomplete="username"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <div class="password-input-wrapper">
+          <input
+            id="password"
+            [type]="showPassword ? 'text' : 'password'"
+            [(ngModel)]="password"
+            name="password"
+            placeholder="Enter your password"
+            [disabled]="isLoading"
+            autocomplete="current-password"
+            required
+          />
+          <button
+            type="button"
+            class="toggle-password-btn"
+            (click)="togglePasswordVisibility()"
+            [attr.aria-label]="showPassword ? 'Hide password' : 'Show password'"
+          >
+            {{ showPassword ? '≡ƒæü∩╕Å' : '≡ƒöÆ' }}
+          </button>
+        </div>
+      </div>
+
+      <button
+        type="submit"
+        class="login-btn"
+        [disabled]="isLoading || !username || !password"
+      >
+        <span *ngIf="!isLoading">≡ƒöÉ Sign In</span>
+        <span *ngIf="isLoading">ΓÅ│ Signing in...</span>
+      </button>
+    </form>
+
+    <!-- Quick Login Section (Dev/Mock Only) -->
+    <div *ngIf="useMockAuth && mockUsers.length > 0" class="quick-login-section">
+      <div class="divider">
+        <span>Quick Login (Dev Only)</span>
+      </div>
+
+      <div class="mock-users-grid">
+        <button
+          *ngFor="let user of mockUsers.slice(0, 6)"
+          type="button"
+          class="quick-login-btn"
+          (click)="quickLogin(user)"
+          [disabled]="isLoading"
+          [title]="user.username + ' / ' + user.password"
+        >
+          <span class="user-avatar">{{ user.avatar }}</span>
+          <span class="user-name">{{ user.firstName }}</span>
+          <span class="user-role" [class]="user.role">{{ user.role }}</span>
+        </button>
+      </div>
+
+      <div class="dev-note">
+        ≡ƒæå Click any character to login instantly
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="login-footer">
+      <p>
+        <small>
+          Auth MFE v1.0.0
+          <span *ngIf="useMockAuth">ΓÇó Mock Mode ({{ mockUsers.length }} users)</span>
+        </small>
+      </p>
+    </div>
+  </div>
+</div>
+
