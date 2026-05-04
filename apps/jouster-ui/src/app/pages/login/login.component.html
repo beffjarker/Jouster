@@ -1,0 +1,68 @@
+<div class="login-container">
+  <div class="login-card">
+    <div class="login-header">
+      <h1>≡ƒÄ« Jouster</h1>
+      <p class="subtitle">Sign in to continue</p>
+    </div>
+
+    <form [formGroup]="loginForm" (ngSubmit)="onSubmit()" class="login-form">
+      <!-- Error Message -->
+      <div class="error-message" *ngIf="errorMessage">
+        <span class="error-icon">ΓÜá∩╕Å</span>
+        {{ errorMessage }}
+      </div>
+
+      <!-- Username Field -->
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input
+          id="username"
+          type="text"
+          formControlName="username"
+          placeholder="Enter username"
+          [class.invalid]="username?.invalid && username?.touched"
+          autocomplete="username"
+        />
+        <div class="field-error" *ngIf="username?.invalid && username?.touched">
+          <span *ngIf="username?.errors?.['required']">Username is required</span>
+          <span *ngIf="username?.errors?.['minlength']">Username must be at least 3 characters</span>
+        </div>
+      </div>
+
+      <!-- Password Field -->
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          formControlName="password"
+          placeholder="Enter password"
+          [class.invalid]="password?.invalid && password?.touched"
+          autocomplete="current-password"
+        />
+        <div class="field-error" *ngIf="password?.invalid && password?.touched">
+          <span *ngIf="password?.errors?.['required']">Password is required</span>
+          <span *ngIf="password?.errors?.['minlength']">Password must be at least 3 characters</span>
+        </div>
+      </div>
+
+      <!-- Submit Button -->
+      <button
+        type="submit"
+        class="login-button"
+        [disabled]="isLoading"
+      >
+        <span *ngIf="!isLoading">Sign In</span>
+        <span *ngIf="isLoading">Signing in...</span>
+      </button>
+
+      <!-- Development Note -->
+      <div class="dev-note">
+        <p><strong>Development Mode</strong></p>
+        <p>Default credentials: admin / admin</p>
+        <p><small>ΓÜá∩╕Å Change password in production!</small></p>
+      </div>
+    </form>
+  </div>
+</div>
+
