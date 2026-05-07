@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ElementRef, NgZone } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CanvasAnimationsService, AnimationCleanup } from '../../services/canvas-animations.service';
@@ -20,7 +20,7 @@ interface FlashExperiment {
   templateUrl: './flash-experiments.component.html',
   styleUrls: ['./flash-experiments.component.scss']
 })
-export class FlashExperimentsComponent implements OnInit, OnDestroy {
+export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewInit {
   // Main Featured Experiment Properties
   public mainExperimentType: 'particles' | 'spiral' | 'waves' | 'sunflower' = 'particles';
   public isMainExperimentRunning = false;
@@ -57,15 +57,20 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
   public followingPresets: Map<string, string> = new Map(); // experimentId -> presetId
   public networkPresets: Map<string, string> = new Map(); // experimentId -> presetId
   public bouncePresets: Map<string, string> = new Map(); // experimentId -> presetId
+  public pythagoreanPresets: Map<string, string> = new Map(); // experimentId -> presetId
+  public pythagoreanTrailEnabled: Map<string, boolean> = new Map(); // experimentId -> trail toggle
 
   // Universal mouse tracking for all experiments
   public experimentCenterPoints: Map<string, {x: number, y: number}> = new Map();
   public experimentMouseModes: Map<string, 'manual' | 'mouse'> = new Map();
   public activeMouseTracking: Set<string> = new Set();
 
+  // Cached canvas dimensions — updated only on init and resize, not every change detection
+  public canvasDimensions: Map<string, {width: number, height: number}> = new Map();
+
   // Highlight System for Featured Experiments
-  public highlightedExperiments: Set<string> = new Set(['particles']); // Featured experiments
-  public featuredExperiment: string = 'particles'; // Primary featured experiment
+  public highlightedExperiments: Set<string> = new Set(['pythagorean-circle']); // Featured experiments
+  public featuredExperiment: string = 'pythagorean-circle'; // Primary featured experiment
   public highlightPulse: boolean = true; // Enable pulsing animation for highlights
 
   // Center point controls for explosive burst (legacy - now part of universal system)
@@ -76,12 +81,137 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
   public isMouseTracking: boolean = false; // Track if mouse is being followed
 
   private runningAnimations: Map<string, AnimationCleanup> = new Map();
+  private resizeObserver?: ResizeObserver;
+  private resizeTimeout?: ReturnType<typeof setTimeout>;
 
-  constructor(private canvasAnimations: CanvasAnimationsService) {}
+  constructor(
+    private canvasAnimations: CanvasAnimationsService,
+    private ngZone: NgZone,
+    private elementRef: ElementRef,
+  ) {}
 
   public ngOnInit() {
     this.initializeExperiments();
     this.filterExperiments();
+  }
+
+  public ngAfterViewInit() {
+    // Initial sizing of all canvases after view renders
+    this.sizeAllCanvases();
+
+    // Observe canvas container resizes for responsive behavior
+    this.ngZone.runOutsideAngular(() => {
+      this.resizeObserver = new ResizeObserver(() => {
+        if (this.resizeTimeout) {
+          clearTimeout(this.resizeTimeout);
+        }
+        this.resizeTimeout = setTimeout(() => this.onCanvasContainersResized(), 150);
+      });
+
+      // Observe the main page container for layout changes
+      const pageContainer = this.elementRef.nativeElement.querySelector('.page-container');
+      if (pageContainer) {
+        this.resizeObserver.observe(pageContainer);
+      }
+    });
+  }
+
+  /**
+   * Sizes a single canvas element to match its CSS display size.
+   * This ensures the canvas bitmap resolution matches the rendered size
+   * instead of scaling a fixed-size bitmap.
+   * Also updates the cached dimensions map.
+   */
+  private sizeCanvas(canvas: HTMLCanvasElement): void {
+    const rect = canvas.getBoundingClientRect();
+    const displayWidth = Math.round(rect.width);
+    const displayHeight = Math.round(rect.height);
+
+    if (displayWidth > 0 && displayHeight > 0 &&
+        (canvas.width !== displayWidth || canvas.height !== displayHeight)) {
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+    }
+
+    // Update cached dimensions for template bindings
+    const id = canvas.id.replace('canvas-', '');
+    this.canvasDimensions.set(id, { width: canvas.width, height: canvas.height });
+  }
+
+  /**
+   * Sizes all canvases on the page to match their display sizes.
+   */
+  private sizeAllCanvases(): void {
+    // Size the main canvas
+    const mainCanvas = document.getElementById('mainCanvas') as HTMLCanvasElement;
+    if (mainCanvas) {
+      this.sizeCanvas(mainCanvas);
+    }
+
+    // Size each experiment canvas
+    this.experiments.forEach(experiment => {
+      const canvas = document.getElementById(`canvas-${experiment.id}`) as HTMLCanvasElement;
+      if (canvas) {
+        this.sizeCanvas(canvas);
+      }
+    });
+  }
+
+  /**
+   * Handles canvas container resize: re-sizes canvases and restarts running animations.
+   */
+  private onCanvasContainersResized(): void {
+    this.ngZone.run(() => {
+      // Re-size the main canvas
+      const mainCanvas = document.getElementById('mainCanvas') as HTMLCanvasElement;
+      if (mainCanvas) {
+        this.sizeCanvas(mainCanvas);
+        // Restart main experiment if running
+        if (this.isMainExperimentRunning) {
+          this.stopMainExperiment();
+          this.startMainExperiment();
+        }
+      }
+
+      // Re-size experiment canvases and restart running ones
+      this.experiments.forEach(experiment => {
+        const canvas = document.getElementById(`canvas-${experiment.id}`) as HTMLCanvasElement;
+        if (canvas) {
+          this.sizeCanvas(canvas);
+          if (this.runningAnimations.has(experiment.id)) {
+            this.restartExperimentIfRunning(experiment.id);
+          }
+        }
+      });
+
+      // Update default center points to reflect new canvas sizes
+      this.experimentCenterPoints.forEach((point, experimentId) => {
+        if (this.getExperimentMouseMode(experimentId) === 'manual') {
+          const dims = this.canvasDimensions.get(experimentId);
+          if (dims) {
+            // Clamp existing center points to new canvas bounds
+            point.x = Math.min(point.x, dims.width);
+            point.y = Math.min(point.y, dims.height);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Returns the cached canvas width for a given experiment.
+   * Only updated on init and resize — safe for template binding without performance cost.
+   */
+  public getCanvasWidth(experimentId: string): number {
+    return this.canvasDimensions.get(experimentId)?.width || 400;
+  }
+
+  /**
+   * Returns the cached canvas height for a given experiment.
+   * Only updated on init and resize — safe for template binding without performance cost.
+   */
+  public getCanvasHeight(experimentId: string): number {
+    return this.canvasDimensions.get(experimentId)?.height || 300;
   }
 
   public capitalizeCategory(category: string): string {
@@ -90,6 +220,33 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
 
   public initializeExperiments() {
     this.experiments = [
+      {
+        id: 'pythagorean-circle',
+        name: 'Pythagorean Circle Drawing',
+        description: 'Draw circles using the Pythagorean theorem (x² + y² = r²) with customizable particle shapes, radius, and color',
+        category: 'math',
+        canvasFunction: (canvas, ctx) => {
+          const center = this.getExperimentCenter('pythagorean-circle');
+          return this.canvasAnimations.createPythagoreanCircle(canvas, ctx, this.getPythagoreanPreset('pythagorean-circle'), {
+            centerX: center.x,
+            centerY: center.y,
+            getCenterX: () => this.getExperimentCenter('pythagorean-circle').x,
+            getCenterY: () => this.getExperimentCenter('pythagorean-circle').y,
+            trailEnabled: this.getPythagoreanTrailEnabled('pythagorean-circle')
+          });
+        },
+        hasPresets: true,
+        presets: [
+          { id: 'classic', name: 'Classic Pixel', description: 'Classic single-pixel circle using Pythagorean theorem' },
+          { id: 'dotted', name: 'Dotted Circle', description: 'Dotted circle drawn with small circles' },
+          { id: 'square-particles', name: 'Square Particles', description: 'Circle made of square particles' },
+          { id: 'diamond-ring', name: 'Diamond Ring', description: 'Circle composed of diamond-shaped particles' },
+          { id: 'star-trail', name: 'Star Trail', description: 'Star-shaped particles with fading trail effect' },
+          { id: 'rainbow', name: 'Rainbow Circle', description: 'Rainbow-colored circle with hue cycling' },
+          { id: 'concentric', name: 'Concentric Rings', description: 'Multiple concentric circles drawn simultaneously' },
+          { id: 'triangle-burst', name: 'Triangle Burst', description: 'Triangle particles forming concentric rings with trails' }
+        ]
+      },
       {
         id: 'sinecosinewaves',
         name: 'Sine & Cosine Waves',
@@ -300,6 +457,12 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
     const canvas = document.getElementById(`canvas-${experiment.id}`) as HTMLCanvasElement;
     const ctx = canvas.getContext('2d')!;
 
+    // Size canvas to match its CSS display size
+    this.sizeCanvas(canvas);
+
+    // Recenter to canvas center when in manual mode and starting fresh
+    this.recenterExperiment(experiment.id, canvas);
+
     // Setup canvas with common properties
     this.canvasAnimations.setupCanvas(canvas, ctx);
 
@@ -322,6 +485,9 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
     const canvas = document.getElementById(`canvas-${experiment.id}`) as HTMLCanvasElement;
     const ctx = canvas.getContext('2d')!;
     this.canvasAnimations.clearCanvas(canvas, ctx);
+
+    // Reset center point to canvas center
+    this.recenterExperiment(experiment.id, canvas);
   }
 
   // Main Experiment Methods
@@ -336,6 +502,9 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
     if (this.mainAnimationCleanup) {
       this.mainAnimationCleanup();
     }
+
+    // Size canvas to match its CSS display size
+    this.sizeCanvas(canvas);
 
     // Start the selected experiment type with current parameters
     this.mainAnimationCleanup = this.runMainExperiment(canvas, ctx);
@@ -567,6 +736,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
   }
 
   public ngOnDestroy() {
+    // Clean up resize observer
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = undefined;
+    }
+    if (this.resizeTimeout) {
+      clearTimeout(this.resizeTimeout);
+    }
+
     // Clean up main experiment
     if (this.mainAnimationCleanup) {
       this.mainAnimationCleanup();
@@ -703,8 +881,9 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
   private handleMouseLeave(event: MouseEvent) {
     // Optionally reset to center when mouse leaves canvas
     if (this.explosiveCenterMode === 'mouse') {
-      this.explosiveCenterX = 200; // Canvas center
-      this.explosiveCenterY = 150; // Canvas center
+      const canvas = document.getElementById('canvas-particles') as HTMLCanvasElement;
+      this.explosiveCenterX = canvas ? Math.round(canvas.width / 2) : 200;
+      this.explosiveCenterY = canvas ? Math.round(canvas.height / 2) : 150;
     }
   }
 
@@ -765,6 +944,35 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
     }
   }
 
+  public getPythagoreanPreset(experimentId: string): string {
+    return this.pythagoreanPresets.get(experimentId) || 'classic';
+  }
+
+  public setPythagoreanPreset(experimentId: string, presetId: string) {
+    this.pythagoreanPresets.set(experimentId, presetId);
+    const experiment = this.experiments.find(exp => exp.id === experimentId);
+    if (experiment && experiment.hasPresets) {
+      const canvas = document.getElementById(`canvas-${experimentId}`) as HTMLCanvasElement;
+      const ctx = canvas.getContext('2d')!;
+      this.stopExperiment(experiment);
+      this.canvasAnimations.clearCanvas(canvas, ctx);
+      const cleanupFunction = experiment.canvasFunction(canvas, ctx);
+      this.runningAnimations.set(experiment.id, cleanupFunction);
+    }
+  }
+
+  public getPythagoreanTrailEnabled(experimentId: string): boolean | undefined {
+    if (!this.pythagoreanTrailEnabled.has(experimentId)) {
+      return undefined; // No user override; let the preset default apply
+    }
+    return this.pythagoreanTrailEnabled.get(experimentId)!;
+  }
+
+  public setPythagoreanTrailEnabled(experimentId: string, enabled: boolean) {
+    this.pythagoreanTrailEnabled.set(experimentId, enabled);
+    this.restartExperimentIfRunning(experimentId);
+  }
+
   public getSelectValue(event: Event): string {
     const target = event.target as HTMLSelectElement;
     return target.value;
@@ -785,6 +993,8 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
       return this.getNetworkPreset(experimentId);
     } else if (experimentId === 'bounce') {
       return this.getBouncePreset(experimentId);
+    } else if (experimentId === 'pythagorean-circle') {
+      return this.getPythagoreanPreset(experimentId);
     }
     return '';
   }
@@ -804,6 +1014,8 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
       this.setNetworkPreset(experimentId, presetId);
     } else if (experimentId === 'bounce') {
       this.setBouncePreset(experimentId, presetId);
+    } else if (experimentId === 'pythagorean-circle') {
+      this.setPythagoreanPreset(experimentId, presetId);
     }
   }
 
@@ -817,12 +1029,30 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
   // Universal Mouse Tracking Methods for All Experiments
 
   public initializeExperimentCenter(experimentId: string) {
-    // Initialize default center point for each experiment
+    // Initialize default center point for each experiment based on actual canvas size
     if (!this.experimentCenterPoints.has(experimentId)) {
-      this.experimentCenterPoints.set(experimentId, { x: 200, y: 150 }); // Default canvas center
+      const canvas = document.getElementById(`canvas-${experimentId}`) as HTMLCanvasElement;
+      const centerX = canvas ? Math.round(canvas.width / 2) : 200;
+      const centerY = canvas ? Math.round(canvas.height / 2) : 150;
+      this.experimentCenterPoints.set(experimentId, { x: centerX, y: centerY });
     }
     if (!this.experimentMouseModes.has(experimentId)) {
       this.experimentMouseModes.set(experimentId, 'manual');
+    }
+  }
+
+  /**
+   * Resets the experiment center point to the true center of the canvas.
+   * Called on start and reset to ensure the animation begins centered.
+   */
+  private recenterExperiment(experimentId: string, canvas?: HTMLCanvasElement): void {
+    if (this.getExperimentMouseMode(experimentId) === 'manual') {
+      const cvs = canvas || document.getElementById(`canvas-${experimentId}`) as HTMLCanvasElement;
+      if (cvs && cvs.width > 0 && cvs.height > 0) {
+        const centerX = Math.round(cvs.width / 2);
+        const centerY = Math.round(cvs.height / 2);
+        this.experimentCenterPoints.set(experimentId, { x: centerX, y: centerY });
+      }
     }
   }
 
@@ -898,7 +1128,10 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy {
   private handleUniversalMouseLeave(event: MouseEvent, experimentId: string) {
     if (this.getExperimentMouseMode(experimentId) === 'mouse') {
       // Reset to canvas center when mouse leaves
-      const centerPoint = { x: 200, y: 150 }; // Default canvas center
+      const canvas = document.getElementById(`canvas-${experimentId}`) as HTMLCanvasElement;
+      const centerX = canvas ? Math.round(canvas.width / 2) : 200;
+      const centerY = canvas ? Math.round(canvas.height / 2) : 150;
+      const centerPoint = { x: centerX, y: centerY };
       this.experimentCenterPoints.set(experimentId, centerPoint);
 
       // For backward compatibility with explosive particles

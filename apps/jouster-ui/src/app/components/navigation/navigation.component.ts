@@ -3,14 +3,15 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
+import { AuthService } from '../../services/auth.service';
 
 interface NavigationItem {
   path: string;
   label: string;
   icon: string;
   description?: string;
-  requiresAuth?: boolean; // True if item requires authentication
-  isPublic?: boolean; // True if item is available without auth (default: false)
+  requiresAuth?: boolean;
+  isPublic?: boolean;
 }
 
 @Component({
@@ -26,9 +27,6 @@ export class NavigationComponent implements OnInit, OnDestroy {
   public isMenuOpen = false;
   public currentRoute = '';
   public isMobile = false;
-
-  // TODO: Wire up actual authentication service
-  // For now, this simulates logged-out state
   public isAuthenticated = false;
 
   public navigationItems: NavigationItem[] = [
@@ -51,13 +49,6 @@ export class NavigationComponent implements OnInit, OnDestroy {
       label: 'Timeline',
       icon: '📅',
       description: 'Interactive visualization',
-      requiresAuth: true // Requires login
-    },
-    {
-      path: '/conversation-history',
-      label: 'Conversations',
-      icon: '💬',
-      description: 'Chat history & analysis',
       requiresAuth: true // Requires login
     },
     {
@@ -97,10 +88,17 @@ export class NavigationComponent implements OnInit, OnDestroy {
     }
   ];
 
-  constructor(private router: Router) {}
+  constructor(private router: Router, private authService: AuthService) {}
 
   ngOnInit() {
     this.checkScreenSize();
+
+    // Subscribe to authentication state changes
+    this.authService.authenticated$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(authenticated => {
+        this.isAuthenticated = authenticated;
+      });
 
     // Track route changes to update active menu item and close mobile menu
     this.router.events

@@ -1,4 +1,5 @@
 import { Route } from '@angular/router';
+import { authGuard } from './guards/auth.guard';
 
 export const appRoutes: Route[] = [
   {
@@ -7,7 +8,8 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'highlights',
-    loadComponent: () => import('./pages/highlights/highlights.component').then(m => m.HighlightsComponent)
+    loadComponent: () => import('./pages/highlights/highlights.component').then(m => m.HighlightsComponent),
+    canActivate: [authGuard]
   },
   {
     path: 'about',
@@ -19,11 +21,13 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'fibonacci',
-    loadComponent: () => import('./pages/fibonacci/fibonacci.component').then(m => m.FibonacciComponent)
+    loadComponent: () => import('./pages/fibonacci/fibonacci.component').then(m => m.FibonacciComponent),
+    canActivate: [authGuard]
   },
   {
     path: 'music',
-    loadComponent: () => import('./pages/music/music.component').then(m => m.MusicComponent)
+    loadComponent: () => import('./pages/music/music.component').then(m => m.MusicComponent),
+    canActivate: [authGuard]
   },
   {
     path: 'listening-history',
@@ -32,11 +36,13 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'emails',
-    loadComponent: () => import('./pages/emails/emails.component').then(m => m.EmailsComponent)
+    loadComponent: () => import('./pages/emails/emails.component').then(m => m.EmailsComponent),
+    canActivate: [authGuard]
   },
   {
     path: 'timeline',
-    loadComponent: () => import('./pages/timeline/timeline.component').then(m => m.TimelineComponent)
+    loadComponent: () => import('./pages/timeline/timeline.component').then(m => m.TimelineComponent),
+    canActivate: [authGuard]
   },
   {
     path: 'flash-experiments',
@@ -44,7 +50,8 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'conversation-history',
-    loadComponent: () => import('./pages/conversation-history/conversation-history.component').then(m => m.ConversationHistoryComponent)
+    loadComponent: () => import('./pages/conversation-history/conversation-history.component').then(m => m.ConversationHistoryComponent),
+    canActivate: [authGuard]
   },
-  { path: '**', redirectTo: '' } // Wildcard route for 404 - redirect to home
+  { path: '**', redirectTo: '' }
 ];

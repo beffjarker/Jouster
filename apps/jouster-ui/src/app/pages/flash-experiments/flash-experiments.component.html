@@ -141,9 +141,9 @@
 
       <!-- Main Canvas -->
       <div class="main-canvas-container">
-        <canvas id="mainCanvas" width="600" height="450" class="main-canvas" data-cy="main-canvas"></canvas>
+        <canvas #mainCanvasRef id="mainCanvas" class="main-canvas" data-cy="main-canvas"></canvas>
         <div class="canvas-info">
-          <small>600×450 pixels | Experiment running: {{isMainExperimentRunning ? 'Yes' : 'No'}}</small>
+          <small>Experiment running: {{isMainExperimentRunning ? 'Yes' : 'No'}}</small>
         </div>
       </div>
     </div>
@@ -216,6 +216,21 @@
         </small>
       </div>
 
+      <!-- Trail Effect Toggle (for pythagorean-circle experiment) -->
+      <div class="trail-toggle-controls"
+           *ngIf="experiment.id === 'pythagorean-circle'"
+           [attr.data-cy]="'trail-toggle-' + experiment.id">
+        <label class="toggle-label">
+          <input
+            type="checkbox"
+            [checked]="getPythagoreanTrailEnabled(experiment.id) === true"
+            (change)="setPythagoreanTrailEnabled(experiment.id, $any($event.target).checked)"
+            [attr.data-cy]="'trail-checkbox-' + experiment.id">
+          <span class="toggle-text">Enable Trail Effect</span>
+        </label>
+        <small class="help-text">Particles leave a fading trail as the circle is drawn. Works with all presets.</small>
+      </div>
+
       <!-- Universal Center Point Controls for All Experiments -->
       <div class="universal-center-controls"
            [attr.data-cy]="'center-controls-' + experiment.id">
@@ -257,7 +272,7 @@
               [value]="getExperimentCenter(experiment.id).x"
               (input)="onExperimentCenterChange(experiment.id, +($any($event.target).value), getExperimentCenter(experiment.id).y)"
               min="0"
-              max="400"
+              [max]="getCanvasWidth(experiment.id)"
               [attr.data-cy]="'center-x-' + experiment.id">
           </div>
           <div class="input-group">
@@ -268,7 +283,7 @@
               [value]="getExperimentCenter(experiment.id).y"
               (input)="onExperimentCenterChange(experiment.id, getExperimentCenter(experiment.id).x, +($any($event.target).value))"
               min="0"
-              max="300"
+              [max]="getCanvasHeight(experiment.id)"
               [attr.data-cy]="'center-y-' + experiment.id">
           </div>
         </div>
@@ -320,11 +335,11 @@
               [(ngModel)]="explosiveCenterX"
               (input)="onExplosiveCenterChange()"
               min="0"
-              max="400"
+              [max]="getCanvasWidth('particles')"
               step="10"
               class="center-input"
               data-cy="explosive-center-x-input">
-            <span class="input-range">0-400</span>
+            <span class="input-range">0-{{ getCanvasWidth('particles') }}</span>
           </div>
           <div class="input-group">
             <label for="explosiveCenterY">Center Y:</label>
@@ -334,11 +349,11 @@
               [(ngModel)]="explosiveCenterY"
               (input)="onExplosiveCenterChange()"
               min="0"
-              max="300"
+              [max]="getCanvasHeight('particles')"
               step="10"
               class="center-input"
               data-cy="explosive-center-y-input">
-            <span class="input-range">0-300</span>
+            <span class="input-range">0-{{ getCanvasHeight('particles') }}</span>
           </div>
         </div>
 
@@ -354,7 +369,7 @@
         </div>
 
         <small class="help-text">
-          <span *ngIf="explosiveCenterMode === 'manual'">Set the center point where particles will explode from. Canvas size is 400×300 pixels.</span>
+          <span *ngIf="explosiveCenterMode === 'manual'">Set the center point where particles will explode from.</span>
           <span *ngIf="explosiveCenterMode === 'mouse'">Move your mouse over the canvas to dynamically control the explosion center.</span>
         </small>
       </div>
@@ -362,8 +377,6 @@
       <div class="canvas-container">
         <canvas
           [id]="'canvas-' + experiment.id"
-          width="400"
-          height="300"
           class="experiment-canvas"
           [attr.data-cy]="'experiment-canvas-' + experiment.id">
         </canvas>

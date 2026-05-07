@@ -8,6 +8,7 @@
 > - Development workflows → [.github/instructions/development.md](./instructions/development.md)
 > - Contribution guidelines → [CONTRIBUTING.md](../CONTRIBUTING.md)
 > - Nx-specific rules → [.github/instructions/nx.instructions.md](./instructions/nx.instructions.md)
+> - Personal instructions → `dev-tools/copilot-personal-instructions.md` *(gitignored, loaded via [personal.instructions.md](./instructions/personal.instructions.md))*
 
 ---
 
@@ -469,7 +470,18 @@ class UserProfile {}
 
 ---
 
-## 18. If Unsure
+## 18. Personal Instructions (Developer-Specific)
+
+- **Always load** `dev-tools/copilot-personal-instructions.md` at the start of every session
+- This file is gitignored — each developer maintains their own copy in the `dev-tools/` directory
+- Personal instructions contain workflow preferences, terminal habits, and developer-specific overrides
+- **Precedence:** Personal preferences (style, workflow) override general guidance; shared rules (security, code standards) always apply
+- If the file does not exist, continue with shared instructions only (no error)
+- See [.github/instructions/personal.instructions.md](./instructions/personal.instructions.md) for the loader configuration
+
+---
+
+## 19. If Unsure
 
 - **If you are unsure about a pattern, convention, or implementation:**
   - Use semantic search to find examples in the codebase.
@@ -478,7 +490,7 @@ class UserProfile {}
 
 ---
 
-## 19. Terminal Commands & Shell Detection
+## 20. Terminal Commands & Shell Detection
 
 **CRITICAL RULE:** Always detect the user's shell before executing terminal commands. Apply shell-specific syntax based on detection.
 
@@ -609,7 +621,7 @@ git log --oneline --author="name" > tmp/git-output.txt
 
 ---
 
-## 20. Example Prompts & Responses
+## 21. Example Prompts & Responses
 
 **Prompt:**
 

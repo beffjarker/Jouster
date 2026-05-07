@@ -50,6 +50,9 @@
     "serve": {
       "continuous": true,
       "executor": "@angular/build:dev-server",
+      "options": {
+        "proxyConfig": "apps/jouster-ui/proxy.conf.json"
+      },
       "configurations": {
         "production": {
           "buildTarget": "jouster-ui:build:production"

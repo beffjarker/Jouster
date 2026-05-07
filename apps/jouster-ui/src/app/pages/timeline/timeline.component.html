@@ -1,181 +1,105 @@
 <div class="page-container">
-  <h1>Timeline</h1>
+  <h1>Life Map</h1>
 
-  <!-- Current Date Summary -->
-  <div class="current-date-section">
-    <h2>Today - {{ currentDate | date:'fullDate' }}</h2>
-    <div class="date-summary">
-      <p>Welcome to your Timeline! Track events and see them on the world map below.</p>
-    </div>
+  <!-- Loading State -->
+  <div class="loading-state" *ngIf="isLoading">
+    <p>Loading entries...</p>
   </div>
 
-  <!-- Event Input Form -->
-  <div class="event-form-section">
-    <h3>Add New Event</h3>
-    <form (ngSubmit)="addEvent()" #eventForm="ngForm" class="event-form">
-      <div class="form-row">
-        <div class="form-group">
-          <label for="eventTitle">Event Title:</label>
-          <input
-            type="text"
-            id="eventTitle"
-            [(ngModel)]="newEvent.title"
-            name="eventTitle"
-            required
-            placeholder="Enter event title"
-            class="form-input">
-        </div>
-        <div class="form-group">
-          <label for="eventCategory">Category:</label>
-          <select
-            id="eventCategory"
-            [(ngModel)]="newEvent.category"
-            name="eventCategory"
-            required
-            class="form-select">
-            <option value="personal">Personal</option>
-            <option value="work">Work</option>
-            <option value="travel">Travel</option>
-            <option value="milestone">Milestone</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="eventDescription">Description:</label>
-        <textarea
-          id="eventDescription"
-          [(ngModel)]="newEvent.description"
-          name="eventDescription"
-          rows="3"
-          placeholder="Describe your event"
-          class="form-textarea"></textarea>
-      </div>
-
-      <div class="form-row">
-        <div class="form-group">
-          <label for="eventDate">Date:</label>
-          <input
-            type="datetime-local"
-            id="eventDate"
-            [(ngModel)]="newEvent.dateString"
-            name="eventDate"
-            required
-            class="form-input">
-        </div>
-        <div class="form-group">
-          <label for="eventLocation">Location:</label>
-          <input
-            type="text"
-            id="eventLocation"
-            [(ngModel)]="newEvent.locationName"
-            name="eventLocation"
-            placeholder="Click on map or enter location"
-            class="form-input">
-        </div>
-      </div>
-
-      <div class="form-actions">
-        <button type="submit" [disabled]="!eventForm.form.valid" class="add-event-btn">
-          Add Event
-        </button>
-        <button type="button" (click)="clearForm()" class="clear-btn">
-          Clear
-        </button>
-      </div>
-    </form>
+  <!-- Error State -->
+  <div class="error-state" *ngIf="errorMessage">
+    <p>{{ errorMessage }}</p>
   </div>
 
   <!-- World Map -->
-  <div class="map-section">
-    <h3>World Map</h3>
-    <div id="timeline-map" class="timeline-map"></div>
-    <p class="map-instructions">
-      Click on the map to set event location, or events will be displayed at their coordinates.
-    </p>
+  <div class="map-section" *ngIf="!isLoading">
+    <div id="timeline-map" class="timeline-map" style="height: 450px; width: 100%; border-radius: 10px;"></div>
   </div>
 
-  <!-- Timeline History -->
-  <div class="timeline-history">
-    <h3>Event History</h3>
-
-    <div class="timeline-filters">
-      <div class="filter-group">
-        <label for="categoryFilter">Filter by Category:</label>
-        <select id="categoryFilter" [(ngModel)]="selectedCategory" (change)="filterEvents()" class="filter-select">
-          <option value="">All Categories</option>
-          <option value="personal">Personal</option>
-          <option value="work">Work</option>
-          <option value="travel">Travel</option>
-          <option value="milestone">Milestone</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-      <div class="filter-group">
-        <label for="sortOrder">Sort Order:</label>
-        <select id="sortOrder" [(ngModel)]="sortOrder" (change)="sortEvents()" class="filter-select">
-          <option value="desc">Newest First</option>
-          <option value="asc">Oldest First</option>
-        </select>
-      </div>
+  <!-- Filters -->
+  <div class="timeline-filters" *ngIf="!isLoading && entries.length > 0">
+    <div class="filter-group">
+      <label for="categoryFilter">Category:</label>
+      <select id="categoryFilter" [(ngModel)]="selectedCategory" (change)="filterEntries()" class="filter-select">
+        <option value="">All ({{ entries.length }})</option>
+        <option *ngFor="let cat of getCategories()" [value]="cat">{{ cat | titlecase }}</option>
+      </select>
     </div>
-
-    <div class="events-timeline" *ngIf="filteredEvents.length > 0">
-      <div class="timeline-event" *ngFor="let event of filteredEvents; let i = index" [attr.data-category]="event.category">
-        <div class="event-marker">
-          <div class="event-icon" [class]="'icon-' + event.category"></div>
-          <div class="event-line" *ngIf="i < filteredEvents.length - 1"></div>
-        </div>
-        <div class="event-content">
-          <div class="event-header">
-            <h4 class="event-title">{{ event.title }}</h4>
-            <span class="event-category" [class]="'category-' + event.category">
-              {{ event.category | titlecase }}
-            </span>
-          </div>
-          <p class="event-date">{{ event.date | date:'medium' }}</p>
-          <p class="event-description" *ngIf="event.description">{{ event.description }}</p>
-          <p class="event-location" *ngIf="event.location.name">
-            📍 {{ event.location.name }}
-          </p>
-          <div class="event-actions">
-            <button (click)="viewOnMap(event)" class="view-map-btn">View on Map</button>
-            <button (click)="editEvent(event)" class="edit-btn">Edit</button>
-            <button (click)="deleteEvent(event.id)" class="delete-btn">Delete</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="empty-timeline" *ngIf="filteredEvents.length === 0">
-      <div class="empty-icon">📅</div>
-      <h4>No Events Yet</h4>
-      <p *ngIf="selectedCategory">No events found for the selected category.</p>
-      <p *ngIf="!selectedCategory">Start by adding your first event above!</p>
+    <div class="filter-group">
+      <label for="sortOrder">Sort:</label>
+      <select id="sortOrder" [(ngModel)]="sortOrder" (change)="sortEvents()" class="filter-select">
+        <option value="asc">Oldest First</option>
+        <option value="desc">Newest First</option>
+      </select>
     </div>
   </div>
 
-  <!-- Statistics Section -->
-  <div class="timeline-stats" *ngIf="events.length > 0">
-    <h3>Timeline Statistics</h3>
+  <!-- Stats -->
+  <div class="timeline-stats" *ngIf="!isLoading && entries.length > 0">
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-number">{{ events.length }}</div>
-        <div class="stat-label">Total Events</div>
+        <div class="stat-number">{{ entries.length }}</div>
+        <div class="stat-label">Entries</div>
       </div>
       <div class="stat-card">
         <div class="stat-number">{{ getUniqueLocations().length }}</div>
-        <div class="stat-label">Locations Visited</div>
+        <div class="stat-label">Cities</div>
       </div>
       <div class="stat-card">
-        <div class="stat-number">{{ getMostActiveMonth() }}</div>
-        <div class="stat-label">Most Active Month</div>
+        <div class="stat-number">{{ getMostActiveYear() }}</div>
+        <div class="stat-label">Most Active</div>
       </div>
       <div class="stat-card">
-        <div class="stat-number">{{ getFavoriteCategory() }}</div>
-        <div class="stat-label">Top Category</div>
+        <div class="stat-number">{{ getDateRange() }}</div>
+        <div class="stat-label">Span</div>
       </div>
+    </div>
+  </div>
+
+  <!-- Entry List -->
+  <div class="timeline-history" *ngIf="!isLoading">
+    <h3>Entries ({{ filteredEntries.length }})</h3>
+
+    <div class="events-timeline" *ngIf="filteredEntries.length > 0">
+      <div
+        class="timeline-event"
+        *ngFor="let entry of filteredEntries"
+        [attr.data-category]="entry.category"
+        [class.selected]="selectedEntry?.id === entry.id"
+        (click)="selectEntry(entry)">
+
+        <div class="event-content">
+          <div class="event-header">
+            <h4 class="event-title">{{ entry.title }}</h4>
+            <span class="event-category" [class]="'category-' + entry.category">
+              {{ entry.category | titlecase }}
+            </span>
+          </div>
+          <p class="event-date">{{ entry.date | date:'mediumDate' }}</p>
+          <p class="event-location" *ngIf="entry.location?.city">
+            📍 {{ entry.location.city }}, {{ entry.location.state }}
+          </p>
+
+          <!-- Expanded detail when selected -->
+          <div class="event-detail" *ngIf="selectedEntry?.id === entry.id">
+            <p class="event-description">{{ entry.description }}</p>
+            <div class="event-tags" *ngIf="entry.tags?.length">
+              <span class="tag" *ngFor="let tag of entry.tags">{{ tag }}</span>
+            </div>
+            <div class="event-images" *ngIf="entry.images?.length">
+              <small>📷 {{ entry.images.length }} image(s) attached</small>
+            </div>
+          </div>
+
+          <div class="event-actions">
+            <button (click)="viewOnMap(entry); $event.stopPropagation()" class="view-map-btn">Map</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="empty-timeline" *ngIf="filteredEntries.length === 0 && !isLoading">
+      <p>No entries found for the selected filter.</p>
     </div>
   </div>
 </div>

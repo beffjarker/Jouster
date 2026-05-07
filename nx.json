@@ -71,5 +71,6 @@
       "unitTestRunner": "jest"
     }
   },
-  "defaultProject": "Jouster"
+  "defaultProject": "Jouster",
+  "analytics": true
 }

@@ -1,10 +1,11 @@
 import { Component, OnInit } from '@angular/core';
 import { RouterModule } from '@angular/router';
 import { NavigationComponent } from './components/navigation/navigation.component';
+import { HiddenLoginComponent } from './components/hidden-login/hidden-login.component';
 import { environment } from '../environments/environment';
 
 @Component({
-  imports: [NavigationComponent, RouterModule],
+  imports: [NavigationComponent, RouterModule, HiddenLoginComponent],
   selector: 'jstr-root',
   templateUrl: './app.html',
   styleUrl: './app.scss',

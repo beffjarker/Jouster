@@ -13,6 +13,7 @@
 | `backup/` | Backup files and snapshots |
 | `cleanup/` | Cleanup and migration scripts |
 | `configs/` | Local configuration files |
+| `plans/` | Portable implementation plans (by repo, with templates) |
 | `confluence/` | Confluence API utilities and page management |
 | `docs/` | General reference docs (Angular upgrade, Docker, best practices) |
 | `git/` | Git utilities (sync scripts, commit templates) |
@@ -42,4 +43,4 @@
 
 ---
 
-*Last Updated: 2026-04-28*
+*Last Updated: 2026-05-07*
