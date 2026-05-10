@@ -21,7 +21,9 @@
             "input": "apps/jouster-ui/public"
           }
         ],
-        "styles": ["apps/jouster-ui/src/styles.scss"]
+        "styles": [
+          "apps/jouster-ui/src/styles.scss"
+        ]
       },
       "configurations": {
         "production": {

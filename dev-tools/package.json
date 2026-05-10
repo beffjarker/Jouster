@@ -17,6 +17,9 @@
   "author": "Jouster Developer",
   "license": "UNLICENSED",
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1045.0",
+    "@aws-sdk/client-s3": "^3.1045.0",
+    "@aws-sdk/lib-dynamodb": "^3.1045.0",
     "@octokit/rest": "^20.0.2",
     "axios": "^1.6.2",
     "better-sqlite3": "^12.9.0",

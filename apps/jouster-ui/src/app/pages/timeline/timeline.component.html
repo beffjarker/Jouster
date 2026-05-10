@@ -1,5 +1,6 @@
 <div class="page-container">
   <h1>Life Map</h1>
+  <p class="current-datetime">{{ currentDate | date:'EEEE, MMMM d, y — h:mm a' }}</p>
 
   <!-- Loading State -->
   <div class="loading-state" *ngIf="isLoading">
@@ -26,11 +27,48 @@
       </select>
     </div>
     <div class="filter-group">
+      <label for="cityFilter">City:</label>
+      <select id="cityFilter" [(ngModel)]="selectedCity" (change)="filterEntries()" class="filter-select">
+        <option value="">All Cities</option>
+        <option *ngFor="let city of getCities()" [value]="city">{{ city }}</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="tagFilter">Tag:</label>
+      <select id="tagFilter" [(ngModel)]="selectedTag" (change)="filterEntries()" class="filter-select">
+        <option value="">All Tags</option>
+        <option *ngFor="let tag of getTags()" [value]="tag">{{ tag }}</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="yearStart">From:</label>
+      <select id="yearStart" [(ngModel)]="selectedYearStart" (change)="filterEntries()" class="filter-select">
+        <option value="">Any</option>
+        <option *ngFor="let year of getYears()" [value]="year">{{ year }}</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label for="yearEnd">To:</label>
+      <select id="yearEnd" [(ngModel)]="selectedYearEnd" (change)="filterEntries()" class="filter-select">
+        <option value="">Any</option>
+        <option *ngFor="let year of getYears()" [value]="year">{{ year }}</option>
+      </select>
+    </div>
+    <div class="filter-group">
       <label for="sortOrder">Sort:</label>
       <select id="sortOrder" [(ngModel)]="sortOrder" (change)="sortEvents()" class="filter-select">
         <option value="asc">Oldest First</option>
         <option value="desc">Newest First</option>
       </select>
+    </div>
+    <div class="filter-group filter-checkbox-group">
+      <label class="filter-checkbox">
+        <input type="checkbox" [(ngModel)]="showApproximate" (change)="filterEntries()">
+        <span>Show approx. dates</span>
+      </label>
+    </div>
+    <div class="filter-group" *ngIf="hasActiveFilters()">
+      <button class="clear-filters-btn" (click)="clearFilters()">Clear Filters</button>
     </div>
   </div>
 
