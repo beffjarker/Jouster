@@ -7,7 +7,7 @@
     "serve": "nx serve jouster-ui --configuration=development",
     "serve:dev": "nx serve jouster-ui --host=localhost --port=4200 --configuration=development",
     "build": "nx build jouster-ui",
-    "build:qa": "nx build jouster-ui --configuration=development",
+    "build:qa": "nx build jouster-ui --configuration=qa",
     "build:prod": "nx build jouster-ui --configuration=production",
     "test": "nx test",
     "lint": "nx lint",

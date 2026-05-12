@@ -54,11 +54,40 @@
 
     <!-- Footer Info -->
     <div class="nav-footer">
-      <p class="nav-status">
-        <span class="status-dot"></span>
-        Live Site
-      </p>
-      <p class="nav-build-info">v1.0.0 • 96.75 kB</p>
+      <button
+        class="version-info-trigger"
+        type="button"
+        (click)="toggleVersionInfo($event)"
+        [attr.aria-expanded]="showVersionInfo"
+        aria-label="Version information">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span class="version-label">v{{ appVersion }}</span>
+      </button>
+
+      <div class="version-popup" *ngIf="showVersionInfo" role="dialog" aria-label="Version details">
+        <div class="version-popup-header">
+          <span class="version-popup-title">Jouster</span>
+          <button class="version-popup-close" type="button" (click)="toggleVersionInfo($event)" aria-label="Close">×</button>
+        </div>
+        <dl class="version-popup-list">
+          <div class="version-popup-row">
+            <dt>Version</dt>
+            <dd>{{ appVersion }}</dd>
+          </div>
+          <div class="version-popup-row">
+            <dt>Environment</dt>
+            <dd>{{ environmentName }}</dd>
+          </div>
+          <div class="version-popup-row">
+            <dt>Platform</dt>
+            <dd>Angular + Nx</dd>
+          </div>
+          <div class="version-popup-row">
+            <dt>Source</dt>
+            <dd><code>environment.version</code></dd>
+          </div>
+        </dl>
+      </div>
     </div>
   </nav>
 
