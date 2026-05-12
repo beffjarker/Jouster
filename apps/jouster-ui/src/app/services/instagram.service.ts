@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
 
 export interface InstagramImage {
   id: string;
@@ -19,7 +20,7 @@ export interface InstagramImage {
 })
 export class InstagramService {
   private readonly INSTAGRAM_USERNAME = 'beffjarker';
-  private readonly BACKEND_API_URL = 'http://localhost:3000/api';
+  private readonly BACKEND_API_URL = environment.apiUrl;
 
   constructor(private http: HttpClient) {}
 

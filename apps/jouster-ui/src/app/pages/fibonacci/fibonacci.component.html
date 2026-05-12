@@ -1,6 +1,9 @@
 <div class="fibonacci-container">
-  <h1>Fibonacci Sequence Generator</h1>
-  <p>Generate and visualize the Fibonacci sequence with mathematical properties</p>
+  <h1>🔢 Fibonacci Sequence Generator</h1>
+  <div class="fibonacci-banner">
+    <h2>Interactive Fibonacci Explorer</h2>
+    <p>Generate and visualize the Fibonacci sequence with mathematical properties</p>
+  </div>
 
   <!-- Input Controls -->
   <div class="input-section">
@@ -38,8 +41,9 @@
     </div>
 
     <div class="preset-buttons">
-      <button (click)="setClassicFibonacci()" class="preset-btn">Classic Fibonacci (0,1)</button>
-      <button (click)="setLucasNumbers()" class="preset-btn">Lucas Numbers (2,1)</button>
+      <button (click)="setClassicFibonacci()" class="preset-btn classic">Classic Fibonacci (0,1)</button>
+      <button (click)="setLucasNumbers()" class="preset-btn lucas">Lucas Numbers (2,1)</button>
+      <button (click)="setTribonacci()" class="preset-btn custom">Tribonacci (1,1)</button>
     </div>
   </div>
 

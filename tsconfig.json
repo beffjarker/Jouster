@@ -1,11 +1,16 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "moduleResolution": "bundler",
     "emitDecoratorMetadata": false,
     "target": "es2022",
     "module": "preserve",
     "lib": ["es2020", "dom"],
-    "paths": {},
+    "paths": {
+      "@jouster/shared/services": ["libs/shared/services/src/index.ts"],
+      "@jouster/shared/ui": ["libs/shared/ui/src/index.ts"],
+      "@jouster/shared/utils": ["libs/shared/utils/src/index.ts"]
+    },
     "isolatedModules": true,
     "strict": true,
     "noImplicitAny": true,

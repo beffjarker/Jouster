@@ -1662,8 +1662,16 @@ export class CanvasAnimationsService {
    * Sets up canvas with common properties and clears it
    */
   public setupCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {
-    // Set canvas size if not already set
-    if (canvas.width === 0 || canvas.height === 0) {
+    // Size canvas bitmap to match its CSS display size
+    const rect = canvas.getBoundingClientRect();
+    const displayWidth = Math.round(rect.width);
+    const displayHeight = Math.round(rect.height);
+
+    if (displayWidth > 0 && displayHeight > 0) {
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+    } else if (canvas.width === 0 || canvas.height === 0) {
+      // Fallback only when no CSS dimensions are available
       canvas.width = 400;
       canvas.height = 300;
     }

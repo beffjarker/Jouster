@@ -4,7 +4,7 @@
  */
 
 // Load environment variables
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config({ path: '../../.env' });
 
 const express = require('express');
 const cors = require('cors');
@@ -35,8 +35,16 @@ const {
 // Import CORS configuration
 const { corsOptions } = require('./config/cors');
 
+// Import session middleware
+const session = require('express-session');
+
 // Import routes
 const emailRoutes = require('./routes/emails');
+const authRoutes = require('./routes/auth');
+const lifeMapRoutes = require('./routes/life-map');
+
+// Import auth guard
+const { requireAuth } = require('./middleware/auth-guard');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -78,6 +86,20 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// 12. Session management (httpOnly, secure in production, strict sameSite)
+app.use(session({
+  name: 'jstr.sid',
+  secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'fallback-dev-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 4 * 60 * 60 * 1000, // 4 hours
+  },
+}));
+
 // ===== APPLICATION CONFIGURATION =====
 
 // Initialize credential manager
@@ -118,6 +140,12 @@ app.get('/health', (req, res) => {
 
 // API rate limiting for all API routes
 app.use('/api', apiLimiter);
+
+// Mount auth routes (no additional rate limiting — login has built-in delay)
+app.use('/api/auth', authRoutes);
+
+// Mount life-map routes (auth-protected internally)
+app.use('/api/life-map', lifeMapRoutes);
 
 // Mount email routes
 app.use('/api/emails', emailRoutes);
