@@ -47,7 +47,7 @@ function loc(lat, lng, city, state, country = 'US', name) {
 }
 
 // ============================================================================
-// SEED ENTRIES (~50 themed demo entries)
+// SEED ENTRIES (~60 themed demo + career entries)
 // ============================================================================
 
 const SEED_ENTRIES = [
@@ -381,6 +381,63 @@ const SEED_ENTRIES = [
     '1970-10-01T12:00:00.000Z', 'milestone',
     loc(40.3440, -74.6514, 'Princeton', 'NJ'),
     ['conway', 'game-of-life', 'emergence', 'cellular-automata', 'complexity', 'turing-complete']),
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CAREER HISTORY (9 entries)
+  // ═══════════════════════════════════════════════════════════════════════════
+  entry('career-republic-services', 'Full Stack Engineer — Republic Services',
+    'Lead a team of engineers developing the eCommerce platform using Angular, TypeScript, Node.js, and AWS. Drive Micro Front-End architecture with Module Federation and Nx monorepo. Build and deploy AI-driven applications. Provide technical leadership across the full SDLC.',
+    '2019-12-01T00:00:00.000Z', 'career',
+    loc(43.8260, -111.7897, 'Rexburg', 'ID'),
+    ['career', 'republic-services', 'angular', 'typescript', 'nodejs', 'aws', 'micro-frontend', 'ai']),
+
+  entry('career-matrix-medical', 'Senior Developer — Matrix Medical Network',
+    'Developed a cross-platform mobile application using React and Redux to enable nurse practitioners to gather health assessments remotely. Integrated with Couchbase backend for real-time sync and offline storage. Ensured HIPAA compliance throughout.',
+    '2017-02-01T00:00:00.000Z', 'career',
+    loc(33.4942, -111.9261, 'Scottsdale', 'AZ'),
+    ['career', 'matrix-medical', 'react', 'redux', 'couchbase', 'mobile', 'hipaa', 'healthcare']),
+
+  entry('career-cybersponse', 'Software Engineer — CyberSponse, Inc.',
+    'Developed the 4th version of the Incident Response platform from the ground up as an AngularJS application. Built dynamic views, JWT authentication, and contributed to CI/CD pipeline development. Implemented responsive design and interactive directives.',
+    '2015-03-01T00:00:00.000Z', 'career',
+    loc(33.4942, -111.9261, 'Scottsdale', 'AZ'),
+    ['career', 'cybersponse', 'angularjs', 'security', 'incident-response', 'jwt', 'cicd']),
+
+  entry('career-pearson', 'Lead Software Developer — Pearson',
+    'Led the conversion of Flash-based e-learning courseware into modern web solutions using AngularJS. Managed cross-functional teams onshore and offshore. Acted as Scrum Master and developer. Integrated two large LMS systems through web services.',
+    '2003-11-01T00:00:00.000Z', 'career',
+    loc(33.3062, -111.8413, 'Chandler', 'AZ'),
+    ['career', 'pearson', 'angularjs', 'flash', 'elearning', 'scrum', 'lms', 'leadership']),
+
+  entry('career-higherconcept', 'Flash Developer — HigherConcept',
+    'Worked as a Graphic Designer and Flash Developer creating an Algebra 101 e-Learning course. Developed interactive and non-interactive Flash animations, tests, and custom graphics with ActionScript.',
+    '2003-05-01T00:00:00.000Z', 'career',
+    loc(33.4152, -111.8315, 'Mesa', 'AZ'),
+    ['career', 'higherconcept', 'flash', 'actionscript', 'elearning', 'graphic-design']),
+
+  entry('career-knowledgenet', 'Graphic Designer / Flash Developer — KnowledgeNet',
+    'Created IT-focused eLearning courses with Flash animations and ActionScript. Built custom 3D graphics using Lightwave, Illustrator, and Photoshop. Produced demos for trade shows and corporate clients including Cisco, EMC, and BMW.',
+    '2000-01-01T00:00:00.000Z', 'career',
+    loc(33.4942, -111.9261, 'Scottsdale', 'AZ'),
+    ['career', 'knowledgenet', 'flash', 'actionscript', 'lightwave', '3d', 'elearning', 'cisco', 'bmw']),
+
+  entry('career-mindspring-earthlink', 'Technical Support Representative — MindSpring / Earthlink',
+    'Provided technical support via phone and email, resolving email and internet connectivity issues across Windows, Mac OS, and Linux. Configured DNS, TCP/IP, and DHCP for dial-up and DSL connections.',
+    '1999-01-01T00:00:00.000Z', 'career',
+    loc(33.4255, -111.9400, 'Tempe', 'AZ'),
+    ['career', 'mindspring', 'earthlink', 'tech-support', 'networking', 'dns', 'dialup']),
+
+  entry('career-winstar-goodnet', 'Technical Support Representative — Winstar / GoodNet',
+    'Provided technical support via phone and email, troubleshooting email and internet connectivity across multiple platforms. Configured DNS, TCP/IP, and DHCP for dial-up and DSL connections.',
+    '1998-04-01T00:00:00.000Z', 'career',
+    loc(33.4484, -112.0740, 'Phoenix', 'AZ'),
+    ['career', 'winstar', 'goodnet', 'tech-support', 'networking', 'dns', 'dialup']),
+
+  entry('career-bestway', 'Carpet Cleaning Technician — Bestway Carpet Cleaners',
+    'Cleaned and maintained carpets in homes and offices using specialized equipment. Performed regular maintenance on HydraMaster truck-mounted steam cleaning machine. Provided client guidance on post-cleaning care and maintenance.',
+    '1992-04-01T00:00:00.000Z', 'career',
+    loc(43.4926, -112.0408, 'Idaho Falls', 'ID'),
+    ['career', 'bestway', 'carpet-cleaning', 'customer-service', 'equipment-maintenance']),
 ];
 
 // ============================================================================

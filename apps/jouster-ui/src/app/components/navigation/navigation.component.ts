@@ -4,6 +4,7 @@ import { RouterModule, Router, NavigationEnd } from '@angular/router';
 import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.service';
+import { PAGE_REGISTRY, PageConfig } from '../../models/page-registry';
 
 interface NavigationItem {
   path: string;
@@ -29,64 +30,15 @@ export class NavigationComponent implements OnInit, OnDestroy {
   public isMobile = false;
   public isAuthenticated = false;
 
-  public navigationItems: NavigationItem[] = [
-    {
-      path: '/',
-      label: 'Flash Experiments',
-      icon: '🎨',
-      description: '56+ interactive presets',
-      isPublic: true // Public - Flash experiments home page
-    },
-    {
-      path: '/highlights',
-      label: 'Highlights',
-      icon: '⭐',
-      description: 'Featured content',
-      requiresAuth: true // Requires login
-    },
-    {
-      path: '/timeline',
-      label: 'Timeline',
-      icon: '📅',
-      description: 'Interactive visualization',
-      requiresAuth: true // Requires login
-    },
-    {
-      path: '/fibonacci',
-      label: 'Fibonacci',
-      icon: '🔢',
-      description: 'Mathematical visualizations',
-      requiresAuth: true // Requires login
-    },
-    {
-      path: '/music',
-      label: 'Music',
-      icon: '🎵',
-      description: 'Music player & listening history',
-      requiresAuth: true // Requires login
-    },
-    {
-      path: '/emails',
-      label: 'Emails',
-      icon: '📧',
-      description: 'Email management',
-      requiresAuth: true // Requires login
-    },
-    {
-      path: '/about',
-      label: 'About',
-      icon: 'ℹ️',
-      description: 'About this project',
-      isPublic: true // Public - About section
-    },
-    {
-      path: '/contact',
-      label: 'Contact',
-      icon: '📞',
-      description: 'Get in touch',
-      isPublic: true // Public - Contact section
-    }
-  ];
+  /** Navigation items derived from PAGE_REGISTRY — single source of truth for labels and paths. */
+  public navigationItems: NavigationItem[] = PAGE_REGISTRY.map((page: PageConfig) => ({
+    path: page.path,
+    label: page.title,
+    icon: page.icon,
+    description: page.description,
+    requiresAuth: page.requiresAuth,
+    isPublic: page.isPublic,
+  }));
 
   constructor(private router: Router, private authService: AuthService) {}
 
@@ -151,9 +103,6 @@ export class NavigationComponent implements OnInit, OnDestroy {
   }
 
   public isActiveRoute(path: string): boolean {
-    if (path === '/') {
-      return this.currentRoute === '/';
-    }
     return this.currentRoute.startsWith(path);
   }
 

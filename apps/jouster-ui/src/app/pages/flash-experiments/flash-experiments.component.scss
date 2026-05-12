@@ -904,3 +904,81 @@
     border-color: #c0392b;
   }
 }
+
+// Math Explanation Card
+.math-explanation {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.03);
+  border-left: 3px solid #667eea;
+  border-radius: 0 6px 6px 0;
+  font-size: 0.88rem;
+
+  .math-icon {
+    margin-right: 6px;
+  }
+
+  .math-summary {
+    margin: 0;
+    line-height: 1.5;
+    color: #444;
+  }
+
+  .learn-more-btn {
+    background: none;
+    border: none;
+    color: #667eea;
+    font-size: 0.82rem;
+    cursor: pointer;
+    padding: 4px 0;
+    margin-top: 4px;
+    display: inline-block;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  .math-details {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+  }
+
+  .math-explanation-text {
+    margin: 0 0 6px;
+    line-height: 1.5;
+    color: #555;
+  }
+
+  .math-formula {
+    display: block;
+    background: #f8f9fa;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+    font-size: 0.85rem;
+    margin: 6px 0;
+    color: #2c3e50;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .math-links {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 6px;
+
+    a {
+      color: #667eea;
+      text-decoration: none;
+      font-size: 0.82rem;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+

@@ -1,5 +1,5 @@
 <div class="page-container">
-  <h1>Life Map</h1>
+  <jstr-page-title></jstr-page-title>
   <p class="current-datetime">{{ currentDate | date:'EEEE, MMMM d, y — h:mm a' }}</p>
 
   <!-- Loading State -->
@@ -12,6 +12,16 @@
     <p>{{ errorMessage }}</p>
   </div>
 
+  <!-- Timeline Date Range Slider -->
+  <div class="slider-section" *ngIf="!isLoading && entries.length > 0">
+    <jstr-timeline-slider
+      [minDate]="birthDate"
+      [maxDate]="currentDate"
+      [defaultRangeYears]="2"
+      (rangeChange)="onSliderRangeChange($event)">
+    </jstr-timeline-slider>
+  </div>
+
   <!-- World Map -->
   <div class="map-section" *ngIf="!isLoading">
     <div id="timeline-map" class="timeline-map" style="height: 450px; width: 100%; border-radius: 10px;"></div>
@@ -20,39 +30,34 @@
   <!-- Filters -->
   <div class="timeline-filters" *ngIf="!isLoading && entries.length > 0">
     <div class="filter-group">
-      <label for="categoryFilter">Category:</label>
-      <select id="categoryFilter" [(ngModel)]="selectedCategory" (change)="filterEntries()" class="filter-select">
-        <option value="">All ({{ entries.length }})</option>
-        <option *ngFor="let cat of getCategories()" [value]="cat">{{ cat | titlecase }}</option>
-      </select>
+      <label>Category:</label>
+      <jstr-searchable-select
+        [options]="getCategories()"
+        [selected]="selectedCategory"
+        placeholder="All ({{ entries.length }})"
+        searchPlaceholder="Filter categories..."
+        (selectionChange)="onCategoryChange($event)">
+      </jstr-searchable-select>
     </div>
     <div class="filter-group">
-      <label for="cityFilter">City:</label>
-      <select id="cityFilter" [(ngModel)]="selectedCity" (change)="filterEntries()" class="filter-select">
-        <option value="">All Cities</option>
-        <option *ngFor="let city of getCities()" [value]="city">{{ city }}</option>
-      </select>
+      <label>City:</label>
+      <jstr-searchable-select
+        [options]="getCities()"
+        [selected]="selectedCity"
+        placeholder="All Cities"
+        searchPlaceholder="Filter cities..."
+        (selectionChange)="onCityChange($event)">
+      </jstr-searchable-select>
     </div>
     <div class="filter-group">
-      <label for="tagFilter">Tag:</label>
-      <select id="tagFilter" [(ngModel)]="selectedTag" (change)="filterEntries()" class="filter-select">
-        <option value="">All Tags</option>
-        <option *ngFor="let tag of getTags()" [value]="tag">{{ tag }}</option>
-      </select>
-    </div>
-    <div class="filter-group">
-      <label for="yearStart">From:</label>
-      <select id="yearStart" [(ngModel)]="selectedYearStart" (change)="filterEntries()" class="filter-select">
-        <option value="">Any</option>
-        <option *ngFor="let year of getYears()" [value]="year">{{ year }}</option>
-      </select>
-    </div>
-    <div class="filter-group">
-      <label for="yearEnd">To:</label>
-      <select id="yearEnd" [(ngModel)]="selectedYearEnd" (change)="filterEntries()" class="filter-select">
-        <option value="">Any</option>
-        <option *ngFor="let year of getYears()" [value]="year">{{ year }}</option>
-      </select>
+      <label>Tag:</label>
+      <jstr-searchable-select
+        [options]="getTags()"
+        [selected]="selectedTag"
+        placeholder="All Tags"
+        searchPlaceholder="Filter tags..."
+        (selectionChange)="onTagChange($event)">
+      </jstr-searchable-select>
     </div>
     <div class="filter-group">
       <label for="sortOrder">Sort:</label>
@@ -138,6 +143,34 @@
 
     <div class="empty-timeline" *ngIf="filteredEntries.length === 0 && !isLoading">
       <p>No entries found for the selected filter.</p>
+
+      <!-- Show the fallback residence entry that the map is displaying -->
+      <div class="fallback-entry" *ngIf="fallbackEntry">
+        <p class="fallback-label">📍 Showing current location on map:</p>
+        <div
+          class="timeline-event"
+          [attr.data-category]="fallbackEntry.category"
+          (click)="selectEntry(fallbackEntry)">
+          <div class="event-content">
+            <div class="event-header">
+              <h4 class="event-title">{{ fallbackEntry.title }}</h4>
+              <span class="event-category" [class]="'category-' + fallbackEntry.category">
+                {{ fallbackEntry.category | titlecase }}
+              </span>
+            </div>
+            <p class="event-date">{{ fallbackEntry.date | date:'mediumDate' }}</p>
+            <p class="event-location" *ngIf="fallbackEntry.location?.city">
+              📍 {{ fallbackEntry.location.city }}, {{ fallbackEntry.location.state }}
+            </p>
+            <div class="event-detail" *ngIf="selectedEntry?.id === fallbackEntry.id">
+              <p class="event-description">{{ fallbackEntry.description }}</p>
+            </div>
+            <div class="event-actions">
+              <button (click)="viewOnMap(fallbackEntry); $event.stopPropagation()" class="view-map-btn">Map</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>

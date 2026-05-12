@@ -27,6 +27,12 @@
       },
       "configurations": {
         "production": {
+          "fileReplacements": [
+            {
+              "replace": "apps/jouster-ui/src/environments/environment.ts",
+              "with": "apps/jouster-ui/src/environments/environment.production.ts"
+            }
+          ],
           "budgets": [
             {
               "type": "initial",
@@ -41,6 +47,26 @@
           ],
           "outputHashing": "all"
         },
+        "qa": {
+          "fileReplacements": [
+            {
+              "replace": "apps/jouster-ui/src/environments/environment.ts",
+              "with": "apps/jouster-ui/src/environments/environment.qa.ts"
+            }
+          ],
+          "optimization": false,
+          "sourceMap": true
+        },
+        "staging": {
+          "fileReplacements": [
+            {
+              "replace": "apps/jouster-ui/src/environments/environment.ts",
+              "with": "apps/jouster-ui/src/environments/environment.staging.ts"
+            }
+          ],
+          "optimization": true,
+          "outputHashing": "all"
+        },
         "development": {
           "optimization": false,
           "extractLicenses": false,
@@ -53,11 +79,17 @@
       "continuous": true,
       "executor": "@angular/build:dev-server",
       "options": {
-        "proxyConfig": "apps/jouster-ui/proxy.conf.json"
+        "proxyConfig": "apps/jouster-ui/proxy.conf.mjs"
       },
       "configurations": {
         "production": {
           "buildTarget": "jouster-ui:build:production"
+        },
+        "qa": {
+          "buildTarget": "jouster-ui:build:qa"
+        },
+        "staging": {
+          "buildTarget": "jouster-ui:build:staging"
         },
         "development": {
           "buildTarget": "jouster-ui:build:development"

@@ -11,6 +11,15 @@ interface FlashExperiment {
   canvasFunction: (canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => () => void;
   hasPresets?: boolean;
   presets?: Array<{id: string, name: string, description: string}>;
+  mathSummary?: string;
+  mathDetails?: {
+    explanation: string;
+    formula?: string;
+    links?: Array<{
+      label: string;
+      url: string;
+    }>;
+  };
 }
 
 @Component({
@@ -22,8 +31,26 @@ interface FlashExperiment {
 })
 export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewInit {
   // Main Featured Experiment Properties
-  public mainExperimentType: 'particles' | 'spiral' | 'waves' | 'sunflower' = 'particles';
+  public mainExperimentType: 'pythagorean-circle' | 'sinecosinewaves' | 'spiral' | 'particles' | 'following' | 'network' | 'bounce' | 'sunflower' = 'pythagorean-circle';
+  public mainPreset = 'classic';
+  public mainTrailEnabled = false;
   public isMainExperimentRunning = false;
+
+  /** Center point control mode for the playground canvas. */
+  public mainCenterMode: 'manual' | 'mouse' | 'formula' = 'manual';
+  /** Current center X position (updated by all three modes). */
+  public mainCenterX = 200;
+  /** Current center Y position (updated by all three modes). */
+  public mainCenterY = 150;
+  /** Formula mode: pixels to move center X per frame. */
+  public mainDeltaX = 1;
+  /** Formula mode: pixels to move center Y per frame. */
+  public mainDeltaY = 0;
+  /** rAF ID for formula mode animation loop. */
+  private mainFormulaAnimationId?: number;
+  /** Bound mouse handler references for cleanup. */
+  private mainMouseMoveHandler?: (e: MouseEvent) => void;
+  private mainMouseLeaveHandler?: (e: MouseEvent) => void;
   public mainParams = {
     // Particle parameters
     particleCount: 80,
@@ -44,6 +71,19 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
     seedRadius: 3.0,
     scale: 1.5
   };
+
+  /** Default preset per experiment type. */
+  public readonly defaultPresets: Record<string, string> = {
+    'pythagorean-circle': 'classic',
+    'sinecosinewaves': 'classic',
+    'spiral': 'classic',
+    'particles': 'bouncing',
+    'following': 'chain',
+    'network': 'classic',
+    'bounce': 'classic',
+    'sunflower': 'golden',
+  };
+
   private mainAnimationCleanup?: AnimationCleanup;
 
   // Existing properties
@@ -80,6 +120,9 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
   public explosiveCenterMode: 'manual' | 'mouse' = 'manual'; // Control mode for explosive center
   public isMouseTracking: boolean = false; // Track if mouse is being followed
 
+  // Math explanation expand/collapse state
+  public expandedMathDetails: Set<string> = new Set();
+
   private runningAnimations: Map<string, AnimationCleanup> = new Map();
   private resizeObserver?: ResizeObserver;
   private resizeTimeout?: ReturnType<typeof setTimeout>;
@@ -98,6 +141,9 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
   public ngAfterViewInit() {
     // Initial sizing of all canvases after view renders
     this.sizeAllCanvases();
+
+    // Auto-start the playground experiment after DOM settles
+    setTimeout(() => this.startMainExperiment(), 100);
 
     // Observe canvas container resizes for responsive behavior
     this.ngZone.runOutsideAngular(() => {
@@ -123,9 +169,11 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
    * Also updates the cached dimensions map.
    */
   private sizeCanvas(canvas: HTMLCanvasElement): void {
-    const rect = canvas.getBoundingClientRect();
-    const displayWidth = Math.round(rect.width);
-    const displayHeight = Math.round(rect.height);
+    // Use clientWidth/clientHeight to get the inner content area excluding borders.
+    // getBoundingClientRect() includes borders (e.g., a 3px border adds 6px total),
+    // which would make the canvas bitmap larger than the visible drawing area.
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
 
     if (displayWidth > 0 && displayHeight > 0 &&
         (canvas.width !== displayWidth || canvas.height !== displayHeight)) {
@@ -225,6 +273,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
         name: 'Pythagorean Circle Drawing',
         description: 'Draw circles using the Pythagorean theorem (x² + y² = r²) with customizable particle shapes, radius, and color',
         category: 'math',
+        mathSummary: 'Each pixel is placed at distance r from center by solving x² + y² = r². Angle θ sweeps 0→2π, computing x = r·cos(θ) and y = r·sin(θ) to trace the circle.',
+        mathDetails: {
+          explanation: 'The Pythagorean theorem states that for a right triangle, a² + b² = c². A circle is the set of all points at distance r from a center. By parameterizing with angle θ, each frame computes x = r·cos(θ), y = r·sin(θ) and plots that pixel. The trail effect retains previous pixels instead of clearing the canvas each frame.',
+          formula: 'x = cx + r·cos(θ),  y = cy + r·sin(θ)  where θ ∈ [0, 2π]',
+          links: [
+            { label: 'Pythagorean Theorem — Wikipedia', url: 'https://en.wikipedia.org/wiki/Pythagorean_theorem' },
+            { label: 'Parametric Circle — Math is Fun', url: 'https://www.mathsisfun.com/geometry/circle.html' },
+          ],
+        },
         canvasFunction: (canvas, ctx) => {
           const center = this.getExperimentCenter('pythagorean-circle');
           return this.canvasAnimations.createPythagoreanCircle(canvas, ctx, this.getPythagoreanPreset('pythagorean-circle'), {
@@ -232,7 +289,8 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
             centerY: center.y,
             getCenterX: () => this.getExperimentCenter('pythagorean-circle').x,
             getCenterY: () => this.getExperimentCenter('pythagorean-circle').y,
-            trailEnabled: this.getPythagoreanTrailEnabled('pythagorean-circle')
+            trailEnabled: this.getPythagoreanTrailEnabled('pythagorean-circle'),
+            backgroundColor: '#fafafa',
           });
         },
         hasPresets: true,
@@ -252,6 +310,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
         name: 'Sine & Cosine Waves',
         description: 'Combined sine and cosine wave patterns with various mathematical relationships',
         category: 'waves',
+        mathSummary: 'Waves are drawn using y = A·sin(ωt + φ), where A controls height, ω controls frequency, and φ shifts the phase. Cosine is sine shifted by π/2.',
+        mathDetails: {
+          explanation: 'Sine and cosine are fundamental trigonometric functions that describe periodic oscillation. The amplitude A scales the wave height, angular frequency ω = 2πf determines how many cycles per unit, and phase φ shifts the wave left or right. Harmonics layer multiples of the base frequency. Interference occurs when two waves overlap, creating constructive (peaks align) or destructive (peaks cancel) patterns.',
+          formula: 'y = A·sin(ωt + φ)  where ω = 2πf',
+          links: [
+            { label: 'Sine Wave — Wikipedia', url: 'https://en.wikipedia.org/wiki/Sine_wave' },
+            { label: 'Wave Interference — Khan Academy', url: 'https://www.khanacademy.org/science/physics/mechanical-waves-and-sound/interference-of-waves/v/wave-interference' },
+          ],
+        },
         canvasFunction: (canvas, ctx) => {
           const center = this.getExperimentCenter('sinecosinewaves');
           return this.canvasAnimations.createSineCosineWave(canvas, ctx, this.getWavePreset('sinecosinewaves'), {
@@ -278,6 +345,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
         name: 'Spiral Animation',
         description: 'Animated spiral patterns with different mathematical spiral types from original Flash experiments',
         category: 'geometric',
+        mathSummary: 'Points spiral outward using r = a + bθ (Archimedean) or r = a·e^(bθ) (logarithmic), converting polar coordinates to canvas pixels.',
+        mathDetails: {
+          explanation: 'Spirals are curves that wind around a center with increasing (or decreasing) distance. An Archimedean spiral has constant spacing between turns (r = a + bθ). A logarithmic spiral grows exponentially (r = a·e^(bθ)) — found in nautilus shells and galaxies. Fermat spirals use r = a·√θ, producing the seed patterns in sunflowers. Each type converts polar (r, θ) to Cartesian (x, y) for rendering.',
+          formula: 'Archimedean: r = a + bθ  |  Logarithmic: r = a·e^(bθ)',
+          links: [
+            { label: 'Spiral — Wikipedia', url: 'https://en.wikipedia.org/wiki/Spiral' },
+            { label: 'Archimedean Spiral — Wolfram MathWorld', url: 'https://mathworld.wolfram.com/ArchimedeanSpiral.html' },
+          ],
+        },
         canvasFunction: (canvas, ctx) => {
           const center = this.getExperimentCenter('spiral');
           return this.canvasAnimations.createSpiralAnimation(canvas, ctx, this.getSpiralPreset('spiral'), {
@@ -303,6 +379,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
         name: 'Particle System',
         description: 'Dynamic particle systems with various physics behaviors from original Flash experiments',
         category: 'particles',
+        mathSummary: 'Each particle has position and velocity vectors updated per frame: p += v, v += a. Walls reflect velocity, gravity pulls downward, and friction scales speed.',
+        mathDetails: {
+          explanation: 'Particle systems simulate Newtonian mechanics. Each particle stores position (x, y) and velocity (vx, vy). Per frame: velocity is modified by acceleration (gravity, attraction), then position advances by velocity. Wall collisions reverse the relevant velocity component. Friction multiplies velocity by a damping factor (e.g., 0.95) each frame. Explosive bursts give random initial velocities that decay over time.',
+          formula: 'v = v₀ + a·Δt,  p = p₀ + v·Δt,  v_wall = -e·v',
+          links: [
+            { label: 'Particle System — Wikipedia', url: 'https://en.wikipedia.org/wiki/Particle_system' },
+            { label: 'Newton\'s Laws of Motion', url: 'https://en.wikipedia.org/wiki/Newton%27s_laws_of_motion' },
+          ],
+        },
         canvasFunction: (canvas, ctx) => {
           const preset = this.getParticlePreset('particles');
           const center = this.getExperimentCenter('particles');
@@ -331,6 +416,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
         name: 'Mouse Following',
         description: 'Interactive mouse following animations with different behavioral patterns from original Flash experiments',
         category: 'interactive',
+        mathSummary: 'Elements chase a target point using spring physics: acceleration = -k·distance - damping·velocity, producing smooth, elastic pursuit.',
+        mathDetails: {
+          explanation: 'Mouse following uses spring-damper equations. Each element computes the distance to the target (mouse or leader), applies a spring force proportional to that distance (F = -k·x), and a damping force opposing velocity (F = -c·v). Chain following passes each element\'s position as the next element\'s target. Swarm behavior adds separation forces to prevent overlap. Flocking combines alignment, cohesion, and separation rules.',
+          formula: 'F = -k·(pos - target) - c·velocity',
+          links: [
+            { label: 'Easing Functions — easings.net', url: 'https://easings.net/' },
+            { label: 'Boids (Flocking) — Wikipedia', url: 'https://en.wikipedia.org/wiki/Boids' },
+          ],
+        },
         canvasFunction: (canvas, ctx) => {
           const center = this.getExperimentCenter('following');
           return this.canvasAnimations.createFollowingAnimation(canvas, ctx, this.getFollowingPreset('following'), {
@@ -357,6 +451,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
         name: 'Network Connections',
         description: 'Dynamic network of connected nodes with different topologies from original LinedNet Flash experiments',
         category: 'networks',
+        mathSummary: 'Nodes move freely while lines connect pairs within a distance threshold, computed via d = √((x₂-x₁)² + (y₂-y₁)²). Line opacity fades with distance.',
+        mathDetails: {
+          explanation: 'Network visualizations use graph theory concepts. Each node is a point with position and velocity. Every frame, all pairs are checked: if the Euclidean distance between two nodes is below a threshold, a line is drawn between them. Line opacity is inversely proportional to distance — closer nodes have brighter connections. This creates organic, constantly shifting network topologies as nodes drift, collide with walls, and reform connections.',
+          formula: 'd(p₁,p₂) = √((x₂-x₁)² + (y₂-y₁)²),  opacity = 1 - d/threshold',
+          links: [
+            { label: 'Graph Theory — Wikipedia', url: 'https://en.wikipedia.org/wiki/Graph_theory' },
+            { label: 'Euclidean Distance — Math is Fun', url: 'https://www.mathsisfun.com/algebra/distance-2-points.html' },
+          ],
+        },
         canvasFunction: (canvas, ctx) => {
           const center = this.getExperimentCenter('network');
           return this.canvasAnimations.createNetworkAnimation(canvas, ctx, this.getNetworkPreset('network'), {
@@ -383,6 +486,15 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
         name: 'Bounce Physics',
         description: 'Realistic bouncing balls with different physics behaviors from original BounceBack Flash experiment',
         category: 'physics',
+        mathSummary: 'Balls fall under gravity (vy += g each frame) and bounce off surfaces by reversing velocity: v\' = -e·v, where e is the coefficient of restitution.',
+        mathDetails: {
+          explanation: 'Bounce physics simulates gravitational free-fall and elastic collisions. Each frame, gravity adds to the vertical velocity (vy += g). When a ball hits a boundary, the perpendicular velocity component is reversed and scaled by the restitution coefficient e (0 = perfectly inelastic, 1 = perfectly elastic). Values above 1 create "super-elastic" bouncing. Ball-to-ball collisions use conservation of momentum and energy to compute post-collision velocities.',
+          formula: 'vy += g·Δt,  v_bounce = -e·v  (e = restitution)',
+          links: [
+            { label: 'Coefficient of Restitution — Wikipedia', url: 'https://en.wikipedia.org/wiki/Coefficient_of_restitution' },
+            { label: 'Elastic Collision — Khan Academy', url: 'https://www.khanacademy.org/science/physics/linear-momentum/elastic-and-inelastic-collisions/v/elastic-and-inelastic-collisions' },
+          ],
+        },
         canvasFunction: (canvas, ctx) => {
           const center = this.getExperimentCenter('bounce');
           return this.canvasAnimations.createBounceAnimation(canvas, ctx, this.getBouncePreset('bounce'), {
@@ -409,6 +521,16 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
         name: 'Golden Ratio & Fibonacci Patterns',
         description: 'Golden ratio, Fibonacci spirals, and sunflower seed arrangements from original Flash experiments',
         category: 'nature',
+        mathSummary: 'Seeds are placed at angle θₙ = n × 137.508° (the golden angle) with radius r = c·√n, producing the optimal packing seen in real sunflowers.',
+        mathDetails: {
+          explanation: 'The golden angle (≈137.508°) is derived from the golden ratio φ = (1+√5)/2. When each successive seed is rotated by this irrational angle, no two seeds ever align perfectly, producing the most efficient packing possible. The Fibonacci sequence (1, 1, 2, 3, 5, 8, 13…) emerges naturally — count the spirals in either direction and you get consecutive Fibonacci numbers. The radius r = c·√n ensures uniform density as seeds fill outward.',
+          formula: 'θₙ = n × 137.508°,  r = c·√n  (golden angle = 360°/φ²)',
+          links: [
+            { label: 'Golden Angle — Wikipedia', url: 'https://en.wikipedia.org/wiki/Golden_angle' },
+            { label: 'Fibonacci in Nature — Numberphile (YouTube)', url: 'https://www.youtube.com/watch?v=ahXIMUkSXX0' },
+            { label: 'Phyllotaxis — Wikipedia', url: 'https://en.wikipedia.org/wiki/Phyllotaxis' },
+          ],
+        },
         canvasFunction: (canvas, ctx) => {
           const center = this.getExperimentCenter('sunflower');
           return this.canvasAnimations.createSunflowerPattern(canvas, ctx, this.getSunflowerPreset('sunflower'), {
@@ -516,32 +638,20 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
       this.mainAnimationCleanup();
       this.mainAnimationCleanup = undefined;
     }
+    this.stopFormulaMode();
+    this.stopMainMouseTracking();
     this.isMainExperimentRunning = false;
   }
 
   public resetMainExperiment() {
     this.stopMainExperiment();
 
-    // Reset parameters to defaults based on type
-    if (this.mainExperimentType === 'particles') {
-      this.mainParams.particleCount = 80;
-      this.mainParams.speed = 3.0;
-      this.mainParams.gravity = 0.2;
-      this.mainParams.friction = 0.95;
-      this.mainParams.radius = 2.5;
-    } else if (this.mainExperimentType === 'spiral') {
-      this.mainParams.rotationSpeed = 0.05;
-      this.mainParams.arms = 5;
-      this.mainParams.density = 150;
-    } else if (this.mainExperimentType === 'waves') {
-      this.mainParams.amplitude = 1.5;
-      this.mainParams.frequency = 0.015;
-      this.mainParams.waveSpeed = 0.06;
-    } else if (this.mainExperimentType === 'sunflower') {
-      this.mainParams.seedCount = 200;
-      this.mainParams.seedRadius = 3.0;
-      this.mainParams.scale = 1.5;
-    }
+    // Reset preset to default for current type
+    this.mainPreset = this.defaultPresets[this.mainExperimentType] || 'classic';
+    this.mainTrailEnabled = false;
+    this.mainCenterMode = 'manual';
+    this.mainDeltaX = 1;
+    this.mainDeltaY = 0;
 
     // Clear canvas
     const canvas = document.getElementById('mainCanvas') as HTMLCanvasElement;
@@ -563,176 +673,148 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
 
   public onMainExperimentTypeChange() {
     this.stopMainExperiment();
+    this.mainPreset = this.defaultPresets[this.mainExperimentType] || 'classic';
+    this.mainTrailEnabled = false;
+    this.mainCenterMode = 'manual';
     this.resetMainExperiment();
+    // Auto-start with the new type
+    setTimeout(() => this.startMainExperiment(), 50);
+  }
+
+  /**
+   * Get the current preset's description for display in the playground.
+   */
+  public getMainPresetDescription(): string {
+    const experiment = this.experiments.find(e => e.id === this.mainExperimentType);
+    if (!experiment?.presets) return '';
+    const preset = experiment.presets.find(p => p.id === this.mainPreset);
+    return preset?.description || '';
   }
 
   private runMainExperiment(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
-    // Create custom animation based on type and parameters
+    // Initialize center to canvas center if in manual mode
+    if (this.mainCenterMode === 'manual') {
+      this.mainCenterX = Math.round(canvas.width / 2);
+      this.mainCenterY = Math.round(canvas.height / 2);
+    }
+
+    // Build the physics tick function — the Flash onEnterFrame equivalent.
+    // Formula mode: advance center by delta each frame.
+    // Manual/mouse mode: no-op (state is set externally by sliders or mouse events).
+    const onTick = this.mainCenterMode === 'formula' ? () => {
+      this.mainCenterX += this.mainDeltaX;
+      this.mainCenterY += this.mainDeltaY;
+
+      // Continuous wrapping — wrap only when PAST the edge, preserving overshoot.
+      // Range [0, canvas.width] is valid — the center can reach both edges.
+      // e.g., position 398 + delta 5 = 403 → 403 - 400 = 3 (overshoot preserved)
+      while (this.mainCenterX > canvas.width) { this.mainCenterX -= canvas.width; }
+      while (this.mainCenterX < 0) { this.mainCenterX += canvas.width; }
+      while (this.mainCenterY > canvas.height) { this.mainCenterY -= canvas.height; }
+      while (this.mainCenterY < 0) { this.mainCenterY += canvas.height; }
+    } : () => {};  // No-op — NOT undefined. The tick always exists.
+
+    // Derive speedMultiplier from delta magnitude
+    const speed = Math.sqrt(this.mainDeltaX ** 2 + this.mainDeltaY ** 2);
+    const speedMultiplier = this.mainCenterMode === 'formula' && speed > 0 ? speed : 1;
+
+    const options = {
+      centerX: this.mainCenterX,
+      centerY: this.mainCenterY,
+      getCenterX: () => this.mainCenterX,
+      getCenterY: () => this.mainCenterY,
+      trailEnabled: this.mainTrailEnabled,
+      onTick,
+      speedMultiplier,
+      backgroundColor: '#fafafa',
+    };
+
+    // Start mouse tracking if active (formula mode is now handled by onTick)
+    if (this.mainCenterMode === 'mouse') {
+      this.startMainMouseTracking(canvas);
+    } else if (this.mainCenterMode === 'formula') {
+      this.startFormulaMode(canvas);
+    }
+
     switch (this.mainExperimentType) {
-      case 'particles':
-        return this.createCustomParticleSystem(canvas, ctx);
+      case 'pythagorean-circle':
+        return this.canvasAnimations.createPythagoreanCircle(canvas, ctx, this.mainPreset, options);
+      case 'sinecosinewaves':
+        return this.canvasAnimations.createSineCosineWave(canvas, ctx, this.mainPreset, options);
       case 'spiral':
-        return this.createCustomSpiral(canvas, ctx);
-      case 'waves':
-        return this.createCustomWaves(canvas, ctx);
+        return this.canvasAnimations.createSpiralAnimation(canvas, ctx, this.mainPreset, options);
+      case 'particles':
+        return this.canvasAnimations.createParticleSystem(canvas, ctx, this.mainPreset, options);
+      case 'following':
+        return this.canvasAnimations.createFollowingAnimation(canvas, ctx, this.mainPreset, options);
+      case 'network':
+        return this.canvasAnimations.createNetworkAnimation(canvas, ctx, this.mainPreset, options);
+      case 'bounce':
+        return this.canvasAnimations.createBounceAnimation(canvas, ctx, this.mainPreset, options);
       case 'sunflower':
-        return this.createCustomSunflower(canvas, ctx);
+        return this.canvasAnimations.createSunflowerPattern(canvas, ctx, this.mainPreset, options);
       default:
         return () => {};
     }
   }
 
-  private createCustomParticleSystem(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
-    const particles: any[] = [];
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
+  // ── Playground Center Point Controls ───────────────────────────────────
 
-    // Initialize particles based on current parameters
-    for (let i = 0; i < this.mainParams.particleCount; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        vx: (Math.random() - 0.5) * this.mainParams.speed,
-        vy: (Math.random() - 0.5) * this.mainParams.speed,
-        radius: this.mainParams.radius,
-        color: `hsl(${Math.random() * 360}, 70%, 60%)`
-      });
+  /** Start mouse tracking on the main canvas for 'mouse' center mode. */
+  private startMainMouseTracking(canvas: HTMLCanvasElement): void {
+    this.stopMainMouseTracking();
+
+    this.mainMouseMoveHandler = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      this.mainCenterX = Math.round(e.clientX - rect.left);
+      this.mainCenterY = Math.round(e.clientY - rect.top);
+    };
+
+    this.mainMouseLeaveHandler = () => {
+      this.mainCenterX = Math.round(canvas.width / 2);
+      this.mainCenterY = Math.round(canvas.height / 2);
+    };
+
+    canvas.addEventListener('mousemove', this.mainMouseMoveHandler);
+    canvas.addEventListener('mouseleave', this.mainMouseLeaveHandler);
+  }
+
+  /** Stop mouse tracking on the main canvas. */
+  private stopMainMouseTracking(): void {
+    const canvas = document.getElementById('mainCanvas') as HTMLCanvasElement;
+    if (canvas && this.mainMouseMoveHandler) {
+      canvas.removeEventListener('mousemove', this.mainMouseMoveHandler);
     }
-
-    let animationId: number;
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      particles.forEach(p => {
-        // Apply gravity
-        p.vy += this.mainParams.gravity;
-
-        // Apply friction
-        p.vx *= this.mainParams.friction;
-        p.vy *= this.mainParams.friction;
-
-        // Update position
-        p.x += p.vx;
-        p.y += p.vy;
-
-        // Bounce off walls
-        if (p.x < p.radius || p.x > canvas.width - p.radius) {
-          p.vx *= -0.8;
-          p.x = Math.max(p.radius, Math.min(canvas.width - p.radius, p.x));
-        }
-        if (p.y < p.radius || p.y > canvas.height - p.radius) {
-          p.vy *= -0.8;
-          p.y = Math.max(p.radius, Math.min(canvas.height - p.radius, p.y));
-        }
-
-        // Draw particle
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      animationId = requestAnimationFrame(animate);
-    };
-
-    animate();
-    return () => cancelAnimationFrame(animationId);
-  }
-
-  private createCustomSpiral(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
-    let rotation = 0;
-    let animationId: number;
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
-
-      for (let i = 0; i < this.mainParams.density; i++) {
-        const angle = (i / this.mainParams.density) * Math.PI * 2 * this.mainParams.arms + rotation;
-        const radius = (i / this.mainParams.density) * Math.min(centerX, centerY) * 0.8;
-
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
-
-        const hue = (i / this.mainParams.density) * 360;
-        ctx.fillStyle = `hsl(${hue}, 70%, 60%)`;
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      rotation += this.mainParams.rotationSpeed;
-      animationId = requestAnimationFrame(animate);
-    };
-
-    animate();
-    return () => cancelAnimationFrame(animationId);
-  }
-
-  private createCustomWaves(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
-    let phase = 0;
-    let animationId: number;
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const centerY = canvas.height / 2;
-      const scale = 80;
-
-      // Draw sine wave
-      ctx.strokeStyle = '#e74c3c';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      for (let x = 0; x < canvas.width; x++) {
-        const y = centerY + Math.sin(x * this.mainParams.frequency + phase) * scale * this.mainParams.amplitude;
-        if (x === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-
-      // Draw cosine wave
-      ctx.strokeStyle = '#3498db';
-      ctx.beginPath();
-      for (let x = 0; x < canvas.width; x++) {
-        const y = centerY + Math.cos(x * this.mainParams.frequency + phase) * scale * this.mainParams.amplitude;
-        if (x === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-
-      phase += this.mainParams.waveSpeed;
-      animationId = requestAnimationFrame(animate);
-    };
-
-    animate();
-    return () => cancelAnimationFrame(animationId);
-  }
-
-  private createCustomSunflower(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): AnimationCleanup {
-    const goldenAngle = Math.PI * (3 - Math.sqrt(5)); // ~137.5 degrees
-    const centerX = canvas.width / 2;
-    const centerY = canvas.height / 2;
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    for (let i = 0; i < this.mainParams.seedCount; i++) {
-      const angle = i * goldenAngle;
-      const radius = this.mainParams.scale * Math.sqrt(i) * 3;
-
-      const x = centerX + Math.cos(angle) * radius;
-      const y = centerY + Math.sin(angle) * radius;
-
-      const hue = (i / this.mainParams.seedCount) * 360;
-      ctx.fillStyle = `hsl(${hue}, 70%, 60%)`;
-      ctx.beginPath();
-      ctx.arc(x, y, this.mainParams.seedRadius, 0, Math.PI * 2);
-      ctx.fill();
+    if (canvas && this.mainMouseLeaveHandler) {
+      canvas.removeEventListener('mouseleave', this.mainMouseLeaveHandler);
     }
+    this.mainMouseMoveHandler = undefined;
+    this.mainMouseLeaveHandler = undefined;
+  }
 
-    // Sunflower is static, no animation needed
-    return () => {};
+  /** Initialize formula mode center position. No standalone rAF — onTick handles it inside the animation loop. */
+  private startFormulaMode(canvas: HTMLCanvasElement): void {
+    this.stopFormulaMode();
+
+    this.mainCenterX = Math.round(canvas.width / 2);
+    this.mainCenterY = Math.round(canvas.height / 2);
+    // No rAF loop — onTick handles center updates inside the animation's rAF loop
+  }
+
+  /** Stop formula mode. No standalone rAF to cancel — the animation's cleanup handles it. */
+  private stopFormulaMode(): void {
+    this.mainFormulaAnimationId = undefined;
+  }
+
+  /** Handle center mode radio button change. Restarts animation so onTick/speedMultiplier takes effect. */
+  public onMainCenterModeChange(): void {
+    this.stopMainMouseTracking();
+
+    if (this.isMainExperimentRunning) {
+      // Restart animation with new mode (onTick/speedMultiplier recalculated)
+      this.stopMainExperiment();
+      this.startMainExperiment();
+    }
   }
 
   public ngOnDestroy() {
@@ -750,6 +832,8 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
       this.mainAnimationCleanup();
       this.mainAnimationCleanup = undefined;
     }
+    this.stopFormulaMode();
+    this.stopMainMouseTracking();
 
     // Clean up all running animations
     this.runningAnimations.forEach(cleanupFunction => {
@@ -1194,4 +1278,39 @@ export class FlashExperimentsComponent implements OnInit, OnDestroy, AfterViewIn
     }
     return '';
   }
+
+  // Math Explanation Methods
+
+  /** Toggle the expanded state of math details for an experiment. */
+  public toggleMathDetails(experimentId: string): void {
+    if (this.expandedMathDetails.has(experimentId)) {
+      this.expandedMathDetails.delete(experimentId);
+    } else {
+      this.expandedMathDetails.add(experimentId);
+    }
+  }
+
+  /** Check if math details are expanded for an experiment. */
+  public isMathDetailsExpanded(experimentId: string): boolean {
+    return this.expandedMathDetails.has(experimentId);
+  }
+
+  /**
+   * Get the math summary for the currently selected playground experiment type.
+   */
+  public getMainMathSummary(): string {
+    const experiment = this.experiments.find(e => e.id === this.mainExperimentType);
+    return experiment?.mathSummary || '';
+  }
+
+  /**
+   * Get the math details for the currently selected playground experiment type.
+   */
+  public getMainMathDetails(): FlashExperiment['mathDetails'] {
+    const experiment = this.experiments.find(e => e.id === this.mainExperimentType);
+    return experiment?.mathDetails;
+  }
 }
+
+
+

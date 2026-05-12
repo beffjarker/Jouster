@@ -145,6 +145,12 @@ h2, h3 {
     z-index: 1;
   }
 
+  // Category-colored SVG markers — override Leaflet's default divIcon box
+  .category-marker {
+    background: none !important;
+    border: none !important;
+  }
+
   .map-container {
     height: 400px;
     width: 100%;
@@ -216,48 +222,73 @@ h2, h3 {
   }
 
   // Category colors — literary palette
+  // Each color is drawn from a literary work whose themes resonate with the category.
   &.category-personal {
-    border-left-color: #3498db; // Wonderland Blue (Lewis Carroll)
+    border-left-color: #3498db; // Wonderland Blue (Lewis Carroll) — curiosity, personal discovery
   }
 
   &.category-work {
-    border-left-color: #3498db;
+    border-left-color: #5d6d7e; // Bartleby Slate (Herman Melville) — the daily grind, quiet persistence
   }
 
   &.category-travel {
-    border-left-color: #f39c12; // Nautilus Gold (Jules Verne)
+    border-left-color: #f39c12; // Nautilus Gold (Jules Verne) — adventure, exploration, 20,000 leagues
   }
 
   &.category-milestone {
-    border-left-color: #2ecc71; // Emerald City (L. Frank Baum)
+    border-left-color: #2ecc71; // Emerald City (L. Frank Baum) — the destination, major achievements
   }
 
   &.category-other {
-    border-left-color: #9b59b6; // Usher Violet (Edgar Allan Poe)
+    border-left-color: #9b59b6; // Usher Violet (Edgar Allan Poe) — the uncategorizable, mystery
   }
 
   &.category-health {
-    border-left-color: #1abc9c; // Frankenstein Teal (Mary Shelley)
+    border-left-color: #1abc9c; // Frankenstein Teal (Mary Shelley) — the body, creation, vitality
   }
 
   &.category-legal {
-    border-left-color: #e67e22; // Dracula Amber (Bram Stoker)
+    border-left-color: #e67e22; // Dracula Amber (Bram Stoker) — contracts, binding agreements
   }
 
   &.category-education {
-    border-left-color: #8e44ad; // Cheshire Purple (Lewis Carroll)
+    border-left-color: #8e44ad; // Cheshire Purple (Lewis Carroll) — knowledge appearing & disappearing
   }
 
   &.category-church {
-    border-left-color: #2980b9; // Meditations Blue (Marcus Aurelius)
+    border-left-color: #2980b9; // Meditations Blue (Marcus Aurelius) — stoic reflection, spiritual depth
   }
 
   &.category-career {
-    border-left-color: #2c3e50; // Prince Iron (Niccolò Machiavelli)
+    border-left-color: #2c3e50; // Prince Iron (Niccolò Machiavelli) — strategy, professional maneuvering
   }
 
   &.category-residence {
-    border-left-color: #d4a574; // Hobbit Hearth (J.R.R. Tolkien)
+    border-left-color: #d4a574; // Hobbit Hearth (J.R.R. Tolkien) — home, comfort, dwelling
+  }
+
+  &.category-family {
+    border-left-color: #e74c3c; // Little Women Red (Louisa May Alcott) — family bonds, warmth
+  }
+
+  &.category-relationship {
+    border-left-color: #e08283; // Pride & Prejudice Coral (Jane Austen) — love, partnership
+  }
+
+  &.category-financial {
+    border-left-color: #6c7a3a; // Gatsby Olive (F. Scott Fitzgerald) — money, the green light
+  }
+
+  &.category-creative {
+    border-left-color: #d35400; // Fahrenheit Orange (Ray Bradbury) — creative fire, burning ideas
+  }
+
+  &.category-spiritual {
+    border-left-color: #4a3680; // Siddhartha Indigo (Hermann Hesse) — inner journey, meditation
+  }
+
+  &.category-military {
+    border-left-color: #7f8c8d; // War & Peace Steel (Leo Tolstoy) — service, duty, conflict
   }
 
   .event-header {
@@ -523,14 +554,23 @@ h2, h3 {
   }
 
   // Timeline event category colors — literary palette
-  &[data-category="personal"] { border-left-color: #3498db; }   // Wonderland Blue
-  &[data-category="milestone"] { border-left-color: #2ecc71; }  // Emerald City
-  &[data-category="residence"] { border-left-color: #d4a574; }  // Hobbit Hearth
-  &[data-category="health"] { border-left-color: #1abc9c; }     // Frankenstein Teal
-  &[data-category="legal"] { border-left-color: #e67e22; }      // Dracula Amber
-  &[data-category="education"] { border-left-color: #8e44ad; }  // Cheshire Purple
-  &[data-category="church"] { border-left-color: #2980b9; }     // Meditations Blue
-  &[data-category="career"] { border-left-color: #2c3e50; }     // Prince Iron
+  &[data-category="personal"]     { border-left-color: #3498db; } // Wonderland Blue (Lewis Carroll)
+  &[data-category="work"]         { border-left-color: #5d6d7e; } // Bartleby Slate (Herman Melville)
+  &[data-category="travel"]       { border-left-color: #f39c12; } // Nautilus Gold (Jules Verne)
+  &[data-category="milestone"]    { border-left-color: #2ecc71; } // Emerald City (L. Frank Baum)
+  &[data-category="other"]        { border-left-color: #9b59b6; } // Usher Violet (Edgar Allan Poe)
+  &[data-category="residence"]    { border-left-color: #d4a574; } // Hobbit Hearth (J.R.R. Tolkien)
+  &[data-category="health"]       { border-left-color: #1abc9c; } // Frankenstein Teal (Mary Shelley)
+  &[data-category="legal"]        { border-left-color: #e67e22; } // Dracula Amber (Bram Stoker)
+  &[data-category="education"]    { border-left-color: #8e44ad; } // Cheshire Purple (Lewis Carroll)
+  &[data-category="church"]       { border-left-color: #2980b9; } // Meditations Blue (Marcus Aurelius)
+  &[data-category="career"]       { border-left-color: #2c3e50; } // Prince Iron (Niccolò Machiavelli)
+  &[data-category="family"]       { border-left-color: #e74c3c; } // Little Women Red (Louisa May Alcott)
+  &[data-category="relationship"] { border-left-color: #e08283; } // Pride & Prejudice Coral (Jane Austen)
+  &[data-category="financial"]    { border-left-color: #6c7a3a; } // Gatsby Olive (F. Scott Fitzgerald)
+  &[data-category="creative"]     { border-left-color: #d35400; } // Fahrenheit Orange (Ray Bradbury)
+  &[data-category="spiritual"]    { border-left-color: #4a3680; } // Siddhartha Indigo (Hermann Hesse)
+  &[data-category="military"]     { border-left-color: #7f8c8d; } // War & Peace Steel (Leo Tolstoy)
 
   .event-header {
     display: flex;
@@ -622,3 +662,27 @@ h2, h3 {
   }
 }
 
+// Empty timeline & fallback entry
+.empty-timeline {
+  text-align: center;
+  padding: 20px;
+  color: #7f8c8d;
+
+  .fallback-entry {
+    margin-top: 20px;
+    text-align: left;
+
+    .fallback-label {
+      font-size: 0.9rem;
+      color: #999;
+      margin-bottom: 10px;
+      font-style: italic;
+      text-align: center;
+    }
+
+    .timeline-event {
+      opacity: 0.75;
+      border-left-color: #d4a574; // residence color
+    }
+  }
+}

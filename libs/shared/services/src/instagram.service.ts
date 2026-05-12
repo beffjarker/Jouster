@@ -19,7 +19,7 @@ export interface InstagramImage {
 })
 export class InstagramService {
   private readonly INSTAGRAM_USERNAME = 'beffjarker';
-  private readonly BACKEND_API_URL = 'http://localhost:3000/api';
+  private readonly BACKEND_API_URL = '/api';
 
   constructor(private http: HttpClient) {}
 

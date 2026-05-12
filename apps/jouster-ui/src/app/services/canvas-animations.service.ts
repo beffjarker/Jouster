@@ -40,6 +40,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     let phase = 0;
     let animationId: number;
@@ -48,8 +50,10 @@ export class CanvasAnimationsService {
     const defaultCenterX = canvas.width / 2;
     const defaultCenterY = canvas.height / 2;
 
-    // Use provided options or defaults
-    const getCenterX = options?.getCenterX || (() => options?.centerX ?? defaultCenterX);
+    // Waves span full canvas width — only getCenterY is meaningful for vertical offset.
+    // getCenterX is accepted for API consistency but not used in wave rendering.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _getCenterX = options?.getCenterX || (() => options?.centerX ?? defaultCenterX);
     const getCenterY = options?.getCenterY || (() => options?.centerY ?? defaultCenterY);
 
     // Wave presets with different combinations and parameters
@@ -131,11 +135,19 @@ export class CanvasAnimationsService {
 
     const config = presets[preset] ?? presets['classic'];
 
+    // ── Tick/multiplier setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+    const multiplier = options?.speedMultiplier ?? 1.0;
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
+      // ── READ (sample current state) ──
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const baseAmplitude = canvas.height / 8;
-      const centerY = canvas.height / 2;
+      const centerY = getCenterY();  // Waves span full width; only centerY is meaningful
 
       // Draw each wave in the preset
       config.waves.forEach((wave, index) => {
@@ -166,7 +178,8 @@ export class CanvasAnimationsService {
         ctx.stroke();
       });
 
-      phase += config.speed;
+      // ── COMPUTE (internal physics) ──
+      phase += config.speed * multiplier;
       animationId = requestAnimationFrame(animate);
     };
 
@@ -187,6 +200,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     let angle = 0;
     let animationId: number;
@@ -276,11 +291,19 @@ export class CanvasAnimationsService {
 
     const config = presets[preset] ?? presets['classic'];
 
+    // ── Tick/multiplier setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+    const multiplier = options?.speedMultiplier ?? 1.0;
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
+      // ── READ (sample current state) ──
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
+      const centerX = getCenterX();
+      const centerY = getCenterY();
 
       ctx.strokeStyle = config.color;
       ctx.lineWidth = 2;
@@ -354,7 +377,8 @@ export class CanvasAnimationsService {
       }
 
       ctx.stroke();
-      angle += config.speed;
+      // ── COMPUTE (internal physics) ──
+      angle += config.speed * multiplier;
       animationId = requestAnimationFrame(animate);
     };
 
@@ -374,6 +398,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     const particles: Particle[] = [];
     let animationId: number;
@@ -492,7 +518,13 @@ export class CanvasAnimationsService {
       particles.push(particle);
     }
 
+    // ── Tick setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       particles.forEach((particle, index) => {
@@ -637,6 +669,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     const followers: Follower[] = [];
     let mouseX = canvas.width / 2;
@@ -763,7 +797,13 @@ export class CanvasAnimationsService {
 
     canvas.addEventListener('mousemove', handleMouseMove);
 
+    // ── Tick setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       followers.forEach((follower, index) => {
@@ -970,6 +1010,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     const nodes: NetworkNode[] = [];
     let animationId: number;
@@ -1073,7 +1115,13 @@ export class CanvasAnimationsService {
       });
     }
 
+    // ── Tick setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Update nodes based on behavior
@@ -1183,6 +1231,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     const balls: Array<{x: number, y: number, vx: number, vy: number, radius: number, color: string, mass?: number, elasticity?: number}> = [];
     let animationId: number;
@@ -1334,7 +1384,13 @@ export class CanvasAnimationsService {
       balls.push(ball);
     }
 
+    // ── Tick setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       balls.forEach((ball, index) => {
@@ -1494,12 +1550,22 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     let animationId: number;
     let count = 0;
     let angle = 0;
     let rotation = 0;
     let particles: Array<{x: number, y: number, age: number, maxAge: number}> = [];
+
+    // Default center point
+    const defaultCenterX = canvas.width / 2;
+    const defaultCenterY = canvas.height / 2;
+
+    // Use provided options or defaults
+    const getCenterX = options?.getCenterX || (() => options?.centerX ?? defaultCenterX);
+    const getCenterY = options?.getCenterY || (() => options?.centerY ?? defaultCenterY);
 
     // Enhanced presets combining sunflower patterns and Fibonacci spirals
     const presets: Record<string, {
@@ -1535,7 +1601,18 @@ export class CanvasAnimationsService {
 
     const config = presets[preset] ?? presets['golden'];
 
+    // ── Tick/multiplier setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+    const multiplier = options?.speedMultiplier ?? 1.0;
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
+      // ── READ (sample current state) ──
+      const centerX = getCenterX();
+      const centerY = getCenterY();
+
       // Handle different visualization types
       if (config.visualType === 'particles') {
         // Original sunflower particle system
@@ -1544,8 +1621,6 @@ export class CanvasAnimationsService {
 
         if (particles.length < config.maxParticles) {
           const radius = Math.sqrt(count) * 3 * config.radiusMultiplier;
-          const centerX = canvas.width / 2;
-          const centerY = canvas.height / 2;
           const radians = (angle * Math.PI) / 180;
           const x = centerX + Math.cos(radians) * radius;
           const y = centerY + Math.sin(radians) * radius;
@@ -1580,8 +1655,6 @@ export class CanvasAnimationsService {
       } else {
         // Fibonacci spiral visualizations
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
         const phi = (1 + Math.sqrt(5)) / 2;
 
         ctx.strokeStyle = config.color || '#f39c12';
@@ -1643,7 +1716,8 @@ export class CanvasAnimationsService {
             break;
         }
 
-        rotation += config.speed;
+        // ── COMPUTE (internal physics) ──
+        rotation += config.speed * multiplier;
       }
 
       animationId = requestAnimationFrame(animate);
@@ -1674,6 +1748,9 @@ export class CanvasAnimationsService {
     getCenterX?: () => number;
     getCenterY?: () => number;
     trailEnabled?: boolean;
+    onTick?: () => void;
+    speedMultiplier?: number;
+    backgroundColor?: string;
   }): AnimationCleanup {
     let animationId: number;
     let currentDegree = 0;
@@ -1813,6 +1890,15 @@ export class CanvasAnimationsService {
     // Allow runtime override of trailEffect via options
     const trailEffect = options?.trailEnabled !== undefined ? options.trailEnabled : config.trailEffect;
 
+    // Parse background color for trail fade — fade toward background, not black.
+    // This prevents the canvas from turning black when trail is enabled.
+    const bgRgb = this.parseHexColor(options?.backgroundColor ?? '#fafafa');
+    const trailFadeStyle = `rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.02)`;
+
+    // ── Tick/multiplier setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+    const multiplier = options?.speedMultiplier ?? 1.0;
+
     // Store drawn points for trail effect
     const drawnPoints: Array<{x: number; y: number; degree: number; ring: number; alpha: number}> = [];
 
@@ -1884,27 +1970,29 @@ export class CanvasAnimationsService {
     };
 
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
       if (!trailEffect) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       } else {
-        // Semi-transparent overlay for trail fade effect
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
+        // Fade old content toward the canvas background color, not black
+        ctx.fillStyle = trailFadeStyle;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
       const centerX = getCenterX();
       const centerY = getCenterY();
 
-      // Draw informational text (only when trail is disabled to avoid ghosting)
-      if (!trailEffect) {
-        ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
-        ctx.font = '12px monospace';
-        ctx.fillText('x² + y² = r²', 10, 20);
-        ctx.fillText(`θ: ${Math.round(currentDegree)}°`, 10, 36);
-      }
+      // Draw informational text
+      ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
+      ctx.font = '12px monospace';
+      ctx.fillText('x² + y² = r²', 10, 20);
+      ctx.fillText(`θ: ${Math.round(currentDegree)}°`, 10, 36);
 
       // Draw the current batch of degrees
-      const degreesPerFrame = config.drawSpeed;
+      // ── COMPUTE (internal physics) ──
+      const degreesPerFrame = config.drawSpeed * multiplier;
 
       for (let d = 0; d < degreesPerFrame; d++) {
         const degree = (currentDegree + d) % 360;
@@ -1944,28 +2032,26 @@ export class CanvasAnimationsService {
             drawnPoints.splice(i, 1);
             continue;
           }
+          // Use the preset's original color — the semi-transparent black overlay
+          // handles the visual fade. No globalAlpha manipulation needed, which
+          // would otherwise shift/distort the colors over time.
           let color = config.color;
           if (config.rainbow) {
             color = `hsl(${(point.degree + point.ring * 60) % 360}, 80%, 60%)`;
           }
-          ctx.globalAlpha = point.alpha;
           drawParticle(point.x, point.y, config.particleSize * 0.8, color, config.particleShape);
         }
-        ctx.globalAlpha = 1.0;
       }
 
-      // Draw a small cross at the center point (only when trail is disabled,
-      // otherwise it leaves permanent marks as the mouse moves)
-      if (!trailEffect) {
-        ctx.strokeStyle = 'rgba(150, 150, 150, 0.4)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(centerX - 6, centerY);
-        ctx.lineTo(centerX + 6, centerY);
-        ctx.moveTo(centerX, centerY - 6);
-        ctx.lineTo(centerX, centerY + 6);
-        ctx.stroke();
-      }
+      // Draw a small cross at the center point
+      ctx.strokeStyle = 'rgba(150, 150, 150, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 6, centerY);
+      ctx.lineTo(centerX + 6, centerY);
+      ctx.moveTo(centerX, centerY - 6);
+      ctx.lineTo(centerX, centerY + 6);
+      ctx.stroke();
 
       currentDegree = (currentDegree + degreesPerFrame) % 360;
       animationId = requestAnimationFrame(animate);
@@ -1984,10 +2070,10 @@ export class CanvasAnimationsService {
    * Sets up canvas with common properties and clears it
    */
   public setupCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {
-    // Size canvas bitmap to match its CSS display size
-    const rect = canvas.getBoundingClientRect();
-    const displayWidth = Math.round(rect.width);
-    const displayHeight = Math.round(rect.height);
+    // Size canvas bitmap to match its CSS display size.
+    // Use clientWidth/clientHeight to exclude borders from the measurement.
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
 
     if (displayWidth > 0 && displayHeight > 0) {
       canvas.width = displayWidth;
@@ -2012,5 +2098,18 @@ export class CanvasAnimationsService {
    */
   public clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  /**
+   * Parses a hex color string into RGB components.
+   * Used by trail fade to match the canvas background color.
+   */
+  private parseHexColor(hex: string): { r: number; g: number; b: number } {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+    } : { r: 250, g: 250, b: 250 };  // Default to #fafafa
   }
 }
