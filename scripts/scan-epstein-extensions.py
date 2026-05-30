@@ -64,6 +64,115 @@ HEADERS = {
 # Cookie string — UPDATE if expired
 COOKIE_STRING = 'nmstat=df771102-d8aa-11c0-f3f7-26266b706c64; _ga=GA1.1.1585995321.1770279923; justiceGovAgeVerified=true'
 
+# Known cookie TTLs for justice.gov (from Set-Cookie headers / standard GA config)
+# These are the max-age values; actual server enforcement may differ.
+COOKIE_TTL_INFO = {
+    'nmstat': {'ttl_days': 1000, 'purpose': 'Siteimprove analytics', 'critical': False},
+    '_ga': {'ttl_days': 730, 'purpose': 'Google Analytics client ID', 'critical': False},
+    '_ga_*': {'ttl_days': 730, 'purpose': 'GA4 session data', 'critical': False},
+    'justiceGovAgeVerified': {'ttl_days': None, 'purpose': 'Age gate (session or persistent)', 'critical': True},
+    # Akamai WAF tokens (not always present in cookie string):
+    'ak_bmsc': {'ttl_days': 0.08, 'purpose': 'Akamai bot manager (2hr)', 'critical': True},
+    'bm_sv': {'ttl_days': 0.08, 'purpose': 'Akamai session validation (2hr)', 'critical': True},
+}
+
+# Maximum cookie age (days) before warning. Based on observed behavior:
+# - GA/nmstat cookies: months are fine (long TTL)
+# - WAF/session cookies: expire in 2-4 hours
+# - Overall: if last browser visit was >7 days ago, refresh recommended
+COOKIE_STALENESS_THRESHOLD_DAYS = 7
+
+
+def analyze_cookie_freshness(cookie_string):
+    """
+    Parse cookie string to estimate age and warn if stale.
+    Returns (age_days, latest_timestamp, warnings).
+    """
+    warnings = []
+    latest_ts = None
+    cookie_names = []
+
+    for pair in cookie_string.split('; '):
+        parts = pair.split('=', 1)
+        name = parts[0].strip()
+        value = parts[1] if len(parts) > 1 else ''
+        cookie_names.append(name)
+
+        # Extract timestamps from GA4 cookies (format: GS2.1.s{epoch}$o....$t{epoch}$...)
+        if name.startswith('_ga_') and value.startswith('GS'):
+            for segment in value.split('$'):
+                if segment.startswith('s') and segment[1:].isdigit():
+                    ts = int(segment[1:])
+                    if latest_ts is None or ts > latest_ts:
+                        latest_ts = ts
+                elif segment.startswith('t') and segment[1:].isdigit():
+                    ts = int(segment[1:])
+                    if latest_ts is None or ts > latest_ts:
+                        latest_ts = ts
+
+        # Extract timestamp from _ga (format: GA1.1.{random}.{epoch})
+        if name == '_ga' and value.startswith('GA'):
+            ga_parts = value.split('.')
+            if len(ga_parts) >= 4 and ga_parts[3].isdigit():
+                ts = int(ga_parts[3])
+                if latest_ts is None or ts > latest_ts:
+                    latest_ts = ts
+
+    # Calculate age
+    age_days = None
+    if latest_ts:
+        from datetime import datetime, timezone
+        cookie_dt = datetime.fromtimestamp(latest_ts, tz=timezone.utc)
+        now = datetime.now(tz=timezone.utc)
+        age_days = (now - cookie_dt).total_seconds() / 86400
+
+        if age_days > COOKIE_STALENESS_THRESHOLD_DAYS:
+            warnings.append(
+                f'⚠️  Cookies appear STALE: last activity {age_days:.1f} days ago '
+                f'(threshold: {COOKIE_STALENESS_THRESHOLD_DAYS} days). '
+                f'Refresh from browser before running.'
+            )
+
+    # Check for missing critical cookies (Akamai WAF tokens)
+    has_akamai = any(n.startswith('ak_') or n.startswith('bm_') for n in cookie_names)
+    if not has_akamai:
+        warnings.append(
+            '⚠️  No Akamai WAF tokens (ak_bmsc, bm_sv) in cookie string. '
+            'These are set dynamically and expire in ~2 hours. '
+            'If you get 403s, capture fresh cookies from a browser session.'
+        )
+
+    return age_days, latest_ts, warnings
+
+
+def print_cookie_status(cookie_string):
+    """Print cookie analysis to console."""
+    age_days, latest_ts, warnings = analyze_cookie_freshness(cookie_string)
+
+    logging.info('=== Cookie Freshness Check ===')
+    if latest_ts:
+        from datetime import datetime, timezone
+        dt = datetime.fromtimestamp(latest_ts, tz=timezone.utc)
+        logging.info(f'  Latest activity timestamp: {dt.isoformat()}')
+        logging.info(f'  Cookie age: {age_days:.1f} days')
+    else:
+        logging.info('  No timestamps found in cookie string')
+
+    logging.info(f'  Staleness threshold: {COOKIE_STALENESS_THRESHOLD_DAYS} days')
+
+    if warnings:
+        for w in warnings:
+            logging.warning(w)
+        logging.info('  Recommendation: Open https://www.justice.gov/epstein in browser,')
+        logging.info('  copy fresh cookies from DevTools > Application > Cookies,')
+        logging.info('  then update COOKIE_STRING in this script.')
+        return False  # Stale
+    else:
+        logging.info('  ✅ Cookies appear fresh enough to proceed')
+        return True  # Fresh
+
+    logging.info('=== End Cookie Check ===')
+
 
 # --- Logging ---
 def setup_logging():
@@ -140,8 +249,16 @@ def probe_url(url, use_head=False, session=None):
         return f'error:{str(e)[:50]}', 0
 
 
-def run_scan(datasets=None, rate_limit=1.5, resume=False, use_head=False):
+def run_scan(datasets=None, rate_limit=1.5, resume=False, use_head=False, force=False):
     """Run the extension scan."""
+    # Cookie freshness check
+    cookies_ok = print_cookie_status(COOKIE_STRING)
+    if not cookies_ok and not force:
+        logging.error('Aborting: cookies appear stale. Use --force to override.')
+        return
+    elif not cookies_ok and force:
+        logging.warning('Proceeding despite stale cookies (--force). Expect 403 errors.')
+
     ids_by_dataset = discover_efta_ids(datasets=datasets)
     progress = load_progress() if resume else {'datasets': {}, 'hits': [], 'total_probed': 0, 'total_hits': 0, 'total_errors': 0}
 
@@ -421,9 +538,15 @@ def main():
     parser.add_argument('--resume', action='store_true', help='Resume from last checkpoint')
     parser.add_argument('--use-head', action='store_true', help='Use HEAD requests (faster but less reliable)')
     parser.add_argument('--report', action='store_true', help='Print summary report')
+    parser.add_argument('--check-cookies', action='store_true', help='Check cookie freshness and exit')
+    parser.add_argument('--force', action='store_true', help='Run even if cookies appear stale')
     args = parser.parse_args()
 
     setup_logging()
+
+    if args.check_cookies:
+        print_cookie_status(COOKIE_STRING)
+        return
 
     if args.report:
         print_report()
@@ -438,6 +561,7 @@ def main():
         rate_limit=args.rate_limit,
         resume=args.resume,
         use_head=args.use_head,
+        force=args.force,
     )
 
 
