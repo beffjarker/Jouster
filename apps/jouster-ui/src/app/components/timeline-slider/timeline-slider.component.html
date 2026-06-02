@@ -1,0 +1,49 @@
+<div class="timeline-slider">
+  <div class="slider-labels">
+    <span class="label-start">{{ startLabel }}</span>
+    <span class="label-end">{{ endLabel }}</span>
+  </div>
+
+  <div class="slider-track-container">
+    <!-- Background track -->
+    <div class="slider-track"></div>
+
+    <!-- Filled range between handles -->
+    <div
+      class="slider-track-fill"
+      [style.left.%]="fillLeft"
+      [style.width.%]="fillWidth">
+    </div>
+
+    <!-- Start (left) handle -->
+    <input
+      type="range"
+      class="slider-input slider-start"
+      [min]="sliderMin"
+      [max]="sliderMax"
+      [value]="startValue"
+      (input)="onStartChange($any($event.target).value)"
+      aria-label="Date range start">
+
+    <!-- End (right) handle -->
+    <input
+      type="range"
+      class="slider-input slider-end"
+      [min]="sliderMin"
+      [max]="sliderMax"
+      [value]="endValue"
+      (input)="onEndChange($any($event.target).value)"
+      aria-label="Date range end">
+  </div>
+
+  <!-- Year tick marks -->
+  <div class="slider-ticks">
+    <span
+      *ngFor="let tick of yearTicks"
+      class="tick-label"
+      [style.left.%]="tick.percent">
+      {{ tick.year }}
+    </span>
+  </div>
+</div>
+

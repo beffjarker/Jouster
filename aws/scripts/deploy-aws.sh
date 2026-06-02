@@ -11,8 +11,8 @@ echo "🚀 Starting Jouster.org deployment to AWS..."
 DOMAIN="jouster.org"
 S3_BUCKET="jouster-org-static"
 CLOUDFRONT_DISTRIBUTION_ID=""  # Will be set after CloudFormation deployment
-REGION="us-east-1"
-BUILD_DIR="dist/jouster"
+REGION="us-west-2"
+BUILD_DIR="dist/apps/jouster-ui/browser"
 
 # Colors for output
 RED='\033[0;31m'

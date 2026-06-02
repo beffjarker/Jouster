@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#0f0f23"/>
+  <!-- Fibonacci spiral -->
+  <g transform="translate(120,200)" opacity="0.8">
+    <rect x="0" y="-1" width="1" height="1" fill="#f39c12" opacity="0.4"/>
+    <rect x="1" y="-1" width="1" height="1" fill="#f39c12" opacity="0.4"/>
+    <rect x="0" y="-3" width="2" height="2" fill="#e67e22" opacity="0.4"/>
+    <rect x="2" y="-3" width="3" height="3" fill="#e74c3c" opacity="0.3"/>
+    <rect x="-3" y="-8" width="5" height="5" fill="#9b59b6" opacity="0.3"/>
+    <rect x="-3" y="0" width="8" height="8" fill="#3498db" opacity="0.2"/>
+  </g>
+  <!-- Numbers -->
+  <text x="200" y="40" text-anchor="middle" fill="#667eea" font-size="16" font-family="monospace">1, 1, 2, 3, 5, 8, 13, 21, 34, 55...</text>
+  <text x="200" y="270" text-anchor="middle" fill="#555" font-size="10" font-family="monospace">Fibonacci Sequence</text>
+</svg>
+

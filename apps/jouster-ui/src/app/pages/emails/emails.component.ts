@@ -2,6 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { EmailService } from '../../services/email.service';
+import { PageTitleComponent } from '../../components/page-title/page-title.component';
 
 export interface EmailFile {
   key: string;
@@ -31,7 +32,7 @@ export interface ParsedEmail {
 @Component({
   selector: 'app-emails',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PageTitleComponent],
   templateUrl: './emails.component.html',
   styleUrls: ['./emails.component.scss']
 })

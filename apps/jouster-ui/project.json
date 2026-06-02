@@ -21,10 +21,18 @@
             "input": "apps/jouster-ui/public"
           }
         ],
-        "styles": ["apps/jouster-ui/src/styles.scss"]
+        "styles": [
+          "apps/jouster-ui/src/styles.scss"
+        ]
       },
       "configurations": {
         "production": {
+          "fileReplacements": [
+            {
+              "replace": "apps/jouster-ui/src/environments/environment.ts",
+              "with": "apps/jouster-ui/src/environments/environment.production.ts"
+            }
+          ],
           "budgets": [
             {
               "type": "initial",
@@ -33,10 +41,30 @@
             },
             {
               "type": "anyComponentStyle",
-              "maximumWarning": "10kb",
-              "maximumError": "20kb"
+              "maximumWarning": "20kb",
+              "maximumError": "40kb"
             }
           ],
+          "outputHashing": "all"
+        },
+        "qa": {
+          "fileReplacements": [
+            {
+              "replace": "apps/jouster-ui/src/environments/environment.ts",
+              "with": "apps/jouster-ui/src/environments/environment.qa.ts"
+            }
+          ],
+          "optimization": false,
+          "sourceMap": true
+        },
+        "staging": {
+          "fileReplacements": [
+            {
+              "replace": "apps/jouster-ui/src/environments/environment.ts",
+              "with": "apps/jouster-ui/src/environments/environment.staging.ts"
+            }
+          ],
+          "optimization": true,
           "outputHashing": "all"
         },
         "development": {
@@ -50,9 +78,18 @@
     "serve": {
       "continuous": true,
       "executor": "@angular/build:dev-server",
+      "options": {
+        "proxyConfig": "apps/jouster-ui/proxy.conf.mjs"
+      },
       "configurations": {
         "production": {
           "buildTarget": "jouster-ui:build:production"
+        },
+        "qa": {
+          "buildTarget": "jouster-ui:build:qa"
+        },
+        "staging": {
+          "buildTarget": "jouster-ui:build:staging"
         },
         "development": {
           "buildTarget": "jouster-ui:build:development"
