@@ -7,6 +7,97 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-02
+
+### 🎯 Life Map Filters, Angular 21 Upgrade & Infrastructure Improvements
+
+Major feature release adding interactive Life Map filtering, upgrading the framework to Angular 21 + Nx 22, reorganizing documentation, and hardening deployment infrastructure.
+
+### Added
+- **Life Map Filters** 🗺️
+  - City, tag, year range, and approximate date filters on the Timeline page
+  - Clear filters button with active filter detection
+  - Literary-themed category colors for timeline entries
+  - Current date/time display in Life Map header
+
+- **New Shared UI Components** 🧩
+  - `SearchableSelectComponent` — searchable dropdown for filtering
+  - `TimelineSliderComponent` — interactive year-range slider
+  - `PageTitleComponent` + `PAGE_REGISTRY` for unified page titles
+  - Navigation now derives items from the page registry
+
+- **Environment Configuration** ⚙️
+  - `AppEnvironment` interface for typed environment configs
+  - QA, Staging, and Production environment files with full config
+  - Dynamic proxy (`proxy.conf.mjs`) with `PROXY_TARGET` support
+  - Version display in navigation component
+
+- **Authentication Infrastructure** 🔐
+  - Hidden login component with auth guard
+  - Credentials interceptor for backend communication
+  - Auth MFE app fully restored (23 files from stash recovery)
+  - Backend auth routes and middleware
+
+- **Backend Services** 🖥️
+  - Life Map API routes and seed scripts
+  - DynamoDB service for data persistence
+  - Placeholder SVG assets for content types
+
+- **CI/CD Improvements** 🚀
+  - Branch cleanup workflow (automated stale branch deletion)
+  - Scheduled cleanup workflow for orphaned resources
+  - PR preview comment improvements (commit SHA, timestamp, deployment button)
+  - GitHub Deployment Environment API integration
+
+- **Documentation** 📚
+  - Major docs reorganization into AWS/, CICD/, Development/, Features/, Project/, Security/
+  - Blue/Green deployment analysis document
+  - Angular 21 upgrade plan
+  - HTTP redirect troubleshooting guide
+  - 50+ obsolete session/status docs removed
+
+- **Security** 🔒
+  - `.env.production` untracked from git
+  - Environment templates added (`.env.production.template`, `.env.qa.example`, `.env.staging.example`)
+  - Hardened `.gitignore` with explicit exceptions
+
+### Changed
+- **Framework Upgrade**: Nx 16 → 22.6.5, Angular 19 → 21.2.9 (#33)
+- **Shared UI**: Removed broken ng-packagr-lite build target (lib consumed from source via tsconfig paths)
+- **Style Budgets**: Increased anyComponentStyle to 20kb warn / 40kb error (Leaflet CSS)
+- **Deploy Scripts**: Corrected build output paths, regions (us-east-1 → us-west-2), build configurations
+- **Flash Experiments**: Major component rewrite with enhanced canvas animations
+- **Navigation**: Derives from PAGE_REGISTRY, shows version in footer
+- **Leaflet Map**: Fixed initialization timing (retry on DOM not ready), ViewEncapsulation.None for CSS compatibility, local CSS/image assets
+
+### Fixed
+- **Leaflet Map**: NaN in date range stat (use Math.min/Max over valid years)
+- **Auth MFE**: Restored 23 zeroed-out files from git stash (March 2026 sync issue)
+- **Jouster UI**: Restored 6 empty files from stash (auth interceptor, login, services)
+- **CI Build**: Removed incompatible outputPath from shared-ui project.json
+- **Deploy Scripts**: Correct paths (`dist/apps/jouster-ui/browser/`), correct region, correct build config
+
+### Security
+- Fixed all Dependabot security alerts (#37)
+- Dependency updates: koa, @nx/angular, validator, express-validator
+- Untracked production secrets from version control
+
+### Infrastructure
+- **Docker Compose**: Local development environment setup
+- **Root Cleanup**: Moved batch scripts to `scripts/`, deleted obsolete files
+- **Package Lock**: Synced after Nx 22 upgrade, removed `.bak` file
+
+---
+
+## [0.5.1] - 2025-11-13
+
+### Fixed
+- Production deployment to us-west-2
+- Package-lock.json sync after Nx 22 upgrade
+- Version logging to browser console
+
+---
+
 ## [0.5.0] - 2025-11-11
 
 ### 🎯 Pre-Release: HTTPS Infrastructure & Auth-Based Navigation
