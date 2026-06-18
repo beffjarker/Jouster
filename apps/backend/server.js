@@ -16,6 +16,7 @@ const {
   helmetConfig,
   generalLimiter,
   apiLimiter,
+  authLimiter,
   sanitizeInput,
   xssClean,
   hppProtection,
@@ -47,6 +48,9 @@ const lifeMapRoutes = require('./routes/life-map');
 const { requireAuth } = require('./middleware/auth-guard');
 
 const app = express();
+// Behind API Gateway / CloudFront, trust the X-Forwarded-* headers so that
+// secure-cookie detection, req.protocol, and req.ip work correctly.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 
 // ===== SECURITY MIDDLEWARE (Applied in specific order) =====
@@ -86,19 +90,42 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 12. Session management (httpOnly, secure in production, strict sameSite)
-app.use(session({
+// 12. Session management (httpOnly, secure on HTTPS envs, strict sameSite)
+// Deployed environments are HTTPS-terminated (API Gateway/CloudFront), so the
+// session cookie must be Secure in all of them — not just production.
+const SECURE_COOKIE_ENVS = ['production', 'staging', 'nonprod'];
+const sessionOptions = {
   name: 'jstr.sid',
   secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'fallback-dev-secret',
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: SECURE_COOKIE_ENVS.includes(process.env.NODE_ENV),
     sameSite: 'strict',
     maxAge: 4 * 60 * 60 * 1000, // 4 hours
   },
-}));
+};
+
+// Optional persistent session store for production / multi-instance deployments.
+// Enabled when SESSION_STORE=dynamodb. Falls back to the in-memory store (local dev)
+// if the dependency is missing or initialization fails — never crashes the server.
+if (process.env.SESSION_STORE === 'dynamodb') {
+  try {
+    const DynamoDBStore = require('connect-dynamodb')(session);
+    sessionOptions.store = new DynamoDBStore({
+      table: process.env.SESSION_TABLE_NAME || 'jouster-sessions',
+      AWSConfigJSON: { region: process.env.AWS_REGION || 'us-west-2' },
+      hashKey: 'id',
+      reapInterval: 24 * 60 * 60 * 1000, // prune expired sessions daily
+    });
+    console.log('🔐 Session store: DynamoDB');
+  } catch (err) {
+    console.error('Failed to init DynamoDB session store, using in-memory store:', err.message);
+  }
+}
+
+app.use(session(sessionOptions));
 
 // ===== APPLICATION CONFIGURATION =====
 
@@ -146,7 +173,8 @@ app.get('/health', (req, res) => {
 // API rate limiting for all API routes
 app.use('/api', apiLimiter);
 
-// Mount auth routes (no additional rate limiting — login has built-in delay)
+// Mount auth routes (login is brute-force throttled by authLimiter: 5/15min)
+app.use('/api/auth/login', authLimiter);
 app.use('/api/auth', authRoutes);
 
 // Mount life-map routes (auth-protected internally)
@@ -434,29 +462,40 @@ app.use((err, req, res, next) => {
 });
 
 // ===== START SERVER =====
+// Only start an HTTP listener when this file is run directly (local/standalone).
+// When imported (e.g. by lambda.js via serverless-http), the app is exported
+// without binding a port.
 
-const server = app.listen(PORT, () => {
-  console.log(`🚀 Jouster Backend Server running on port ${PORT}`);
-  console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔒 Security: Enhanced middleware enabled`);
-  console.log(`⏰ Started at: ${new Date().toISOString()}`);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+function startServer() {
+  const server = app.listen(PORT, () => {
+    console.log(`🚀 Jouster Backend Server running on port ${PORT}`);
+    console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🔒 Security: Enhanced middleware enabled`);
+    console.log(`⏰ Started at: ${new Date().toISOString()}`);
   });
-});
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+  // Graceful shutdown
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
   });
-});
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    server.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+  });
+
+  return server;
+}
+
+if (require.main === module) {
+  startServer();
+}
 
 module.exports = app;
