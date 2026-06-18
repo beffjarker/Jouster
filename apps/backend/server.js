@@ -126,6 +126,11 @@ const LASTFM_DEFAULT_USER = process.env.LASTFM_USER || 'Treysin';
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
+    // Blue/green version markers — change on every deploy so the blue→green
+    // traffic shift is directly observable by polling /health. Sourced from
+    // Lambda env vars; fall back to local defaults when running directly.
+    deployId: process.env.DEPLOY_ID || 'local',
+    gitSha: process.env.GIT_SHA || 'dev',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
