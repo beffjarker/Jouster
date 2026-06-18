@@ -112,3 +112,17 @@ dev-tools/node_modules/
 
 .claude/worktrees
 .claude/settings.local.json
+
+# Terraform — never commit state, provider plugins, or real tfvars (may hold ARNs/secrets)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+terraform/envs/**/terraform.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl

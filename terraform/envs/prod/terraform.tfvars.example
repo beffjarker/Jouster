@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars and fill in real values (do NOT commit terraform.tfvars).
+
+aws_region = "us-west-2"
+
+# Built Lambda package — produced by CI on release.
+lambda_zip_path = "../../../dist/backend/backend-lambda.zip"
+
+# S3 bucket for life-map images (prod).
+images_bucket_name = "jouster-life-map-images-prod"
+
+# Secrets Manager ARNs (SESSION_SECRET, LIFE_MAP_PASSWORD_HASH, LASTFM_API_KEY, Instagram tokens).
+secret_arns = [
+  # "arn:aws:secretsmanager:us-west-2:<acct>:secret:jouster/prod/session-XXXXXX",
+]
+
+# Regional ACM cert in us-west-2 covering api.jouster.org.
+acm_certificate_arn = "arn:aws:acm:us-west-2:<acct>:certificate/<id>"
+
+# Route53 hosted zone for jouster.org.
+route53_zone_id = "Z000159514WV2RRYC18A5"
+
