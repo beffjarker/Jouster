@@ -9,6 +9,7 @@
     "build": "nx build jouster-ui",
     "build:qa": "nx build jouster-ui --configuration=qa",
     "build:prod": "nx build jouster-ui --configuration=production",
+    "build:backend:lambda": "node scripts/build-backend-lambda.js",
     "test": "nx test",
     "lint": "nx lint",
     "lint:fix": "nx lint --fix",
