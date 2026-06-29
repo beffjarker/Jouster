@@ -1,0 +1,80 @@
+name: Deploy Backend (prod) — Lambda Blue/Green Canary
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  TF_DIR: terraform/envs/prod
+
+jobs:
+  deploy:
+    name: Build + terraform apply (prod, Canary10Percent5Minutes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Requires manual approval via the protected "backend-prod" environment.
+    environment:
+      name: backend-prod
+      url: https://api.jouster.org/health
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Build Lambda package
+        run: npm run build:backend:lambda
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_BACKEND_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.6
+
+      - name: Terraform init
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -input=false
+
+      - name: Terraform apply (CodeDeploy Canary)
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_acm_certificate_arn: ${{ secrets.PROD_ACM_CERT_ARN }}
+          TF_VAR_route53_zone_id: ${{ secrets.JOUSTER_ROUTE53_ZONE_ID }}
+          TF_VAR_images_bucket_name: ${{ vars.PROD_IMAGES_BUCKET }}
+          TF_VAR_secret_arns: ${{ secrets.PROD_SECRET_ARNS }}
+          TF_VAR_deploy_id: ${{ github.ref_name }}
+          TF_VAR_git_sha: ${{ github.sha }}
+        run: |
+          terraform apply -input=false -auto-approve \
+            -var="lambda_zip_path=../../../dist/backend/backend-lambda.zip"
+
+      - name: Smoke-test /health (verify deploy markers)
+        run: |
+          set -e
+          echo "Waiting for canary to settle..."; sleep 15
+          BODY=$(curl -fsS https://api.jouster.org/health)
+          echo "$BODY"
+          echo "$BODY" | grep -q "\"gitSha\":\"${GITHUB_SHA}\"" \
+            || { echo "::error::/health gitSha did not match ${GITHUB_SHA}"; exit 1; }
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+
