@@ -6,6 +6,9 @@
   "scripts": {
     "gist": "node github/create-gist.js",
     "repos": "node github/list-repos.js",
+    "enrich": "node contacts/enrich.js",
+    "enrich:report": "node contacts/enrich.js --report",
+    "enrich:providers": "node contacts/enrich.js --providers",
     "test": "node --version && echo 'Dev tools ready!'"
   },
   "keywords": [
@@ -27,10 +30,13 @@
     "cheerio": "^1.2.0",
     "commander": "^11.1.0",
     "dotenv": "^16.6.1",
+    "googleapis": "^173.0.0",
+    "p-queue": "^6.6.2",
+    "p-retry": "^5.1.2",
     "pdfjs-dist": "^5.6.205",
-    "playwright": "^1.59.1",
     "sharp": "^0.34.5",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "user-agents": "^1.1.0"
   },
   "engines": {
     "node": ">=20.12.1"
