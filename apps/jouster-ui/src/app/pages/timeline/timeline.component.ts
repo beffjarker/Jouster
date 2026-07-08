@@ -1,11 +1,31 @@
 import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import * as L from 'leaflet';
-import { LifeMapService, LifeMapEntry } from '../../services/life-map.service';
+import { LifeMapService, LifeMapEntry, LifeMapEntryInput, GeocodeResult } from '../../services/life-map.service';
+import { AuthService } from '../../services/auth.service';
 import { TimelineSliderComponent } from '../../components/timeline-slider/timeline-slider.component';
 import { PageTitleComponent } from '../../components/page-title/page-title.component';
 import { SearchableSelectComponent } from '@jouster/shared/ui';
+
+/** Editable form model backing the add/edit entry panel. */
+interface EntryFormModel {
+  title: string;
+  description: string;
+  date: string;
+  category: string;
+  lat: number | null;
+  lng: number | null;
+  locationName: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  tags: string;
+  images: string[];
+}
 
 @Component({
   selector: 'jstr-timeline',
@@ -38,9 +58,35 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   public sortOrder: 'asc' | 'desc' = 'asc';
   private mapInitialized = false;
 
-  constructor(private lifeMapService: LifeMapService) {}
+  // ----- Authenticated editing state -----
+  public isAuthenticated = false;
+  private authSub?: Subscription;
+
+  public showEntryForm = false;
+  public editingId: string | null = null;
+  public saving = false;
+  public formError = '';
+  public entryForm: EntryFormModel = this.emptyForm();
+
+  public geocodeQuery = '';
+  public geocodeResults: GeocodeResult[] = [];
+  public geocoding = false;
+  public pickingLocation = false;
+
+  constructor(
+    private lifeMapService: LifeMapService,
+    private authService: AuthService,
+  ) {}
 
   public ngOnInit() {
+    this.authSub = this.authService.authenticated$.subscribe((authed) => {
+      this.isAuthenticated = authed;
+      // If the session ends while the editor is open, close it.
+      if (!authed) {
+        this.showEntryForm = false;
+        this.pickingLocation = false;
+      }
+    });
     this.loadEntries();
   }
 
@@ -49,6 +95,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   public ngOnDestroy() {
+    this.authSub?.unsubscribe();
     if (this.map) {
       this.map.remove();
     }
@@ -108,6 +155,9 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
         maxZoom: 18,
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(this.map);
+
+      // Allow picking a location by clicking the map while editing an entry.
+      this.map.on('click', (e: L.LeafletMouseEvent) => this.onMapClick(e));
 
       // Force size recalculation after DOM settles
       setTimeout(() => {
@@ -475,5 +525,170 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     const first = Math.min(...years);
     const last = Math.max(...years);
     return `${first} – ${last}`;
+  }
+
+  // ===================== Authenticated editing =====================
+
+  /** Category options for the entry form (derived from the color palette). */
+  public categoryOptions(): string[] {
+    return Object.keys(this.categoryColors);
+  }
+
+  private emptyForm(): EntryFormModel {
+    return {
+      title: '', description: '', date: '', category: 'personal',
+      lat: null, lng: null,
+      locationName: '', street: '', city: '', state: '', zip: '', country: '',
+      tags: '', images: [],
+    };
+  }
+
+  public openAddForm(): void {
+    this.editingId = null;
+    this.entryForm = this.emptyForm();
+    this.geocodeQuery = '';
+    this.geocodeResults = [];
+    this.formError = '';
+    this.showEntryForm = true;
+  }
+
+  public openEditForm(entry: LifeMapEntry): void {
+    this.editingId = entry.id;
+    this.entryForm = {
+      title: entry.title,
+      description: entry.description || '',
+      date: entry.date ? entry.date.slice(0, 10) : '',
+      category: entry.category,
+      lat: entry.location?.lat ?? null,
+      lng: entry.location?.lng ?? null,
+      locationName: entry.location?.name || '',
+      street: entry.location?.street || '',
+      city: entry.location?.city || '',
+      state: entry.location?.state || '',
+      zip: entry.location?.zip || '',
+      country: entry.location?.country || '',
+      tags: (entry.tags || []).join(', '),
+      images: [...(entry.images || [])],
+    };
+    this.geocodeQuery = '';
+    this.geocodeResults = [];
+    this.formError = '';
+    this.showEntryForm = true;
+  }
+
+  public closeForm(): void {
+    this.showEntryForm = false;
+    this.pickingLocation = false;
+    this.editingId = null;
+    this.geocodeResults = [];
+  }
+
+  /** Resolve the address box to candidate coordinates via the backend. */
+  public runGeocode(): void {
+    const q = this.geocodeQuery.trim();
+    if (q.length < 2) return;
+    this.geocoding = true;
+    this.formError = '';
+    this.lifeMapService.geocode(q).subscribe({
+      next: (results) => { this.geocodeResults = results; this.geocoding = false; },
+      error: () => { this.geocoding = false; this.formError = 'Geocoding failed. Try a map click instead.'; },
+    });
+  }
+
+  public selectGeocodeResult(r: GeocodeResult): void {
+    this.entryForm.lat = r.lat;
+    this.entryForm.lng = r.lng;
+    if (!this.entryForm.city) this.entryForm.city = r.city;
+    if (!this.entryForm.state) this.entryForm.state = r.state;
+    if (!this.entryForm.country) this.entryForm.country = r.country;
+    if (!this.entryForm.locationName) this.entryForm.locationName = r.displayName;
+    this.geocodeResults = [];
+    if (this.map) this.map.setView([r.lat, r.lng], 12);
+  }
+
+  /** Toggle "click the map to set coordinates" mode. */
+  public togglePickLocation(): void {
+    this.pickingLocation = !this.pickingLocation;
+  }
+
+  private onMapClick(e: L.LeafletMouseEvent): void {
+    if (!this.pickingLocation || !this.showEntryForm) return;
+    this.entryForm.lat = +e.latlng.lat.toFixed(6);
+    this.entryForm.lng = +e.latlng.lng.toFixed(6);
+    this.pickingLocation = false;
+  }
+
+  /** Read the chosen file, upload it, and attach the returned filename. */
+  public onImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      this.lifeMapService.uploadImage(dataUrl).subscribe({
+        next: (filename) => this.entryForm.images.push(filename),
+        error: () => { this.formError = 'Image upload failed.'; },
+      });
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
+
+  public removeImage(filename: string): void {
+    this.entryForm.images = this.entryForm.images.filter(f => f !== filename);
+  }
+
+  public saveEntry(): void {
+    this.formError = '';
+    const f = this.entryForm;
+    if (!f.title.trim() || !f.date || f.lat == null || f.lng == null) {
+      this.formError = 'Title, date, and a location (use address lookup or click the map) are required.';
+      return;
+    }
+
+    const input: LifeMapEntryInput = {
+      title: f.title.trim(),
+      description: f.description.trim(),
+      date: new Date(f.date).toISOString(),
+      category: f.category,
+      location: {
+        lat: f.lat,
+        lng: f.lng,
+        name: f.locationName.trim() || f.city.trim() || 'Location',
+        street: f.street.trim() || undefined,
+        city: f.city.trim() || undefined,
+        state: f.state.trim() || undefined,
+        zip: f.zip.trim() || undefined,
+        country: f.country.trim() || undefined,
+      },
+      tags: f.tags.split(',').map(t => t.trim()).filter(Boolean),
+      images: f.images,
+    };
+
+    this.saving = true;
+    const op = this.editingId
+      ? this.lifeMapService.updateEntry(this.editingId, input)
+      : this.lifeMapService.createEntry(input);
+
+    op.subscribe({
+      next: () => { this.saving = false; this.closeForm(); this.loadEntries(); },
+      error: (err) => {
+        this.saving = false;
+        this.formError = 'Save failed. ' + (err?.error?.message || '');
+      },
+    });
+  }
+
+  public deleteEntry(entry: LifeMapEntry, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`Delete "${entry.title}"? This cannot be undone.`)) return;
+    this.lifeMapService.deleteEntry(entry.id).subscribe({
+      next: () => {
+        if (this.selectedEntry?.id === entry.id) this.selectedEntry = null;
+        this.loadEntries();
+      },
+      error: (err) => { this.errorMessage = 'Delete failed. ' + (err?.error?.message || ''); },
+    });
   }
 }

@@ -35,6 +35,20 @@ const getAllowedOrigins = () => {
       ];
       break;
 
+    // Shared non-prod API (api-nonprod.jouster.org) used by preview environments,
+    // dev, qa, and staging. Accepts preview frontends served from *.jouster.org
+    // custom domains and from S3 website preview buckets.
+    case 'nonprod':
+      baseOrigins = [
+        'https://api-nonprod.jouster.org',
+        'https://nonprod.jouster.org',
+        'https://*.jouster.org',                       // preview/qa/staging custom domains
+        'http://*.s3-website-us-west-2.amazonaws.com', // S3 website preview buckets
+        'http://localhost:4200',
+        'http://localhost:3000',
+      ];
+      break;
+
     case 'development':
     default:
       baseOrigins = [
@@ -47,6 +61,30 @@ const getAllowedOrigins = () => {
   }
 
   return [...new Set([...baseOrigins, ...extraOrigins])];
+};
+
+/**
+ * Match an origin against an allowed entry, supporting a single `*.` wildcard
+ * in the hostname (e.g., `https://*.jouster.org`). Protocol and port must match.
+ */
+const originMatches = (originUrl, allowed) => {
+  // Wildcard entry: compare protocol + hostname suffix.
+  if (allowed.includes('*.')) {
+    const [proto, rest] = allowed.split('://');
+    const suffix = rest.replace('*.', '.'); // '*.jouster.org' -> '.jouster.org'
+    return (
+      originUrl.protocol === `${proto}:` &&
+      (originUrl.hostname.endsWith(suffix) || originUrl.hostname === suffix.slice(1))
+    );
+  }
+
+  // Exact entry: compare protocol + hostname + port.
+  const allowedUrl = new URL(allowed);
+  return (
+    originUrl.protocol === allowedUrl.protocol &&
+    originUrl.hostname === allowedUrl.hostname &&
+    originUrl.port === allowedUrl.port
+  );
 };
 
 /**
@@ -65,14 +103,7 @@ const corsOptions = {
     try {
       const originUrl = new URL(origin);
 
-      const isAllowed = allowedOrigins.some(allowed => {
-        const allowedUrl = new URL(allowed);
-        return (
-          originUrl.protocol === allowedUrl.protocol &&
-          originUrl.hostname === allowedUrl.hostname &&
-          originUrl.port === allowedUrl.port
-        );
-      });
+      const isAllowed = allowedOrigins.some((allowed) => originMatches(originUrl, allowed));
 
       if (isAllowed) {
         callback(null, true);

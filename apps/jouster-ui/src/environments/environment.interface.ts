@@ -1,7 +1,7 @@
 /** Shared environment configuration interface for all build targets. */
 export interface AppEnvironment {
   production: boolean;
-  name: 'development' | 'qa' | 'staging' | 'production';
+  name: 'development' | 'nonprod' | 'qa' | 'staging' | 'production';
   version: string;
   apiUrl: string;
   wsUrl: string;

@@ -22,11 +22,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const targets = {
-  local:  'http://localhost:3000',
-  qa:     'https://api-qa.jouster.org',
-  stg:    'https://api-stg.jouster.org',
-  prod:   'https://jouster.org',
-  lambda: 'https://jouster.org',  // API Gateway via CloudFront — same as prod for now
+  local:   'http://localhost:3000',
+  nonprod: 'https://api-nonprod.jouster.org',
+  qa:      'https://api-qa.jouster.org',
+  stg:     'https://api-stg.jouster.org',
+  prod:    'https://jouster.org',
+  lambda:  'https://jouster.org',  // API Gateway via CloudFront — same as prod for now
 };
 
 const target = process.env.PROXY_TARGET || 'qa';
