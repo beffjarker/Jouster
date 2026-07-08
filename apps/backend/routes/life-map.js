@@ -13,13 +13,62 @@
 
 const express = require('express');
 const AWS = require('aws-sdk');
+const axios = require('axios');
 const path = require('path');
+const { v4: uuidv4 } = require('uuid');
 const { requireAuth } = require('../middleware/auth-guard');
+const {
+  validateCreateEntry,
+  validateUpdateEntry,
+  validateEntryId,
+  validateGeocodeQuery,
+  validateImageUpload,
+} = require('../middleware/life-map-validation');
 
 const router = express.Router();
 
 // Apply auth guard to all life-map routes
 router.use(requireAuth);
+
+/**
+ * Defense-in-depth CSRF mitigation for state-changing requests. Combined with the
+ * session cookie's `sameSite: 'strict'`, requiring this custom header (which the
+ * Angular client sets, but a cross-site HTML form cannot) blocks CSRF on writes.
+ */
+function requireWriteHeader(req, res, next) {
+  if (req.get('X-Requested-With') !== 'XMLHttpRequest') {
+    return res.status(403).json({ success: false, message: 'Missing required header' });
+  }
+  next();
+}
+
+/**
+ * Append-only audit log for write operations (accountability).
+ */
+function auditLog(req, action, entryId, extra = {}) {
+  console.log(JSON.stringify({
+    audit: 'life-map',
+    action,
+    entryId,
+    at: new Date().toISOString(),
+    sessionAuthedAt: (req.session && req.session.authenticatedAt) || null,
+    ip: req.ip,
+    ...extra,
+  }));
+}
+
+/**
+ * Pick only the defined, allowed fields from a request body (for partial updates).
+ */
+function pickAllowed(source, keys) {
+  const out = {};
+  for (const key of keys) {
+    if (source[key] !== undefined) out[key] = source[key];
+  }
+  return out;
+}
+
+const ENTRY_FIELDS = ['title', 'description', 'date', 'category', 'location', 'images', 'tags'];
 
 // DynamoDB client — uses local endpoint if DYNAMODB_ENDPOINT is set
 const dynamoConfig = {
@@ -177,6 +226,167 @@ router.get('/images/:filename', async (req, res) => {
       success: false,
       message: 'Failed to generate image URL',
     });
+  }
+});
+
+/**
+ * GET /api/life-map/geocode?q=...
+ * Server-side address → coordinates lookup via OpenStreetMap Nominatim.
+ * Proxied through the backend so the browser only ever talks to /api (CSP-safe)
+ * and the lookup stays behind auth + rate limiting.
+ */
+router.get('/geocode', validateGeocodeQuery, async (req, res) => {
+  try {
+    const { q } = req.query;
+
+    const response = await axios.get('https://nominatim.openstreetmap.org/search', {
+      params: { format: 'json', q, limit: 5, addressdetails: 1 },
+      headers: { 'User-Agent': 'Jouster-LifeMap/1.0 (https://jouster.org)' },
+      timeout: 8000,
+    });
+
+    const results = (response.data || []).map((r) => ({
+      lat: parseFloat(r.lat),
+      lng: parseFloat(r.lon),
+      displayName: r.display_name,
+      city: (r.address && (r.address.city || r.address.town || r.address.village)) || '',
+      state: (r.address && r.address.state) || '',
+      country: (r.address && r.address.country) || '',
+    }));
+
+    return res.json({ success: true, data: results });
+  } catch (error) {
+    console.error('Geocode error:', error.message);
+    return res.status(502).json({ success: false, message: 'Geocoding failed' });
+  }
+});
+
+/**
+ * POST /api/life-map/entries
+ * Create a new entry. Auth + write-header + validation required.
+ */
+router.post('/entries', requireWriteHeader, validateCreateEntry, async (req, res) => {
+  try {
+    const now = new Date().toISOString();
+    const item = {
+      id: uuidv4(),
+      title: req.body.title,
+      description: req.body.description || '',
+      date: req.body.date,
+      category: req.body.category,
+      location: req.body.location,
+      images: Array.isArray(req.body.images) ? req.body.images : [],
+      tags: Array.isArray(req.body.tags) ? req.body.tags : [],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await docClient.put({
+      TableName: TABLE_NAME,
+      Item: item,
+      ConditionExpression: 'attribute_not_exists(id)',
+    }).promise();
+
+    auditLog(req, 'create', item.id);
+    return res.status(201).json({ success: true, data: item });
+  } catch (error) {
+    console.error('Life map create error:', error.message);
+    return res.status(500).json({ success: false, message: 'Failed to create entry' });
+  }
+});
+
+/**
+ * PUT /api/life-map/entries/:id
+ * Update an existing entry (partial update of allowed fields).
+ */
+router.put('/entries/:id', requireWriteHeader, validateUpdateEntry, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const existing = await docClient.get({ TableName: TABLE_NAME, Key: { id } }).promise();
+    if (!existing.Item) {
+      return res.status(404).json({ success: false, message: 'Entry not found' });
+    }
+
+    const updated = {
+      ...existing.Item,
+      ...pickAllowed(req.body, ENTRY_FIELDS),
+      id,
+      createdAt: existing.Item.createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await docClient.put({ TableName: TABLE_NAME, Item: updated }).promise();
+
+    auditLog(req, 'update', id);
+    return res.json({ success: true, data: updated });
+  } catch (error) {
+    console.error('Life map update error:', error.message);
+    return res.status(500).json({ success: false, message: 'Failed to update entry' });
+  }
+});
+
+/**
+ * DELETE /api/life-map/entries/:id
+ * Delete an entry.
+ */
+router.delete('/entries/:id', requireWriteHeader, validateEntryId, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await docClient.delete({ TableName: TABLE_NAME, Key: { id } }).promise();
+
+    auditLog(req, 'delete', id);
+    return res.json({ success: true, message: 'Entry deleted' });
+  } catch (error) {
+    console.error('Life map delete error:', error.message);
+    return res.status(500).json({ success: false, message: 'Failed to delete entry' });
+  }
+});
+
+/**
+ * POST /api/life-map/images
+ * Upload an image as a base64 data URL. Stores to S3 (deployed) or the local
+ * placeholder dir (dev), returning the generated filename to attach to an entry.
+ */
+router.post('/images', requireWriteHeader, validateImageUpload, async (req, res) => {
+  try {
+    const match = /^data:image\/(jpeg|jpg|png|svg\+xml);base64,(.+)$/.exec(req.body.data);
+    if (!match) {
+      return res.status(400).json({ success: false, message: 'Invalid image data' });
+    }
+
+    const mime = match[1];
+    const ext = mime === 'svg+xml' ? 'svg' : (mime === 'jpeg' ? 'jpg' : mime);
+    const contentType = mime === 'svg+xml' ? 'image/svg+xml' : `image/${mime === 'jpg' ? 'jpeg' : mime}`;
+    const buffer = Buffer.from(match[2], 'base64');
+
+    const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+    if (buffer.length > MAX_BYTES) {
+      return res.status(400).json({ success: false, message: 'Image exceeds 5MB limit' });
+    }
+
+    const filename = `${uuidv4()}.${ext}`;
+
+    if (IS_LOCAL) {
+      const fs = require('fs');
+      const dir = path.join(__dirname, '../scripts/assets/placeholders');
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(path.join(dir, filename), buffer);
+    } else {
+      await s3.putObject({
+        Bucket: BUCKET_NAME,
+        Key: `${IMAGE_PREFIX}${filename}`,
+        Body: buffer,
+        ContentType: contentType,
+      }).promise();
+    }
+
+    auditLog(req, 'image-upload', filename);
+    return res.status(201).json({ success: true, filename });
+  } catch (error) {
+    console.error('Image upload error:', error.message);
+    return res.status(500).json({ success: false, message: 'Failed to upload image' });
   }
 });
 
