@@ -50,13 +50,24 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Set session as authenticated
-    req.session.authenticated = true;
-    req.session.authenticatedAt = new Date().toISOString();
+    // Regenerate the session ID on privilege elevation to prevent session fixation.
+    return req.session.regenerate((regenErr) => {
+      if (regenErr) {
+        console.error('Session regeneration error:', regenErr.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Internal server error',
+        });
+      }
 
-    return res.json({
-      success: true,
-      message: 'Authenticated',
+      // Set session as authenticated
+      req.session.authenticated = true;
+      req.session.authenticatedAt = new Date().toISOString();
+
+      return res.json({
+        success: true,
+        message: 'Authenticated',
+      });
     });
   } catch (error) {
     console.error('Login error:', error.message);
