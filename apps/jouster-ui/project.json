@@ -67,6 +67,16 @@
           "optimization": true,
           "outputHashing": "all"
         },
+        "nonprod": {
+          "fileReplacements": [
+            {
+              "replace": "apps/jouster-ui/src/environments/environment.ts",
+              "with": "apps/jouster-ui/src/environments/environment.nonprod.ts"
+            }
+          ],
+          "optimization": true,
+          "outputHashing": "all"
+        },
         "development": {
           "optimization": false,
           "extractLicenses": false,
@@ -90,6 +100,9 @@
         },
         "staging": {
           "buildTarget": "jouster-ui:build:staging"
+        },
+        "nonprod": {
+          "buildTarget": "jouster-ui:build:nonprod"
         },
         "development": {
           "buildTarget": "jouster-ui:build:development"
