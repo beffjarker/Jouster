@@ -1,0 +1,1 @@
+Nabu LAA push and PR connectivity verified on 2026-08-12.
