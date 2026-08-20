@@ -178,8 +178,8 @@ describe('FlashExperimentsComponent', () => {
     });
 
     it('should display page title and intro', () => {
-      expect(spectator.query('h1')).toHaveText('Flash Experiments');
-      expect(spectator.query('.intro')).toContain('Recreating classic Flash animations using modern web technologies');
+      expect(spectator.query('h1')).toHaveText('Interactive Playground');
+      expect(spectator.query('.intro')).toContain('Customize the animation parameters');
     });
 
     it('should display category filter', () => {

@@ -62,12 +62,12 @@ describe('Jouster App E2E', () => {
       // Verify page title
       cy.get('[data-cy="flash-experiments-title"]')
         .should('be.visible')
-        .and('contain.text', 'Old Flash Experiments');
+        .and('contain.text', 'Interactive Playground');
 
       // Verify page introduction text is present
       cy.get('[data-cy="flash-experiments-intro"]')
         .should('be.visible')
-        .and('contain.text', 'A collection of Flash experiments from 2001-2002');
+        .and('contain.text', 'Customize the animation parameters');
 
       // Verify filter section is present
       cy.get('[data-cy="filter-section"]').should('be.visible');
