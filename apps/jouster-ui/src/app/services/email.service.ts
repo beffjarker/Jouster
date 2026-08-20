@@ -2,14 +2,17 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { EmailFile, EmailListResponse, ParsedEmail } from '../pages/emails/emails.component';
+import { RuntimeConfigService } from './runtime-config.service';
 
 @Injectable({
   providedIn: 'root'
 })
 export class EmailService {
-  private readonly API_BASE_URL = 'http://localhost:3001/api'; // Connect directly to backend port
+  private get API_BASE_URL(): string {
+    return `${this.config.apiBaseUrl}/api`; // Connect to backend, env-driven at runtime
+  }
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private config: RuntimeConfigService) {}
 
   async listEmails(pageSize: number = 100, marker?: string): Promise<EmailListResponse> {
     let params = new HttpParams()
