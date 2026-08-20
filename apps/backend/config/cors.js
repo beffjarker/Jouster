@@ -9,30 +9,44 @@
 const getAllowedOrigins = () => {
   const env = process.env.NODE_ENV || 'development';
 
+  // Extra origins can be injected at deploy time (e.g. per-PR preview S3 website
+  // URL) via a comma-separated CORS_ALLOWED_ORIGINS env var. These are always
+  // merged in, regardless of NODE_ENV, so preview environments can reach the API.
+  const extraOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(o => o.trim())
+    .filter(Boolean);
+
+  let baseOrigins;
   switch (env) {
     case 'production':
-      return [
+      baseOrigins = [
         'https://jouster.org',
         'https://www.jouster.org',
         'https://api.jouster.org',
       ];
+      break;
 
     case 'staging':
-      return [
+      baseOrigins = [
         'https://staging.jouster.org',
         'https://api-staging.jouster.org',
         'http://localhost:4200',
       ];
+      break;
 
     case 'development':
     default:
-      return [
+      baseOrigins = [
         'http://localhost:4200',
         'http://127.0.0.1:4200',
         'http://localhost:3000',
         'http://127.0.0.1:3000',
       ];
+      break;
   }
+
+  return [...new Set([...baseOrigins, ...extraOrigins])];
 };
 
 /**

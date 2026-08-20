@@ -75,6 +75,153 @@ jobs:
           echo "name=$BUCKET_NAME" >> $GITHUB_OUTPUT
           echo "url=http://${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com" >> $GITHUB_OUTPUT
 
+      - name: Package backend for Lambda
+        if: github.actor != 'dependabot[bot]'
+        run: |
+          set -euo pipefail
+          echo "Installing backend production dependencies..."
+          cd apps/backend
+          npm ci --omit=dev --no-audit --no-fund
+          echo "Zipping backend (excluding PII conversation-history JSON)..."
+          zip -r -q ../../backend-pr${{ github.event.pull_request.number }}.zip . \
+            -x "conversation-history/*" \
+            -x "tests/*" \
+            -x "scripts/*" \
+            -x "*.log"
+          cd ../..
+          ls -lh backend-pr${{ github.event.pull_request.number }}.zip
+
+      - name: Ensure shared Lambda IAM role
+        if: github.actor != 'dependabot[bot]'
+        id: iamrole
+        run: |
+          set -euo pipefail
+          ROLE_NAME="jouster-preview-lambda-role"
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          DDB_TABLE="dev-jouster-conversations"
+          DDB_ARN="arn:aws:dynamodb:us-west-2:${ACCOUNT_ID}:table/${DDB_TABLE}"
+
+          if ! aws iam get-role --role-name "$ROLE_NAME" >/dev/null 2>&1; then
+            echo "Creating IAM role $ROLE_NAME"
+            cat > /tmp/trust.json << 'EOF'
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              { "Effect": "Allow", "Principal": { "Service": "lambda.amazonaws.com" }, "Action": "sts:AssumeRole" }
+            ]
+          }
+          EOF
+            aws iam create-role --role-name "$ROLE_NAME" \
+              --assume-role-policy-document file:///tmp/trust.json >/dev/null
+            aws iam attach-role-policy --role-name "$ROLE_NAME" \
+              --policy-arn arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+            echo "Waiting for role propagation..."
+            sleep 10
+          else
+            echo "IAM role $ROLE_NAME already exists"
+          fi
+
+          cat > /tmp/ddb-policy.json << EOF
+          {
+            "Version": "2012-10-17",
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": ["dynamodb:Scan","dynamodb:Query","dynamodb:GetItem","dynamodb:PutItem"],
+                "Resource": ["${DDB_ARN}", "${DDB_ARN}/index/*"]
+              }
+            ]
+          }
+          EOF
+          aws iam put-role-policy --role-name "$ROLE_NAME" \
+            --policy-name jouster-preview-ddb-access \
+            --policy-document file:///tmp/ddb-policy.json
+
+          echo "role_arn=arn:aws:iam::${ACCOUNT_ID}:role/${ROLE_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Deploy preview backend (Lambda + HTTP API)
+        if: github.actor != 'dependabot[bot]'
+        id: backend
+        run: |
+          set -euo pipefail
+          PR_NUM="${{ github.event.pull_request.number }}"
+          FN_NAME="preview-pr${PR_NUM}-jouster-api"
+          API_NAME="preview-pr${PR_NUM}-jouster-api"
+          ROLE_ARN="${{ steps.iamrole.outputs.role_arn }}"
+          ZIP="backend-pr${PR_NUM}.zip"
+          ORIGIN="${{ steps.bucket.outputs.url }}"
+
+          ENV_VARS="Variables={NODE_ENV=development,USE_DYNAMODB=true,DYNAMODB_TABLE=dev-jouster-conversations,CORS_ALLOWED_ORIGINS=${ORIGIN}}"
+
+          if aws lambda get-function --function-name "$FN_NAME" >/dev/null 2>&1; then
+            echo "Updating existing Lambda $FN_NAME"
+            aws lambda update-function-code --function-name "$FN_NAME" \
+              --zip-file "fileb://${ZIP}" >/dev/null
+            aws lambda wait function-updated --function-name "$FN_NAME"
+            aws lambda update-function-configuration --function-name "$FN_NAME" \
+              --handler lambda.handler --runtime nodejs20.x --timeout 30 --memory-size 512 \
+              --environment "$ENV_VARS" >/dev/null
+            aws lambda wait function-updated --function-name "$FN_NAME"
+          else
+            echo "Creating Lambda $FN_NAME"
+            aws lambda create-function --function-name "$FN_NAME" \
+              --runtime nodejs20.x --handler lambda.handler \
+              --role "$ROLE_ARN" --timeout 30 --memory-size 512 \
+              --environment "$ENV_VARS" \
+              --zip-file "fileb://${ZIP}" >/dev/null
+            aws lambda wait function-active --function-name "$FN_NAME"
+          fi
+
+          LAMBDA_ARN=$(aws lambda get-function --function-name "$FN_NAME" \
+            --query 'Configuration.FunctionArn' --output text)
+
+          API_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='${API_NAME}'].ApiId | [0]" --output text)
+
+          if [ "$API_ID" = "None" ] || [ -z "$API_ID" ]; then
+            echo "Creating HTTP API $API_NAME (quick create)"
+            API_ENDPOINT=$(aws apigatewayv2 create-api --name "$API_NAME" \
+              --protocol-type HTTP --target "$LAMBDA_ARN" \
+              --query 'ApiEndpoint' --output text)
+            API_ID=$(aws apigatewayv2 get-apis \
+              --query "Items[?Name=='${API_NAME}'].ApiId | [0]" --output text)
+          else
+            echo "HTTP API $API_NAME already exists ($API_ID)"
+            API_ENDPOINT=$(aws apigatewayv2 get-api --api-id "$API_ID" \
+              --query 'ApiEndpoint' --output text)
+          fi
+
+          # Ensure API Gateway can invoke the Lambda (idempotent)
+          aws lambda add-permission --function-name "$FN_NAME" \
+            --statement-id apigw-invoke --action lambda:InvokeFunction \
+            --principal apigateway.amazonaws.com \
+            --source-arn "arn:aws:execute-api:us-west-2:$(aws sts get-caller-identity --query Account --output text):${API_ID}/*/*" \
+            >/dev/null 2>&1 || echo "Invoke permission already present"
+
+          echo "api_url=${API_ENDPOINT}" >> $GITHUB_OUTPUT
+          echo "Backend API: ${API_ENDPOINT}"
+
+      - name: Seed shared dev DynamoDB (idempotent)
+        if: github.actor != 'dependabot[bot]'
+        run: |
+          set -euo pipefail
+          cd apps/backend
+          DYNAMODB_TABLE=dev-jouster-conversations AWS_REGION=us-west-2 \
+            node scripts/seed-dev-conversations.js
+
+      - name: Write runtime config.json into build
+        if: github.actor != 'dependabot[bot]'
+        run: |
+          set -euo pipefail
+          cat > dist/apps/jouster-ui/browser/config.json << EOF
+          {
+            "apiBaseUrl": "${{ steps.backend.outputs.api_url }}",
+            "environment": "preview-pr${{ github.event.pull_request.number }}"
+          }
+          EOF
+          echo "config.json:"; cat dist/apps/jouster-ui/browser/config.json
+
+
       - name: Create S3 bucket (if it doesn't exist)
         if: github.actor != 'dependabot[bot]'
         run: |
@@ -158,11 +305,15 @@ jobs:
 
             const commentBody = `## 🎉 Preview Environment Deployed!
 
-            Your preview environment is now live and ready for testing.
+            Your full-stack preview environment is now live and ready for testing.
 
             🔗 **Preview URL:** ${previewUrl}
+            🔌 **API URL:** ${{ steps.backend.outputs.api_url }}
             📦 **Artifact:** \`jouster-ui-build-pr${prNumber}\`
             🔗 **Build Run:** [View Build](${runUrl})
+
+            The frontend talks to a per-PR Express-on-Lambda backend, backed by the
+            shared **dev** DynamoDB seeded with fake data (full functionality, no prod data).
 
             ### Testing Instructions:
 
@@ -171,7 +322,7 @@ jobs:
             3. Report any issues in this PR
 
             ---
-            *This preview environment will be automatically deleted when the PR is closed or merged.*
+            *This preview environment (frontend + backend) will be automatically deleted when the PR is closed or merged.*
             `;
 
             if (botComment) {

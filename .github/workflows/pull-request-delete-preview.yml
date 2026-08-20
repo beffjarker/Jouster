@@ -60,6 +60,35 @@ jobs:
             echo "✅ Bucket deleted successfully: ${BUCKET_NAME}"
           fi
 
+      - name: Delete preview backend (Lambda + HTTP API)
+        run: |
+          set -uo pipefail
+          PR_NUM="${{ github.event.pull_request.number }}"
+          FN_NAME="preview-pr${PR_NUM}-jouster-api"
+          API_NAME="preview-pr${PR_NUM}-jouster-api"
+
+          echo "🧹 Removing backend for PR #${PR_NUM}"
+
+          # Delete the HTTP API (removes routes, integration, stage)
+          API_ID=$(aws apigatewayv2 get-apis \
+            --query "Items[?Name=='${API_NAME}'].ApiId | [0]" --output text 2>/dev/null)
+          if [ "$API_ID" != "None" ] && [ -n "$API_ID" ]; then
+            echo "Deleting HTTP API ${API_NAME} (${API_ID})"
+            aws apigatewayv2 delete-api --api-id "$API_ID" && echo "✅ API deleted"
+          else
+            echo "⚠️  No HTTP API found for ${API_NAME}"
+          fi
+
+          # Delete the Lambda function
+          if aws lambda get-function --function-name "$FN_NAME" >/dev/null 2>&1; then
+            echo "Deleting Lambda ${FN_NAME}"
+            aws lambda delete-function --function-name "$FN_NAME" && echo "✅ Lambda deleted"
+          else
+            echo "⚠️  No Lambda found for ${FN_NAME}"
+          fi
+
+          echo "Note: shared IAM role and dev DynamoDB table are intentionally preserved."
+
       - name: Delete Route53 DNS records (if they exist)
         run: |
           BUCKET_NAME="${{ steps.bucket.outputs.name }}"
@@ -159,6 +188,8 @@ jobs:
             |----------|--------|
             | S3 Bucket | ✅ Deleted |
             | Bucket Contents | ✅ Removed |
+            | Lambda (backend API) | ✅ Deleted |
+            | API Gateway (HTTP API) | ✅ Deleted |
             | DNS Records | ⚠️  Checked (none found or removed) |
             | CloudFront Distribution | ⚠️  Checked (none found) |
 
