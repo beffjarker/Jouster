@@ -87,6 +87,8 @@ jobs:
             -x "conversation-history/*" \
             -x "tests/*" \
             -x "scripts/*" \
+            -x "*.env" \
+            -x ".env*" \
             -x "*.log"
           cd ../..
           ls -lh backend-pr${{ github.event.pull_request.number }}.zip
