@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
+import { RuntimeConfigService } from './runtime-config.service';
 
 export interface LifeMapLocation {
   lat: number;
@@ -47,9 +48,11 @@ interface ImageUrlResponse {
   providedIn: 'root'
 })
 export class LifeMapService {
-  private readonly API_URL = '/api/life-map';
+  private get API_URL(): string {
+    return this.config.apiUrl('/api/life-map');
+  }
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private config: RuntimeConfigService) {}
 
   /**
    * Get all life map entries sorted by date.

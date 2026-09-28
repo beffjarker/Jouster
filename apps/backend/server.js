@@ -47,6 +47,9 @@ const lifeMapRoutes = require('./routes/life-map');
 // Import auth guard
 const { requireAuth } = require('./middleware/auth-guard');
 
+// Conversation history data layer (DynamoDB in preview/cloud, JSON files locally)
+const conversationStore = require('./data/conversations');
+
 const app = express();
 // Behind API Gateway / CloudFront, trust the X-Forwarded-* headers so that
 // secure-cookie detection, req.protocol, and req.ip work correctly.
@@ -186,51 +189,14 @@ app.use('/api/emails', emailRoutes);
 // ===== CONVERSATION HISTORY ENDPOINTS =====
 
 // Get all conversations
-app.get('/api/conversation-history', (req, res) => {
-  const fs = require('fs');
-  const path = require('path');
-
+app.get('/api/conversation-history', async (req, res) => {
   try {
-    const conversations = [];
-    const conversationDir = path.join(__dirname, 'conversation-history');
-
-    if (!fs.existsSync(conversationDir)) {
-      return res.json({
-        success: true,
-        data: [],
-        total: 0,
-        message: 'No conversation history directory found'
-      });
-    }
-
-    const files = fs.readdirSync(conversationDir)
-      .filter(file => file.startsWith('session-') && file.endsWith('.json'));
-
-    for (const file of files) {
-      try {
-        const filePath = path.join(conversationDir, file);
-        const content = fs.readFileSync(filePath, 'utf8');
-        const conversation = JSON.parse(content);
-        conversations.push({
-          conversationId: conversation.conversationId,
-          title: conversation.title,
-          project: conversation.project || 'Jouster',
-          startTime: conversation.startTime,
-          endTime: conversation.endTime,
-          messageCount: conversation.messages?.length || 0
-        });
-      } catch (fileError) {
-        console.warn(`Error reading conversation file ${file}:`, fileError.message);
-      }
-    }
-
-    conversations.sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-
+    const conversations = await conversationStore.listConversations();
     res.json({
       success: true,
       data: conversations,
       total: conversations.length,
-      source: 'JSON files (not yet migrated to DynamoDB)'
+      source: conversationStore.source(),
     });
   } catch (error) {
     console.error('Error fetching conversations:', error);
@@ -242,41 +208,22 @@ app.get('/api/conversation-history', (req, res) => {
   }
 });
 
+// Migration status endpoint (declared before :id so it is not captured by it)
+app.get('/api/conversation-history/migration-status', (req, res) => {
+  res.json({
+    success: true,
+    status: conversationStore.useDynamo() ? 'migrated' : 'pending',
+    message: conversationStore.useDynamo()
+      ? 'Conversations are served from DynamoDB'
+      : 'Conversations exist as JSON files but have not been migrated to DynamoDB yet',
+    source: conversationStore.source(),
+  });
+});
+
 // Get specific conversation
-app.get('/api/conversation-history/:id', (req, res) => {
-  const fs = require('fs');
-  const path = require('path');
-
+app.get('/api/conversation-history/:id', async (req, res) => {
   try {
-    const conversationId = req.params.id;
-    const conversationDir = path.join(__dirname, 'conversation-history');
-
-    if (!fs.existsSync(conversationDir)) {
-      return res.status(404).json({
-        success: false,
-        error: 'Conversation not found'
-      });
-    }
-
-    const files = fs.readdirSync(conversationDir)
-      .filter(file => file.startsWith('session-') && file.endsWith('.json'));
-
-    let foundConversation = null;
-
-    for (const file of files) {
-      try {
-        const filePath = path.join(conversationDir, file);
-        const content = fs.readFileSync(filePath, 'utf8');
-        const conversation = JSON.parse(content);
-
-        if (conversation.conversationId === conversationId) {
-          foundConversation = conversation;
-          break;
-        }
-      } catch (fileError) {
-        console.warn(`Error reading conversation file ${file}:`, fileError.message);
-      }
-    }
+    const foundConversation = await conversationStore.getConversation(req.params.id);
 
     if (!foundConversation) {
       return res.status(404).json({
@@ -297,18 +244,6 @@ app.get('/api/conversation-history/:id', (req, res) => {
       details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
     });
   }
-});
-
-// Migration status endpoint
-app.get('/api/conversation-history/migration-status', (req, res) => {
-  res.json({
-    success: true,
-    status: 'pending',
-    message: 'Conversations exist as JSON files but have not been migrated to DynamoDB yet',
-    jsonFiles: 5,
-    databaseRecords: 0,
-    nextStep: 'Run migration to transfer conversations to DynamoDB'
-  });
 });
 
 // ===== INSTAGRAM API MOCK DATA =====
@@ -404,13 +339,49 @@ app.get('/api/instagram/user', async (req, res) => {
 
 // ===== LAST.FM API ENDPOINTS =====
 
+// Fake recent tracks used when no Last.fm API key is configured (dev/preview).
+const LASTFM_MOCK_RECENT = {
+  recenttracks: {
+    track: [
+      {
+        name: 'Weird Fishes/ Arpeggi',
+        artist: { '#text': 'Radiohead' },
+        album: { '#text': 'In Rainbows' },
+        url: 'https://www.last.fm/music/Radiohead/_/Weird+Fishes',
+        image: [{ '#text': 'https://picsum.photos/174/174?random=201', size: 'large' }],
+        '@attr': { nowplaying: 'true' },
+      },
+      {
+        name: 'Midnight City',
+        artist: { '#text': 'M83' },
+        album: { '#text': 'Hurry Up, We\u2019re Dreaming' },
+        url: 'https://www.last.fm/music/M83/_/Midnight+City',
+        image: [{ '#text': 'https://picsum.photos/174/174?random=202', size: 'large' }],
+        date: { uts: String(Math.floor(Date.now() / 1000) - 3600) },
+      },
+      {
+        name: 'Nightcall',
+        artist: { '#text': 'Kavinsky' },
+        album: { '#text': 'OutRun' },
+        url: 'https://www.last.fm/music/Kavinsky/_/Nightcall',
+        image: [{ '#text': 'https://picsum.photos/174/174?random=203', size: 'large' }],
+        date: { uts: String(Math.floor(Date.now() / 1000) - 7200) },
+      },
+    ],
+    '@attr': { user: 'devuser', total: '3', page: '1', perPage: '10', totalPages: '1' },
+  },
+};
+
 app.get('/api/lastfm/recent-tracks', async (req, res) => {
   try {
     const user = req.query.user || LASTFM_DEFAULT_USER;
 
     if (!LASTFM_API_KEY) {
-      return res.status(500).json({
-        error: 'Last.fm API key not configured'
+      // No key (dev/preview): serve fake data instead of failing so the UI is
+      // fully functional against dev data.
+      return res.json({
+        ...LASTFM_MOCK_RECENT,
+        meta: { note: 'Mock data - Last.fm API key not configured' },
       });
     }
 
@@ -429,9 +400,13 @@ app.get('/api/lastfm/recent-tracks', async (req, res) => {
   } catch (error) {
     console.error('Last.fm API Error:', error.message);
 
-    res.status(500).json({
-      error: 'Failed to fetch recent tracks',
-      message: process.env.NODE_ENV === 'development' ? error.message : 'API unavailable'
+    // Fall back to mock data on upstream error so previews stay functional.
+    res.json({
+      ...LASTFM_MOCK_RECENT,
+      meta: {
+        note: 'Fallback mock data - API error',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'API unavailable',
+      },
     });
   }
 });

@@ -41,12 +41,24 @@ const helmetConfig = helmet({
 /**
  * Rate limiting configuration - Prevents brute force attacks
  */
+
+// Behind API Gateway / CloudFront (Lambda), Express may not resolve req.ip.
+// This fallback keeps express-rate-limit working (and avoids
+// ERR_ERL_UNDEFINED_IP_ADDRESS) by deriving a stable key from proxy headers.
+const ipKeyGenerator = (req) => {
+  const xff = req.headers['x-forwarded-for'];
+  if (xff) return xff.split(',')[0].trim();
+  return req.ip || (req.socket && req.socket.remoteAddress) || 'unknown';
+};
+
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // Limit each IP to 100 requests per windowMs
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: ipKeyGenerator,
+  validate: false,
   skip: (req) => {
     // Skip rate limiting for health checks
     return req.path === '/health';
@@ -61,6 +73,8 @@ const authLimiter = rateLimit({
   max: 5, // Limit each IP to 5 auth requests per windowMs
   message: 'Too many authentication attempts, please try again later.',
   skipSuccessfulRequests: true,
+  keyGenerator: ipKeyGenerator,
+  validate: false,
 });
 
 /**
@@ -70,6 +84,8 @@ const apiLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
   max: 30, // Limit each IP to 30 API requests per minute
   message: 'API rate limit exceeded, please slow down.',
+  keyGenerator: ipKeyGenerator,
+  validate: false,
 });
 
 /**

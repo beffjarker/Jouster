@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
-import { environment } from '../../environments/environment';
+import { RuntimeConfigService } from './runtime-config.service';
 
 export interface InstagramImage {
   id: string;
@@ -20,9 +20,11 @@ export interface InstagramImage {
 })
 export class InstagramService {
   private readonly INSTAGRAM_USERNAME = 'beffjarker';
-  private readonly BACKEND_API_URL = environment.apiUrl;
+  private get BACKEND_API_URL(): string {
+    return `${this.config.apiBaseUrl}/api`;
+  }
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private config: RuntimeConfigService) {}
 
   // Method expected by highlights component
   getUserMedia(): Observable<InstagramImage[]> {

@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
+import { RuntimeConfigService } from './runtime-config.service';
 
 export interface AuthResponse {
   success: boolean;
@@ -14,12 +15,14 @@ export interface AuthResponse {
   providedIn: 'root'
 })
 export class AuthService {
-  private readonly API_URL = '/api/auth';
+  private get API_URL(): string {
+    return this.config.apiUrl('/api/auth');
+  }
 
   private authenticatedSubject = new BehaviorSubject<boolean>(false);
   public authenticated$ = this.authenticatedSubject.asObservable();
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private config: RuntimeConfigService) {
     this.checkSession();
   }
 

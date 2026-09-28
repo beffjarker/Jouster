@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, BehaviorSubject, of } from 'rxjs';
 import { map, catchError } from 'rxjs/operators';
+import { RuntimeConfigService } from './runtime-config.service';
 
 export interface ConversationMessage {
   messageId: string;
@@ -50,11 +51,13 @@ export interface ConversationHistoryAnalysis {
   providedIn: 'root'
 })
 export class ConversationHistoryService {
-  private readonly baseUrl = '/api/conversation-history'; // Backend API endpoint
+  private get baseUrl(): string {
+    return `${this.config.apiBaseUrl}/api/conversation-history`; // Backend API endpoint
+  }
   private sessionsSubject = new BehaviorSubject<ConversationSession[]>([]);
   public sessions$ = this.sessionsSubject.asObservable();
 
-  constructor(private http: HttpClient) {
+  constructor(private http: HttpClient, private config: RuntimeConfigService) {
     this.loadSessions();
   }
 

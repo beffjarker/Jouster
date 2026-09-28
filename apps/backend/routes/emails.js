@@ -5,12 +5,27 @@ const router = express.Router();
 // Import validation middleware
 const { validateEmailQuery, validateEmailKey } = require('../middleware/validation');
 
-// Configure AWS credentials and region explicitly
+// Configure AWS region globally. Only set STATIC credentials for local dev.
+// In Lambda the execution role supplies TEMPORARY credentials (access key +
+// secret + session token) via the default provider chain. Overriding the
+// global config with only accessKeyId/secretAccessKey would drop the required
+// session token and make every aws-sdk client (S3, DynamoDB, ...) fail with
+// "The security token included in the request is invalid."
 AWS.config.update({
-  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   region: process.env.AWS_REGION || 'us-west-2'
 });
+
+const runningInLambda = !!process.env.AWS_LAMBDA_FUNCTION_NAME;
+if (
+  !runningInLambda &&
+  process.env.AWS_ACCESS_KEY_ID &&
+  process.env.AWS_SECRET_ACCESS_KEY
+) {
+  AWS.config.update({
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+  });
+}
 
 // Configure AWS S3
 const s3 = new AWS.S3();
