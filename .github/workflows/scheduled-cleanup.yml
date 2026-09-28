@@ -72,8 +72,7 @@ jobs:
               # Get bucket size
               BUCKET_SIZE=$(aws s3 ls "s3://${BUCKET}" --recursive --summarize 2>/dev/null | grep "Total Size" | awk '{print $3}' || echo "unknown")
 
-              ORPHANS="${ORPHANS}${BUCKET}|${PR_NUM}|${PR_STATE}|${BUCKET_SIZE}
-"
+              ORPHANS="${ORPHANS}${BUCKET}|${PR_NUM}|${PR_STATE}|${BUCKET_SIZE}"$'\n'
             else
               echo "✅ PR #$PR_NUM is $PR_STATE - bucket is active"
             fi
