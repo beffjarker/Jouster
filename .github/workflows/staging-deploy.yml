@@ -90,6 +90,21 @@ jobs:
         aws s3 sync dist/apps/jouster-ui/browser/ s3://stg.jouster.org --delete --region us-west-2
         echo "✅ Deployment to stg.jouster.org complete!"
 
+    # Without an invalidation CloudFront keeps serving cached objects, including
+    # files that `sync --delete` removed from the bucket (e.g. a stale config.json).
+    - name: Invalidate staging CloudFront cache
+      continue-on-error: true
+      run: |
+        DIST_ID=$(aws cloudfront list-distributions \
+          --query "DistributionList.Items[?Aliases.Items && contains(Aliases.Items, 'stg.jouster.org')].Id | [0]" \
+          --output text)
+        if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
+          echo "::warning::No CloudFront distribution found for stg.jouster.org - skipping invalidation"
+          exit 0
+        fi
+        echo "Invalidating CloudFront distribution $DIST_ID"
+        aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+
     - name: Setup staging DNS if needed
       run: |
         # Check if staging DNS record exists
