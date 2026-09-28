@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { InstagramService, InstagramImage } from '../../services/instagram.service';
 import { Observable } from 'rxjs';
+import { PageTitleComponent } from '../../components/page-title/page-title.component';
 
 interface InstagramEmbed {
   id: string;
@@ -15,7 +16,7 @@ interface InstagramEmbed {
 @Component({
   selector: 'jstr-highlights',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PageTitleComponent],
   templateUrl: './highlights.component.html',
   styleUrls: ['./highlights.component.scss']
 })

@@ -1,0 +1,148 @@
+.searchable-select {
+  position: relative;
+  display: inline-block;
+}
+
+// Trigger button — matches .filter-select styling from timeline
+.select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 2px solid #e0e0e0;
+  border-radius: 6px;
+  background: white;
+  font-size: 0.85rem;
+  min-width: 100px;
+  max-width: 200px;
+  cursor: pointer;
+  color: #333;
+  transition: border-color 0.2s ease;
+  white-space: nowrap;
+
+  &:hover {
+    border-color: #667eea;
+  }
+
+  &.open {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  }
+
+  &.has-value .trigger-label {
+    color: #2c3e50;
+    font-weight: 600;
+  }
+
+  .trigger-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: left;
+  }
+
+  .caret {
+    font-size: 0.7rem;
+    color: #999;
+    transition: transform 0.2s ease;
+
+    &.rotated {
+      transform: rotate(180deg);
+    }
+  }
+}
+
+// Dropdown panel
+.select-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 1000;
+  min-width: 100%;
+  width: max-content;
+  max-width: 280px;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+// Search input pinned at top
+.search-wrapper {
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+
+  .search-input {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease;
+
+    &:focus {
+      border-color: #667eea;
+    }
+
+    &::placeholder {
+      color: #aaa;
+    }
+  }
+}
+
+// Scrollable options list
+.options-list {
+  max-height: 250px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.option {
+  padding: 7px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #333;
+  transition: background 0.1s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  &:hover,
+  &.highlighted {
+    background: #f0f4ff;
+  }
+
+  &.active {
+    color: #667eea;
+    font-weight: 600;
+    background: #f5f7ff;
+  }
+
+  &.option-clear {
+    color: #888;
+    font-style: italic;
+    border-bottom: 1px solid #f0f0f0;
+  }
+}
+
+.no-results {
+  padding: 12px;
+  text-align: center;
+  color: #aaa;
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+// Match count footer
+.match-count {
+  padding: 4px 12px;
+  font-size: 0.75rem;
+  color: #999;
+  text-align: right;
+  border-top: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+

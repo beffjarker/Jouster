@@ -1,10 +1,11 @@
 import { Injectable } from '@angular/core';
+import { environment } from '../../environments/environment';
 
 export interface RuntimeConfig {
   /**
    * Base URL of the backend API (no trailing slash), e.g.
    *   ''                                   -> same-origin (relative /api/...)
-   *   'http://localhost:3001'              -> local dev backend
+   *   'https://jouster.org'                -> production (from environment)
    *   'https://abc123.execute-api...'      -> per-PR preview API Gateway
    */
   apiBaseUrl: string;
@@ -12,9 +13,15 @@ export interface RuntimeConfig {
   environment?: string;
 }
 
+/**
+ * Defaults come from the build-time environment so artifacts deployed WITHOUT a
+ * /config.json (QA, staging, production) still hit the right backend. The
+ * environment's `apiUrl` includes the `/api` suffix, which is stripped here
+ * because callers append `/api/...` themselves ('/api' -> '' = same-origin).
+ */
 const DEFAULT_CONFIG: RuntimeConfig = {
-  apiBaseUrl: 'http://localhost:3001',
-  environment: 'local',
+  apiBaseUrl: environment.apiUrl.replace(/\/api\/?$/, ''),
+  environment: environment.name,
 };
 
 /**

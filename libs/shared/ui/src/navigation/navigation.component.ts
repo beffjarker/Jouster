@@ -26,15 +26,15 @@ export class NavigationComponent implements OnInit, OnDestroy {
   public isMobile = false;
 
   public navigationItems: NavigationItem[] = [
-    { path: '/', label: 'Flash Experiments', icon: '🎨', description: '56+ interactive presets' },
+    { path: '/interactive-playground', label: 'Interactive Playground', icon: '🎨', description: '56+ interactive presets' },
     { path: '/highlights', label: 'Highlights', icon: '⭐', description: 'Featured content' },
-    { path: '/timeline', label: 'Timeline', icon: '📅', description: 'Interactive visualization' },
+    { path: '/timeline', label: 'Life Map', icon: '📅', description: 'Interactive visualization' },
     { path: '/conversation-history', label: 'Conversations', icon: '💬', description: 'Chat history & analysis' },
     { path: '/fibonacci', label: 'Fibonacci', icon: '🔢', description: 'Mathematical visualizations' },
     { path: '/music', label: 'Music', icon: '🎵', description: 'Music player & listening history' },
     { path: '/emails', label: 'Emails', icon: '📧', description: 'Email management' },
     { path: '/about', label: 'About', icon: 'ℹ️', description: 'About this project' },
-    { path: '/contact', label: 'Contact', icon: '📞', description: 'Get in touch' }
+    { path: '/contact', label: 'Contact', icon: '📞', description: 'Get in touch' },
   ];
 
   constructor(private router: Router) {}

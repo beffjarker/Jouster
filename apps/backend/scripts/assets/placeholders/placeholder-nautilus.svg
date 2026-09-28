@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#0f0f23"/>
+  <!-- Nautilus shell chambers -->
+  <g transform="translate(200,160)" fill="none" stroke="#f39c12" opacity="0.6">
+    <path d="M0,0 A8,8 0 0,1 8,8" stroke-width="2"/>
+    <path d="M8,8 A13,13 0 0,1 -5,21" stroke-width="1.8"/>
+    <path d="M-5,21 A21,21 0 0,1 -26,0" stroke-width="1.6"/>
+    <path d="M-26,0 A34,34 0 0,1 8,-34" stroke-width="1.4"/>
+    <path d="M8,-34 A55,55 0 0,1 63,21" stroke-width="1.2"/>
+    <path d="M63,21 A89,89 0 0,1 -26,89" stroke-width="1"/>
+  </g>
+  <text x="200" y="275" text-anchor="middle" fill="#f39c12" font-size="11" font-family="monospace" opacity="0.6">Nautilus — φ chambers</text>
+</svg>
+

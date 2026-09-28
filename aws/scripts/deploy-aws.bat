@@ -10,7 +10,7 @@ REM Configuration
 set DOMAIN=jouster.org
 set S3_BUCKET=jouster-org-static
 set REGION=us-west-2
-set BUILD_DIR=dist\jouster
+set BUILD_DIR=dist\apps\jouster-ui\browser
 
 echo 📋 Checking prerequisites...
 

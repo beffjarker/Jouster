@@ -18,6 +18,12 @@ export class FibonacciComponent implements OnInit {
   public goldenRatio = (1 + Math.sqrt(5)) / 2;
   public currentRatio = 0;
 
+  /** Sum of all terms in the current sequence. */
+  public sequenceSum = 0;
+
+  /** Largest value in the current sequence. */
+  public largestTerm = 0;
+
   // Visual properties for spiral
   public spiralArcs: Array<{path: string, size: number}> = [];
 
@@ -42,7 +48,7 @@ export class FibonacciComponent implements OnInit {
       }
     }
 
-    this.calculateGoldenRatio();
+    this.calculateProperties();
     this.generateSpiral();
   }
 
@@ -102,10 +108,10 @@ export class FibonacciComponent implements OnInit {
   }
 
   public formatNumber(num: number): string {
-    if (num > 1e12) {
+    if (num > 1e13) {
       return num.toExponential(3);
     }
-    return num.toLocaleString();
+    return num.toLocaleString('en-US');
   }
 
   public getBarHeight(num: number): number {
@@ -138,6 +144,32 @@ export class FibonacciComponent implements OnInit {
     this.startB = 1;
     this.sequenceLength = 15;
     this.generateSequence();
+  }
+
+  /** Sets the sequence to Tribonacci starting values (1, 1). */
+  public setTribonacci(): void {
+    this.startA = 1;
+    this.startB = 1;
+    this.sequenceLength = 15;
+    this.generateSequence();
+  }
+
+  /** Recalculates derived mathematical properties from the current sequence. */
+  public calculateProperties(): void {
+    this.sequenceSum = this.getSequenceSum();
+    this.largestTerm = this.fibonacciSequence.length > 0
+      ? Math.max(...this.fibonacciSequence)
+      : 0;
+    this.calculateGoldenRatio();
+  }
+
+  /** Returns whether the ratio F(index)/F(index-1) approximates the golden ratio (φ). */
+  public isGoldenRatioApproximation(index: number): boolean {
+    if (index < 1 || index >= this.fibonacciSequence.length) return false;
+    const current = this.fibonacciSequence[index];
+    const previous = this.fibonacciSequence[index - 1];
+    if (current === undefined || previous === undefined || previous === 0) return false;
+    return Math.abs((current / previous) - this.goldenRatio) < 0.01;
   }
 
   public getSequenceSum(): number {

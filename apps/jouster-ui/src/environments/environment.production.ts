@@ -1,7 +1,9 @@
+﻿import { AppEnvironment } from './environment.interface';
 // Production Environment Configuration
-export const environment = {
+export const environment: AppEnvironment = {
   production: true,
-  version: '0.5.1', // TODO: Automate version injection from package.json during build
+  name: 'production',
+  version: '0.6.0',
   apiUrl: 'https://jouster.org/api',
   wsUrl: 'wss://jouster.org/ws',
   baseUrl: 'https://jouster.org',
@@ -9,6 +11,10 @@ export const environment = {
   enableDevTools: false,
   cloudFrontDomain: 'https://d2kfv0ssubbghw.cloudfront.net',
   requireSecureConnection: true,
-  upgradeInsecureRequests: true
+  upgradeInsecureRequests: true,
+  features: {
+    enableMockUsers: false,
+    enableDebugMode: false,
+    enableConsoleLogging: false,
+  },
 };
-

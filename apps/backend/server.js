@@ -4,7 +4,7 @@
  */
 
 // Load environment variables
-require('dotenv').config({ path: '../.env' });
+require('dotenv').config({ path: '../../.env' });
 
 const express = require('express');
 const cors = require('cors');
@@ -16,6 +16,7 @@ const {
   helmetConfig,
   generalLimiter,
   apiLimiter,
+  authLimiter,
   sanitizeInput,
   xssClean,
   hppProtection,
@@ -35,18 +36,25 @@ const {
 // Import CORS configuration
 const { corsOptions } = require('./config/cors');
 
+// Import session middleware
+const session = require('express-session');
+
 // Import routes
 const emailRoutes = require('./routes/emails');
+const authRoutes = require('./routes/auth');
+const lifeMapRoutes = require('./routes/life-map');
+
+// Import auth guard
+const { requireAuth } = require('./middleware/auth-guard');
 
 // Conversation history data layer (DynamoDB in preview/cloud, JSON files locally)
 const conversationStore = require('./data/conversations');
 
 const app = express();
+// Behind API Gateway / CloudFront, trust the X-Forwarded-* headers so that
+// secure-cookie detection, req.protocol, and req.ip work correctly.
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
-
-// Behind API Gateway / CloudFront (Lambda previews) the app sits behind proxies.
-// Trusting the proxy lets Express resolve req.ip / protocol from forwarded headers.
-app.set('trust proxy', true);
 
 // ===== SECURITY MIDDLEWARE (Applied in specific order) =====
 
@@ -85,6 +93,43 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// 12. Session management (httpOnly, secure on HTTPS envs, strict sameSite)
+// Deployed environments are HTTPS-terminated (API Gateway/CloudFront), so the
+// session cookie must be Secure in all of them — not just production.
+const SECURE_COOKIE_ENVS = ['production', 'staging', 'nonprod'];
+const sessionOptions = {
+  name: 'jstr.sid',
+  secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'fallback-dev-secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    httpOnly: true,
+    secure: SECURE_COOKIE_ENVS.includes(process.env.NODE_ENV),
+    sameSite: 'strict',
+    maxAge: 4 * 60 * 60 * 1000, // 4 hours
+  },
+};
+
+// Optional persistent session store for production / multi-instance deployments.
+// Enabled when SESSION_STORE=dynamodb. Falls back to the in-memory store (local dev)
+// if the dependency is missing or initialization fails — never crashes the server.
+if (process.env.SESSION_STORE === 'dynamodb') {
+  try {
+    const DynamoDBStore = require('connect-dynamodb')(session);
+    sessionOptions.store = new DynamoDBStore({
+      table: process.env.SESSION_TABLE_NAME || 'jouster-sessions',
+      AWSConfigJSON: { region: process.env.AWS_REGION || 'us-west-2' },
+      hashKey: 'id',
+      reapInterval: 24 * 60 * 60 * 1000, // prune expired sessions daily
+    });
+    console.log('🔐 Session store: DynamoDB');
+  } catch (err) {
+    console.error('Failed to init DynamoDB session store, using in-memory store:', err.message);
+  }
+}
+
+app.use(session(sessionOptions));
+
 // ===== APPLICATION CONFIGURATION =====
 
 // Initialize credential manager
@@ -111,6 +156,11 @@ const LASTFM_DEFAULT_USER = process.env.LASTFM_USER || 'Treysin';
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
+    // Blue/green version markers — change on every deploy so the blue→green
+    // traffic shift is directly observable by polling /health. Sourced from
+    // Lambda env vars; fall back to local defaults when running directly.
+    deployId: process.env.DEPLOY_ID || 'local',
+    gitSha: process.env.GIT_SHA || 'dev',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     environment: process.env.NODE_ENV || 'development',
@@ -125,6 +175,13 @@ app.get('/health', (req, res) => {
 
 // API rate limiting for all API routes
 app.use('/api', apiLimiter);
+
+// Mount auth routes (login is brute-force throttled by authLimiter: 5/15min)
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth', authRoutes);
+
+// Mount life-map routes (auth-protected internally)
+app.use('/api/life-map', lifeMapRoutes);
 
 // Mount email routes
 app.use('/api/emails', emailRoutes);
@@ -380,11 +437,11 @@ app.use((err, req, res, next) => {
 });
 
 // ===== START SERVER =====
+// Only start an HTTP listener when this file is run directly (local/standalone).
+// When imported (e.g. by lambda.js via serverless-http), the app is exported
+// without binding a port.
 
-// Only start an HTTP listener when this file is executed directly (local/dev/prod
-// container). When imported (e.g. by the AWS Lambda handler in lambda.js), we export
-// the Express app instead so it can be wrapped by serverless-http.
-if (require.main === module) {
+function startServer() {
   const server = app.listen(PORT, () => {
     console.log(`🚀 Jouster Backend Server running on port ${PORT}`);
     console.log(`📝 Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -408,6 +465,12 @@ if (require.main === module) {
       process.exit(0);
     });
   });
+
+  return server;
+}
+
+if (require.main === module) {
+  startServer();
 }
 
 module.exports = app;

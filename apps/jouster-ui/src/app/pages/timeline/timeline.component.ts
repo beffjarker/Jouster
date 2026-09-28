@@ -1,52 +1,51 @@
-import { Component, OnInit, OnDestroy, AfterViewInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewEncapsulation } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import * as L from 'leaflet';
-
-interface TimelineEvent {
-  id: string;
-  title: string;
-  description: string;
-  date: Date;
-  location: {
-    lat: number;
-    lng: number;
-    name: string;
-  };
-  category: 'personal' | 'work' | 'travel' | 'milestone' | 'other';
-}
+import { LifeMapService, LifeMapEntry } from '../../services/life-map.service';
+import { TimelineSliderComponent } from '../../components/timeline-slider/timeline-slider.component';
+import { PageTitleComponent } from '../../components/page-title/page-title.component';
+import { SearchableSelectComponent } from '@jouster/shared/ui';
 
 @Component({
   selector: 'jstr-timeline',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, TimelineSliderComponent, PageTitleComponent, SearchableSelectComponent],
   templateUrl: './timeline.component.html',
-  styleUrls: ['./timeline.component.scss']
+  styleUrls: ['./leaflet.css', './timeline.component.scss'],
+  encapsulation: ViewEncapsulation.None,
 })
 export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
-  public currentDate = new Date();
-  private map!: L.Map;
-  public events: TimelineEvent[] = [];
-  public filteredEvents: TimelineEvent[] = [];
-  public selectedCategory = '';
+  @ViewChild(TimelineSliderComponent) sliderComponent?: TimelineSliderComponent;
 
-  public newEvent = {
-    title: '',
-    description: '',
-    dateString: new Date().toISOString().slice(0, 16),
-    locationName: '',
-    category: 'personal' as 'personal' | 'work' | 'travel' | 'milestone' | 'other',
-    lat: 0,
-    lng: 0
-  };
+  public currentDate = new Date();
+  /** Birth date — slider minimum. Source: dev-tools/scripts/insert-life-events.js */
+  public birthDate = new Date('1978-04-02');
+  private map!: L.Map;
+  private markerMap = new Map<string, L.Marker>();
+  public entries: LifeMapEntry[] = [];
+  public filteredEntries: LifeMapEntry[] = [];
+  public selectedCategory = '';
+  public selectedCity = '';
+  public selectedTag = '';
+  public sliderStartDate: Date | null = null;
+  public sliderEndDate: Date | null = null;
+  public showApproximate = true;
+  public selectedEntry: LifeMapEntry | null = null;
+  public fallbackEntry: LifeMapEntry | null = null;
+  public isLoading = true;
+  public errorMessage = '';
+  public sortOrder: 'asc' | 'desc' = 'asc';
+  private mapInitialized = false;
+
+  constructor(private lifeMapService: LifeMapService) {}
 
   public ngOnInit() {
-    this.loadEvents();
-    this.filterEvents();
+    this.loadEntries();
   }
 
   public ngAfterViewInit() {
-    this.initializeMap();
+    // Map init deferred until data loads and DOM is ready
   }
 
   public ngOnDestroy() {
@@ -55,225 +54,426 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     }
   }
 
-  public initializeMap() {
-    // Initialize the map centered on the world
-    this.map = L.map('map').setView([20, 0], 2);
+  /**
+   * Load entries from DynamoDB via the backend API.
+   */
+  private loadEntries(): void {
+    this.isLoading = true;
+    this.errorMessage = '';
 
-    // Add OpenStreetMap tiles (open system as requested)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 18,
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(this.map);
+    this.lifeMapService.getEntries().subscribe({
+      next: (entries) => {
+        this.entries = entries;
+        this.filterEntries();
+        this.isLoading = false;
 
-    // Add click handler for setting event location
-    this.map.on('click', (e: L.LeafletMouseEvent) => {
-      this.newEvent.lat = e.latlng.lat;
-      this.newEvent.lng = e.latlng.lng;
-      this.newEvent.locationName = `${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`;
-
-      // Add temporary marker
-      this.clearTemporaryMarkers();
-      const tempMarker = L.marker([e.latlng.lat, e.latlng.lng])
-        .addTo(this.map)
-        .bindPopup('Selected location for new event');
-
-      // Store reference to temp marker for later removal
-      (tempMarker as any).isTemp = true;
+        // Initialize map after DOM updates (ngIf removes the div while loading)
+        // Use increasing delays to ensure Angular has rendered the *ngIf div
+        setTimeout(() => {
+          this.tryInitMap();
+        }, 50);
+        setTimeout(() => {
+          this.tryInitMap();
+        }, 500);
+        setTimeout(() => {
+          this.tryInitMap();
+        }, 1500);
+      },
+      error: (err) => {
+        this.isLoading = false;
+        this.errorMessage = 'Failed to load entries. Are you authenticated?';
+        console.error('Life map load error:', err);
+      }
     });
+  }
 
-    // Add existing events to map
-    this.addEventsToMap();
+  /**
+   * Attempt to initialize the map. Only sets mapInitialized on success.
+   */
+  private tryInitMap(): void {
+    if (this.mapInitialized) return;
+    const el = document.getElementById('timeline-map');
+    if (!el) return; // DOM not ready yet, will retry
+    this.initializeMap();
+    this.mapInitialized = true;
+  }
+
+  public initializeMap() {
+
+    try {
+      const center = this.getDefaultMapCenter();
+      this.map = L.map('timeline-map').setView(center, 10);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(this.map);
+
+      // Force size recalculation after DOM settles
+      setTimeout(() => {
+        if (this.map) {
+          this.map.invalidateSize();
+        }
+      }, 300);
+
+      setTimeout(() => {
+        if (this.map) {
+          this.map.invalidateSize();
+        }
+      }, 1000);
+
+      // If entries already loaded, add to map
+      if (this.entries.length > 0) {
+        this.addEventsToMap();
+      }
+    } catch (e) {
+      console.error('Map initialization error:', e);
+    }
+  }
+
+  /**
+   * Get the default map center from the latest residence entry.
+   * Falls back to the latest entry of any category, then US center.
+   */
+  private getDefaultMapCenter(): [number, number] {
+    const entry = this.getDefaultFallbackEntry();
+    if (entry) {
+      return [entry.location.lat, entry.location.lng];
+    }
+    return [39.8283, -98.5795];
+  }
+
+  /**
+   * Get the latest residence entry with valid coordinates for fallback display.
+   */
+  private getDefaultFallbackEntry(): LifeMapEntry | null {
+    const validEntries = this.entries
+      .filter(e => e.location?.lat != null && e.location?.lng != null
+        && !(e.location.lat === 0 && e.location.lng === 0))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return validEntries.find(e => e.category === 'residence')
+      || validEntries[0]
+      || null;
+  }
+
+  /**
+   * Literary color palette — maps category names to hex colors.
+   * Each color is drawn from a literary work whose themes resonate with the category.
+   */
+  private readonly categoryColors: Record<string, string> = {
+    personal: '#3498db',     // Wonderland Blue (Lewis Carroll)
+    work: '#5d6d7e',         // Bartleby Slate (Herman Melville)
+    travel: '#f39c12',       // Nautilus Gold (Jules Verne)
+    milestone: '#2ecc71',    // Emerald City (L. Frank Baum)
+    other: '#9b59b6',        // Usher Violet (Edgar Allan Poe)
+    health: '#1abc9c',       // Frankenstein Teal (Mary Shelley)
+    legal: '#e67e22',        // Dracula Amber (Bram Stoker)
+    education: '#8e44ad',    // Cheshire Purple (Lewis Carroll)
+    church: '#2980b9',       // Meditations Blue (Marcus Aurelius)
+    career: '#2c3e50',       // Prince Iron (Niccolò Machiavelli)
+    residence: '#d4a574',    // Hobbit Hearth (J.R.R. Tolkien)
+    family: '#e74c3c',       // Little Women Red (Louisa May Alcott)
+    relationship: '#e08283', // Pride & Prejudice Coral (Jane Austen)
+    financial: '#6c7a3a',    // Gatsby Olive (F. Scott Fitzgerald)
+    creative: '#d35400',     // Fahrenheit Orange (Ray Bradbury)
+    spiritual: '#4a3680',    // Siddhartha Indigo (Hermann Hesse)
+    military: '#7f8c8d',     // War & Peace Steel (Leo Tolstoy)
+  };
+
+  /**
+   * Create a Leaflet DivIcon colored by category using an inline SVG marker pin.
+   */
+  private createCategoryIcon(category: string): L.DivIcon {
+    const color = this.categoryColors[category] || '#3498db';
+    const svg = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41">
+        <path d="M12.5 0C5.6 0 0 5.6 0 12.5C0 21.9 12.5 41 12.5 41S25 21.9 25 12.5C25 5.6 19.4 0 12.5 0Z"
+              fill="${color}" stroke="#fff" stroke-width="1.5"/>
+        <circle cx="12.5" cy="12.5" r="5" fill="#fff" opacity="0.9"/>
+      </svg>`;
+
+    return L.divIcon({
+      html: svg,
+      className: 'category-marker',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+    });
   }
 
   public addEventsToMap() {
-    this.events.forEach(event => {
-      const marker = L.marker([event.location.lat, event.location.lng])
-        .addTo(this.map);
+    if (!this.map) return;
 
-      marker.bindPopup(`
-        <div class="map-popup">
-          <h4>${event.title}</h4>
-          <p>${event.description}</p>
-          <small>${event.date.toLocaleDateString()}</small>
-        </div>
-      `);
-    });
-  }
-
-  public clearTemporaryMarkers() {
-    this.map.eachLayer((layer: any) => {
-      if (layer instanceof L.Marker && (layer as any).isTemp) {
-        this.map.removeLayer(layer);
-      }
-    });
-  }
-
-  public addEvent() {
-    if (!this.newEvent.title) return;
-
-    const event: TimelineEvent = {
-      id: Date.now().toString(),
-      title: this.newEvent.title,
-      description: this.newEvent.description,
-      date: new Date(this.newEvent.dateString),
-      location: {
-        lat: this.newEvent.lat || 0,
-        lng: this.newEvent.lng || 0,
-        name: this.newEvent.locationName || 'Unknown Location'
-      },
-      category: this.newEvent.category
-    };
-
-    this.events.push(event);
-    this.saveEvents();
-    this.filterEvents();
-
-    // Add marker to map
-    const marker = L.marker([event.location.lat, event.location.lng])
-      .addTo(this.map);
-
-    marker.bindPopup(`
-      <div class="map-popup">
-        <h4>${event.title}</h4>
-        <p>${event.description}</p>
-        <small>${event.date.toLocaleDateString()}</small>
-      </div>
-    `);
-
-    // Reset form
-    this.resetForm();
-    this.clearTemporaryMarkers();
-  }
-
-  public resetForm() {
-    this.newEvent = {
-      title: '',
-      description: '',
-      dateString: new Date().toISOString().slice(0, 16),
-      locationName: '',
-      category: 'personal',
-      lat: 0,
-      lng: 0
-    };
-  }
-
-  public clearForm() {
-    this.resetForm();
-  }
-
-  public deleteEvent(id: string) {
-    this.events = this.events.filter(event => event.id !== id);
-    this.saveEvents();
-    this.filterEvents();
-
-    // Refresh map markers
-    this.map.eachLayer((layer: any) => {
+    // Clear existing markers
+    this.map.eachLayer((layer: L.Layer) => {
       if (layer instanceof L.Marker) {
         this.map.removeLayer(layer);
       }
     });
-    this.addEventsToMap();
+    this.markerMap.clear();
+
+    const bounds: L.LatLng[] = [];
+
+    this.filteredEntries.forEach(entry => {
+      // Check for valid coordinates (not null/undefined, and not 0,0)
+      if (entry.location?.lat == null || entry.location?.lng == null) return;
+      if (entry.location.lat === 0 && entry.location.lng === 0) return;
+
+      const latLng = L.latLng(entry.location.lat, entry.location.lng);
+      bounds.push(latLng);
+
+      const icon = this.createCategoryIcon(entry.category);
+      const marker = L.marker(latLng, { icon }).addTo(this.map);
+
+      const dateStr = new Date(entry.date).toLocaleDateString();
+      marker.bindPopup(`
+        <div class="map-popup">
+          <h4>${entry.title}</h4>
+          <p>${entry.description?.slice(0, 150) || ''}${entry.description?.length > 150 ? '...' : ''}</p>
+          <small>${dateStr} — ${entry.location.city || ''}, ${entry.location.state || ''}</small>
+        </div>
+      `);
+
+      // Store marker by entry ID for direct lookup
+      this.markerMap.set(entry.id, marker);
+    });
+
+    // Auto-fit map to show all markers
+    if (bounds.length > 0) {
+      this.fallbackEntry = null;
+      const latLngBounds = L.latLngBounds(bounds);
+      this.map.fitBounds(latLngBounds, { padding: [30, 30], maxZoom: 12 });
+    } else {
+      // No filtered entries — show latest residence as a fallback marker
+      this.fallbackEntry = this.getDefaultFallbackEntry();
+      const center = this.getDefaultMapCenter();
+      const latLng = L.latLng(center[0], center[1]);
+      const icon = this.createCategoryIcon('residence');
+      const marker = L.marker(latLng, { icon }).addTo(this.map);
+      const fallbackTitle = this.fallbackEntry?.title || 'Current Location';
+      const fallbackCity = this.fallbackEntry?.location?.city || '';
+      const fallbackState = this.fallbackEntry?.location?.state || '';
+      const locationStr = [fallbackCity, fallbackState].filter(Boolean).join(', ');
+      marker.bindPopup(`
+        <div class="map-popup">
+          <h4>${fallbackTitle}</h4>
+          <small>${locationStr || 'No entries in the selected date range'}</small>
+        </div>
+      `);
+      this.map.setView(latLng, 10);
+    }
   }
 
-  public filterEvents() {
+  public filterEntries() {
+    let result = [...this.entries];
+
+    // Category filter
     if (this.selectedCategory) {
-      this.filteredEvents = this.events.filter(event => event.category === this.selectedCategory);
-    } else {
-      this.filteredEvents = [...this.events];
+      result = result.filter(e => e.category === this.selectedCategory);
     }
 
-    // Sort by date (newest first)
-    this.filteredEvents.sort((a, b) => b.date.getTime() - a.date.getTime());
+    // City filter
+    if (this.selectedCity) {
+      result = result.filter(e => e.location?.city === this.selectedCity);
+    }
+
+    // Tag filter
+    if (this.selectedTag) {
+      result = result.filter(e => e.tags?.includes(this.selectedTag));
+    }
+
+    // Date range filter (driven by the timeline slider)
+    if (this.sliderStartDate) {
+      result = result.filter(e => new Date(e.date) >= this.sliderStartDate!);
+    }
+    if (this.sliderEndDate) {
+      result = result.filter(e => new Date(e.date) <= this.sliderEndDate!);
+    }
+
+    // Approximate dates toggle
+    if (!this.showApproximate) {
+      result = result.filter(e => !e.tags?.includes('date-approximate'));
+    }
+
+    // Sort by date
+    result.sort((a, b) => {
+      const diff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      return this.sortOrder === 'asc' ? diff : -diff;
+    });
+
+    this.filteredEntries = result;
+
+    // Update map markers when filter changes
+    if (this.map) {
+      this.addEventsToMap();
+    }
   }
 
   public sortEvents() {
-    // Sort events by date (newest first)
-    this.events.sort((a, b) => b.date.getTime() - a.date.getTime());
+    this.filterEntries();
   }
 
-  public viewOnMap(event: TimelineEvent) {
-    this.focusOnEvent(event);
+  public onCategoryChange(value: string): void {
+    this.selectedCategory = value;
+    this.autoExpandIfNeeded();
+    this.filterEntries();
   }
 
-  public editEvent(event: TimelineEvent) {
-    // Populate the form with event data for editing
-    this.newEvent = {
-      title: event.title,
-      description: event.description,
-      dateString: event.date.toISOString().slice(0, 16),
-      locationName: event.location.name,
-      category: event.category,
-      lat: event.location.lat,
-      lng: event.location.lng
-    };
+  public onCityChange(value: string): void {
+    this.selectedCity = value;
+    this.autoExpandIfNeeded();
+    this.filterEntries();
   }
 
-  public focusOnEvent(event: TimelineEvent) {
-    this.map.setView([event.location.lat, event.location.lng], 10);
-
-    // Find and open the popup for this event
-    this.map.eachLayer((layer: any) => {
-      if (layer instanceof L.Marker) {
-        const latLng = layer.getLatLng();
-        if (latLng.lat === event.location.lat && latLng.lng === event.location.lng) {
-          layer.openPopup();
-        }
-      }
-    });
+  public onTagChange(value: string): void {
+    this.selectedTag = value;
+    this.autoExpandIfNeeded();
+    this.filterEntries();
   }
 
-  public saveEvents() {
-    localStorage.setItem('timeline-events', JSON.stringify(this.events));
-  }
+  /**
+   * If the current filters match entries outside the slider range,
+   * auto-expand the slider to include them.
+   */
+  private autoExpandIfNeeded(): void {
+    if (!this.selectedCategory && !this.selectedCity && !this.selectedTag) return;
 
-  public loadEvents() {
-    const saved = localStorage.getItem('timeline-events');
-    if (saved) {
-      const parsedEvents = JSON.parse(saved);
-      this.events = parsedEvents.map((event: any) => ({
-        ...event,
-        date: new Date(event.date)
-      }));
+    // Apply category/city/tag filters (but NOT date range)
+    let candidates = [...this.entries];
+    if (this.selectedCategory) {
+      candidates = candidates.filter(e => e.category === this.selectedCategory);
+    }
+    if (this.selectedCity) {
+      candidates = candidates.filter(e => e.location?.city === this.selectedCity);
+    }
+    if (this.selectedTag) {
+      candidates = candidates.filter(e => e.tags?.includes(this.selectedTag));
+    }
+    if (!this.showApproximate) {
+      candidates = candidates.filter(e => !e.tags?.includes('date-approximate'));
+    }
+
+    if (candidates.length === 0) return;
+
+    // Check if any candidates fall outside current slider range
+    const dates = candidates.map(e => new Date(e.date));
+    const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
+    const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
+
+    const needsExpand =
+      (this.sliderStartDate && minDate < this.sliderStartDate) ||
+      (this.sliderEndDate && maxDate > this.sliderEndDate);
+
+    if (needsExpand && this.sliderComponent) {
+      // Expand to cover all matching entries
+      const newStart = this.sliderStartDate && minDate < this.sliderStartDate ? minDate : this.sliderStartDate!;
+      const newEnd = this.sliderEndDate && maxDate > this.sliderEndDate ? maxDate : this.sliderEndDate!;
+      this.sliderComponent.setRange(newStart, newEnd);
     }
   }
 
-  public getUniqueLocations() {
-    return [...new Set(this.events.map(e => e.location.name))];
+  /**
+   * Handle date range changes from the timeline slider.
+   * Called on slider init (default range) and on every drag.
+   */
+  public onSliderRangeChange(range: { start: Date; end: Date }): void {
+    this.sliderStartDate = range.start;
+    this.sliderEndDate = range.end;
+    this.filterEntries();
   }
 
-  public getMostActiveMonth(): string {
-    if (this.events.length === 0) return 'N/A';
-
-    // Calculate most active month from events
-    const months = this.events.map(e => e.date.getMonth());
-    const monthCounts = months.reduce((acc, month) => {
-      acc[month] = (acc[month] || 0) + 1;
-      return acc;
-    }, {} as {[key: number]: number});
-
-    const mostActive = Object.keys(monthCounts).reduce((a, b) =>
-      (monthCounts[Number(a)] || 0) > (monthCounts[Number(b)] || 0) ? a : b
-    );
-
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return monthNames[Number(mostActive)] || 'N/A';
+  public clearFilters() {
+    this.selectedCategory = '';
+    this.selectedCity = '';
+    this.selectedTag = '';
+    this.showApproximate = true;
+    // Reset slider to its default range (last 2 years)
+    if (this.sliderComponent) {
+      this.sliderComponent.reset();
+    }
+    this.filterEntries();
   }
 
-  public getFavoriteCategory(): string {
-    if (this.events.length === 0) return 'N/A';
-
-    const categories = this.events.map(e => e.category);
-    const categoryCounts = categories.reduce((acc, cat) => {
-      acc[cat] = (acc[cat] || 0) + 1;
-      return acc;
-    }, {} as {[key: string]: number});
-
-    return Object.keys(categoryCounts).reduce((a, b) =>
-      (categoryCounts[a] || 0) > (categoryCounts[b] || 0) ? a : b
-    ) || 'N/A';
+  public hasActiveFilters(): boolean {
+    return !!(this.selectedCategory || this.selectedCity || this.selectedTag || !this.showApproximate);
   }
 
-  // Keep sortOrder property
-  public sortOrder: 'asc' | 'desc' = 'desc';
+  public viewOnMap(entry: LifeMapEntry) {
+    if (!this.map || !entry.location?.lat || !entry.location?.lng) return;
+
+    this.map.setView([entry.location.lat, entry.location.lng], 14);
+
+    // Close any open popup first, then open the correct one by entry ID
+    this.map.closePopup();
+    const marker = this.markerMap.get(entry.id);
+    if (marker) {
+      marker.openPopup();
+    }
+  }
+
+  public selectEntry(entry: LifeMapEntry) {
+    this.selectedEntry = this.selectedEntry?.id === entry.id ? null : entry;
+
+    // Focus map on the selected entry's marker
+    if (this.selectedEntry) {
+      this.viewOnMap(this.selectedEntry);
+    }
+  }
+
+  public getCities(): string[] {
+    return [...new Set(this.dateFilteredEntries().map(e => e.location?.city).filter(Boolean))].sort() as string[];
+  }
+
+  public getTags(): string[] {
+    const allTags = this.dateFilteredEntries().flatMap(e => e.tags || []);
+    return [...new Set(allTags)].sort();
+  }
+
+
+  public getUniqueLocations(): string[] {
+    return [...new Set(this.entries.map(e => e.location?.city || 'Unknown').filter(Boolean))];
+  }
+
+  public getCategories(): string[] {
+    return [...new Set(this.dateFilteredEntries().map(e => e.category))];
+  }
+
+  /**
+   * Returns entries filtered only by the current date range (not by category/city/tag).
+   * Used to populate dropdown options so they reflect what's visible in the slider range.
+   */
+  private dateFilteredEntries(): LifeMapEntry[] {
+    let result = [...this.entries];
+    if (this.sliderStartDate) {
+      result = result.filter(e => new Date(e.date) >= this.sliderStartDate!);
+    }
+    if (this.sliderEndDate) {
+      result = result.filter(e => new Date(e.date) <= this.sliderEndDate!);
+    }
+    if (!this.showApproximate) {
+      result = result.filter(e => !e.tags?.includes('date-approximate'));
+    }
+    return result;
+  }
+
+  public getMostActiveYear(): string {
+    if (this.entries.length === 0) return 'N/A';
+    const years = this.entries.map(e => new Date(e.date).getFullYear()).filter(y => !isNaN(y));
+    const counts: Record<number, number> = {};
+    years.forEach(y => counts[y] = (counts[y] || 0) + 1);
+    const best = Object.entries(counts).reduce((a, b) => a[1] > b[1] ? a : b);
+    return `${best[0]} (${best[1]})`;
+  }
+
+  public getDateRange(): string {
+    if (this.entries.length === 0) return 'N/A';
+    const years = this.entries
+      .map(e => new Date(e.date).getFullYear())
+      .filter(y => !isNaN(y));
+    if (years.length === 0) return 'N/A';
+    const first = Math.min(...years);
+    const last = Math.max(...years);
+    return `${first} – ${last}`;
+  }
 }

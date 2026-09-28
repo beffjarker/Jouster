@@ -40,6 +40,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     let phase = 0;
     let animationId: number;
@@ -48,8 +50,10 @@ export class CanvasAnimationsService {
     const defaultCenterX = canvas.width / 2;
     const defaultCenterY = canvas.height / 2;
 
-    // Use provided options or defaults
-    const getCenterX = options?.getCenterX || (() => options?.centerX ?? defaultCenterX);
+    // Waves span full canvas width — only getCenterY is meaningful for vertical offset.
+    // getCenterX is accepted for API consistency but not used in wave rendering.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _getCenterX = options?.getCenterX || (() => options?.centerX ?? defaultCenterX);
     const getCenterY = options?.getCenterY || (() => options?.centerY ?? defaultCenterY);
 
     // Wave presets with different combinations and parameters
@@ -131,11 +135,19 @@ export class CanvasAnimationsService {
 
     const config = presets[preset] ?? presets['classic'];
 
+    // ── Tick/multiplier setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+    const multiplier = options?.speedMultiplier ?? 1.0;
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
+      // ── READ (sample current state) ──
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const baseAmplitude = canvas.height / 8;
-      const centerY = canvas.height / 2;
+      const centerY = getCenterY();  // Waves span full width; only centerY is meaningful
 
       // Draw each wave in the preset
       config.waves.forEach((wave, index) => {
@@ -166,7 +178,8 @@ export class CanvasAnimationsService {
         ctx.stroke();
       });
 
-      phase += config.speed;
+      // ── COMPUTE (internal physics) ──
+      phase += config.speed * multiplier;
       animationId = requestAnimationFrame(animate);
     };
 
@@ -187,6 +200,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     let angle = 0;
     let animationId: number;
@@ -276,11 +291,19 @@ export class CanvasAnimationsService {
 
     const config = presets[preset] ?? presets['classic'];
 
+    // ── Tick/multiplier setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+    const multiplier = options?.speedMultiplier ?? 1.0;
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
+      // ── READ (sample current state) ──
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      const centerX = canvas.width / 2;
-      const centerY = canvas.height / 2;
+      const centerX = getCenterX();
+      const centerY = getCenterY();
 
       ctx.strokeStyle = config.color;
       ctx.lineWidth = 2;
@@ -354,7 +377,8 @@ export class CanvasAnimationsService {
       }
 
       ctx.stroke();
-      angle += config.speed;
+      // ── COMPUTE (internal physics) ──
+      angle += config.speed * multiplier;
       animationId = requestAnimationFrame(animate);
     };
 
@@ -374,6 +398,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     const particles: Particle[] = [];
     let animationId: number;
@@ -492,7 +518,13 @@ export class CanvasAnimationsService {
       particles.push(particle);
     }
 
+    // ── Tick setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       particles.forEach((particle, index) => {
@@ -637,6 +669,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     const followers: Follower[] = [];
     let mouseX = canvas.width / 2;
@@ -763,7 +797,13 @@ export class CanvasAnimationsService {
 
     canvas.addEventListener('mousemove', handleMouseMove);
 
+    // ── Tick setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       followers.forEach((follower, index) => {
@@ -970,6 +1010,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     const nodes: NetworkNode[] = [];
     let animationId: number;
@@ -1073,7 +1115,13 @@ export class CanvasAnimationsService {
       });
     }
 
+    // ── Tick setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       // Update nodes based on behavior
@@ -1183,6 +1231,8 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     const balls: Array<{x: number, y: number, vx: number, vy: number, radius: number, color: string, mass?: number, elasticity?: number}> = [];
     let animationId: number;
@@ -1334,7 +1384,13 @@ export class CanvasAnimationsService {
       balls.push(ball);
     }
 
+    // ── Tick setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       balls.forEach((ball, index) => {
@@ -1494,12 +1550,22 @@ export class CanvasAnimationsService {
     centerY?: number;
     getCenterX?: () => number;
     getCenterY?: () => number;
+    onTick?: () => void;
+    speedMultiplier?: number;
   }): AnimationCleanup {
     let animationId: number;
     let count = 0;
     let angle = 0;
     let rotation = 0;
     let particles: Array<{x: number, y: number, age: number, maxAge: number}> = [];
+
+    // Default center point
+    const defaultCenterX = canvas.width / 2;
+    const defaultCenterY = canvas.height / 2;
+
+    // Use provided options or defaults
+    const getCenterX = options?.getCenterX || (() => options?.centerX ?? defaultCenterX);
+    const getCenterY = options?.getCenterY || (() => options?.centerY ?? defaultCenterY);
 
     // Enhanced presets combining sunflower patterns and Fibonacci spirals
     const presets: Record<string, {
@@ -1535,7 +1601,18 @@ export class CanvasAnimationsService {
 
     const config = presets[preset] ?? presets['golden'];
 
+    // ── Tick/multiplier setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+    const multiplier = options?.speedMultiplier ?? 1.0;
+
     const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
+      // ── READ (sample current state) ──
+      const centerX = getCenterX();
+      const centerY = getCenterY();
+
       // Handle different visualization types
       if (config.visualType === 'particles') {
         // Original sunflower particle system
@@ -1544,8 +1621,6 @@ export class CanvasAnimationsService {
 
         if (particles.length < config.maxParticles) {
           const radius = Math.sqrt(count) * 3 * config.radiusMultiplier;
-          const centerX = canvas.width / 2;
-          const centerY = canvas.height / 2;
           const radians = (angle * Math.PI) / 180;
           const x = centerX + Math.cos(radians) * radius;
           const y = centerY + Math.sin(radians) * radius;
@@ -1580,8 +1655,6 @@ export class CanvasAnimationsService {
       } else {
         // Fibonacci spiral visualizations
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
         const phi = (1 + Math.sqrt(5)) / 2;
 
         ctx.strokeStyle = config.color || '#f39c12';
@@ -1643,9 +1716,344 @@ export class CanvasAnimationsService {
             break;
         }
 
-        rotation += config.speed;
+        // ── COMPUTE (internal physics) ──
+        rotation += config.speed * multiplier;
       }
 
+      animationId = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    return () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
+    };
+  }
+
+  /**
+   * Creates a circle drawing animation using the Pythagorean theorem (x² + y² = r²).
+   * Points are plotted from 0° to 360° using the relationship between the hypotenuse (radius)
+   * and the two legs (x, y) of a right triangle inscribed in the circle.
+   *
+   * @param canvas - The HTML canvas element to draw on
+   * @param ctx - The 2D rendering context
+   * @param preset - The preset configuration to use
+   * @param options - Optional center point configuration
+   */
+  public createPythagoreanCircle(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D, preset: string = 'classic', options?: {
+    centerX?: number;
+    centerY?: number;
+    getCenterX?: () => number;
+    getCenterY?: () => number;
+    trailEnabled?: boolean;
+    onTick?: () => void;
+    speedMultiplier?: number;
+    backgroundColor?: string;
+  }): AnimationCleanup {
+    let animationId: number;
+    let currentDegree = 0;
+
+    // Default center point
+    const defaultCenterX = canvas.width / 2;
+    const defaultCenterY = canvas.height / 2;
+
+    const getCenterX = options?.getCenterX || (() => options?.centerX ?? defaultCenterX);
+    const getCenterY = options?.getCenterY || (() => options?.centerY ?? defaultCenterY);
+
+    /**
+     * Pythagorean circle presets.
+     * particleShape: 'pixel' | 'circle' | 'square' | 'triangle' | 'diamond' | 'star'
+     */
+    const presets: Record<string, {
+      radius: number;
+      color: string;
+      particleShape: 'pixel' | 'circle' | 'square' | 'triangle' | 'diamond' | 'star';
+      particleSize: number;
+      drawSpeed: number;
+      trailEffect: boolean;
+      multiRing: boolean;
+      ringCount: number;
+      ringSpacing: number;
+      rainbow: boolean;
+      description: string;
+    }> = {
+      'classic': {
+        radius: 100,
+        color: '#e74c3c',
+        particleShape: 'pixel',
+        particleSize: 2,
+        drawSpeed: 2,
+        trailEffect: false,
+        multiRing: false,
+        ringCount: 1,
+        ringSpacing: 0,
+        rainbow: false,
+        description: 'Classic single-pixel circle using Pythagorean theorem'
+      },
+      'dotted': {
+        radius: 120,
+        color: '#3498db',
+        particleShape: 'circle',
+        particleSize: 5,
+        drawSpeed: 4,
+        trailEffect: false,
+        multiRing: false,
+        ringCount: 1,
+        ringSpacing: 0,
+        rainbow: false,
+        description: 'Dotted circle drawn with small circles'
+      },
+      'square-particles': {
+        radius: 100,
+        color: '#2ecc71',
+        particleShape: 'square',
+        particleSize: 6,
+        drawSpeed: 3,
+        trailEffect: false,
+        multiRing: false,
+        ringCount: 1,
+        ringSpacing: 0,
+        rainbow: false,
+        description: 'Circle made of square particles'
+      },
+      'diamond-ring': {
+        radius: 110,
+        color: '#9b59b6',
+        particleShape: 'diamond',
+        particleSize: 7,
+        drawSpeed: 3,
+        trailEffect: false,
+        multiRing: false,
+        ringCount: 1,
+        ringSpacing: 0,
+        rainbow: false,
+        description: 'Circle composed of diamond-shaped particles'
+      },
+      'star-trail': {
+        radius: 90,
+        color: '#f39c12',
+        particleShape: 'star',
+        particleSize: 8,
+        drawSpeed: 2,
+        trailEffect: true,
+        multiRing: false,
+        ringCount: 1,
+        ringSpacing: 0,
+        rainbow: false,
+        description: 'Star-shaped particles with fading trail effect'
+      },
+      'rainbow': {
+        radius: 100,
+        color: '#e74c3c',
+        particleShape: 'circle',
+        particleSize: 4,
+        drawSpeed: 2,
+        trailEffect: false,
+        multiRing: false,
+        ringCount: 1,
+        ringSpacing: 0,
+        rainbow: true,
+        description: 'Rainbow-colored circle with hue cycling'
+      },
+      'concentric': {
+        radius: 40,
+        color: '#1abc9c',
+        particleShape: 'pixel',
+        particleSize: 2,
+        drawSpeed: 4,
+        trailEffect: false,
+        multiRing: true,
+        ringCount: 5,
+        ringSpacing: 25,
+        rainbow: true,
+        description: 'Multiple concentric circles drawn simultaneously'
+      },
+      'triangle-burst': {
+        radius: 80,
+        color: '#e67e22',
+        particleShape: 'triangle',
+        particleSize: 6,
+        drawSpeed: 3,
+        trailEffect: true,
+        multiRing: true,
+        ringCount: 3,
+        ringSpacing: 30,
+        rainbow: false,
+        description: 'Triangle particles forming concentric rings with trails'
+      }
+    };
+
+    const config = presets[preset] ?? presets['classic'];
+
+    // Allow runtime override of trailEffect via options
+    const trailEffect = options?.trailEnabled !== undefined ? options.trailEnabled : config.trailEffect;
+
+    // Parse background color for trail fade — fade toward background, not black.
+    // This prevents the canvas from turning black when trail is enabled.
+    const bgRgb = this.parseHexColor(options?.backgroundColor ?? '#fafafa');
+    const trailFadeStyle = `rgba(${bgRgb.r}, ${bgRgb.g}, ${bgRgb.b}, 0.02)`;
+
+    // ── Tick/multiplier setup (Flash onEnterFrame pattern) ──
+    const tick = options?.onTick ?? (() => {});
+    const multiplier = options?.speedMultiplier ?? 1.0;
+
+    // Store drawn points for trail effect
+    const drawnPoints: Array<{x: number; y: number; degree: number; ring: number; alpha: number}> = [];
+
+    /**
+     * Draws a single particle shape at the given position.
+     * Uses the Pythagorean relationship: at each degree θ, the point (x, y) satisfies
+     * x² + y² = r², where x = r·cos(θ) and y = r·sin(θ).
+     */
+    const drawParticle = (x: number, y: number, size: number, color: string, shape: string) => {
+      ctx.fillStyle = color;
+      ctx.strokeStyle = color;
+
+      switch (shape) {
+        case 'pixel':
+          ctx.fillRect(x - size / 2, y - size / 2, size, size);
+          break;
+
+        case 'circle':
+          ctx.beginPath();
+          ctx.arc(x, y, size / 2, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+
+        case 'square':
+          ctx.fillRect(x - size / 2, y - size / 2, size, size);
+          break;
+
+        case 'triangle': {
+          const half = size / 2;
+          ctx.beginPath();
+          ctx.moveTo(x, y - half);
+          ctx.lineTo(x - half, y + half);
+          ctx.lineTo(x + half, y + half);
+          ctx.closePath();
+          ctx.fill();
+          break;
+        }
+
+        case 'diamond': {
+          const dHalf = size / 2;
+          ctx.beginPath();
+          ctx.moveTo(x, y - dHalf);
+          ctx.lineTo(x + dHalf, y);
+          ctx.lineTo(x, y + dHalf);
+          ctx.lineTo(x - dHalf, y);
+          ctx.closePath();
+          ctx.fill();
+          break;
+        }
+
+        case 'star': {
+          const outerR = size / 2;
+          const innerR = outerR * 0.4;
+          const spikes = 5;
+          ctx.beginPath();
+          for (let i = 0; i < spikes * 2; i++) {
+            const r = i % 2 === 0 ? outerR : innerR;
+            const angle = (i * Math.PI) / spikes - Math.PI / 2;
+            const sx = x + Math.cos(angle) * r;
+            const sy = y + Math.sin(angle) * r;
+            if (i === 0) ctx.moveTo(sx, sy);
+            else ctx.lineTo(sx, sy);
+          }
+          ctx.closePath();
+          ctx.fill();
+          break;
+        }
+      }
+    };
+
+    const animate = () => {
+      // ── TICK (physics step) ──
+      tick();
+
+      if (!trailEffect) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      } else {
+        // Fade old content toward the canvas background color, not black
+        ctx.fillStyle = trailFadeStyle;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      const centerX = getCenterX();
+      const centerY = getCenterY();
+
+      // Draw informational text
+      ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
+      ctx.font = '12px monospace';
+      ctx.fillText('x² + y² = r²', 10, 20);
+      ctx.fillText(`θ: ${Math.round(currentDegree)}°`, 10, 36);
+
+      // Draw the current batch of degrees
+      // ── COMPUTE (internal physics) ──
+      const degreesPerFrame = config.drawSpeed * multiplier;
+
+      for (let d = 0; d < degreesPerFrame; d++) {
+        const degree = (currentDegree + d) % 360;
+        const radians = (degree * Math.PI) / 180;
+
+        const ringCount = config.multiRing ? config.ringCount : 1;
+
+        for (let ring = 0; ring < ringCount; ring++) {
+          const currentRadius = config.radius + (ring * config.ringSpacing);
+
+          // Pythagorean theorem: x² + y² = r²
+          // x = r * cos(θ), y = r * sin(θ)
+          // Verification: (r*cos(θ))² + (r*sin(θ))² = r²(cos²θ + sin²θ) = r²
+          const px = centerX + currentRadius * Math.cos(radians);
+          const py = centerY + currentRadius * Math.sin(radians);
+
+          let color = config.color;
+          if (config.rainbow) {
+            const hue = (degree + ring * 60) % 360;
+            color = `hsl(${hue}, 80%, 60%)`;
+          }
+
+          drawParticle(px, py, config.particleSize, color, config.particleShape);
+
+          if (trailEffect) {
+            drawnPoints.push({ x: px, y: py, degree, ring, alpha: 1.0 });
+          }
+        }
+      }
+
+      // Redraw trail points with fading alpha
+      if (trailEffect) {
+        for (let i = drawnPoints.length - 1; i >= 0; i--) {
+          const point = drawnPoints[i];
+          point.alpha -= 0.003;
+          if (point.alpha <= 0) {
+            drawnPoints.splice(i, 1);
+            continue;
+          }
+          // Use the preset's original color — the semi-transparent black overlay
+          // handles the visual fade. No globalAlpha manipulation needed, which
+          // would otherwise shift/distort the colors over time.
+          let color = config.color;
+          if (config.rainbow) {
+            color = `hsl(${(point.degree + point.ring * 60) % 360}, 80%, 60%)`;
+          }
+          drawParticle(point.x, point.y, config.particleSize * 0.8, color, config.particleShape);
+        }
+      }
+
+      // Draw a small cross at the center point
+      ctx.strokeStyle = 'rgba(150, 150, 150, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 6, centerY);
+      ctx.lineTo(centerX + 6, centerY);
+      ctx.moveTo(centerX, centerY - 6);
+      ctx.lineTo(centerX, centerY + 6);
+      ctx.stroke();
+
+      currentDegree = (currentDegree + degreesPerFrame) % 360;
       animationId = requestAnimationFrame(animate);
     };
 
@@ -1662,8 +2070,16 @@ export class CanvasAnimationsService {
    * Sets up canvas with common properties and clears it
    */
   public setupCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {
-    // Set canvas size if not already set
-    if (canvas.width === 0 || canvas.height === 0) {
+    // Size canvas bitmap to match its CSS display size.
+    // Use clientWidth/clientHeight to exclude borders from the measurement.
+    const displayWidth = canvas.clientWidth;
+    const displayHeight = canvas.clientHeight;
+
+    if (displayWidth > 0 && displayHeight > 0) {
+      canvas.width = displayWidth;
+      canvas.height = displayHeight;
+    } else if (canvas.width === 0 || canvas.height === 0) {
+      // Fallback only when no CSS dimensions are available
       canvas.width = 400;
       canvas.height = 300;
     }
@@ -1682,5 +2098,18 @@ export class CanvasAnimationsService {
    */
   public clearCanvas(canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D): void {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  /**
+   * Parses a hex color string into RGB components.
+   * Used by trail fade to match the canvas background color.
+   */
+  private parseHexColor(hex: string): { r: number; g: number; b: number } {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16),
+    } : { r: 250, g: 250, b: 250 };  // Default to #fafafa
   }
 }

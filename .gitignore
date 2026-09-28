@@ -11,7 +11,11 @@
 .env.*.local
 *.env
 .env.*
-# Only .env.example should be committed (template with no secrets)
+# Only .env.example and .env.*.example/.env.*.template files should be committed
+# (templates with placeholder values, no real secrets)
+!.env.example
+!.env.*.example
+!.env.*.template
 
 # AWS Credentials - NEVER COMMIT
 aws/credentials
@@ -41,6 +45,9 @@ certs/
 dist
 tmp
 out-tsc
+
+# Downloads folder
+downloads
 
 # dependencies
 node_modules
@@ -102,3 +109,20 @@ dev-tools/
 dev-tools/.env
 dev-tools/node_modules/
 
+
+.claude/worktrees
+.claude/settings.local.json
+
+# Terraform — never commit state, provider plugins, or real tfvars (may hold ARNs/secrets)
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+terraform/envs/**/terraform.tfvars
+!*.tfvars.example
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl

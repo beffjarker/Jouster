@@ -10,11 +10,12 @@ import {
   MonthlyTrend
 } from '../../services/lastfm.service';
 import { Observable } from 'rxjs';
+import { PageTitleComponent } from '../../components/page-title/page-title.component';
 
 @Component({
   selector: 'jstr-music',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, PageTitleComponent],
   templateUrl: './music.component.html',
   styleUrls: ['./music.component.scss']
 })

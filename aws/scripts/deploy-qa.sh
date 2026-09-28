@@ -37,7 +37,7 @@ else
 fi
 
 echo "[3/5] Deploying application to QA S3 bucket..."
-aws s3 sync dist/ s3://qa.jouster.org --delete --region us-west-2
+aws s3 sync dist/apps/jouster-ui/browser/ s3://qa.jouster.org --delete --region us-west-2
 if [ $? -ne 0 ]; then
     echo "❌ Deployment failed!"
     exit 1

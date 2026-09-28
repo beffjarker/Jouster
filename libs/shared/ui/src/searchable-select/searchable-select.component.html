@@ -1,0 +1,66 @@
+<div class="searchable-select">
+  <!-- Trigger button -->
+  <button
+    class="select-trigger"
+    type="button"
+    (click)="toggle()"
+    [class.open]="isOpen"
+    [class.has-value]="!!selected"
+    [attr.aria-expanded]="isOpen"
+    aria-haspopup="listbox">
+    <span class="trigger-label">{{ displayLabel }}</span>
+    <span class="caret" [class.rotated]="isOpen">▾</span>
+  </button>
+
+  <!-- Dropdown panel -->
+  <div class="select-panel" *ngIf="isOpen" role="listbox">
+    <div class="search-wrapper">
+      <input
+        #searchInput
+        class="search-input"
+        type="text"
+        [(ngModel)]="searchTerm"
+        [placeholder]="searchPlaceholder"
+        (input)="filterOptions()"
+        (keydown)="onKeydown($event)"
+        autocomplete="off"
+        spellcheck="false" />
+    </div>
+
+    <div class="options-list">
+      <!-- "All" / clear option -->
+      <div
+        class="option option-clear"
+        [class.active]="!selected"
+        [class.highlighted]="highlightIndex === -1"
+        (click)="select('')"
+        role="option"
+        [attr.aria-selected]="!selected">
+        {{ placeholder }}
+      </div>
+
+      <!-- Filtered options -->
+      <div
+        class="option"
+        *ngFor="let opt of filteredOptions; let i = index"
+        [class.active]="opt === selected"
+        [class.highlighted]="i === highlightIndex"
+        (click)="select(opt)"
+        role="option"
+        [attr.aria-selected]="opt === selected">
+        {{ opt }}
+      </div>
+
+      <!-- No results -->
+      <div class="no-results" *ngIf="filteredOptions.length === 0 && searchTerm">
+        No matches
+      </div>
+    </div>
+
+    <!-- Match count -->
+    <div class="match-count" *ngIf="searchTerm && filteredOptions.length > 0">
+      {{ filteredOptions.length }} of {{ options.length }}
+    </div>
+  </div>
+</div>
+

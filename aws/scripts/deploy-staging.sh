@@ -37,7 +37,7 @@ else
 fi
 
 echo "[3/5] Deploying application to staging S3 bucket (green environment)..."
-aws s3 sync dist/jouster/browser/ s3://stg.jouster.org --delete --region us-west-2
+aws s3 sync dist/apps/jouster-ui/browser/ s3://stg.jouster.org --delete --region us-west-2
 if [ $? -ne 0 ]; then
     echo "❌ Deployment failed!"
     exit 1
