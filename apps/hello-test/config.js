@@ -1,0 +1,1 @@
+window.JOUSTER_BRANCH = 'local';
