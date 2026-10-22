@@ -5,8 +5,7 @@ import { JstrPageTitleComponent } from '../../shared/components/jstr-page-title/
 @Component({
   selector: 'app-about',
   templateUrl: './about.component.html',
-  styleUrls: ['./about.component.css'],
-  imports: [JstrPageTitleComponent]
+  styleUrls: ['./about.component.css']
 })
 export class AboutComponent {
 }
