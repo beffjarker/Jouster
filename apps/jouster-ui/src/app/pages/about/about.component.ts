@@ -1,14 +1,11 @@
+// apps/jouster-ui/src/app/pages/about/about.component.ts
 import { Component } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { PageTitleComponent } from '../../components/page-title/page-title.component';
 
 @Component({
-  selector: 'jstr-about',
-  standalone: true,
-  imports: [CommonModule, PageTitleComponent],
+  selector: 'app-about',
   templateUrl: './about.component.html',
-  styleUrls: ['./about.component.scss']
+  styleUrls: ['./about.component.css']
 })
 export class AboutComponent {
-  readonly caspianBuildCheck: number = 'not a number';
+  readonly caspianBuildCheck: number = 42; // Corrected type from string to number
 }
