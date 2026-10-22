@@ -10,5 +10,5 @@ import { PageTitleComponent } from '../../components/page-title/page-title.compo
   styleUrls: ['./about.component.scss']
 })
 export class AboutComponent {
-  readonly caspianBuildCheck: number = 'not a number';
+  readonly caspianBuildCheck: number = 42; // Changed from 'not a number' to a valid number
 }
