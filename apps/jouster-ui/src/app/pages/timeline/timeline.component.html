@@ -8,8 +8,10 @@
   </div>
 
   <!-- Add/Edit Entry Form (authenticated only) -->
-  <div class="entry-form-overlay" *ngIf="isAuthenticated && showEntryForm" (click)="closeForm()">
-    <div class="entry-form" (click)="$event.stopPropagation()">
+  <div class="entry-form-overlay" *ngIf="isAuthenticated && showEntryForm"
+       role="dialog" aria-modal="true" aria-label="Add or edit timeline entry" tabindex="-1"
+       (click)="onOverlayClick($event)" (keydown.escape)="closeForm()">
+    <div class="entry-form">
       <h3>{{ editingId ? 'Edit Entry' : 'Add Entry' }}</h3>
 
       <label>Title *
@@ -44,9 +46,10 @@
           </button>
         </div>
         <ul class="geocode-results" *ngIf="geocodeResults.length">
-          <li *ngFor="let r of geocodeResults" (click)="selectGeocodeResult(r)">{{ r.displayName }}</li>
+          <li *ngFor="let r of geocodeResults" tabindex="0"
+              (click)="selectGeocodeResult(r)" (keydown.enter)="selectGeocodeResult(r)">{{ r.displayName }}</li>
         </ul>
-        <div class="coords" *ngIf="entryForm.lat != null && entryForm.lng != null">
+        <div class="coords" *ngIf="entryForm.lat !== null && entryForm.lng !== null">
           📍 {{ entryForm.lat }}, {{ entryForm.lng }}
         </div>
         <div class="address-grid">
