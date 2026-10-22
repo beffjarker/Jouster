@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewEncapsulation } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewEncapsulation, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
@@ -73,10 +73,8 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   public geocoding = false;
   public pickingLocation = false;
 
-  constructor(
-    private lifeMapService: LifeMapService,
-    private authService: AuthService,
-  ) {}
+  private readonly lifeMapService = inject(LifeMapService);
+  private readonly authService = inject(AuthService);
 
   public ngOnInit() {
     this.authSub = this.authService.authenticated$.subscribe((authed) => {
@@ -574,6 +572,13 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     this.geocodeResults = [];
     this.formError = '';
     this.showEntryForm = true;
+  }
+
+  /** Close the form only when the backdrop itself was clicked (not the form body). */
+  public onOverlayClick(event: Event): void {
+    if (event.target === event.currentTarget) {
+      this.closeForm();
+    }
   }
 
   public closeForm(): void {
