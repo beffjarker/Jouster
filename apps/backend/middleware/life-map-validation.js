@@ -39,6 +39,9 @@ function handleValidationErrors(req, res, next) {
  */
 function entryFieldRules({ optional }) {
   const maybe = (chain) => (optional ? chain.optional() : chain);
+  // Coordinates are mandatory whenever a location object is sent, so a partial
+  // PUT can never replace a stored location with one lacking lat/lng.
+  const coord = (field) => (optional ? body(field).if(body('location').exists()) : body(field));
 
   return [
     maybe(body('title').isString().trim().isLength({ min: 1, max: 200 }))
@@ -56,9 +59,9 @@ function entryFieldRules({ optional }) {
     // Location
     maybe(body('location').isObject())
       .withMessage('location is required'),
-    maybe(body('location.lat').isFloat({ min: -90, max: 90 }))
+    coord('location.lat').isFloat({ min: -90, max: 90 })
       .withMessage('location.lat must be between -90 and 90'),
-    maybe(body('location.lng').isFloat({ min: -180, max: 180 }))
+    coord('location.lng').isFloat({ min: -180, max: 180 })
       .withMessage('location.lng must be between -180 and 180'),
     body('location.name').optional().isString().trim().isLength({ max: 200 }),
     body('location.street').optional().isString().trim().isLength({ max: 200 }),
