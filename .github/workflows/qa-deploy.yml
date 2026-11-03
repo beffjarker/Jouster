@@ -1,11 +1,9 @@
-name: QA Deployment to qa.jouster.org
+name: 'Deploy Frontend: QA (qa.jouster.org)'
 
 on:
   push:
     branches: [develop]
-  pull_request:
-    branches: [develop]
-    types: [closed]
+  workflow_dispatch:
 
 env:
   NODE_OPTIONS: '--max_old_space_size=7168'
@@ -14,9 +12,12 @@ permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: frontend-qa
+  cancel-in-progress: true
+
 jobs:
   deploy-qa:
-    if: github.event_name == 'push' || (github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

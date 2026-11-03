@@ -89,7 +89,9 @@ For automated deployment, ensure these secrets are set in GitHub:
 - **SSL**: Staging uses HTTP (no SSL) for simplicity, production uses HTTPS
 
 ## Next Steps
-After staging testing is complete, promote to production by:
-1. Testing thoroughly on stg.jouster.org
-2. Running production deployment scripts
-3. Switching DNS from BLUE to GREEN environment
+After staging testing is complete, promote to production:
+1. Test thoroughly on stg.jouster.org (`/build-info.json` shows the deployed commit)
+2. Run the **Promote Frontend: Staging → Production** workflow (`confirm` = `promote`; try `dry_run` first)
+3. If needed, run **Rollback Frontend Production** to restore the previous release
+
+See [GitHub Actions Structure](../../CICD/GITHUB-ACTIONS-STRUCTURE.md) for details.
