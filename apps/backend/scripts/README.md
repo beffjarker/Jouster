@@ -2,16 +2,18 @@
 
 This directory contains various scripts used for backend operations.
 
-## laa-state-backup.sh
+## backup/laa-state-backup.sh
 
 **Purpose:**
-Tars a given state directory and rsyncs it to a target specified by environment variables, keeping the last 14 archives.
+Tars a state directory and rsyncs the archive to a local directory or an SSH target, then keeps only the newest
+14 `laa-state-*.tar.gz` archives there. Other files in the target are never touched. If the archive or the copy
+fails, the script exits non-zero before any old archive is deleted.
 
-**Usage:**
-Set the `BACKUP_TARGET` and `STATE_DIR` environment variables before running the script. The script should be run from the `apps/backend/scripts/backup/` directory.
+**Usage (from the repository root):**
 
 ```bash
-export BACKUP_TARGET=/path/to/backup/target
 export STATE_DIR=/path/to/state/directory
-./laa-state-backup.sh
+export BACKUP_TARGET=/path/to/backup/target   # or user@host:/path/to/backup/target
+export BACKUP_KEEP=14                          # optional
+bash apps/backend/scripts/backup/laa-state-backup.sh
 ```
