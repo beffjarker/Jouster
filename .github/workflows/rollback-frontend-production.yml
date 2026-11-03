@@ -1,0 +1,135 @@
+name: 'Rollback Frontend Production'
+
+# Restores jouster.org from a snapshot taken by "Promote Frontend: Staging â†’ Production".
+# The current production contents are snapshotted first, so a rollback can itself be undone.
+
+on:
+  workflow_dispatch:
+    inputs:
+      snapshot:
+        description: 'Snapshot id to restore (blank = most recent). Run with dry_run to list ids.'
+        required: false
+        default: ''
+        type: string
+      confirm:
+        description: 'Type "rollback" to confirm'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (list snapshots and show what would change)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: frontend-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  PROD_DOMAIN: jouster.org
+  STAGING_BUCKET: stg.jouster.org
+  RELEASES_BUCKET: ${{ vars.FRONTEND_RELEASES_BUCKET || 'jouster-org-releases' }}
+  PROD_BUCKET_OVERRIDE: ${{ vars.PROD_FRONTEND_BUCKET }}
+  PROD_DISTRIBUTION_ID_OVERRIDE: ${{ vars.PROD_CLOUDFRONT_DISTRIBUTION_ID }}
+
+jobs:
+  rollback:
+    name: Restore jouster.org from snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://jouster.org
+    env:
+      PROD_ROLE_ARN: ${{ secrets.AWS_PROD_FRONTEND_ROLE_ARN }}
+      RELEASE: .github/scripts/frontend-release.sh
+
+    steps:
+      - name: Require confirmation
+        if: inputs.confirm != 'rollback'
+        run: |
+          echo "::error::Confirmation input must be exactly 'rollback'"
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Configure AWS credentials (OIDC)
+        if: env.PROD_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.PROD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials (access keys)
+        if: env.PROD_ROLE_ARN == ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve production origin
+        run: bash "$RELEASE" resolve
+
+      - name: Select snapshot
+        id: target
+        env:
+          REQUESTED: ${{ inputs.snapshot }}
+        run: |
+          SNAPSHOTS=$(bash "$RELEASE" list)
+          echo "Available snapshots (oldest first):"
+          echo "${SNAPSHOTS:-  (none)}"
+          [ -n "$SNAPSHOTS" ] || { echo "::error::No snapshots in s3://${RELEASES_BUCKET}/frontend/"; exit 1; }
+          if [ -z "$REQUESTED" ]; then
+            ID=$(tail -n1 <<<"$SNAPSHOTS")
+          elif grep -qxF -- "$REQUESTED" <<<"$SNAPSHOTS"; then
+            ID="$REQUESTED"
+          else
+            echo "::error::Snapshot '${REQUESTED}' not found"; exit 1
+          fi
+          echo "Restoring snapshot: ${ID}"
+          echo "id=${ID}" >> "$GITHUB_OUTPUT"
+          echo "uri=s3://${RELEASES_BUCKET}/frontend/${ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Planned changes
+        run: bash "$RELEASE" diff "${{ steps.target.outputs.uri }}"
+
+      - name: Snapshot current production
+        id: snapshot
+        if: ${{ !inputs.dry_run }}
+        run: echo "id=$(bash "$RELEASE" snapshot pre-rollback)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore snapshot to production
+        if: ${{ !inputs.dry_run }}
+        run: bash "$RELEASE" publish "${{ steps.target.outputs.uri }}"
+
+      - name: Invalidate CloudFront
+        if: ${{ !inputs.dry_run }}
+        run: bash "$RELEASE" invalidate
+
+      - name: Verify jouster.org serves the snapshot
+        if: ${{ !inputs.dry_run }}
+        run: bash "$RELEASE" verify "${{ steps.target.outputs.uri }}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Frontend rollback"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Mode | ${{ inputs.dry_run && 'dry run' || 'live' }} |"
+            echo "| Restored snapshot | \`${{ steps.target.outputs.id || 'none' }}\` |"
+            echo "| Pre-rollback snapshot | \`${{ steps.snapshot.outputs.id || 'none' }}\` |"
+            echo "| Production bucket | \`${PROD_BUCKET:-?}${PROD_PREFIX:-}\` |"
+            echo "| Result | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
