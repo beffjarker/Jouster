@@ -100,15 +100,27 @@ const validateGeocodeQuery = [
   handleValidationErrors,
 ];
 
+/**
+ * Raw image size limit. Uploads arrive base64-encoded (~4/3 larger) through API Gateway
+ * → Lambda, whose synchronous payload limit is 6 MB, so 4 MiB raw leaves room for
+ * encoding and event overhead. Keep in sync with MAX_IMAGE_BYTES in timeline.component.ts.
+ */
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_IMAGE_DATA_URL_LENGTH = Math.ceil(MAX_IMAGE_BYTES / 3) * 4 + 64;
+
 const validateImageUpload = [
   body('data')
     .isString()
+    .isLength({ max: MAX_IMAGE_DATA_URL_LENGTH })
+    .withMessage('image exceeds 4MB limit')
+    .bail()
     .matches(/^data:image\/(jpeg|jpg|png|svg\+xml);base64,/)
     .withMessage('data must be a base64 image data URL (jpeg/png/svg)'),
   handleValidationErrors,
 ];
 
 module.exports = {
+  MAX_IMAGE_BYTES,
   VALID_CATEGORIES,
   handleValidationErrors,
   validateCreateEntry,
