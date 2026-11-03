@@ -16,12 +16,15 @@ describe('page-registry', () => {
   });
 
   describe('isPrivatePath', () => {
-    it.each(['/timeline', '/timeline/2020', '/timeline?x=1', '/emails#top', '/conversation-history'])(
+    it.each([
+      '/timeline', '/timeline/2020', '/timeline?x=1', '/emails#top', '/conversation-history',
+      '/timeline;year=2020', '/timeline;year=2020/detail', '/emails;folder=inbox?page=2',
+    ])(
       'treats %s as private',
       (url) => expect(isPrivatePath(url)).toBe(true),
     );
 
-    it.each(['/', '/about', '/interactive-playground', '/timelines', '/contact?from=timeline'])(
+    it.each(['/', '/about', '/interactive-playground', '/timelines', '/contact?from=timeline', '/about;ref=timeline'])(
       'treats %s as public',
       (url) => expect(isPrivatePath(url)).toBe(false),
     );

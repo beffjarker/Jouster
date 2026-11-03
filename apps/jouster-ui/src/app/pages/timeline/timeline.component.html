@@ -8,11 +8,15 @@
   </div>
 
   <!-- Add/Edit Entry Form (authenticated only) -->
-  <div class="entry-form-overlay" *ngIf="isAuthenticated && showEntryForm"
-       role="dialog" aria-modal="true" aria-label="Add or edit timeline entry" tabindex="-1"
-       (click)="onOverlayClick($event)" (keydown.escape)="closeForm()">
-    <div class="entry-form">
-      <h3>{{ editingId ? 'Edit Entry' : 'Add Entry' }}</h3>
+  <div class="entry-form-overlay" *ngIf="isAuthenticated && showEntryForm" [class.picking]="pickingLocation"
+       role="dialog" aria-modal="true" aria-labelledby="entry-form-title"
+       (click)="onOverlayClick($event)">
+    <div class="pick-location-hint" *ngIf="pickingLocation" role="status">
+      Click the map to set this entry's location.
+      <button type="button" (click)="cancelPickLocation()">Cancel (Esc)</button>
+    </div>
+    <div class="entry-form" #entryFormPanel [hidden]="pickingLocation" (keydown)="onFormKeydown($event)">
+      <h3 id="entry-form-title">{{ editingId ? 'Edit Entry' : 'Add Entry' }}</h3>
 
       <label>Title *
         <input type="text" [(ngModel)]="entryForm.title" maxlength="200" placeholder="Event title">
@@ -41,7 +45,8 @@
           <button type="button" (click)="runGeocode()" [disabled]="geocoding">
             {{ geocoding ? '…' : 'Find' }}
           </button>
-          <button type="button" [class.active]="pickingLocation" (click)="togglePickLocation()">
+          <button type="button" class="pick-location-btn" [class.active]="pickingLocation"
+                  (click)="togglePickLocation()">
             {{ pickingLocation ? 'Click the map…' : 'Pick on map' }}
           </button>
         </div>
@@ -69,6 +74,9 @@
           Add image
           <input type="file" accept="image/png,image/jpeg,image/svg+xml" (change)="onImageSelected($event)">
         </label>
+        <p class="upload-status" *ngIf="pendingUploads > 0" role="status">
+          Uploading {{ pendingUploads }} image{{ pendingUploads === 1 ? '' : 's' }}…
+        </p>
         <ul class="image-list" *ngIf="entryForm.images.length">
           <li *ngFor="let img of entryForm.images">
             {{ img }} <button type="button" (click)="removeImage(img)">✕</button>
@@ -80,7 +88,7 @@
 
       <div class="form-actions">
         <button type="button" class="cancel-btn" (click)="closeForm()">Cancel</button>
-        <button type="button" class="save-btn" (click)="saveEntry()" [disabled]="saving">
+        <button type="button" class="save-btn" (click)="saveEntry()" [disabled]="saving || pendingUploads > 0">
           {{ saving ? 'Saving…' : (editingId ? 'Update' : 'Create') }}
         </button>
       </div>
