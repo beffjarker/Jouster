@@ -34,7 +34,8 @@ const zipPath = path.join(outDir, 'backend-lambda.zip');
 
 // Runtime files/dirs to include in the package (everything the Express app
 // requires at runtime). Tests, docs, dashboards, security reports, the
-// conversation-history data, and the alternate server-*.js files are excluded.
+// conversation-history JSON (PII), and the alternate server-*.js files are excluded.
+// `data` is code (the conversation-history data layer required by server.js), not data files.
 const INCLUDE = [
   'server.js',
   'lambda.js',
@@ -42,6 +43,7 @@ const INCLUDE = [
   'package.json',
   'package-lock.json',
   'config',
+  'data',
   'middleware',
   'routes',
   'services',
