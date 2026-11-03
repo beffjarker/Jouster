@@ -18,7 +18,8 @@ distribution managed by `.github/workflows/qa-deploy.yml` on every `develop` dep
    Route 53 A/AAAA alias records to the distribution.
 3. **Invalidate QA CloudFront cache** – `/*` after each sync so new builds appear immediately.
 
-All steps are idempotent. A newly created distribution takes roughly 5–15 minutes to deploy globally.
+All steps are idempotent. A newly created distribution takes roughly 5–15 minutes to deploy globally;
+the workflow waits for it to reach `Deployed` before switching DNS, so QA stays reachable over HTTP until then.
 
 ## Required permissions (QA deploy credentials)
 
