@@ -23,6 +23,7 @@ const {
   validateEntryId,
   validateGeocodeQuery,
   validateImageUpload,
+  MAX_IMAGE_BYTES,
 } = require('../middleware/life-map-validation');
 
 const router = express.Router();
@@ -378,9 +379,8 @@ router.post('/images', requireWriteHeader, validateImageUpload, async (req, res)
     const contentType = mime === 'svg+xml' ? 'image/svg+xml' : `image/${mime === 'jpg' ? 'jpeg' : mime}`;
     const buffer = Buffer.from(match[2], 'base64');
 
-    const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
-    if (buffer.length > MAX_BYTES) {
-      return res.status(400).json({ success: false, message: 'Image exceeds 5MB limit' });
+    if (buffer.length > MAX_IMAGE_BYTES) {
+      return res.status(400).json({ success: false, message: 'Image exceeds 4MB limit' });
     }
 
     const filename = `${randomUUID()}.${ext}`;

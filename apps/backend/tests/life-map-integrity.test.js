@@ -37,7 +37,7 @@ const { originMatches } = require('../config/cors');
 const lifeMapRouter = require('../routes/life-map');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use((req, _res, next) => {
   req.session = { authenticated: true, authenticatedAt: new Date().toISOString() };
   next();
@@ -77,6 +77,18 @@ function put(id, body) {
     body: JSON.stringify(body),
   });
 }
+
+test('image uploads over the 4 MiB limit are rejected before decoding', async () => {
+  const { MAX_IMAGE_BYTES } = require('../middleware/life-map-validation');
+  const oversized = `data:image/png;base64,${'A'.repeat(Math.ceil((MAX_IMAGE_BYTES + 1024) / 3) * 4)}`;
+  const res = await fetch(`${baseUrl}/api/life-map/images`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    body: JSON.stringify({ data: oversized }),
+  });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).details[0].message, /4MB/);
+});
 
 test('wildcard CORS entries enforce port as well as protocol and host suffix', () => {
   const allowed = 'https://*.jouster.org';
