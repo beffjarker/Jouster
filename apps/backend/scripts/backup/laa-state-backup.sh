@@ -1,23 +1,30 @@
 #!/bin/bash
 
-# Ensure BACKUP_TARGET is set
-if [ -z "$BACKUP_TARGET" ]; then
-  echo "Error: BACKUP_TARGET environment variable must be set"
+# Check if required environment variables are set
+if [ -z "$BACKUP_TARGET" ] || [ -z "$STATE_DIR" ]; then
+  echo "Error: BACKUP_TARGET and STATE_DIR must be set."
   exit 1
 fi
 
-# Ensure STATE_DIR is set
-if [ -z "$STATE_DIR" ]; then
-  echo "Error: STATE_DIR environment variable must be set"
+# Create a timestamped archive of the state directory
+ARCHIVE_NAME="laa-state-$(date +%Y%m%d%H%M%S).tar.gz"
+if ! tar -czf "$ARCHIVE_NAME" -C "$STATE_DIR" .; then
+  echo "Error: Failed to create archive of $STATE_DIR."
   exit 1
 fi
 
-# Create a timestamped backup file
-TIMESTAMP=$(date +%Y%m%d%H%M%S)
-BACKUP_FILE="laa-state-backup-$TIMESTAMP.tar.gz"
-tar -czf "$BACKUP_FILE" "$STATE_DIR"
+cd "$BACKUP_TARGET" || { echo "Error: Could not change directory to $BACKUP_TARGET."; rm "$ARCHIVE_NAME"; exit 1; }
 
-# Rsync the backup to the target directory, keeping only the last 14 archives
-rsync --remove-source-files "$BACKUP_FILE" "$BACKUP_TARGET/"
-cd "$BACKUP_TARGET"
-ls -t | tail -n +15 | xargs rm -f
+# Retain only the last 14 LAA archive files
+shopt -s nullglob
+LAA_ARCHIVES=(*laa-state-*.tar.gz)
+if [ ${#LAA_ARCHIVES[@]} -gt 14 ]; then
+  sorted_archives=($(printf "%s\n" "${LAA_ARCHIVES[@]}" | sort))
+  for ((i=0; i<${#sorted_archives[@]}-14; i++)); do
+    rm "${sorted_archives[i]}"
+  done
+fi
+
+# Move the newly created archive to the backup target
+cp "$ARCHIVE_NAME" . || { echo "Error: Failed to copy $ARCHIVE_NAME to $BACKUP_TARGET."; exit 1; }
+rm "$ARCHIVE_NAME"

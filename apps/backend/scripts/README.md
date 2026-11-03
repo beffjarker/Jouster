@@ -8,7 +8,7 @@ This directory contains various scripts used for backend operations.
 Tars a given state directory and rsyncs it to a target specified by environment variables, keeping the last 14 archives.
 
 **Usage:**
-Set the `BACKUP_TARGET` and `STATE_DIR` environment variables before running the script.
+Set the `BACKUP_TARGET` and `STATE_DIR` environment variables before running the script. The script should be run from the `apps/backend/scripts/backup/` directory.
 
 ```bash
 export BACKUP_TARGET=/path/to/backup/target
