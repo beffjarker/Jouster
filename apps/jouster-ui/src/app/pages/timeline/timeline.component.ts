@@ -1,4 +1,6 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewEncapsulation, inject } from '@angular/core';
+import {
+  Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewEncapsulation, inject, ElementRef, HostListener,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
@@ -8,6 +10,11 @@ import { AuthService } from '../../services/auth.service';
 import { TimelineSliderComponent } from '../../components/timeline-slider/timeline-slider.component';
 import { PageTitleComponent } from '../../components/page-title/page-title.component';
 import { SearchableSelectComponent } from '@jouster/shared/ui';
+import { buildEntryPopupHtml, buildFallbackPopupHtml } from './map-popup';
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), ' +
+  '[tabindex]:not([tabindex="-1"])';
 
 /** Editable form model backing the add/edit entry panel. */
 interface EntryFormModel {
@@ -37,6 +44,7 @@ interface EntryFormModel {
 })
 export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(TimelineSliderComponent) sliderComponent?: TimelineSliderComponent;
+  @ViewChild('entryFormPanel') private entryFormPanel?: ElementRef<HTMLElement>;
 
   public currentDate = new Date();
   /** Birth date — slider minimum. Source: dev-tools/scripts/insert-life-events.js */
@@ -72,6 +80,12 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   public geocodeResults: GeocodeResult[] = [];
   public geocoding = false;
   public pickingLocation = false;
+  /** Image uploads still in flight for the current draft; saving is blocked until they settle. */
+  public pendingUploads = 0;
+  /** Incremented whenever a draft is opened or closed so late upload results can be discarded. */
+  private formSession = 0;
+  /** Element focused before the editor opened, restored when it closes. */
+  private formTrigger: HTMLElement | null = null;
 
   private readonly lifeMapService = inject(LifeMapService);
   private readonly authService = inject(AuthService);
@@ -80,9 +94,8 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     this.authSub = this.authService.authenticated$.subscribe((authed) => {
       this.isAuthenticated = authed;
       // If the session ends while the editor is open, close it.
-      if (!authed) {
-        this.showEntryForm = false;
-        this.pickingLocation = false;
+      if (!authed && this.showEntryForm) {
+        this.closeForm();
       }
     });
     this.loadEntries();
@@ -103,7 +116,9 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
    * Load entries from DynamoDB via the backend API.
    */
   private loadEntries(): void {
-    this.isLoading = true;
+    // Only show the loading state on the first load: it removes the map container
+    // from the DOM, which would orphan an already-initialized Leaflet map on refresh.
+    this.isLoading = !this.mapInitialized;
     this.errorMessage = '';
 
     this.lifeMapService.getEntries().subscribe({
@@ -274,14 +289,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
       const icon = this.createCategoryIcon(entry.category);
       const marker = L.marker(latLng, { icon }).addTo(this.map);
 
-      const dateStr = new Date(entry.date).toLocaleDateString();
-      marker.bindPopup(`
-        <div class="map-popup">
-          <h4>${entry.title}</h4>
-          <p>${entry.description?.slice(0, 150) || ''}${entry.description?.length > 150 ? '...' : ''}</p>
-          <small>${dateStr} — ${entry.location.city || ''}, ${entry.location.state || ''}</small>
-        </div>
-      `);
+      marker.bindPopup(buildEntryPopupHtml(entry));
 
       // Store marker by entry ID for direct lookup
       this.markerMap.set(entry.id, marker);
@@ -303,12 +311,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
       const fallbackCity = this.fallbackEntry?.location?.city || '';
       const fallbackState = this.fallbackEntry?.location?.state || '';
       const locationStr = [fallbackCity, fallbackState].filter(Boolean).join(', ');
-      marker.bindPopup(`
-        <div class="map-popup">
-          <h4>${fallbackTitle}</h4>
-          <small>${locationStr || 'No entries in the selected date range'}</small>
-        </div>
-      `);
+      marker.bindPopup(buildFallbackPopupHtml(fallbackTitle, locationStr));
       this.map.setView(latLng, 10);
     }
   }
@@ -544,10 +547,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   public openAddForm(): void {
     this.editingId = null;
     this.entryForm = this.emptyForm();
-    this.geocodeQuery = '';
-    this.geocodeResults = [];
-    this.formError = '';
-    this.showEntryForm = true;
+    this.openForm();
   }
 
   public openEditForm(entry: LifeMapEntry): void {
@@ -568,24 +568,85 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
       tags: (entry.tags || []).join(', '),
       images: [...(entry.images || [])],
     };
+    this.openForm();
+  }
+
+  /** Shared open logic: start a fresh draft session and move focus into the dialog. */
+  private openForm(): void {
+    this.formSession++;
+    this.pendingUploads = 0;
+    this.pickingLocation = false;
     this.geocodeQuery = '';
     this.geocodeResults = [];
     this.formError = '';
+    if (!this.showEntryForm) {
+      this.formTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
     this.showEntryForm = true;
+    this.focusFormSoon();
+  }
+
+  /** Focus the first field once Angular has rendered the dialog. */
+  private focusFormSoon(selector = FOCUSABLE_SELECTOR): void {
+    setTimeout(() => {
+      const target = this.entryFormPanel?.nativeElement.querySelector<HTMLElement>(selector)
+        ?? this.entryFormPanel?.nativeElement.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      target?.focus();
+    });
   }
 
   /** Close the form only when the backdrop itself was clicked (not the form body). */
   public onOverlayClick(event: Event): void {
-    if (event.target === event.currentTarget) {
+    if (event.target === event.currentTarget && !this.pickingLocation) {
       this.closeForm();
     }
   }
 
+  /**
+   * Escape cancels map picking first, then closes the editor. Bound at document level
+   * so it works even when focus is on the map or the trigger rather than inside the dialog.
+   */
+  @HostListener('document:keydown.escape')
+  public onEscape(): void {
+    if (!this.showEntryForm) return;
+    if (this.pickingLocation) {
+      this.cancelPickLocation();
+    } else {
+      this.closeForm();
+    }
+  }
+
+  /** Keep Tab / Shift+Tab focus cycling inside the editor dialog. */
+  public onFormKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Tab' || !this.entryFormPanel) return;
+    const focusable = Array.from(
+      this.entryFormPanel.nativeElement.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !this.entryFormPanel.nativeElement.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !this.entryFormPanel.nativeElement.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
   public closeForm(): void {
+    this.formSession++;
+    this.pendingUploads = 0;
     this.showEntryForm = false;
     this.pickingLocation = false;
     this.editingId = null;
     this.geocodeResults = [];
+    const trigger = this.formTrigger;
+    this.formTrigger = null;
+    if (trigger?.isConnected) {
+      setTimeout(() => trigger.focus());
+    }
   }
 
   /** Resolve the address box to candidate coordinates via the backend. */
@@ -611,30 +672,59 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     if (this.map) this.map.setView([r.lat, r.lng], 12);
   }
 
-  /** Toggle "click the map to set coordinates" mode. */
+  /**
+   * Toggle "click the map to set coordinates" mode. While picking, the dialog is
+   * hidden and its backdrop lets clicks through to the map; the draft is preserved.
+   */
   public togglePickLocation(): void {
-    this.pickingLocation = !this.pickingLocation;
+    if (this.pickingLocation) {
+      this.cancelPickLocation();
+      return;
+    }
+    this.pickingLocation = true;
+    document.getElementById('timeline-map')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  public cancelPickLocation(): void {
+    this.pickingLocation = false;
+    this.focusFormSoon('.pick-location-btn');
   }
 
   private onMapClick(e: L.LeafletMouseEvent): void {
     if (!this.pickingLocation || !this.showEntryForm) return;
     this.entryForm.lat = +e.latlng.lat.toFixed(6);
     this.entryForm.lng = +e.latlng.lng.toFixed(6);
-    this.pickingLocation = false;
+    this.cancelPickLocation();
   }
 
-  /** Read the chosen file, upload it, and attach the returned filename. */
+  /** Read the chosen file, upload it, and attach the returned filename to the same draft. */
   public onImageSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
+    const session = this.formSession;
+    const isCurrent = () => session === this.formSession;
+    this.pendingUploads++;
+    const settle = () => { if (isCurrent()) this.pendingUploads = Math.max(0, this.pendingUploads - 1); };
+
     const reader = new FileReader();
     reader.onload = () => {
+      if (!isCurrent()) return;
       const dataUrl = reader.result as string;
       this.lifeMapService.uploadImage(dataUrl).subscribe({
-        next: (filename) => this.entryForm.images.push(filename),
-        error: () => { this.formError = 'Image upload failed.'; },
+        next: (filename) => {
+          if (isCurrent()) this.entryForm.images.push(filename);
+          settle();
+        },
+        error: () => {
+          if (isCurrent()) this.formError = 'Image upload failed.';
+          settle();
+        },
       });
+    };
+    reader.onerror = () => {
+      if (isCurrent()) this.formError = 'Could not read the image file.';
+      settle();
     };
     reader.readAsDataURL(file);
     input.value = '';
@@ -646,6 +736,10 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
 
   public saveEntry(): void {
     this.formError = '';
+    if (this.pendingUploads > 0) {
+      this.formError = 'Please wait for image uploads to finish before saving.';
+      return;
+    }
     const f = this.entryForm;
     if (!f.title.trim() || !f.date || f.lat == null || f.lng == null) {
       this.formError = 'Title, date, and a location (use address lookup or click the map) are required.';

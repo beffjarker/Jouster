@@ -116,7 +116,12 @@ export function getPageConfig(path: string): PageConfig | undefined {
  * including its child paths.
  */
 export function isPrivatePath(url: string): boolean {
-  const path = url.split(/[?#]/)[0];
+  // Drop query/fragment, then Angular matrix params (`/timeline;year=2020`) from each segment.
+  const path = url
+    .split(/[?#]/)[0]
+    .split('/')
+    .map((segment) => segment.split(';')[0])
+    .join('/');
   return PAGE_REGISTRY.some(
     (page) => page.requiresAuth && (path === page.path || path.startsWith(`${page.path}/`)),
   );
