@@ -173,7 +173,7 @@ router.get('/images/:filename', async (req, res) => {
     const { filename } = req.params;
 
     // Validate filename format (allow jpg/png/svg, no path traversal)
-    if (!/^[\w\-]+\.(jpg|jpeg|png|svg)$/i.test(filename)) {
+    if (!/^[\w-]+\.(jpg|jpeg|png|svg)$/i.test(filename)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid filename format',

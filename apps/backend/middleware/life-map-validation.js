@@ -75,7 +75,7 @@ function entryFieldRules({ optional }) {
 
     body('images').optional().isArray({ max: 20 })
       .withMessage('images must be an array of at most 20 items'),
-    body('images.*').optional().matches(/^[\w\-]+\.(jpg|jpeg|png|svg)$/i)
+    body('images.*').optional().matches(/^[\w-]+\.(jpg|jpeg|png|svg)$/i)
       .withMessage('each image must be a valid filename'),
   ];
 }
