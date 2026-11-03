@@ -28,6 +28,7 @@ set -euo pipefail
 : "${RELEASES_BUCKET:=jouster-org-releases}"
 : "${KEEP_SNAPSHOTS:=10}"
 SNAPSHOT_ROOT="frontend"
+NO_CACHE="no-cache, no-store, must-revalidate"
 
 die() { echo "::error::$*" >&2; exit 1; }
 
@@ -118,8 +119,14 @@ cmd_publish() {
   # Hashed assets go first and HTML last so no page ever references a missing bundle.
   echo "Copying assets ${src} -> ${dst}"
   aws s3 cp "${src}/" "${dst}/" --recursive --exclude "*.html" --only-show-errors
+  # Entry points get no-cache so browsers revalidate and pick up new hashed bundles right away.
   echo "Copying HTML ${src} -> ${dst}"
-  aws s3 cp "${src}/" "${dst}/" --recursive --exclude "*" --include "*.html" --only-show-errors
+  aws s3 cp "${src}/" "${dst}/" --recursive --exclude "*" --include "*.html" --only-show-errors \
+    --metadata-directive REPLACE --cache-control "$NO_CACHE" --content-type "text/html; charset=utf-8"
+  if aws s3 ls "${src}/build-info.json" >/dev/null 2>&1; then
+    aws s3 cp "${src}/build-info.json" "${dst}/build-info.json" --only-show-errors \
+      --metadata-directive REPLACE --cache-control "$NO_CACHE" --content-type "application/json"
+  fi
   echo "Removing objects not present in ${src}"
   aws s3 sync "${src}/" "${dst}/" --delete --only-show-errors
 }
