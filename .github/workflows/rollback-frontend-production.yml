@@ -1,6 +1,6 @@
 name: 'Rollback Frontend Production'
 
-# Restores jouster.org from a snapshot taken by "Promote Frontend: Staging â†’ Production".
+# Restores jouster.org from a snapshot taken by "Promote Frontend: Staging → Production".
 # The current production contents are snapshotted first, so a rollback can itself be undone.
 
 on:
