@@ -19,7 +19,8 @@ concurrency:
 jobs:
   deploy-qa:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Allows for the one-time wait while a new CloudFront distribution deploys (up to ~35 min).
+    timeout-minutes: 75
 
     environment:
       name: qa
@@ -183,6 +184,13 @@ jobs:
           echo "Created CloudFront distribution $DIST_ID for ${QA_DOMAIN}"
         else
           echo "Using existing CloudFront distribution $DIST_ID for ${QA_DOMAIN}"
+        fi
+
+        # Cut DNS over only once the distribution is live, so QA stays reachable during the first rollout.
+        STATUS=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.Status' --output text)
+        if [ "$STATUS" != "Deployed" ]; then
+          echo "Waiting for distribution $DIST_ID to finish deploying (status: $STATUS)..."
+          aws cloudfront wait distribution-deployed --id "$DIST_ID"
         fi
 
         CF_DOMAIN=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.DomainName' --output text)
