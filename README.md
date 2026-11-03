@@ -75,9 +75,39 @@ npm run start:full
 
 ## 📦 Deployment
 
-### Current AWS Deployment (Manual)
+### CI/CD Deployment (GitHub Actions)
 
-The site is currently live using manual AWS deployment:
+Deployments run through GitHub Actions using a blue/green flow:
+
+| Environment | URL | How it deploys |
+| ----------- | --- | -------------- |
+| QA | http://qa.jouster.org | Automatically on push to `develop` |
+| GREEN (staging) | https://stg.jouster.org | Automatically on push to `main` |
+| BLUE (production) | https://jouster.org | Manually via **Promote Frontend: Staging → Production** |
+
+To release, check https://stg.jouster.org/build-info.json for the staged commit, then promote. Production
+changes need approval in the `production` environment. To trigger a workflow from a local terminal with
+the [GitHub CLI](https://cli.github.com/):
+
+```bash
+# Preview the production change without modifying anything
+gh workflow run promote-frontend-production.yml -f confirm=promote -f dry_run=true
+
+# Promote staging to production
+gh workflow run promote-frontend-production.yml -f confirm=promote
+
+# Roll back to the latest snapshot (or add -f snapshot=<id>)
+gh workflow run rollback-frontend-production.yml -f confirm=rollback
+
+# Watch the run
+gh run watch
+```
+
+See [GitHub Actions Structure](docs/CICD/GITHUB-ACTIONS-STRUCTURE.md) for the full workflow inventory and runbook.
+
+### Manual AWS Deployment (Legacy)
+
+Manual deployment scripts are kept for reference; prefer the workflows above:
 
 ```bash
 # Build for production
