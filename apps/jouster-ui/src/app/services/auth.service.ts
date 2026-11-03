@@ -1,8 +1,10 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Router } from '@angular/router';
 import { BehaviorSubject, Observable, of } from 'rxjs';
 import { map, tap, catchError } from 'rxjs/operators';
 import { RuntimeConfigService } from './runtime-config.service';
+import { isPrivatePath } from '../models/page-registry';
 
 export interface AuthResponse {
   success: boolean;
@@ -11,10 +13,17 @@ export interface AuthResponse {
   authenticatedAt?: string;
 }
 
+/** Public route users are sent to when their session ends while on a private page. */
+export const SESSION_ENDED_REDIRECT = '/interactive-playground';
+
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
+  private readonly http = inject(HttpClient);
+  private readonly config = inject(RuntimeConfigService);
+  private readonly router = inject(Router);
+
   private get API_URL(): string {
     return this.config.apiUrl('/api/auth');
   }
@@ -22,7 +31,7 @@ export class AuthService {
   private authenticatedSubject = new BehaviorSubject<boolean>(false);
   public authenticated$ = this.authenticatedSubject.asObservable();
 
-  constructor(private http: HttpClient, private config: RuntimeConfigService) {
+  constructor() {
     this.checkSession();
   }
 
@@ -42,7 +51,7 @@ export class AuthService {
   /**
    * Login with password only (single-user, no username needed)
    */
-  login(password: string): Observable<boolean> {
+  public login(password: string): Observable<boolean> {
     return this.http.post<AuthResponse>(`${this.API_URL}/login`, { password }, { withCredentials: true })
       .pipe(
         tap(response => {
@@ -58,31 +67,40 @@ export class AuthService {
   /**
    * Logout and destroy session
    */
-  logout(): Observable<boolean> {
+  public logout(): Observable<boolean> {
     return this.http.post<AuthResponse>(`${this.API_URL}/logout`, {}, { withCredentials: true })
       .pipe(
-        tap(() => {
-          this.authenticatedSubject.next(false);
-        }),
+        tap(() => this.endSession()),
         map(response => response.success),
         catchError(() => {
-          this.authenticatedSubject.next(false);
+          this.endSession();
           return of(true);
         })
       );
   }
 
   /**
+   * Mark the client as logged out (after logout, or when the API reports 401 because the
+   * session expired) and leave any private page so its content is no longer shown.
+   */
+  public endSession(): void {
+    this.authenticatedSubject.next(false);
+    if (isPrivatePath(this.router.url)) {
+      void this.router.navigateByUrl(SESSION_ENDED_REDIRECT);
+    }
+  }
+
+  /**
    * Check if user is authenticated (synchronous)
    */
-  isAuthenticated(): boolean {
+  public isAuthenticated(): boolean {
     return this.authenticatedSubject.value;
   }
 
   /**
    * Verify session is still valid (async)
    */
-  verify(): Observable<boolean> {
+  public verify(): Observable<boolean> {
     return this.http.get<AuthResponse>(`${this.API_URL}/verify`, { withCredentials: true })
       .pipe(
         tap(response => {

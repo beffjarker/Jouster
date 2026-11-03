@@ -67,6 +67,7 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'conversation-history',
+    data: routeData('/conversation-history'),
     loadComponent: () => import('./pages/conversation-history/conversation-history.component').then(m => m.ConversationHistoryComponent),
     canActivate: [authGuard],
   },
