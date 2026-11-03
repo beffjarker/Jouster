@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 
 class ConversationSessionManager {
   constructor() {
@@ -14,7 +14,7 @@ class ConversationSessionManager {
    * Create a new conversation session file
    */
   async createSession(type, title, participants = ['user', 'assistant']) {
-    const sessionId = uuidv4();
+    const sessionId = randomUUID();
     const now = new Date();
     const dateStr = this.formatDatePath(now);
 
@@ -44,7 +44,7 @@ class ConversationSessionManager {
    */
   async addMessage(sessionPath, role, content, metadata = {}) {
     const session = await this.loadSession(sessionPath);
-    const messageId = uuidv4();
+    const messageId = randomUUID();
 
     const message = {
       id: messageId,
@@ -183,7 +183,7 @@ class ConversationSessionManager {
   async convertMarkdownToJson(markdownPath) {
     const content = await fs.readFile(markdownPath, 'utf8');
     const filename = path.basename(markdownPath, '.md');
-    const sessionId = uuidv4();
+    const sessionId = randomUUID();
 
     // Extract type from filename
     const type = filename.includes('deployment') ? 'deployment' :
@@ -197,7 +197,7 @@ class ConversationSessionManager {
       title: filename.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
       participants: ['user', 'assistant'],
       messages: [{
-        id: uuidv4(),
+        id: randomUUID(),
         timestamp: new Date().toISOString(),
         role: 'assistant',
         content: content,

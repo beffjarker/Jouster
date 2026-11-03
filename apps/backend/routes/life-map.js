@@ -15,7 +15,7 @@ const express = require('express');
 const AWS = require('aws-sdk');
 const axios = require('axios');
 const path = require('path');
-const { v4: uuidv4 } = require('uuid');
+const { randomUUID } = require('crypto');
 const { requireAuth } = require('../middleware/auth-guard');
 const {
   validateCreateEntry,
@@ -269,7 +269,7 @@ router.post('/entries', requireWriteHeader, validateCreateEntry, async (req, res
   try {
     const now = new Date().toISOString();
     const item = {
-      id: uuidv4(),
+      id: randomUUID(),
       title: req.body.title,
       description: req.body.description || '',
       date: req.body.date,
@@ -366,7 +366,7 @@ router.post('/images', requireWriteHeader, validateImageUpload, async (req, res)
       return res.status(400).json({ success: false, message: 'Image exceeds 5MB limit' });
     }
 
-    const filename = `${uuidv4()}.${ext}`;
+    const filename = `${randomUUID()}.${ext}`;
 
     if (IS_LOCAL) {
       const fs = require('fs');
