@@ -1,19 +1,21 @@
-name: Staging Deployment to stg.jouster.org
+name: 'Deploy Frontend: Staging (stg.jouster.org)'
 
+# GREEN environment. Promote to production with "Promote Frontend: Staging → Production".
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-    types: [closed]
+  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: frontend-staging
+  cancel-in-progress: false
+
 jobs:
   deploy-staging:
-    if: github.event_name == 'push' || (github.event.pull_request.merged == true)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -83,6 +85,15 @@ jobs:
         else
           echo "Staging S3 bucket already exists"
         fi
+
+    # Lets the production promotion report exactly which commit it is shipping.
+    - name: Write build-info.json
+      run: |
+        jq -n --arg sha "$GITHUB_SHA" --arg ref "$GITHUB_REF_NAME" --arg run "$GITHUB_RUN_ID" \
+          --arg builtAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '{sha: $sha, ref: $ref, runId: $run, builtAt: $builtAt}' \
+          > dist/apps/jouster-ui/browser/build-info.json
+        cat dist/apps/jouster-ui/browser/build-info.json
 
     - name: Deploy to staging S3 bucket (green environment)
       run: |
