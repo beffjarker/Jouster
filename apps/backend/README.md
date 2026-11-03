@@ -21,6 +21,36 @@ A Node.js backend server that fetches Instagram posts from public profiles, bypa
 
 ## 📡 API Endpoints
 
+### 🔒 Authentication (deny-by-default)
+
+Every `/api/*` route requires an authenticated session **except** this allowlist
+(`PUBLIC_API_ROUTES` in `middleware/auth-guard.js`):
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| `POST` | `/api/auth/login` | Password login (bcrypt vs `LIFE_MAP_PASSWORD_HASH`); 5 failures / 15 min per IP |
+| `POST` | `/api/auth/logout` | Destroy the session |
+| `GET` | `/api/auth/verify` | `{ authenticated: boolean }` |
+
+`/health` is also public. Unauthenticated requests to anything else get **401**.
+
+- Every state-changing `/api` request (`POST`/`PUT`/`PATCH`/`DELETE`) must send
+  `X-Requested-With: XMLHttpRequest` (CSRF defense-in-depth), otherwise **403**.
+- Session cookie `jstr.sid`: `HttpOnly`, `SameSite=Strict`, `Secure` when deployed,
+  30 min rolling idle timeout, 4 h absolute lifetime (`config/session.js`).
+- With `NODE_ENV` = `production` / `staging` / `nonprod`, the server **refuses to start** unless
+  `SESSION_SECRET` (≥ 32 bytes) is set and `SESSION_STORE=dynamodb`. On Lambda, secrets can come
+  from Secrets Manager via `SECRETS_ARNS` (`config/secrets.js`).
+- Generate a password hash: `node scripts/generate-password-hash.js '<password>'`.
+
+Tests: `npm test` (built-in `node:test`; covers the auth gate, CSRF check and session config).
+
+**Client (`jouster-ui`):** there is no visible login link. `Ctrl+Shift+;` opens a password dialog
+(Enter submits, Esc closes); pressed while logged in it asks "End session?" (Enter confirms, Esc
+cancels). Only genuine, non-repeated key presses count. Private menu items (e.g. Life Map) are shown
+only while logged in, and any `401` from a private API logs the client out and leaves private pages.
+Hiding UI is cosmetic — the server-side gate above is the actual protection.
+
 ### Get Instagram Posts
 ```
 GET /api/instagram/:username
@@ -72,7 +102,7 @@ Returns server status and timestamp.
 
 - ✅ Bypasses CORS restrictions
 - ✅ Works with any public Instagram profile
-- ✅ No authentication required
+- ✅ Session authentication required for all data endpoints (see above)
 - ✅ Robust error handling
 - ✅ Multiple parsing strategies for reliability
 - ✅ Clean API response format

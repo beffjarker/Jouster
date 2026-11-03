@@ -12,6 +12,8 @@
 
 const express = require('express');
 const bcrypt = require('bcrypt');
+const { SESSION_COOKIE_NAME } = require('../config/session');
+const { isSessionAuthenticated } = require('../middleware/auth-guard');
 const router = express.Router();
 
 /**
@@ -92,7 +94,7 @@ router.post('/logout', (req, res) => {
       });
     }
 
-    res.clearCookie('jstr.sid');
+    res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
     return res.json({
       success: true,
       message: 'Logged out',
@@ -105,7 +107,7 @@ router.post('/logout', (req, res) => {
  * Check if the current session is authenticated.
  */
 router.get('/verify', (req, res) => {
-  if (req.session && req.session.authenticated === true) {
+  if (isSessionAuthenticated(req)) {
     return res.json({
       success: true,
       authenticated: true,

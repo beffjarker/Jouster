@@ -38,14 +38,15 @@ const { corsOptions } = require('./config/cors');
 
 // Import session middleware
 const session = require('express-session');
+const { buildSessionOptions } = require('./config/session');
 
 // Import routes
 const emailRoutes = require('./routes/emails');
 const authRoutes = require('./routes/auth');
 const lifeMapRoutes = require('./routes/life-map');
 
-// Import auth guard
-const { requireAuth } = require('./middleware/auth-guard');
+// Import auth guard (deny-by-default for /api) and CSRF header check
+const { apiAuthGate, requireXhrForWrites } = require('./middleware/auth-guard');
 
 // Conversation history data layer (DynamoDB in preview/cloud, JSON files locally)
 const conversationStore = require('./data/conversations');
@@ -93,42 +94,10 @@ app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// 12. Session management (httpOnly, secure on HTTPS envs, strict sameSite)
-// Deployed environments are HTTPS-terminated (API Gateway/CloudFront), so the
-// session cookie must be Secure in all of them — not just production.
-const SECURE_COOKIE_ENVS = ['production', 'staging', 'nonprod'];
-const sessionOptions = {
-  name: 'jstr.sid',
-  secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'fallback-dev-secret',
-  resave: false,
-  saveUninitialized: false,
-  cookie: {
-    httpOnly: true,
-    secure: SECURE_COOKIE_ENVS.includes(process.env.NODE_ENV),
-    sameSite: 'strict',
-    maxAge: 4 * 60 * 60 * 1000, // 4 hours
-  },
-};
-
-// Optional persistent session store for production / multi-instance deployments.
-// Enabled when SESSION_STORE=dynamodb. Falls back to the in-memory store (local dev)
-// if the dependency is missing or initialization fails — never crashes the server.
-if (process.env.SESSION_STORE === 'dynamodb') {
-  try {
-    const DynamoDBStore = require('connect-dynamodb')(session);
-    sessionOptions.store = new DynamoDBStore({
-      table: process.env.SESSION_TABLE_NAME || 'jouster-sessions',
-      AWSConfigJSON: { region: process.env.AWS_REGION || 'us-west-2' },
-      hashKey: 'id',
-      reapInterval: 24 * 60 * 60 * 1000, // prune expired sessions daily
-    });
-    console.log('🔐 Session store: DynamoDB');
-  } catch (err) {
-    console.error('Failed to init DynamoDB session store, using in-memory store:', err.message);
-  }
-}
-
-app.use(session(sessionOptions));
+// 12. Session management (httpOnly, secure on HTTPS envs, strict sameSite,
+// 30 min rolling idle timeout). Throws at startup in deployed environments when
+// SESSION_SECRET or the DynamoDB session store is missing (fail closed).
+app.use(session(buildSessionOptions(session)));
 
 // ===== APPLICATION CONFIGURATION =====
 
@@ -176,11 +145,19 @@ app.get('/health', (req, res) => {
 // API rate limiting for all API routes
 app.use('/api', apiLimiter);
 
-// Mount auth routes (login is brute-force throttled by authLimiter: 5/15min)
+// Login is brute-force throttled by authLimiter: 5 failures / 15 min per IP.
 app.use('/api/auth/login', authLimiter);
+
+// CSRF defense-in-depth: every state-changing /api request needs X-Requested-With.
+app.use('/api', requireXhrForWrites);
+
+// Deny-by-default: every /api route requires an authenticated session except the
+// PUBLIC_API_ROUTES allowlist in middleware/auth-guard.js (login, logout, verify).
+app.use('/api', apiAuthGate);
+
 app.use('/api/auth', authRoutes);
 
-// Mount life-map routes (auth-protected internally)
+// Mount life-map routes (also auth-protected internally)
 app.use('/api/life-map', lifeMapRoutes);
 
 // Mount email routes

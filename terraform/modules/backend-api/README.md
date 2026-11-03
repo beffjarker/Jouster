@@ -64,4 +64,9 @@ module "backend_api" {
 - `lambda_zip_path` must exist at `plan`/`apply` time (built by CI or `npm` script).
   `terraform validate` does not read the file, so it passes without a built artifact.
 - The `live` alias ignores `function_version`/`routing_config` drift so CodeDeploy owns cutover.
+- `secret_arns` are exposed to the function as `SECRETS_ARNS`. At cold start
+  `apps/backend/config/secrets.js` loads each secret into `process.env`; every secret must be a
+  JSON object of env vars, e.g. `{"SESSION_SECRET":"<64 hex chars>","LIFE_MAP_PASSWORD_HASH":"$2b$12$..."}`.
+- In `nonprod`/`staging`/`production` the backend **refuses to start** unless `SESSION_SECRET`
+  (≥ 32 bytes) is set and `SESSION_STORE=dynamodb` with a reachable sessions table.
 
