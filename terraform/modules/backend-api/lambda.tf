@@ -21,7 +21,12 @@ resource "aws_lambda_function" "this" {
   publish          = true
 
   environment {
-    variables = var.lambda_env_vars
+    # SECRETS_ARNS lets apps/backend/config/secrets.js load SESSION_SECRET,
+    # LIFE_MAP_PASSWORD_HASH, etc. from Secrets Manager at cold start.
+    variables = merge(
+      var.lambda_env_vars,
+      length(var.secret_arns) > 0 ? { SECRETS_ARNS = join(",", var.secret_arns) } : {},
+    )
   }
 
   tracing_config {
