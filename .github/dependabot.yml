@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Security updates only; version updates stay off.
+    open-pull-requests-limit: 0
+    groups:
+      nx:
+        applies-to: security-updates
+        patterns:
+          - "@nx/*"
+          - "nx"
+          - "cypress"
