@@ -176,4 +176,61 @@ describe('TimelineComponent editing', () => {
     authenticated$.next(false);
     expect(component.showEntryForm).toBe(false);
   });
+
+  it('rejects images over the size limit without uploading', () => {
+    component.openAddForm();
+    const input = document.createElement('input');
+    const big = new File(['x'], 'big.png', { type: 'image/png' });
+    Object.defineProperty(big, 'size', { value: 4 * 1024 * 1024 + 1 });
+    Object.defineProperty(input, 'files', { value: [big] });
+
+    component.onImageSelected({ target: input } as unknown as Event);
+
+    expect(component.formError).toMatch(/4 MB or smaller/);
+    expect(ControlledFileReader.instances).toHaveLength(0);
+    expect(component.pendingUploads).toBe(0);
+  });
+
+  describe('late save responses', () => {
+    let saveResult: Subject<unknown>;
+
+    const startSaveThenOpenNewDraft = (): void => {
+      saveResult = new Subject<unknown>();
+      lifeMap.createEntry.mockReturnValue(saveResult.asObservable());
+      component.openAddForm();
+      Object.assign(component.entryForm, { title: 'A', date: '2020-01-01', lat: 1, lng: 2 });
+      component.saveEntry();
+      component.closeForm();
+      component.openAddForm();
+      component.entryForm.title = 'B';
+    };
+
+    it('do not close a replacement draft on success', () => {
+      startSaveThenOpenNewDraft();
+      saveResult.next({});
+      saveResult.complete();
+      expect(component.showEntryForm).toBe(true);
+      expect(component.entryForm.title).toBe('B');
+    });
+
+    it('do not put the old draft error into a replacement draft', () => {
+      startSaveThenOpenNewDraft();
+      saveResult.error({ error: { message: 'boom' } });
+      expect(component.formError).toBe('');
+      expect(component.saving).toBe(false);
+    });
+  });
+
+  it('saves the picked calendar day as UTC midnight and edits it back unchanged', () => {
+    component.openAddForm();
+    Object.assign(component.entryForm, { title: 'NY', date: '2020-01-01', lat: 1, lng: 2 });
+    component.saveEntry();
+    const saved = lifeMap.createEntry.mock.calls[0][0] as { date: string };
+    expect(saved.date).toBe('2020-01-01T00:00:00.000Z');
+
+    component.openEditForm({ id: 'x', title: 'NY', date: saved.date, category: 'travel',
+      location: { lat: 1, lng: 2, name: 'NY' }, images: [], tags: [] } as unknown as LifeMapEntry);
+    expect(component.entryForm.date).toBe('2020-01-01');
+    expect(component.calendarDate(saved.date).getDate()).toBe(1);
+  });
 });

@@ -1,4 +1,5 @@
 import { LifeMapEntry } from '../../services/life-map.service';
+import { parseCalendarDate } from './calendar-date';
 
 const HTML_ESCAPES = new Map<string, string>([
   ['&', '&amp;'],
@@ -21,7 +22,7 @@ export function escapeHtml(value: unknown): string {
 export function buildEntryPopupHtml(entry: LifeMapEntry): string {
   const description = entry.description || '';
   const excerpt = description.length > 150 ? `${description.slice(0, 150)}...` : description;
-  const dateStr = new Date(entry.date).toLocaleDateString();
+  const dateStr = parseCalendarDate(entry.date).toLocaleDateString();
   const place = `${entry.location?.city || ''}, ${entry.location?.state || ''}`;
   return `
         <div class="map-popup">
