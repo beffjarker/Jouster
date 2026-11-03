@@ -1,35 +1,90 @@
-import { Component, HostListener, OnDestroy } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { Component, DestroyRef, ElementRef, HostListener, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../services/auth.service';
-import { Subscription } from 'rxjs';
+
+export type HiddenLoginMode = 'closed' | 'login' | 'confirm-logout';
+
+/** Physical key (KeyboardEvent.code) pressed with Ctrl+Shift to open the hidden login. */
+export const LOGIN_CHORD_CODE = 'Semicolon';
+
+const SUCCESS_CLOSE_DELAY_MS = 800;
 
 /**
- * Hidden login dialog that appears only when Ctrl+Shift+; is pressed.
- * No visible UI until activated. Disappears after successful login or Escape.
+ * True for Ctrl+Shift+; (US layouts report `key` ':' because Shift is held). `code` is
+ * checked so the chord works on any layout; Alt/Meta must not be held.
+ */
+export function isLoginChord(event: KeyboardEvent): boolean {
+  return (
+    event.ctrlKey &&
+    event.shiftKey &&
+    !event.altKey &&
+    !event.metaKey &&
+    (event.code === LOGIN_CHORD_CODE || event.key === ';' || event.key === ':')
+  );
+}
+
+/**
+ * Keyboard-only hidden login.
+ *
+ * - Logged out: Ctrl+Shift+; opens a password dialog (Enter submits, Esc closes).
+ * - Logged in: Ctrl+Shift+; opens an "End session?" confirmation (Enter confirms, Esc cancels).
+ * - There is no link, button or route that opens it; only trusted, non-repeated key presses count.
+ *
+ * Hiding the dialog is UX only — the backend enforces authentication on every private API.
  */
 @Component({
   selector: 'jstr-hidden-login',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [FormsModule],
   template: `
-    <div class="login-overlay" *ngIf="visible" (click)="close()">
-      <div class="login-dialog" (click)="$event.stopPropagation()">
-        <form (ngSubmit)="submit()" class="login-form">
-          <input
-            type="password"
-            [(ngModel)]="password"
-            name="password"
-            placeholder="..."
-            autocomplete="current-password"
-            [class.error]="errorMessage"
-            (keydown.escape)="close()"
-            #passwordInput>
-          <span class="error-msg" *ngIf="errorMessage">{{ errorMessage }}</span>
-          <span class="success-msg" *ngIf="successMessage">{{ successMessage }}</span>
-        </form>
+    @if (visible) {
+      <div
+        class="login-overlay"
+        tabindex="-1"
+        (click)="onBackdropClick($event)"
+        (keydown.escape)="close()">
+        <div
+          class="login-dialog"
+          role="dialog"
+          aria-modal="true"
+          [attr.aria-label]="dialogLabel"
+          (keydown.tab)="trapFocus($event)"
+          (keydown.shift.tab)="trapFocus($event)">
+          @if (mode === 'login') {
+            <form (ngSubmit)="submit()" class="login-form">
+              <input
+                #primaryControl
+                type="password"
+                [(ngModel)]="password"
+                name="password"
+                aria-label="Password"
+                placeholder="..."
+                autocomplete="current-password"
+                [readonly]="submitting"
+                [class.error]="errorMessage">
+            </form>
+          } @else {
+            <p class="confirm-text">End session?</p>
+            <button
+              #primaryControl
+              type="button"
+              class="confirm-button"
+              [disabled]="submitting"
+              (click)="confirmLogout()">
+              End session
+            </button>
+            <p class="hint">Enter to confirm · Esc to cancel</p>
+          }
+          @if (errorMessage) {
+            <span class="error-msg" role="alert">{{ errorMessage }}</span>
+          }
+          @if (successMessage) {
+            <span class="success-msg" role="status">{{ successMessage }}</span>
+          }
+        </div>
       </div>
-    </div>
+    }
   `,
   styles: [`
     .login-overlay {
@@ -53,6 +108,8 @@ import { Subscription } from 'rxjs';
       padding: 20px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
       min-width: 280px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      color: #e0e0e0;
     }
 
     .login-form input {
@@ -63,18 +120,44 @@ import { Subscription } from 'rxjs';
       background: #0f0f23;
       color: #e0e0e0;
       font-size: 14px;
-      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-family: inherit;
       outline: none;
       transition: border-color 0.2s;
       box-sizing: border-box;
     }
 
-    .login-form input:focus {
+    .login-form input:focus,
+    .confirm-button:focus-visible {
       border-color: #667eea;
+      outline: 2px solid #667eea;
+      outline-offset: 2px;
     }
 
     .login-form input.error {
       border-color: #e74c3c;
+    }
+
+    .confirm-text {
+      margin: 0 0 12px;
+      font-size: 14px;
+    }
+
+    .confirm-button {
+      width: 100%;
+      padding: 10px 16px;
+      border: 1px solid #444;
+      border-radius: 4px;
+      background: #0f0f23;
+      color: #e0e0e0;
+      font-family: inherit;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .hint {
+      margin: 8px 0 0;
+      font-size: 11px;
+      color: #888;
     }
 
     .error-msg {
@@ -82,7 +165,6 @@ import { Subscription } from 'rxjs';
       color: #e74c3c;
       font-size: 12px;
       margin-top: 8px;
-      font-family: monospace;
     }
 
     .success-msg {
@@ -90,93 +172,160 @@ import { Subscription } from 'rxjs';
       color: #2ecc71;
       font-size: 12px;
       margin-top: 8px;
-      font-family: monospace;
     }
-  `]
+  `],
 })
-export class HiddenLoginComponent implements OnDestroy {
-  visible = false;
-  password = '';
-  errorMessage = '';
-  successMessage = '';
-  private loginSub: Subscription | null = null;
+export class HiddenLoginComponent {
+  private readonly authService = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
 
-  constructor(private authService: AuthService) {}
+  public mode: HiddenLoginMode = 'closed';
+  public password = '';
+  public errorMessage = '';
+  public successMessage = '';
+  public submitting = false;
+
+  private previouslyFocused: HTMLElement | null = null;
+  private closeTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    this.destroyRef.onDestroy(() => this.clearCloseTimer());
+  }
+
+  /** Focus the dialog's only control (password input or confirm button) as soon as it renders. */
+  @ViewChild('primaryControl')
+  public set primaryControl(ref: ElementRef<HTMLElement> | undefined) {
+    ref?.nativeElement.focus();
+  }
+
+  public get visible(): boolean {
+    return this.mode !== 'closed';
+  }
+
+  public get dialogLabel(): string {
+    return this.mode === 'confirm-logout' ? 'End session' : 'Sign in';
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  public onKeyDown(event: KeyboardEvent): void {
+    if (this.visible && event.key === 'Escape') {
+      event.preventDefault();
+      this.close();
+      return;
+    }
+
+    if (!isLoginChord(event)) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!this.isTrustedKeyboardEvent(event)) {
+      return;
+    }
+
+    if (this.visible) {
+      this.close();
+      return;
+    }
+
+    this.open(this.authService.isAuthenticated() ? 'confirm-logout' : 'login');
+  }
 
   /**
-   * Listen for Ctrl+Shift+; to toggle the login dialog.
-   * Note: Shift+; produces ':' as the key value on US keyboards.
-   * We also check event.code for cross-layout compatibility.
+   * Only genuine, non-auto-repeated key presses may open the dialog — not events
+   * dispatched by scripts (`isTrusted === false`) or a held-down key.
    */
-  @HostListener('document:keydown', ['$event'])
-  onKeyDown(event: KeyboardEvent): void {
-    // Ctrl+Shift+; — key is ':' because Shift changes ; to :
-    // Also match by code 'Semicolon' for keyboard layout independence
-    if (event.ctrlKey && event.shiftKey && (event.key === ':' || event.key === ';' || event.code === 'Semicolon')) {
-      event.preventDefault();
-      event.stopPropagation();
+  public isTrustedKeyboardEvent(event: KeyboardEvent): boolean {
+    return event.isTrusted && !event.repeat;
+  }
 
-      if (this.authService.isAuthenticated()) {
-        // Already authenticated — use as logout trigger
-        this.authService.logout().subscribe(() => {
-          this.visible = true;
-          this.successMessage = '';
-          this.errorMessage = 'Session ended.';
-          setTimeout(() => this.close(), 1500);
-        });
-      } else {
-        this.toggle();
-      }
-    }
+  /** The dialog has exactly one focusable control, so Tab must not move focus out of it. */
+  public trapFocus(event: Event): void {
+    event.preventDefault();
+  }
 
-    // Escape to close
-    if (event.key === 'Escape' && this.visible) {
+  /** Close when the dimmed backdrop itself (not the dialog) is clicked. */
+  public onBackdropClick(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
       this.close();
     }
   }
 
-  toggle(): void {
-    this.visible = !this.visible;
+  public open(mode: Exclude<HiddenLoginMode, 'closed'>): void {
+    this.clearCloseTimer();
+    const active = document.activeElement;
+    this.previouslyFocused = active instanceof HTMLElement ? active : null;
+    this.resetFields();
+    this.mode = mode;
+  }
+
+  public close(): void {
+    this.clearCloseTimer();
+    this.mode = 'closed';
+    this.resetFields();
+    this.previouslyFocused?.focus();
+    this.previouslyFocused = null;
+  }
+
+  public submit(): void {
+    if (this.submitting || !this.password.trim()) {
+      return;
+    }
+
+    this.submitting = true;
+    this.errorMessage = '';
+    this.successMessage = '';
+    const password = this.password;
+    this.password = '';
+
+    this.authService
+      .login(password)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((success) => {
+        this.submitting = false;
+        if (success) {
+          this.successMessage = 'authenticated';
+          this.scheduleClose();
+        } else {
+          this.errorMessage = 'denied';
+        }
+      });
+  }
+
+  public confirmLogout(): void {
+    if (this.submitting) {
+      return;
+    }
+
+    this.submitting = true;
+    this.authService
+      .logout()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.submitting = false;
+        this.successMessage = 'Session ended.';
+        this.scheduleClose();
+      });
+  }
+
+  private resetFields(): void {
     this.password = '';
     this.errorMessage = '';
     this.successMessage = '';
+    this.submitting = false;
+  }
 
-    if (this.visible) {
-      // Focus the input after render
-      setTimeout(() => {
-        const input = document.querySelector('.login-form input') as HTMLInputElement;
-        input?.focus();
-      }, 50);
+  private scheduleClose(): void {
+    this.clearCloseTimer();
+    this.closeTimer = setTimeout(() => this.close(), SUCCESS_CLOSE_DELAY_MS);
+  }
+
+  private clearCloseTimer(): void {
+    if (this.closeTimer) {
+      clearTimeout(this.closeTimer);
+      this.closeTimer = null;
     }
   }
-
-  close(): void {
-    this.visible = false;
-    this.password = '';
-    this.errorMessage = '';
-    this.successMessage = '';
-  }
-
-  submit(): void {
-    if (!this.password.trim()) return;
-
-    this.errorMessage = '';
-    this.successMessage = '';
-
-    this.loginSub = this.authService.login(this.password).subscribe(success => {
-      if (success) {
-        this.successMessage = 'authenticated';
-        this.password = '';
-        setTimeout(() => this.close(), 800);
-      } else {
-        this.errorMessage = 'denied';
-        this.password = '';
-      }
-    });
-  }
-
-  ngOnDestroy(): void {
-    this.loginSub?.unsubscribe();
-  }
 }
-
