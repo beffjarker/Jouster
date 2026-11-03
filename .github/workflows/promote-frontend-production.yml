@@ -1,4 +1,4 @@
-name: 'Promote Frontend: Staging â†’ Production'
+name: 'Promote Frontend: Staging → Production'
 
 # Blue/green promotion: copies the artifact already running on stg.jouster.org (GREEN)
 # to the jouster.org origin bucket (BLUE). Current production is snapshotted first so
@@ -35,7 +35,7 @@ env:
 
 jobs:
   promote:
-    name: Promote stg.jouster.org â†’ jouster.org
+    name: Promote stg.jouster.org → jouster.org
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -114,7 +114,7 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Frontend promotion: stg.jouster.org â†’ jouster.org"
+            echo "## Frontend promotion: stg.jouster.org → jouster.org"
             echo ""
             echo "| | |"
             echo "|---|---|"
