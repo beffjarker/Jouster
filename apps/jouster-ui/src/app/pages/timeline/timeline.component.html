@@ -211,7 +211,7 @@
               {{ entry.category | titlecase }}
             </span>
           </div>
-          <p class="event-date">{{ entry.date | date:'mediumDate' }}</p>
+          <p class="event-date">{{ calendarDate(entry.date) | date:'mediumDate' }}</p>
           <p class="event-location" *ngIf="entry.location?.city">
             📍 {{ entry.location.city }}, {{ entry.location.state }}
           </p>
@@ -253,7 +253,7 @@
                 {{ fallbackEntry.category | titlecase }}
               </span>
             </div>
-            <p class="event-date">{{ fallbackEntry.date | date:'mediumDate' }}</p>
+            <p class="event-date">{{ calendarDate(fallbackEntry.date) | date:'mediumDate' }}</p>
             <p class="event-location" *ngIf="fallbackEntry.location?.city">
               📍 {{ fallbackEntry.location.city }}, {{ fallbackEntry.location.state }}
             </p>

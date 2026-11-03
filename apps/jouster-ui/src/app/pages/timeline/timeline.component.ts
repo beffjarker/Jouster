@@ -11,10 +11,17 @@ import { TimelineSliderComponent } from '../../components/timeline-slider/timeli
 import { PageTitleComponent } from '../../components/page-title/page-title.component';
 import { SearchableSelectComponent } from '@jouster/shared/ui';
 import { buildEntryPopupHtml, buildFallbackPopupHtml } from './map-popup';
+import { parseCalendarDate, toDateInputValue } from './calendar-date';
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), ' +
   '[tabindex]:not([tabindex="-1"])';
+
+/**
+ * Raw image size limit. Base64 inflates uploads by ~4/3, so 4 MiB stays under the
+ * 6 MB Lambda synchronous payload limit. Keep in sync with the backend MAX_IMAGE_BYTES.
+ */
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 
 /** Editable form model backing the add/edit entry panel. */
 interface EntryFormModel {
@@ -213,7 +220,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     const validEntries = this.entries
       .filter(e => e.location?.lat != null && e.location?.lng != null
         && !(e.location.lat === 0 && e.location.lng === 0))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => parseCalendarDate(b.date).getTime() - parseCalendarDate(a.date).getTime());
 
     return validEntries.find(e => e.category === 'residence')
       || validEntries[0]
@@ -336,10 +343,10 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Date range filter (driven by the timeline slider)
     if (this.sliderStartDate) {
-      result = result.filter(e => new Date(e.date) >= this.sliderStartDate!);
+      result = result.filter(e => parseCalendarDate(e.date) >= this.sliderStartDate!);
     }
     if (this.sliderEndDate) {
-      result = result.filter(e => new Date(e.date) <= this.sliderEndDate!);
+      result = result.filter(e => parseCalendarDate(e.date) <= this.sliderEndDate!);
     }
 
     // Approximate dates toggle
@@ -349,7 +356,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Sort by date
     result.sort((a, b) => {
-      const diff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      const diff = parseCalendarDate(a.date).getTime() - parseCalendarDate(b.date).getTime();
       return this.sortOrder === 'asc' ? diff : -diff;
     });
 
@@ -408,7 +415,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     if (candidates.length === 0) return;
 
     // Check if any candidates fall outside current slider range
-    const dates = candidates.map(e => new Date(e.date));
+    const dates = candidates.map(e => parseCalendarDate(e.date));
     const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
 
@@ -497,10 +504,10 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   private dateFilteredEntries(): LifeMapEntry[] {
     let result = [...this.entries];
     if (this.sliderStartDate) {
-      result = result.filter(e => new Date(e.date) >= this.sliderStartDate!);
+      result = result.filter(e => parseCalendarDate(e.date) >= this.sliderStartDate!);
     }
     if (this.sliderEndDate) {
-      result = result.filter(e => new Date(e.date) <= this.sliderEndDate!);
+      result = result.filter(e => parseCalendarDate(e.date) <= this.sliderEndDate!);
     }
     if (!this.showApproximate) {
       result = result.filter(e => !e.tags?.includes('date-approximate'));
@@ -510,7 +517,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
 
   public getMostActiveYear(): string {
     if (this.entries.length === 0) return 'N/A';
-    const years = this.entries.map(e => new Date(e.date).getFullYear()).filter(y => !isNaN(y));
+    const years = this.entries.map(e => parseCalendarDate(e.date).getFullYear()).filter(y => !isNaN(y));
     const counts: Record<number, number> = {};
     years.forEach(y => counts[y] = (counts[y] || 0) + 1);
     const best = Object.entries(counts).reduce((a, b) => a[1] > b[1] ? a : b);
@@ -520,12 +527,17 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   public getDateRange(): string {
     if (this.entries.length === 0) return 'N/A';
     const years = this.entries
-      .map(e => new Date(e.date).getFullYear())
+      .map(e => parseCalendarDate(e.date).getFullYear())
       .filter(y => !isNaN(y));
     if (years.length === 0) return 'N/A';
     const first = Math.min(...years);
     const last = Math.max(...years);
     return `${first} – ${last}`;
+  }
+
+  /** Calendar-day Date for template display (avoids UTC-midnight shifting west of UTC). */
+  public calendarDate(value: string): Date {
+    return parseCalendarDate(value);
   }
 
   // ===================== Authenticated editing =====================
@@ -555,7 +567,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     this.entryForm = {
       title: entry.title,
       description: entry.description || '',
-      date: entry.date ? entry.date.slice(0, 10) : '',
+      date: toDateInputValue(entry.date),
       category: entry.category,
       lat: entry.location?.lat ?? null,
       lng: entry.location?.lng ?? null,
@@ -574,6 +586,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   /** Shared open logic: start a fresh draft session and move focus into the dialog. */
   private openForm(): void {
     this.formSession++;
+    this.saving = false;
     this.pendingUploads = 0;
     this.pickingLocation = false;
     this.geocodeQuery = '';
@@ -702,6 +715,11 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      this.formError = `Images must be ${MAX_IMAGE_BYTES / (1024 * 1024)} MB or smaller.`;
+      input.value = '';
+      return;
+    }
     const session = this.formSession;
     const isCurrent = () => session === this.formSession;
     this.pendingUploads++;
@@ -749,7 +767,8 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     const input: LifeMapEntryInput = {
       title: f.title.trim(),
       description: f.description.trim(),
-      date: new Date(f.date).toISOString(),
+      // Same storage format as before (UTC midnight), read back as a calendar date.
+      date: `${f.date}T00:00:00.000Z`,
       category: f.category,
       location: {
         lat: f.lat,
@@ -766,13 +785,21 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     };
 
     this.saving = true;
+    const session = this.formSession;
     const op = this.editingId
       ? this.lifeMapService.updateEntry(this.editingId, input)
       : this.lifeMapService.createEntry(input);
 
     op.subscribe({
-      next: () => { this.saving = false; this.closeForm(); this.loadEntries(); },
+      next: () => {
+        this.loadEntries();
+        // A late response must not close or reset a draft opened after this save started.
+        if (session !== this.formSession) return;
+        this.saving = false;
+        this.closeForm();
+      },
       error: (err) => {
+        if (session !== this.formSession) return;
         this.saving = false;
         this.formError = 'Save failed. ' + (err?.error?.message || '');
       },
