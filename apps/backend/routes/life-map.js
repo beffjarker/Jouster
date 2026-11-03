@@ -316,11 +316,28 @@ router.put('/entries/:id', requireWriteHeader, validateUpdateEntry, async (req, 
       updatedAt: new Date().toISOString(),
     };
 
-    await docClient.put({ TableName: TABLE_NAME, Item: updated }).promise();
+    // Optimistic concurrency: only overwrite the version we read, so a
+    // concurrent update or delete is not silently clobbered or resurrected.
+    const condition = existing.Item.updatedAt
+      ? {
+        ConditionExpression: 'attribute_exists(id) AND updatedAt = :prevUpdatedAt',
+        ExpressionAttributeValues: { ':prevUpdatedAt': existing.Item.updatedAt },
+      }
+      : {
+        ConditionExpression: 'attribute_exists(id) AND attribute_not_exists(updatedAt)',
+      };
+
+    await docClient.put({ TableName: TABLE_NAME, Item: updated, ...condition }).promise();
 
     auditLog(req, 'update', id);
     return res.json({ success: true, data: updated });
   } catch (error) {
+    if (error.code === 'ConditionalCheckFailedException') {
+      return res.status(409).json({
+        success: false,
+        message: 'Entry was changed or deleted by another request; reload and try again',
+      });
+    }
     console.error('Life map update error:', error.message);
     return res.status(500).json({ success: false, message: 'Failed to update entry' });
   }

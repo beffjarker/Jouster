@@ -64,16 +64,25 @@ const getAllowedOrigins = () => {
 };
 
 /**
+ * Port of a URL, normalized so the scheme's default port compares equal to an
+ * omitted one (WHATWG URL already reports default ports as '').
+ */
+const effectivePort = (url) => url.port || (url.protocol === 'https:' ? '443' : url.protocol === 'http:' ? '80' : '');
+
+/**
  * Match an origin against an allowed entry, supporting a single `*.` wildcard
- * in the hostname (e.g., `https://*.jouster.org`). Protocol and port must match.
+ * in the hostname (e.g., `https://*.jouster.org`). Protocol and port must match
+ * for both wildcard and exact entries.
  */
 const originMatches = (originUrl, allowed) => {
-  // Wildcard entry: compare protocol + hostname suffix.
+  // Wildcard entry: substitute a placeholder label so it parses as a URL, then
+  // compare protocol + port exactly and the hostname by suffix.
   if (allowed.includes('*.')) {
-    const [proto, rest] = allowed.split('://');
-    const suffix = rest.replace('*.', '.'); // '*.jouster.org' -> '.jouster.org'
+    const allowedUrl = new URL(allowed.replace('*.', 'wildcard.'));
+    const suffix = allowedUrl.hostname.slice('wildcard'.length); // '.jouster.org'
     return (
-      originUrl.protocol === `${proto}:` &&
+      originUrl.protocol === allowedUrl.protocol &&
+      effectivePort(originUrl) === effectivePort(allowedUrl) &&
       (originUrl.hostname.endsWith(suffix) || originUrl.hostname === suffix.slice(1))
     );
   }
@@ -83,7 +92,7 @@ const originMatches = (originUrl, allowed) => {
   return (
     originUrl.protocol === allowedUrl.protocol &&
     originUrl.hostname === allowedUrl.hostname &&
-    originUrl.port === allowedUrl.port
+    effectivePort(originUrl) === effectivePort(allowedUrl)
   );
 };
 
@@ -160,4 +169,5 @@ module.exports = {
   corsOptions,
   getAllowedOrigins,
   handleCorsError,
+  originMatches,
 };
