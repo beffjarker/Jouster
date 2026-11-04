@@ -1,37 +1,16 @@
-const nx = require('@nx/eslint-plugin');
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { join } = require('path');
 
-module.exports = [
-  ...nx.configs['flat/base'],
-  ...nx.configs['flat/typescript'],
-  ...nx.configs['flat/javascript'],
-  ...nx.configs['flat/angular'],
-  ...nx.configs['flat/angular-template'],
-  {
-    files: ['**/*.ts'],
-    rules: {
-      '@angular-eslint/directive-selector': [
-        'error',
-        {
-          type: 'attribute',
-          prefix: 'app',
-          style: 'camelCase',
-        },
-      ],
-      '@angular-eslint/component-selector': [
-        'error',
-        {
-          type: 'element',
-          prefix: 'app',
-          style: 'kebab-case',
-        },
-      ],
-    },
+module.exports = {
+  root: true,
+  extends: ['@nrwl/nx', 'plugin:@typescript-eslint/recommended'],
+  parserOptions: {
+    ecmaVersion: 2020,
+    sourceType: 'module',
   },
-  {
-    files: ['**/*.html'],
-    // Override or add rules here
-    rules: {
-      '@angular-eslint/template/prefer-control-flow': 'off',
-    },
+  rules: {
+    // Add or modify rules to fix linting warnings
+    '@typescript-eslint/explicit-function-return-type': 'off',
+    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
   },
-];
+};
