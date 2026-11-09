@@ -13,12 +13,11 @@ export class AuthService {}
 export class AppComponent {}
 
 @NgModule({
-  declarations: [
-    AppComponent
-  ],
+  declarations: [],
   imports: [
     BrowserModule,
-    HttpClientModule
+    HttpClientModule,
+    AppComponent
   ],
   providers: [AuthService],
   bootstrap: [AppComponent]
