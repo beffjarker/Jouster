@@ -1,11 +1,16 @@
 // Import necessary modules
-import { NgModule } from '@angular/core';
+import { NgModule, Component, Injectable } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 import { HttpClientModule } from '@angular/common/http';
 
-// Import components and services
-import { AppComponent } from './app.component';
-import { AuthService } from './auth.service';
+@Injectable({ providedIn: 'root' })
+export class AuthService {}
+
+@Component({
+  selector: 'app-root',
+  template: '<router-outlet></router-outlet>',
+})
+export class AppComponent {}
 
 @NgModule({
   declarations: [
