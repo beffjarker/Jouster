@@ -12,6 +12,8 @@ export class AuthService {}
 
 @Component({
   selector: 'app-root',
+  standalone: true,
+  imports: [RouterModule],
   template: '<router-outlet></router-outlet>',
 })
 export class AppComponent {}
