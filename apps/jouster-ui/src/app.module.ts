@@ -4,10 +4,7 @@ import { BrowserModule } from '@angular/platform-browser';
 import { RouterModule, Routes } from '@angular/router';
 
 // Define routes with lazy loading
-const routes: Routes = [
-  { path: 'home', loadChildren: () => import('./home/home.module').then(m => m.HomeModule) },
-  { path: 'about', loadChildren: () => import('./about/about.module').then(m => m.AboutModule) }
-];
+const routes: Routes = [];
 
 // Define the main module
 @NgModule({
