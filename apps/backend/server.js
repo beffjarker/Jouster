@@ -1,10 +1,15 @@
-// Existing code...
-
+// Import necessary modules
+const express = require('express');
+const cors = require('cors');
 const http = require('http');
-const app = require('./app');
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware to parse JSON bodies
+app.use(express.json());
 
 // Modify server configuration to allow external access
-corsOptions = {
+const corsOptions = {
   origin: '*', // Allow all origins for simplicity, consider restricting in production
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -12,10 +17,14 @@ corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Change from 'localhost' to '0.0.0.0' to allow external access
-const server = http.createServer(app);
-server.listen(3000, '0.0.0.0', () => {
-  console.log('Server is running on port 3000 and accessible externally');
+// Error handler middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
 });
 
-// Existing code...
+// Change from 'localhost' to '0.0.0.0' to allow external access
+const server = http.createServer(app);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`Server is running on port ${port} and accessible externally`);
+});
