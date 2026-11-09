@@ -1,0 +1,10 @@
+// This is the nx backend project configuration
+{
+  "name": "backend",
+  "root": "apps/backend",
+  "sourceRoot": "apps/backend/src",
+  "projectType": "application",
+  "targets": {
+    // existing targets...
+  }
+}
