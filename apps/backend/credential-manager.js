@@ -1,5 +1,4 @@
 // Refactored credential manager using ES6+ features
-const fs = require('fs');
 const crypto = require('crypto');
 
 function encryptCredentials(credentials) {
@@ -16,7 +15,13 @@ function decryptCredentials(encrypted) {
   return JSON.parse(decrypted);
 }
 
+// Function to generate a secure random token
+function generateSecureToken(length) {
+  return crypto.randomBytes(Math.ceil(length / 2)).toString('hex').slice(0, length);
+}
+
 module.exports = {
   encryptCredentials,
-  decryptCredentials
+  decryptCredentials,
+  generateSecureToken
 };

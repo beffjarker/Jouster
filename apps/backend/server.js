@@ -5,7 +5,11 @@ const http = require('http');
 const fs = require('fs');
 const helmet = require('helmet');
 const cors = require('cors');
-const app = require('./app');
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Middleware to parse JSON bodies
+app.use(express.json());
 
 // Apply security middleware
 app.use(helmet());
@@ -20,6 +24,12 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // Define routes and middleware here
+
+// Error handler middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+});
 
 // Secure server setup - use HTTPS if certificates are available, otherwise fall back to HTTP
 const useHttps = fs.existsSync('/path/to/private.key') && fs.existsSync('/path/to/certificate.crt');
@@ -37,7 +47,7 @@ if (useHttps) {
 } else {
   // Change from 'localhost' to '0.0.0.0' to allow external access
   const server = http.createServer(app);
-  server.listen(3000, '0.0.0.0', () => {
-    console.log('Server is running on port 3000 and accessible externally');
+  server.listen(port, '0.0.0.0', () => {
+    console.log(`Server is running on port ${port} and accessible externally`);
   });
 }
