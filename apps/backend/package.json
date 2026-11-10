@@ -1,6 +1,8 @@
 // package.json
-"scripts": {
-  // existing scripts...
-  "security-audit": "npm audit",
-  "vulnerability-check": "snyk test"
+{
+  "scripts": {
+    // existing scripts...
+    "security-audit": "npm audit",
+    "vulnerability-check": "snyk test"
+  }
 }
