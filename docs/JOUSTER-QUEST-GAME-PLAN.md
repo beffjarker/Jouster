@@ -1,6 +1,7 @@
 # Jouster Quest — Game Plan
 
-> **Status:** Act I vertical slice implemented (see [Implementation status](#12-implementation-status-act-i-slice))
+> **Status:** Act I vertical slice implemented (see [Implementation status](#12-implementation-status-act-i-slice));
+> play-test revision 2 planned (see [Revision 2](#13-revision-2-play-test-feedback))
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -8,10 +9,11 @@
 
 ## 1. Vision
 
-A small single-player, top-down RPG with 16–32-bit-style pixel art. The player explores an overworld, visits
-friendly towns, and fights turn-based battles against monsters and dragons. Outside towns, each step has a small
-chance of a random encounter. At the start, the player picks a character class and can later recruit up to two
-companions, for a party of three, all controlled by the player.
+A small single-player, top-down RPG with 32-bit-era pixel art (GBA / late-SNES look). The player explores a
+large overworld, visits friendly towns, and fights turn-based battles against monsters and dragons. Outside
+towns, each step has a small chance of a random encounter. At the start, the player picks a character class and
+can later recruit up to two companions, for a party of three, all controlled by the player. The companions on
+offer are rolled randomly for each new game and never share the hero's class.
 
 ---
 
@@ -21,8 +23,8 @@ companions, for a party of three, all controlled by the player.
 | --- | --- |
 | Language | TypeScript (strict, no `any`) |
 | Rendering | HTML5 Canvas 2D; no game engine dependency |
-| Resolution | Internal 256×240 (NES-like), integer-scaled with `image-rendering: pixelated` |
-| Tile size | 16×16 map/character tiles; 32×32 (or larger) battle monster sprites |
+| Resolution | Logical 256×240 layout rendered at 2× pixel density (512×480 backing canvas), integer-scaled with `image-rendering: pixelated` |
+| Tile size | 16×16 logical grid; tiles, characters and monsters are drawn with 32×32 pixels of detail |
 | Maps | Authored in [Tiled](https://www.mapeditor.org/), exported as JSON |
 | Save data | `localStorage` (versioned JSON schema) |
 | Audio | Web Audio API: chiptune-style SFX and optional music loops |
@@ -118,7 +120,7 @@ The budget is **36 points**, counted as `HP/4 + MP/4 + ATK + DEF + AGI + MAG`.
 
 The Cleric is the hardest class to start with, so it sets the minimum viable power for solo play.
 
-- **Mace:** basic Attack with ATK 8 + mace 4. Kills a Slime (8 HP) in 1 hit and a Goblin (18 HP, DEF 6) in 2–3 hits.
+- **Mace:** basic Attack with ATK 8 + mace 4. Kills a Slime (10 HP) in 1–2 hits and a Goblin (21 HP, DEF 6) in 3 hits.
   Deals ×1.5 damage against undead, which makes the Wraith-heavy Mirewood Marsh a strong area for the Cleric.
 - ***Holy Strike*** (2 MP): melee damage of `ATK + MAG` with the Holy element. It's the Cleric's main damage
   option when facing tough enemies.
@@ -146,6 +148,8 @@ The Cleric is the hardest class to start with, so it sets the minimum viable pow
 | Solo win rate against the Goblin King at the expected level (level 6, shop gear) | ≥ 60% for every class |
 | Gap between the best and worst class's average fight length | ≤ 2× |
 | Full-party (3 members) win rate against Act bosses at the expected level | 70–90% |
+| Any hero + any one companion of a different class at level 5 against the Goblin King | ≥ 70% |
+| Any hero + any two companions (all classes different) at level 5 against the Goblin King | ≥ 70% |
 
 If a class misses a target, tune its numbers in `game-content` (growth curve, weapon stats, skill costs) instead
 of changing the engine.
@@ -155,6 +159,9 @@ of changing the engine.
 - **Class select:** at the start, the player chooses a class and enters a name.
 - **Party:** the player recruits companions through the story. Maximum party size is 3, and the player controls
   every member.
+- **Random allies:** each new game rolls a companion for every companion spot in the world: a random name and a
+  random class. No companion has the same class as the hero, and no two companions share a class. The roll is
+  stored in the save, so the roster stays the same for that playthrough.
 - **Tavern:** in the capital, the player can swap recruited companions in and out of the active party.
 - Party members follow the leader on the overworld in a snake-style trail.
 
@@ -221,8 +228,10 @@ NPCs with hints and side quests
 
 ## 7. Art & Audio Direction
 
-- **Palette:** a limited 16–32 color palette inspired by NES/SNES games, used across all assets.
-- **Sprites:** 16×16 overworld characters (4 directions × 2 frames); 32×32 to 64×64 battle monsters; 8×8 font.
+- **Look:** 32-bit-era 2D (GBA / late SNES): richer palette with light and shadow tones, dark outlines around
+  characters and monsters, finer texture on ground tiles, and gradient-filled menu windows.
+- **Sprites:** 32×32-pixel overworld characters (4 directions × 2 frames); 32×32-pixel monsters shown 2–4× in
+  battle; tiles have 32×32 pixels of detail on a 16×16 logical grid. The bitmap font stays chunky for readability.
 - **Tools:** Aseprite or LibreSprite for sprites; Tiled for maps.
 - **Placeholders:** CC0 assets (for example from OpenGameArt or Kenney) until custom art is ready; track licenses
   in `CREDITS.md`.
@@ -282,9 +291,11 @@ NPCs with hints and side quests
    procedural pixel art drawn in code (no third-party files), so there is nothing to attribute yet. The `Art` class
    is the single swap point for CC0 sprite sheets later; any added sheet must be listed in a `CREDITS.md`.
 3. **Mobile:** touch controls are out of scope for the first release (keyboard only).
-4. **Companions:** each companion has a **fixed class**. The world is **open**: companions can be met in any order
-   and at any time, gated only by bosses or items (not by story order). With a full party, a new companion can be
-   swapped in; the one who leaves goes back to their home spot and keeps their level.
+4. **Companions:** each companion has a **fixed class** for the whole playthrough, but *which* companions exist is
+   **rolled randomly per new game** (never the hero's class, no duplicate classes; see 4.7). The world is
+   **open**: companions can be met in any order and at any time, gated only by bosses or items (not by story
+   order). With a full party, a new companion can be swapped in; the one who leaves goes back to their home spot
+   and keeps their level.
 
 ---
 
@@ -310,3 +321,72 @@ NPCs with hints and side quests
 - Keyboard input is only read while the game canvas has focus.
 - Full parties may beat the trio balance targets slightly; solo and duo targets are enforced by the simulator.
 - Armor/shield/accessory slots, status-curing at the chapel, and music loops are deferred to later phases.
+
+---
+
+## 13. Revision 2 (play-test feedback)
+
+Feedback from the first play-test of the Act I slice. Boss difficulty felt right and stays unchanged.
+
+### 13.1 Random allies
+
+| Rule | Detail |
+| --- | --- |
+| Companion spots | Four fixed home spots: Aldmere tavern, Thornwick ruins, Brookhollow village, Goblin Cave (after the Goblin King) |
+| Roll | On **New Game**, each spot gets a random class and a random name from that class's name pool |
+| Class limits | Never the hero's class; no two companions share a class (5 eligible classes for 4 spots) |
+| Dialogue | Each spot has a location line (why they are there) plus a class line (what they offer) |
+| Persistence | The roster is stored in the save (`companions` field), so it is stable within a playthrough |
+| Randomness | Uses the game's seeded RNG, so tests can force a roster |
+
+Balance impact: any class can now be a companion before the boss, so the simulator checks every hero class with
+every other class as a single companion, and every valid trio (section 4.6).
+
+### 13.2 Bigger world
+
+| Item | Before | After |
+| --- | --- | --- |
+| Overworld size | 40×30 tiles | **96×72 tiles** (about 5.8× the area) |
+| Authoring | Hand-written character grid | Generated from a **fixed seed** at load time (same world for every player), with hand-placed landmarks, a river with bridges, forests, hills, lakes and mountain ranges |
+| Landmarks | Aldmere, Thornwick, Goblin Cave | Aldmere, Thornwick ruins, Goblin Cave, **Brookhollow** (new village with an inn, an item shop and a companion spot) |
+| Connectivity | Manual | Roads link every landmark; a test checks every landmark is reachable from Aldmere |
+
+Regions keep their encounter tables by terrain (grass, forest, hills, cave). Saves from revision 1 use the old map
+coordinates, so the save version is bumped and old saves are not offered on the title screen.
+
+### 13.3 32-bit graphics
+
+- **Pixel density:** the backing canvas becomes 512×480 and the renderer applies a 2× transform. Layout, UI and
+  game logic keep the 256×240 logical coordinates; art is drawn at twice the detail.
+- **Characters and monsters:** drawn on the existing 16-unit shapes, then upscaled with a smoothing pixel-art
+  filter (EPX / Scale2x) for clean curves and diagonals. Each sprite then gets automatic top-light and
+  bottom-shadow shading and a 1-pixel dark outline.
+- **Tiles:** ground textures (grass, road, sand, cave floor) use full-resolution noise with 3–4 shades. Objects on
+  tiles (trees, hills, mountains, houses) go through the same smoothing, shading and outline as sprites.
+- **UI:** windows get a dark-blue vertical gradient fill; text stays the chunky bitmap font for readability.
+- Everything is still original, procedurally drawn pixel art (no third-party files).
+
+### 13.4 Difficulty and progression
+
+| Change | Before | After |
+| --- | --- | --- |
+| XP to next level | `floor(8 × L^1.5)` | `floor(11 × L^1.5)` (about 38% more XP per level) |
+| Slime (HP / ATK) | 8 / 7 | 10 / 8 |
+| Giant Bat | 10 / 8 | 12 / 9 |
+| Grey Wolf | 14 / 10 | 16 / 11 |
+| Goblin | 18 / 11 | 21 / 12 |
+| Skeleton | 20 / 12 | 23 / 13 |
+| Goblin King | — | **unchanged** |
+| XP and gold rewards | — | unchanged (levelling takes more fights) |
+
+The section 4.6 simulator targets still apply. If a class misses one, tune class or weapon data rather than undoing
+the enemy changes.
+
+### 13.5 Work breakdown
+
+1. Plan update (this section).
+2. Difficulty: XP curve, enemy stats, balance tests updated for random companions.
+3. Random allies: companion spots and name pools, roster roll on New Game, save version 2, dialogue, tests.
+4. Bigger world: seeded overworld generator, Brookhollow map, warps, reachability tests.
+5. 32-bit graphics: renderer pixel ratio, EPX upscale + shading + outlines, hi-res tiles, gradient windows.
+6. Verify: unit, balance and scene tests, lint, production build, browser screenshots; push to the open PR.
