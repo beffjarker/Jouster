@@ -4,7 +4,7 @@ import { CLASS_ORDER, classDef } from '../data/classes';
 import { ABILITIES } from '../data/abilities';
 import { GameState, hasSave, loadGame, newGameState } from '../state/game-state';
 import { createMember, memberStats, weaponDef } from '../state/party';
-import { COLORS, ListMenu, SCREEN_W } from '../ui/widgets';
+import { COLORS, ListMenu, SCREEN_H, SCREEN_W } from '../ui/widgets';
 import { GameContext } from './context';
 import { WorldScene } from './world-scene';
 
@@ -42,11 +42,11 @@ export class TitleScene implements Scene {
     r.clear('#0b0b2a');
     for (let i = 0; i < 40; i++) {
       const x = (i * 97) % SCREEN_W;
-      const y = (i * 53) % 110;
+      const y = (i * 53) % 100;
       const on = Math.floor(this.time * 2 + i) % 5 !== 0;
       r.fillRect(x, y, 1, 1, on ? '#ffffff' : '#555577');
     }
-    drawMountains(r, 150);
+    drawMountains(r, 138);
     r.textCentered('JOUSTER', SCREEN_W / 2 + 1, 41, '#802010');
     r.textCentered('JOUSTER', SCREEN_W / 2, 40, COLORS.gold);
     r.textCentered('QUEST', SCREEN_W / 2 + 1, 53, '#802010');
@@ -54,10 +54,10 @@ export class TitleScene implements Scene {
     r.textCentered('THE DRAGON SEAL', SCREEN_W / 2, 70, COLORS.text);
     CLASS_ORDER.forEach((id, i) => {
       const frame = Math.floor(this.time * 3 + i) % 2;
-      r.draw(this.ctx.art.character(id, 'down', frame), 56 + i * 24, 118);
+      r.draw(this.ctx.art.character(id, 'down', frame), SCREEN_W / 2 - CLASS_ORDER.length * 12 + 4 + i * 24, 104);
     });
-    this.menu.render(r, SCREEN_W / 2 - 44, 168, 88);
-    r.textCentered('ARROWS/WASD MOVE  Z/ENTER OK  X/ESC BACK', SCREEN_W / 2, 222, COLORS.dim);
+    this.menu.render(r, SCREEN_W / 2 - 44, 150, 88);
+    r.textCentered('ARROWS/WASD MOVE  Z/ENTER OK  X/ESC BACK  M MAP', SCREEN_W / 2, 200, COLORS.dim);
   }
 }
 
@@ -68,7 +68,7 @@ function drawMountains(r: Renderer, baseY: number): void {
     const h2 = 14 + Math.round(8 * Math.sin(x / 13 + 2));
     r.fillRect(x, baseY - h2, 1, h2, '#283a28');
   }
-  r.fillRect(0, baseY, SCREEN_W, 240 - baseY, '#1a2a18');
+  r.fillRect(0, baseY, SCREEN_W, SCREEN_H - baseY, '#1a2a18');
 }
 
 /** Choose the hero's class; shows stats, weapon and abilities. */
@@ -103,7 +103,7 @@ export class ClassSelectScene implements Scene {
     const m = createMember('preview', cls.name, id, 1);
     const s = memberStats(m);
     const x = 92;
-    r.window(x, 24, 156, 208);
+    r.window(x, 24, SCREEN_W - x - 8, 184);
     const frame = Math.floor(this.time * 3) % 2;
     r.draw(this.ctx.art.character(id, 'down', frame), x + 8, 32, { scale: 2 });
     r.text(cls.name.toUpperCase(), x + 44, 34, COLORS.gold);
@@ -124,13 +124,13 @@ export class ClassSelectScene implements Scene {
     });
     r.text('WEAPON', x + 8, 108, COLORS.dim);
     r.text(weaponDef(cls.startingWeaponId).name.toUpperCase(), x + 54, 108);
-    r.text('SKILLS', x + 8, 122, COLORS.dim);
-    cls.abilities.slice(0, 5).forEach((a, i) => {
+    r.text('SKILLS', x + 160, 34, COLORS.dim);
+    cls.abilities.slice(0, 6).forEach((a, i) => {
       const name = ABILITIES.get(a.abilityId)?.name ?? a.abilityId;
-      r.text(`L${String(a.level).padEnd(2)} ${name.toUpperCase()}`, x + 14, 134 + i * 10);
+      r.text(`L${String(a.level).padEnd(2)} ${name.toUpperCase()}`, x + 166, 46 + i * 10);
     });
     const desc = cls.passive ? `${cls.description} ${cls.passive.name}: ${cls.passive.description}` : cls.description;
-    wrapLines(desc, 24).slice(0, 4).forEach((line, i) => r.text(line, x + 8, 188 + i * 10, COLORS.text));
+    wrapLines(desc, 44).slice(0, 5).forEach((line, i) => r.text(line, x + 8, 128 + i * 11, COLORS.text));
   }
 }
 

@@ -83,7 +83,79 @@ const LIST: MonsterDef[] = [
     critChance: 1 / 32,
     spriteId: 'goblinKing',
   },
+  // --- Companion side-quest mini-bosses (about 60-70% of the Goblin King) -------------------
+  {
+    id: 'alphaWolf',
+    name: 'Alpha Wolf',
+    stats: { hp: 110, mp: 0, atk: 18, def: 8, agi: 12, mag: 0 },
+    xp: 50,
+    gold: 40,
+    boss: true,
+    weaknesses: ['fire'],
+    resistances: [],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'tonic', chance: 1 }],
+    critChance: 1 / 24,
+    spriteId: 'alphaWolf',
+  },
+  {
+    id: 'giantToad',
+    name: 'Giant Toad',
+    stats: { hp: 130, mp: 0, atk: 17, def: 10, agi: 4, mag: 0 },
+    xp: 50,
+    gold: 30,
+    boss: true,
+    weaknesses: ['lightning'],
+    resistances: ['ice'],
+    actions: [
+      { action: 'attack', weight: 5 },
+      { action: 'cleave', weight: 1 },
+    ],
+    drops: [{ itemId: 'herb', chance: 1 }],
+    spriteId: 'giantToad',
+  },
+  {
+    id: 'boneCaptain',
+    name: 'Bone Captain',
+    stats: { hp: 120, mp: 0, atk: 19, def: 11, agi: 6, mag: 0 },
+    xp: 55,
+    gold: 45,
+    boss: true,
+    undead: true,
+    weaknesses: ['holy', 'fire'],
+    resistances: ['ice', 'dark'],
+    actions: [
+      { action: 'attack', weight: 5 },
+      { action: 'cleave', weight: 1 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'tonic', chance: 1 }],
+    spriteId: 'boneCaptain',
+  },
+  {
+    id: 'goblinChief',
+    name: 'Goblin Jailer',
+    stats: { hp: 125, mp: 0, atk: 18, def: 10, agi: 7, mag: 0 },
+    xp: 55,
+    gold: 50,
+    boss: true,
+    weaknesses: ['ice'],
+    resistances: [],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 1 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'herb', chance: 1 }],
+    spriteId: 'goblinChief',
+  },
 ];
+
+/** Side-quest mini-bosses (fought after the Goblin King, usually solo or as a pair). */
+export const MINI_BOSS_IDS: readonly string[] = ['alphaWolf', 'giantToad', 'boneCaptain', 'goblinChief'];
 
 export const MONSTERS: ReadonlyMap<string, MonsterDef> = new Map(LIST.map((m) => [m.id, m]));
 
@@ -137,6 +209,16 @@ const TABLE_LIST: EncounterTable[] = [
       { monsterIds: ['giantBat', 'giantBat'], weight: 2 },
       { monsterIds: ['goblin', 'skeleton'], weight: 2 },
       { monsterIds: ['goblin', 'goblin', 'giantBat'], weight: 1 },
+    ],
+  },
+  {
+    id: 'den',
+    rate: 1 / 12,
+    groups: [
+      { monsterIds: ['wolf'], weight: 3 },
+      { monsterIds: ['wolf', 'wolf'], weight: 3 },
+      { monsterIds: ['giantBat', 'wolf'], weight: 2 },
+      { monsterIds: ['wolf', 'wolf', 'giantBat'], weight: 1 },
     ],
   },
 ];

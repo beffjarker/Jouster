@@ -23,6 +23,10 @@ export const LANDMARKS = {
   goblinCave: { x: 78, y: 10 },
   thornwick: { x: 70, y: 54 },
   brookhollow: { x: 18, y: 60 },
+  /** Cave in the far eastern hills (Alpha Wolf side quest). */
+  wolfDen: { x: 88, y: 32 },
+  /** West shore of the southern lake (Giant Toad side quest). */
+  lakeshore: { x: 38, y: 62 },
 } as const satisfies Record<string, Point>;
 
 const GRASS = '.';
@@ -120,8 +124,15 @@ function carveRiver(g: Grid): void {
 }
 
 function placeLandmarks(g: Grid): void {
-  const { aldmere, goblinCave, thornwick, brookhollow } = LANDMARKS;
+  const { aldmere, goblinCave, thornwick, brookhollow, wolfDen, lakeshore } = LANDMARKS;
   fill(g, aldmere.x, aldmere.y, 3, GRASS);
+  fill(g, lakeshore.x - 1, lakeshore.y, 2, GRASS);
+  fill(g, wolfDen.x, wolfDen.y + 2, 2, HILLS);
+  for (let x = wolfDen.x - 2; x <= wolfDen.x + 2; x++) {
+    g[wolfDen.y - 1][x] = MOUNTAIN;
+  }
+  g[wolfDen.y][wolfDen.x - 1] = MOUNTAIN;
+  g[wolfDen.y][wolfDen.x + 1] = MOUNTAIN;
   fill(g, brookhollow.x, brookhollow.y, 3, GRASS);
   fill(g, thornwick.x, thornwick.y, 3, GRASS);
   fill(g, goblinCave.x, goblinCave.y + 2, 3, HILLS);
@@ -144,6 +155,7 @@ function placeLandmarks(g: Grid): void {
   g[goblinCave.y][goblinCave.x] = 'O';
   g[thornwick.y][thornwick.x] = 'V';
   g[brookhollow.y][brookhollow.x] = 'B';
+  g[wolfDen.y][wolfDen.x] = 'W';
 }
 
 function stepCost(ch: string): number {
@@ -260,10 +272,12 @@ export function generateOverworld(): string[] {
   const g = terrain();
   carveRiver(g);
   placeLandmarks(g);
-  const { aldmere, goblinCave, thornwick, brookhollow } = LANDMARKS;
+  const { aldmere, goblinCave, thornwick, brookhollow, wolfDen, lakeshore } = LANDMARKS;
   const below = (p: Point): Point => ({ x: p.x, y: p.y + 1 });
   carveRoad(g, below(aldmere), below(goblinCave));
   carveRoad(g, below(aldmere), below(thornwick));
   carveRoad(g, below(aldmere), below(brookhollow));
+  carveRoad(g, below(thornwick), below(wolfDen));
+  carveRoad(g, below(brookhollow), { x: lakeshore.x - 1, y: lakeshore.y });
   return g.map((row) => row.join(''));
 }

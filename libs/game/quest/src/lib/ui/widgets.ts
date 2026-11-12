@@ -1,7 +1,8 @@
 import { AudioManager, InputManager, Renderer, Scene, SceneStack, wrapText } from '@jouster/game/engine';
 
-export const SCREEN_W = 256;
-export const SCREEN_H = 240;
+/** Logical 16:9 screen (rendered at 2x on a 768x432 canvas). */
+export const SCREEN_W = 384;
+export const SCREEN_H = 216;
 export const LINE_H = 10;
 
 export const COLORS = {
@@ -115,8 +116,11 @@ export class ListMenu {
   }
 }
 
-export const MESSAGE_CHARS = 37;
+export const MESSAGE_CHARS = 58;
 const MESSAGE_LINES = 4;
+const MESSAGE_H = 68;
+/** Top of the message window (it hugs the bottom of the screen). */
+export const MESSAGE_Y = SCREEN_H - MESSAGE_H - 4;
 const CHARS_PER_SECOND = 80;
 
 export interface MessageOptions {
@@ -200,9 +204,9 @@ export class MessageScene implements Scene {
 
   public render(r: Renderer): void {
     const x = 8;
-    const y = 160;
+    const y = MESSAGE_Y;
     const w = SCREEN_W - 16;
-    r.window(x, y, w, 72);
+    r.window(x, y, w, MESSAGE_H);
     let remaining = Math.floor(this.shown);
     this.pageText.forEach((line, i) => {
       r.text(line.slice(0, Math.max(0, remaining)), x + 10, y + 10 + i * 13);

@@ -7,7 +7,8 @@ const CODES: Record<InputAction, string> = {
   right: 'ArrowRight',
   confirm: 'KeyZ',
   cancel: 'KeyX',
-  mute: 'KeyM',
+  map: 'KeyM',
+  mute: 'KeyN',
 };
 
 /** Keyboard double for headless scene tests. */

@@ -4,13 +4,14 @@ import { classDef } from '../data/classes';
 import { ITEMS, WEAPONS } from '../data/equipment';
 import { GameState, addItem } from '../state/game-state';
 import { PartyMember, memberAbilities, memberStats, memberToCombatant, weaponDef } from '../state/party';
-import { COLORS, ListMenu, MenuItem, SCREEN_W, drawPartyStatus, say } from '../ui/widgets';
+import { COLORS, ListMenu, MESSAGE_Y, MenuItem, SCREEN_H, SCREEN_W, drawPartyStatus, say } from '../ui/widgets';
 import { GameContext, memberStatus, requireState } from './context';
+import { MapScene, questLog } from './map-scene';
 
 type FieldMode = 'main' | 'statusWho' | 'status' | 'item' | 'itemWho' | 'magicWho' | 'magic' | 'magicWho2';
 
-/** Party status row position while a message window (y=160) is open over the menu. */
-const FIELD_STATUS_Y_WITH_MESSAGE = 112;
+/** Party status row position while a message window is open over the menu. */
+const FIELD_STATUS_Y_WITH_MESSAGE = MESSAGE_Y - 48;
 
 /** Field menu (X / Esc): party status, items and healing magic outside battle. */
 export class FieldMenuScene implements Scene {
@@ -27,21 +28,29 @@ export class FieldMenuScene implements Scene {
 
   constructor(private readonly ctx: GameContext) {
     this.state = requireState(ctx);
-    this.main = new ListMenu([{ label: 'STATUS' }, { label: 'ITEM' }, { label: 'MAGIC' }, { label: 'CLOSE' }], ctx.audio);
+    this.main = new ListMenu(
+      ['STATUS', 'ITEM', 'MAGIC', 'QUESTS', 'MAP', 'CLOSE'].map((label) => ({ label })),
+      ctx.audio,
+    );
   }
 
   public update(_dt: number, input: InputManager): void {
     if (this.mode === 'main') {
       const res = this.main.update(input);
-      if (res?.kind === 'cancel' || (res?.kind === 'select' && res.index === 3)) {
+      if (res?.kind === 'cancel' || (res?.kind === 'select' && res.index === 5)) {
         this.ctx.stack.pop();
       } else if (res?.kind === 'select') {
         if (res.index === 0) {
           this.openMembers('statusWho');
         } else if (res.index === 1) {
           this.openItems();
-        } else {
+        } else if (res.index === 2) {
           this.openMembers('magicWho');
+        } else if (res.index === 3) {
+          say(this.ctx.stack, this.ctx.audio, questLog(this.state));
+        } else {
+          this.ctx.stack.pop();
+          this.ctx.stack.push(new MapScene(this.ctx));
         }
       }
       return;
@@ -66,8 +75,8 @@ export class FieldMenuScene implements Scene {
 
   public render(r: Renderer): void {
     this.main.render(r, 8, 8, 72, this.mode === 'main', 'MENU');
-    r.window(8, 66, 72, 20);
-    r.text(`${this.state.gold}G`, 16, 72, COLORS.gold);
+    r.window(8, 96, 72, 20);
+    r.text(`${this.state.gold}G`, 16, 102, COLORS.gold);
     if (this.mode === 'status' && this.member) {
       this.renderStatus(r, this.member);
       return;
@@ -77,7 +86,7 @@ export class FieldMenuScene implements Scene {
       this.sub.render(r, 88, 8, 160, true, title);
     }
     // Messages (e.g. spell results) cover the bottom of the screen, so lift the status above them.
-    const statusY = this.ctx.stack.top === this ? 190 : FIELD_STATUS_Y_WITH_MESSAGE;
+    const statusY = this.ctx.stack.top === this ? SCREEN_H - 48 : FIELD_STATUS_Y_WITH_MESSAGE;
     drawPartyStatus(r, this.state.party.map(memberStatus), statusY);
   }
 
@@ -219,7 +228,7 @@ export class FieldMenuScene implements Scene {
     const s = memberStats(m);
     const cls = classDef(m.classId);
     const x = 88;
-    r.window(x, 8, 160, 224);
+    r.window(x, 8, SCREEN_W - x - 8, 200);
     r.draw(this.ctx.art.character(m.classId, 'down', 0), x + 8, 14, { scale: 2 });
     r.text(m.name.toUpperCase(), x + 44, 16, COLORS.gold);
     r.text(`${cls.name.toUpperCase()} L${m.level}`, x + 44, 28);
@@ -238,16 +247,17 @@ export class FieldMenuScene implements Scene {
       r.text(k, x + 10, 50 + i * 10, COLORS.dim);
       r.textRight(v, x + 150, 50 + i * 10);
     });
-    r.text('WEAPON', x + 10, 136, COLORS.dim);
-    r.text(weaponDef(m.weaponId).name.toUpperCase(), x + 10, 146);
-    r.text('ABILITIES', x + 10, 162, COLORS.dim);
+    const col = x + 170;
+    r.text('WEAPON', col, 16, COLORS.dim);
+    r.text(weaponDef(m.weaponId).name.toUpperCase(), col, 26);
+    r.text('ABILITIES', col, 44, COLORS.dim);
     memberAbilities(m)
-      .slice(0, 6)
+      .slice(0, 10)
       .forEach((id, i) => {
-        r.text((ABILITIES.get(id)?.name ?? id).toUpperCase(), x + 10 + (i % 2) * 74, 172 + Math.floor(i / 2) * 10);
+        r.text((ABILITIES.get(id)?.name ?? id).toUpperCase(), col, 54 + i * 10);
       });
     if (cls.passive) {
-      r.text(cls.passive.name.toUpperCase(), x + 10, 208, COLORS.mp);
+      r.text(cls.passive.name.toUpperCase(), x + 10, 140, COLORS.mp);
     }
   }
 }
@@ -312,30 +322,31 @@ export class ShopScene implements Scene {
 
   public render(r: Renderer): void {
     const title = this.kind === 'item' ? 'ITEM SHOP' : 'WEAPONS';
-    this.menu.render(r, 8, 8, 168, true, title);
-    r.window(184, 8, 64, 20);
-    r.textRight(`${this.state.gold}G`, 240, 14, COLORS.gold);
+    this.menu.render(r, 8, 8, 200, true, title);
+    r.window(SCREEN_W - 80, 8, 72, 20);
+    r.textRight(`${this.state.gold}G`, SCREEN_W - 16, 14, COLORS.gold);
     const id = this.stock[this.menu.cursor];
-    r.window(8, 168, SCREEN_W - 16, 64);
+    const y = SCREEN_H - 60;
+    r.window(8, y - 8, SCREEN_W - 16, 56);
     if (!id) {
-      r.text('THANK YOU!', 16, 176);
+      r.text('THANK YOU!', 16, y);
       return;
     }
     if (this.kind === 'item') {
       const def = ITEMS.get(id);
-      r.text((def?.description ?? '').toUpperCase().slice(0, 38), 16, 176);
-      r.text(`YOU HAVE ${this.state.inventory[id] ?? 0}`, 16, 190, COLORS.dim);
+      r.text((def?.description ?? '').toUpperCase().slice(0, 58), 16, y);
+      r.text(`YOU HAVE ${this.state.inventory[id] ?? 0}`, 16, y + 14, COLORS.dim);
       return;
     }
     const w = weaponDef(id);
-    r.text(w.description.toUpperCase().slice(0, 38), 16, 176);
+    r.text(w.description.toUpperCase().slice(0, 58), 16, y);
     const bonus = [`ATK+${w.atk}`, w.mag ? `MAG+${w.mag}` : '', w.def ? `DEF+${w.def}` : ''].filter(Boolean).join(' ');
-    r.text(bonus, 16, 188, COLORS.dim);
+    r.text(bonus, 16, y + 12, COLORS.dim);
     const users = this.state.party.filter((m) => classDef(m.classId).weaponFamily === w.family);
     r.text(
       users.length ? `FOR: ${users.map((m) => m.name.toUpperCase()).join(', ')}` : 'NO ONE IN YOUR PARTY CAN USE THIS',
       16,
-      202,
+      y + 26,
       users.length ? COLORS.text : COLORS.hpLow,
     );
   }

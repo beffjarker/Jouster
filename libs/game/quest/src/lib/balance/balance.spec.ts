@@ -7,6 +7,7 @@ import { PartyMember, createMember, memberToCombatant } from '../state/party';
 import { expectedDamage, runMany, simulateFight } from './simulator';
 import { MONSTERS } from '../data/monsters';
 import { monstersToCombatants } from '../state/party';
+import { mapDef } from '../data/maps';
 
 const N = 400;
 
@@ -65,6 +66,25 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
   it.each(CLASS_ORDER)('%s solo beats the Goblin King >= 60%% at level 6 with shop gear', (id) => {
     const stats = runMany(N, (i) =>
       simulateFight([tier2(createMember('h', 'Hero', id, 6))], ['goblinKing'], { herb: 6, tonic: 1 }, createRng(9000 + i), {
+        bossHpScale: BOSS_HP_SCALE[0],
+      }),
+    );
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.6);
+  });
+
+  // Side-quest mini-bosses (with their minions) as placed in the world.
+  const miniBossFights = ['overworld', 'goblinCave', 'wolfDen']
+    .flatMap((id) => mapDef(id).npcs)
+    .flatMap((n) => (n.boss && !n.boss.monsterIds.includes('goblinKing') ? [n.boss.monsterIds] : []));
+
+  it('places all four mini-boss fights', () => {
+    expect(miniBossFights.map((f) => f[0]).sort()).toEqual(['alphaWolf', 'boneCaptain', 'giantToad', 'goblinChief']);
+  });
+
+  const miniCases = CLASS_ORDER.flatMap((id) => miniBossFights.map((fight) => [id, fight.join('+'), fight] as const));
+  it.each(miniCases)('%s solo beats %s >= 60%% at level 7 with shop gear', (id, _name, fight) => {
+    const stats = runMany(N, (i) =>
+      simulateFight([tier2(createMember('h', 'Hero', id, 7))], [...fight], { herb: 6, tonic: 1 }, createRng(11000 + i), {
         bossHpScale: BOSS_HP_SCALE[0],
       }),
     );

@@ -1,5 +1,5 @@
 .page-container {
-  max-width: 1200px;
+  max-width: 1240px;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -14,9 +14,9 @@
 }
 
 .game-screen {
-  // Integer-ish scaling keeps pixels crisp; aspect ratio matches the 256x240 logical screen (512x480 canvas at 2x density).
-  width: min(768px, 100%);
-  aspect-ratio: 256 / 240;
+  // 16:9 widescreen: 384x216 logical screen drawn on a 768x432 canvas (2x density), shown up to 1152px wide.
+  width: min(1152px, 100%);
+  aspect-ratio: 16 / 9;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #000;

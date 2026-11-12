@@ -3,6 +3,7 @@ import { ABILITIES } from '../data/abilities';
 import { CLASSES } from '../data/classes';
 import { ITEMS, WEAPONS, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { INN_RESPAWN, MAPS, MapDef } from '../data/maps';
+import { COMPANION_SLOTS } from '../data/companions';
 import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
 import { OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
 import { newGameState } from '../state/game-state';
@@ -86,6 +87,22 @@ describe('Jouster Quest content', () => {
     const town = MAPS.get(s.mapId) as MapDef;
     expect(reachable(town, s.x, s.y).has(`${town.warps[0].x},${town.warps[0].y}`)).toBe(true);
     expect(reachable(town, INN_RESPAWN.x, INN_RESPAWN.y).size).toBeGreaterThan(10);
+  });
+
+  it('boss fights and companion quest pins reference real monsters, flags and tiles', () => {
+    const bosses = [...MAPS.values()].flatMap((m) => m.npcs.flatMap((n) => (n.boss ? [n.boss] : [])));
+    expect(bosses.length).toBeGreaterThanOrEqual(5);
+    bosses.forEach((b) => {
+      b.monsterIds.forEach((id) => expect(MONSTERS.has(id)).toBe(true));
+      expect(b.defeatFlag).toMatch(/Defeated$/);
+    });
+    const flags = new Set(bosses.map((b) => b.defeatFlag));
+    COMPANION_SLOTS.forEach((slot) => {
+      expect(flags.has(slot.quest.doneFlag)).toBe(true);
+      const map = MAPS.get(slot.quest.pin.mapId) as MapDef;
+      expect(map).toBeDefined();
+      expect(tileMap(map).inBounds(slot.quest.pin.x, slot.quest.pin.y)).toBe(true);
+    });
   });
 
   it('references between data tables resolve', () => {

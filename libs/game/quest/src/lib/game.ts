@@ -37,7 +37,7 @@ function defaultStorage(): SaveStorage {
   }
 }
 
-/** Boots Jouster Quest onto a 512x480 canvas (256x240 logical layout at 2x pixel density). Call `start()` to show the title and `destroy()` to clean up. */
+/** Boots Jouster Quest onto a 768x432 canvas (384x216 widescreen logical layout at 2x pixel density). Call `start()` to show the title and `destroy()` to clean up. */
 export class JousterQuestGame {
   private readonly renderer: Renderer;
   private readonly input: InputManager;

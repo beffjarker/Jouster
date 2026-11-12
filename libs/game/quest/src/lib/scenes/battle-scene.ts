@@ -5,7 +5,9 @@ import {
   BattleEvent,
   BattleOutcome,
   BattleSound,
+  BattleFx,
   Combatant,
+  Element,
   InputManager,
   Renderer,
   Scene,
@@ -16,10 +18,10 @@ import {
 import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
-import { BOSS_HP_SCALE, MONSTERS } from '../data/monsters';
+import { BOSS_HP_SCALE, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
 import { GameState, addItem } from '../state/game-state';
 import { PartyMember, grantXp, memberToCombatant, monstersToCombatants, syncFromCombatants } from '../state/party';
-import { COLORS, ListMenu, MenuItem, SCREEN_W, StatusEntry, drawCursor, drawPartyStatus } from '../ui/widgets';
+import { COLORS, ListMenu, MenuItem, SCREEN_W, drawCursor } from '../ui/widgets';
 import { GameContext, requireState } from './context';
 
 export type BattleEnd = Exclude<BattleOutcome, 'ongoing'>;
@@ -40,9 +42,109 @@ interface Vitals {
   mp: number;
 }
 
+interface Point {
+  x: number;
+  y: number;
+}
+
+/** Where a combatant stands on the battlefield (top-left of its sprite) and its drawn size. */
+interface Spot extends Point {
+  size: number;
+}
+
+type MotionKind = 'lunge' | 'hop' | 'shake' | 'flee';
+
+interface Motion {
+  kind: MotionKind;
+  t: number;
+  dur: number;
+  /** Lunge destination (sprite top-left) for `lunge`. */
+  to?: Point;
+}
+
+interface Shot {
+  from: Point;
+  to: Point;
+  t: number;
+  dur: number;
+  color: string;
+  arrow: boolean;
+}
+
+interface Floater {
+  text: string;
+  color: string;
+  x: number;
+  y: number;
+  t: number;
+}
+
+interface Spark {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  t: number;
+  dur: number;
+  color: string;
+}
+
 const COMMANDS = ['ATTACK', 'ABILITY', 'ITEM', 'DEFEND', 'RUN'];
 const EVENT_DELAY = 0.6;
 const MAX_LOG_LINES = 5;
+const LOG_CHARS = 32;
+/** Holding confirm plays the round faster. */
+const FAST_FORWARD = 2.5;
+
+// Battlefield layout (party on the left facing right, enemies on the right).
+const FIELD_H = 142;
+const HORIZON_Y = 62;
+const PANEL_Y = 144;
+const SCREEN_H_PANEL = 72;
+const STATUS_X = 4;
+const STATUS_W = 164;
+const RIGHT_X = 172;
+const RIGHT_W = SCREEN_W - RIGHT_X - 4;
+const COMMAND_W = 74;
+const PARTY_X = 52;
+const PARTY_Y = 50;
+const PARTY_STEP_X = 10;
+const PARTY_STEP_Y = 30;
+const PARTY_SCALE = 2;
+const ACTIVE_STEP = 14;
+const ENEMY_LEFT = 196;
+const ENEMY_RIGHT = 376;
+const ENEMY_GROUND = 138;
+const ENEMY_BACK_GROUND = 104;
+const SPRITE_PX = 16;
+const INTRO_SLIDE = 140;
+
+/** Seconds until the next event plays after an event with this effect (animations keep running). */
+const FX_DELAY: Readonly<Record<BattleFx['type'], number>> = {
+  act: 0.32,
+  hit: 0.5,
+  miss: 0.45,
+  ko: 0.45,
+  heal: 0.5,
+  buff: 0.45,
+  revive: 0.5,
+  run: 0.7,
+};
+const CAST_LEAD = 0.5;
+const FLOAT_TIME = 0.8;
+const DISSOLVE_TIME = 0.55;
+
+const ELEMENT_COLORS: Readonly<Record<Element, string>> = {
+  physical: '#e8e8e8',
+  fire: '#ff7030',
+  ice: '#90d8ff',
+  lightning: '#ffe840',
+  holy: '#fff4b0',
+  dark: '#b060e0',
+};
+const HEAL_COLOR = '#70ff98';
+const MP_COLOR = '#70b0ff';
+const ARROW_COLOR = '#d8b070';
 /** Ignore input briefly when the command menu reappears so text-skipping presses don't pick actions. */
 const COMMAND_INPUT_GUARD = 0.35;
 /** Result lines per page; the last row is reserved for the OK prompt. */
@@ -60,12 +162,13 @@ const SOUND_FOR: ReadonlyMap<BattleSound, SoundId> = new Map<BattleSound, SoundI
   ['buff', 'magic'],
 ]);
 
-const BACKDROP_COLORS: ReadonlyMap<Backdrop, [string, string]> = new Map<Backdrop, [string, string]>([
-  ['field', ['#3c78c8', '#3a8a30']],
-  ['forest', ['#2c5a8c', '#1f5a22']],
-  ['hills', ['#4a7ab0', '#7a6a3a']],
-  ['cave', ['#141018', '#3a2e28']],
-]);
+/** Sky top, sky bottom, far ground, near ground, scenery. */
+const BACKDROP_COLORS: ReadonlyMap<Backdrop, [string, string, string, string, string]> = new Map([
+  ['field', ['#2c5cb0', '#78b0e8', '#4a9a3a', '#3a8a30', '#2e6e28']],
+  ['forest', ['#1e3e70', '#4a7aa8', '#2a6a2a', '#1f5a22', '#123a16']],
+  ['hills', ['#3a64a0', '#90b8d8', '#8a7a48', '#7a6a3a', '#5a4e2c']],
+  ['cave', ['#0a080e', '#1e1822', '#463830', '#3a2e28', '#241c1c']],
+] as Array<[Backdrop, [string, string, string, string, string]]>);
 
 /** Turn-based battle screen driving the engine's `Battle` state machine. */
 export class BattleScene implements Scene {
@@ -92,6 +195,14 @@ export class BattleScene implements Scene {
   private targetCursor = 0;
   private endLines: string[] = [];
   private outcomeSound: SoundId | null = null;
+  private speed = 1;
+  private readonly spots = new Map<string, Spot>();
+  private readonly motions = new Map<string, Motion>();
+  private readonly dying = new Map<string, number>();
+  private readonly gone = new Set<string>();
+  private shots: Shot[] = [];
+  private floaters: Floater[] = [];
+  private sparks: Spark[] = [];
 
   constructor(
     private readonly ctx: GameContext,
@@ -115,6 +226,7 @@ export class BattleScene implements Scene {
       canRun: !options.boss,
     });
     this.battle.all.forEach((c) => this.shown.set(c.id, { hp: c.hp, mp: c.mp }));
+    this.layout();
     this.commandMenu = new ListMenu(
       COMMANDS.map((label) => ({ label, enabled: label !== 'RUN' || !options.boss })),
       ctx.audio,
@@ -133,7 +245,8 @@ export class BattleScene implements Scene {
 
   public update(dt: number, input: InputManager): void {
     this.time += dt;
-    this.flash.forEach((t, id) => (t - dt <= 0 ? this.flash.delete(id) : this.flash.set(id, t - dt)));
+    this.speed = this.phase === 'events' && input.isDown('confirm') ? FAST_FORWARD : 1;
+    this.animate(dt * this.speed);
     if (this.inputGuard > 0) {
       this.inputGuard = Math.max(0, this.inputGuard - dt);
       if (this.phase === 'command') {
@@ -168,9 +281,9 @@ export class BattleScene implements Scene {
 
   public render(r: Renderer): void {
     r.clear('#000000');
-    drawPartyStatus(r, this.statusEntries(), 4, this.highlightedMember());
     this.renderField(r);
-    this.renderBottom(r);
+    this.renderStatus(r);
+    this.renderPanel(r);
   }
 
   // --- Command input -------------------------------------------------------------------------
@@ -362,14 +475,14 @@ export class BattleScene implements Scene {
   }
 
   private updateEvents(dt: number, input: InputManager): void {
-    this.timer -= dt;
+    this.timer -= dt * this.speed;
     if (input.wasPressed('confirm')) {
       this.timer = Math.min(this.timer, 0.05);
     }
     while (this.timer <= 0 && this.queue.length > 0) {
       const ev = this.queue.shift() as BattleEvent;
       this.applyEvent(ev);
-      this.timer = ev.text ? EVENT_DELAY : 0;
+      this.timer = ev.fx ? this.fxDelay(ev.fx) : ev.text ? EVENT_DELAY : 0;
     }
     if (this.timer <= 0 && this.queue.length === 0) {
       if (this.battle.outcome === 'ongoing') {
@@ -380,6 +493,13 @@ export class BattleScene implements Scene {
     }
   }
 
+  private fxDelay(fx: BattleFx): number {
+    if (fx.type === 'act' && fx.act !== 'attack' && fx.act !== 'defend') {
+      return CAST_LEAD;
+    }
+    return FX_DELAY[fx.type];
+  }
+
   private applyEvent(ev: BattleEvent): void {
     ev.updates.forEach((u) => {
       const before = this.shown.get(u.id);
@@ -387,7 +507,14 @@ export class BattleScene implements Scene {
         this.flash.set(u.id, 0.35);
       }
       this.shown.set(u.id, { hp: u.hp, mp: u.mp });
+      const c = this.combatant(u.id);
+      if (c?.side === 'enemy' && u.hp <= 0 && !this.dying.has(u.id) && !this.gone.has(u.id)) {
+        this.dying.set(u.id, DISSOLVE_TIME);
+      }
     });
+    if (ev.fx) {
+      this.playFx(ev.fx);
+    }
     if (ev.text) {
       this.addLog(ev.text);
     }
@@ -397,10 +524,255 @@ export class BattleScene implements Scene {
   }
 
   private addLog(text: string): void {
-    wrapText(text, 37).forEach((line) => this.log.push(line));
+    wrapText(text, LOG_CHARS).forEach((line) => this.log.push(line));
     while (this.log.length > MAX_LOG_LINES) {
       this.log.shift();
     }
+  }
+
+  // --- Animation -----------------------------------------------------------------------------
+
+  private combatant(id: string): Combatant | undefined {
+    return this.battle.all.find((c) => c.id === id);
+  }
+
+  /** Assigns every combatant a home spot: party in a diagonal file on the left, enemies in rows on the right. */
+  private layout(): void {
+    this.battle.party.forEach((c, i) => {
+      this.spots.set(c.id, {
+        x: PARTY_X + i * PARTY_STEP_X,
+        y: PARTY_Y + i * PARTY_STEP_Y,
+        size: SPRITE_PX * PARTY_SCALE,
+      });
+    });
+    const enemies = this.battle.enemies;
+    const sizes = enemies.map((e) => SPRITE_PX * this.enemyScale(e));
+    const rows = enemies.length >= 4 ? [enemies.slice(0, Math.ceil(enemies.length / 2)), enemies.slice(Math.ceil(enemies.length / 2))] : [enemies];
+    rows.forEach((row, r) => {
+      const back = rows.length > 1 && r === 0;
+      const ground = back ? ENEMY_BACK_GROUND : ENEMY_GROUND;
+      const left = ENEMY_LEFT + (back ? 20 : 0);
+      const widths = row.map((e) => sizes[enemies.indexOf(e)]);
+      const gap = 10;
+      const total = widths.reduce((a, b) => a + b, 0) + gap * (row.length - 1);
+      let x = Math.round(left + (ENEMY_RIGHT - left - total) / 2);
+      row.forEach((e, i) => {
+        const size = widths[i];
+        const stagger = rows.length === 1 && row.length > 1 && i % 2 === 1 ? -10 : 0;
+        this.spots.set(e.id, { x, y: ground - size + stagger, size });
+        x += size + gap;
+      });
+    });
+  }
+
+  private enemyScale(e: Combatant): number {
+    const def = MONSTERS.get(e.sourceId);
+    if (!def?.boss) {
+      return 2;
+    }
+    return MINI_BOSS_IDS.includes(def.id) ? 3 : 4;
+  }
+
+  private center(id: string): Point {
+    const s = this.spots.get(id) ?? { x: SCREEN_W / 2, y: FIELD_H / 2, size: 0 };
+    return { x: s.x + s.size / 2, y: s.y + s.size / 2 };
+  }
+
+  /** Current sprite top-left including motion offsets. */
+  private pose(c: Combatant): Point {
+    const home = this.spots.get(c.id) ?? { x: 0, y: 0, size: 0 };
+    let x = home.x;
+    let y = home.y;
+    if (c.side === 'party' && this.isActing(c)) {
+      x += ACTIVE_STEP;
+    }
+    if (this.phase === 'intro') {
+      const ease = Math.min(1, this.timer / 0.6);
+      const off = (1 - ease) * (1 - ease) * INTRO_SLIDE;
+      x += c.side === 'party' ? -off : off;
+    }
+    if (this.phase === 'end' && this.battle.outcome === 'victory' && c.side === 'party' && c.hp > 0) {
+      y -= Math.floor(this.time * 4) % 2 === 0 ? 2 : 0;
+    }
+    const m = this.motions.get(c.id);
+    if (m) {
+      const p = Math.min(1, m.t / m.dur);
+      const bump = Math.sin(p * Math.PI);
+      switch (m.kind) {
+        case 'lunge':
+          if (m.to) {
+            x += (m.to.x - home.x) * bump;
+            y += (m.to.y - home.y) * bump;
+          }
+          break;
+        case 'hop':
+          y -= bump * 6;
+          break;
+        case 'shake':
+          x += Math.sin(m.t * 70) * 3 * (1 - p);
+          break;
+        case 'flee':
+          x -= p * p * 160;
+          break;
+      }
+    }
+    return { x, y };
+  }
+
+  private isActing(c: Combatant): boolean {
+    const choosing = this.phase === 'command' || this.phase === 'ability' || this.phase === 'item' || this.phase === 'target';
+    return choosing && this.battle.party[this.actorIndex] === c;
+  }
+
+  private playFx(fx: BattleFx): void {
+    switch (fx.type) {
+      case 'act':
+        this.playAct(fx);
+        return;
+      case 'hit': {
+        this.motions.set(fx.targetId, { kind: 'shake', t: 0, dur: 0.35 });
+        const color = fx.crit ? COLORS.gold : fx.element && fx.element !== 'physical' ? ELEMENT_COLORS[fx.element] : '#ffffff';
+        this.float(fx.targetId, `${fx.amount}${fx.crit ? '!' : ''}`, color);
+        this.burst(fx.targetId, fx.element && fx.element !== 'physical' ? ELEMENT_COLORS[fx.element] : '#fff0d0', 5);
+        return;
+      }
+      case 'miss':
+        this.float(fx.targetId, 'MISS', COLORS.dim);
+        return;
+      case 'ko':
+        return;
+      case 'heal':
+        this.float(fx.targetId, `+${fx.amount}`, fx.mp ? MP_COLOR : HEAL_COLOR);
+        this.sparkle(fx.targetId, fx.mp ? MP_COLOR : HEAL_COLOR);
+        return;
+      case 'buff':
+        this.sparkle(fx.targetId, COLORS.gold);
+        return;
+      case 'revive':
+        this.float(fx.targetId, 'UP', HEAL_COLOR);
+        this.sparkle(fx.targetId, '#ffffff');
+        return;
+      case 'run':
+        if (fx.success) {
+          this.battle.party.forEach((c) => this.motions.set(c.id, { kind: 'flee', t: 0, dur: 0.8 }));
+        } else {
+          this.battle.party.forEach((c) => this.motions.set(c.id, { kind: 'hop', t: 0, dur: 0.3 }));
+        }
+        return;
+    }
+  }
+
+  private playAct(fx: Extract<BattleFx, { type: 'act' }>): void {
+    const actor = this.combatant(fx.actorId);
+    if (!actor) {
+      return;
+    }
+    const ranged = actor.side === 'party' && actor.sourceId === 'ranger';
+    if (fx.act === 'attack' && fx.targetId && !ranged) {
+      const home = this.spots.get(actor.id);
+      const target = this.spots.get(fx.targetId);
+      if (home && target) {
+        const dir = actor.side === 'party' ? 1 : -1;
+        // Step to just in front of the target.
+        const to = {
+          x: dir > 0 ? target.x - home.size * 0.6 : target.x + target.size - home.size * 0.4,
+          y: target.y + target.size - home.size,
+        };
+        this.motions.set(actor.id, { kind: 'lunge', t: 0, dur: 0.6, to: this.lerpPoint(home, to, 0.85) });
+      }
+      return;
+    }
+    this.motions.set(actor.id, { kind: 'hop', t: 0, dur: 0.35 });
+    if (fx.act === 'defend') {
+      this.sparkle(actor.id, '#c0c8d8');
+      return;
+    }
+    if (fx.act === 'item' || !fx.targetId || fx.targetId === actor.id) {
+      return;
+    }
+    const color = ranged && fx.act === 'attack' ? ARROW_COLOR : this.actColor(fx);
+    const targets = fx.allTargets
+      ? (actor.side === 'party' ? this.battle.enemies : this.battle.party).filter(isAlive).map((c) => c.id)
+      : [fx.targetId];
+    const from = this.center(actor.id);
+    targets.forEach((id) =>
+      this.shots.push({ from, to: this.center(id), t: 0, dur: CAST_LEAD, color, arrow: ranged && fx.act === 'attack' }),
+    );
+  }
+
+  private actColor(fx: Extract<BattleFx, { type: 'act' }>): string {
+    if (fx.effect === 'heal' || fx.effect === 'revive') {
+      return HEAL_COLOR;
+    }
+    if (fx.effect === 'buff') {
+      return COLORS.gold;
+    }
+    return ELEMENT_COLORS[fx.element ?? 'physical'];
+  }
+
+  private lerpPoint(a: Point, b: Point, t: number): Point {
+    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
+  }
+
+  private float(id: string, text: string, color: string): void {
+    const c = this.center(id);
+    const stack = this.floaters.filter((f) => f.t < 0.3 && Math.abs(f.x - c.x) < 8).length;
+    this.floaters.push({ text, color, x: c.x, y: c.y - 8 - stack * 9, t: 0 });
+  }
+
+  private sparkle(id: string, color: string): void {
+    const s = this.spots.get(id);
+    if (!s) {
+      return;
+    }
+    for (let i = 0; i < 10; i++) {
+      this.sparks.push({
+        x: s.x + this.ctx.rng.next() * s.size,
+        y: s.y + s.size * (0.5 + this.ctx.rng.next() * 0.5),
+        vx: 0,
+        vy: -20 - this.ctx.rng.next() * 25,
+        t: -i * 0.04,
+        dur: 0.6,
+        color,
+      });
+    }
+  }
+
+  private burst(id: string, color: string, n: number): void {
+    const c = this.center(id);
+    for (let i = 0; i < n; i++) {
+      const a = this.ctx.rng.next() * Math.PI * 2;
+      const v = 40 + this.ctx.rng.next() * 40;
+      this.sparks.push({ x: c.x, y: c.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 0, dur: 0.3, color });
+    }
+  }
+
+  private animate(dt: number): void {
+    this.flash.forEach((t, id) => (t - dt <= 0 ? this.flash.delete(id) : this.flash.set(id, t - dt)));
+    this.motions.forEach((m, id) => {
+      m.t += dt;
+      if (m.t >= m.dur && m.kind !== 'flee') {
+        this.motions.delete(id);
+      }
+    });
+    this.dying.forEach((t, id) => {
+      if (t - dt <= 0) {
+        this.dying.delete(id);
+        this.gone.add(id);
+      } else {
+        this.dying.set(id, t - dt);
+      }
+    });
+    this.shots = this.shots.filter((s) => (s.t += dt) < s.dur);
+    this.floaters = this.floaters.filter((f) => (f.t += dt) < FLOAT_TIME);
+    this.sparks = this.sparks.filter((s) => {
+      s.t += dt;
+      if (s.t > 0) {
+        s.x += s.vx * dt;
+        s.y += s.vy * dt;
+      }
+      return s.t < s.dur;
+    });
   }
 
   private finish(): void {
@@ -435,7 +807,7 @@ export class BattleScene implements Scene {
       this.state.gold += loot.gold;
       loot.items.forEach((id) => addItem(this.state, id));
     }
-    this.endLines = lines.flatMap((line) => wrapText(line, 37));
+    this.endLines = lines.flatMap((line) => wrapText(line, LOG_CHARS));
     if (this.endLines.length > 0) {
       this.log = [];
     }
@@ -487,12 +859,176 @@ export class BattleScene implements Scene {
 
   // --- Rendering -----------------------------------------------------------------------------
 
-  private statusEntries(): StatusEntry[] {
-    return this.battle.party.map((c) => {
-      const v = this.shown.get(c.id) ?? { hp: c.hp, mp: c.mp };
-      const m = this.members.find((x) => x.id === c.id);
-      return { name: c.name, level: m?.level ?? 1, hp: v.hp, maxHp: c.maxHp, mp: v.mp, maxMp: c.maxMp };
+  private renderField(r: Renderer): void {
+    const [skyTop, skyLow, far, near, scenery] = BACKDROP_COLORS.get(this.options.backdrop) ?? [
+      '#000000',
+      '#111111',
+      '#222222',
+      '#222222',
+      '#333333',
+    ];
+    const bands = 6;
+    for (let i = 0; i < bands; i++) {
+      r.fillRect(0, (i * HORIZON_Y) / bands, SCREEN_W, HORIZON_Y / bands + 1, i < bands / 2 ? skyTop : skyLow);
+    }
+    this.renderScenery(r, scenery);
+    r.fillRect(0, HORIZON_Y, SCREEN_W, 14, far);
+    r.fillRect(0, HORIZON_Y + 14, SCREEN_W, FIELD_H - HORIZON_Y - 14, near);
+    for (let i = 0; i < 24; i++) {
+      // Deterministic ground speckles for texture.
+      const gx = (i * 97) % SCREEN_W;
+      const gy = HORIZON_Y + 18 + ((i * 53) % (FIELD_H - HORIZON_Y - 22));
+      r.fillRect(gx, gy, 3, 1, scenery);
+    }
+    r.fillRect(0, FIELD_H, SCREEN_W, 2, '#000000');
+
+    const drawList: Array<{ y: number; draw(): void }> = [];
+    this.battle.party.forEach((c) => {
+      const spot = this.spots.get(c.id);
+      if (spot) {
+        drawList.push({ y: spot.y + spot.size, draw: () => this.drawMember(r, c, spot) });
+      }
     });
+    this.battle.enemies.forEach((e) => {
+      const spot = this.spots.get(e.id);
+      if (spot && !this.gone.has(e.id)) {
+        drawList.push({ y: spot.y + spot.size, draw: () => this.drawEnemy(r, e, spot) });
+      }
+    });
+    drawList.sort((a, b) => a.y - b.y).forEach((d) => d.draw());
+    this.renderEffects(r);
+    this.renderTargetCursor(r);
+  }
+
+  private renderScenery(r: Renderer, color: string): void {
+    switch (this.options.backdrop) {
+      case 'forest':
+        for (let x = -8; x < SCREEN_W; x += 22) {
+          const h = 18 + ((x * 7) % 11);
+          for (let row = 0; row < h; row += 2) {
+            const w = Math.round((row / h) * 14) + 2;
+            r.fillRect(x + 11 - w / 2, HORIZON_Y - h + row, w, 2, color);
+          }
+        }
+        return;
+      case 'hills':
+        for (let x = 0; x < SCREEN_W; x += 2) {
+          const h = 14 + Math.round(Math.sin(x / 34) * 8 + Math.sin(x / 13) * 3);
+          r.fillRect(x, HORIZON_Y - h, 2, h, color);
+        }
+        return;
+      case 'cave':
+        for (let x = 4; x < SCREEN_W; x += 18) {
+          const h = 8 + ((x * 13) % 17);
+          for (let row = 0; row < h; row += 2) {
+            const w = Math.max(1, Math.round((1 - row / h) * 8));
+            r.fillRect(x + 4 - w / 2, row, w, 2, color);
+          }
+        }
+        return;
+      default:
+        for (let x = 0; x < SCREEN_W; x += 2) {
+          const h = 4 + Math.round(Math.sin(x / 50) * 3 + 3);
+          r.fillRect(x, HORIZON_Y - h, 2, h, color);
+        }
+    }
+  }
+
+  private shadow(r: Renderer, x: number, y: number, size: number): void {
+    r.fillRect(x + size * 0.15, y + size - 2, size * 0.7, 3, 'rgba(0,0,0,0.3)');
+  }
+
+  private drawMember(r: Renderer, c: Combatant, spot: Spot): void {
+    const p = this.pose(c);
+    const v = this.shown.get(c.id);
+    const down = (v?.hp ?? c.hp) <= 0;
+    this.shadow(r, spot.x, spot.y, spot.size);
+    const fleeing = this.motions.get(c.id)?.kind === 'flee';
+    const walking = this.motions.has(c.id) || this.phase === 'intro' || this.isActing(c);
+    const frame = walking ? Math.floor(this.time * 6) % 2 : 0;
+    const sprite = this.ctx.art.character(c.sourceId, fleeing ? 'left' : 'right', frame);
+    const flashing = this.flash.has(c.id) && Math.floor(this.time * 20) % 2 === 0;
+    if (down) {
+      r.draw(sprite, p.x, p.y + 6, { scale: PARTY_SCALE, alpha: 0.35 });
+      return;
+    }
+    r.draw(sprite, p.x, p.y, { scale: PARTY_SCALE, flipX: fleeing, alpha: flashing ? 0.4 : 1 });
+  }
+
+  private drawEnemy(r: Renderer, e: Combatant, spot: Spot): void {
+    const def = MONSTERS.get(e.sourceId);
+    if (!def) {
+      return;
+    }
+    const p = this.pose(e);
+    const dying = this.dying.get(e.id);
+    const flashing = this.flash.has(e.id) && Math.floor(this.time * 20) % 2 === 0;
+    const bob = dying === undefined && this.motions.get(e.id) === undefined ? Math.floor(this.time * 2 + spot.x) % 2 : 0;
+    let alpha = flashing ? 0.35 : 1;
+    if (dying !== undefined) {
+      alpha = Math.max(0, dying / DISSOLVE_TIME);
+    } else {
+      this.shadow(r, spot.x, spot.y, spot.size);
+    }
+    r.draw(this.ctx.art.monster(def.spriteId), p.x, p.y - bob, { scale: spot.size / SPRITE_PX, alpha });
+    if (dying !== undefined) {
+      // Dissolve: drifting embers as the sprite fades out.
+      const k = 1 - dying / DISSOLVE_TIME;
+      for (let i = 0; i < 6; i++) {
+        const sx = spot.x + ((i * 37) % spot.size);
+        const sy = spot.y + spot.size * (1 - k) - ((i * 11) % 10);
+        r.fillRect(sx, sy, 2, 2, i % 2 === 0 ? '#c03030' : '#ffffff');
+      }
+    }
+  }
+
+  private renderEffects(r: Renderer): void {
+    this.shots.forEach((s) => {
+      const p = Math.min(1, s.t / s.dur);
+      const x = s.from.x + (s.to.x - s.from.x) * p;
+      const y = s.from.y + (s.to.y - s.from.y) * p - Math.sin(p * Math.PI) * (s.arrow ? 10 : 6);
+      if (s.arrow) {
+        const dir = s.to.x >= s.from.x ? 1 : -1;
+        r.fillRect(x - 6 * dir, y, 8, 1, s.color);
+        r.fillRect(dir > 0 ? x + 2 : x - 4, y - 1, 2, 3, '#ffffff');
+        return;
+      }
+      for (let i = 3; i >= 1; i--) {
+        const tx = s.from.x + (s.to.x - s.from.x) * Math.max(0, p - i * 0.06);
+        r.fillRect(tx - 1, y - 1, 2, 2, s.color);
+      }
+      r.fillRect(x - 3, y - 3, 6, 6, s.color);
+      r.fillRect(x - 1, y - 1, 2, 2, '#ffffff');
+    });
+    this.sparks
+      .filter((s) => s.t > 0)
+      .forEach((s) => r.fillRect(s.x, s.y, s.t / s.dur > 0.6 ? 1 : 2, s.t / s.dur > 0.6 ? 1 : 2, s.color));
+    this.floaters.forEach((f) => {
+      const y = f.y - Math.min(1, f.t / 0.3) * 10;
+      if (f.t > FLOAT_TIME * 0.8 && Math.floor(f.t * 30) % 2 === 0) {
+        return;
+      }
+      const x = f.x - (f.text.length * 6) / 2;
+      r.text(f.text, x + 1, y + 1, '#000000');
+      r.text(f.text, x, y, f.color);
+    });
+  }
+
+  private renderTargetCursor(r: Renderer): void {
+    if (this.phase !== 'target' || Math.floor(this.time * 4) % 2 !== 0) {
+      return;
+    }
+    const target = this.targets[this.targetCursor];
+    const spot = target && this.spots.get(target.id);
+    if (!spot) {
+      return;
+    }
+    const p = this.pose(target);
+    const cx = Math.round(p.x + spot.size / 2);
+    const top = p.y - 9;
+    for (let i = 0; i < 4; i++) {
+      r.fillRect(cx - 3 + i, top + i, 7 - i * 2, 1, COLORS.gold);
+    }
   }
 
   private highlightedMember(): number {
@@ -505,67 +1041,67 @@ export class BattleScene implements Scene {
     return -1;
   }
 
-  private renderField(r: Renderer): void {
-    const x = 8;
-    const y = 52;
-    const w = SCREEN_W - 16;
-    const h = 104;
-    const [sky, ground] = BACKDROP_COLORS.get(this.options.backdrop) ?? ['#000000', '#222222'];
-    r.window(x, y, w, h);
-    r.fillRect(x + 3, y + 3, w - 6, 50, sky);
-    r.fillRect(x + 3, y + 53, w - 6, h - 56, ground);
-    const enemies = this.battle.enemies;
-    const scale = this.options.boss ? 4 : 2;
-    const size = 16 * scale;
-    const gap = 12;
-    const total = enemies.length * size + (enemies.length - 1) * gap;
-    let ex = Math.round(SCREEN_W / 2 - total / 2);
-    const targetEnemy = this.phase === 'target' ? this.targets[this.targetCursor] : undefined;
-    enemies.forEach((e) => {
-      const ey = y + h - 12 - size;
-      const vitals = this.shown.get(e.id);
-      const def = MONSTERS.get(e.sourceId);
-      const flashing = this.flash.has(e.id) && Math.floor(this.time * 20) % 2 === 0;
-      if ((vitals?.hp ?? 0) > 0 && def && !flashing) {
-        r.draw(this.ctx.art.monster(def.spriteId), ex, ey, { scale });
+  /** Compact party status: one two-line row per member (name, HP and MP numbers, then bars). */
+  private renderStatus(r: Renderer): void {
+    const highlight = this.highlightedMember();
+    r.window(STATUS_X, PANEL_Y, STATUS_W, SCREEN_H_PANEL);
+    this.battle.party.forEach((c, i) => {
+      const v = this.shown.get(c.id) ?? { hp: c.hp, mp: c.mp };
+      const m = this.members.find((x) => x.id === c.id);
+      const y = PANEL_Y + 7 + i * 21;
+      const x = STATUS_X + 8;
+      const dead = v.hp <= 0;
+      const hpColor = dead ? COLORS.hpLow : v.hp <= c.maxHp / 4 ? COLORS.warn : COLORS.text;
+      const nameColor = dead ? COLORS.hpLow : i === highlight ? COLORS.gold : COLORS.text;
+      if (i === highlight) {
+        drawCursor(r, x - 6, y, COLORS.gold);
       }
-      if (targetEnemy === e && Math.floor(this.time * 4) % 2 === 0) {
-        const cx = ex + size / 2;
-        for (let i = 0; i < 4; i++) {
-          r.fillRect(cx - 3 + i, ey - 10 + i, 7 - i * 2, 1, COLORS.gold);
-        }
-      }
-      ex += size + gap;
+      r.text(c.name.slice(0, 7).toUpperCase(), x + 2, y, nameColor);
+      r.textRight(`${v.hp}/${c.maxHp}`, x + 104, y, hpColor);
+      r.textRight(`${v.mp}/${c.maxMp}`, x + 150, y, COLORS.text);
+      r.text(`L${m?.level ?? 1}`, x + 2, y + 9, COLORS.dim);
+      r.bar(x + 58, y + 10, 46, 2, c.maxHp ? v.hp / c.maxHp : 0, dead ? COLORS.hpLow : COLORS.hp);
+      r.bar(x + 116, y + 10, 34, 2, c.maxMp ? v.mp / c.maxMp : 0, COLORS.mp);
     });
   }
 
-  private renderBottom(r: Renderer): void {
-    const y = 160;
+  private renderPanel(r: Renderer): void {
+    const y = PANEL_Y;
     if (this.phase === 'command' || this.phase === 'ability' || this.phase === 'item' || this.phase === 'target') {
-      this.commandMenu.render(r, 8, y, 84, this.phase === 'command', this.actor.name.toUpperCase());
+      this.commandMenu.render(r, RIGHT_X, y, COMMAND_W, this.phase === 'command', this.actor.name.toUpperCase());
+      const subX = RIGHT_X + COMMAND_W + 2;
+      const subW = SCREEN_W - subX - 4;
       if ((this.phase === 'ability' || this.phase === 'item') && this.subMenu) {
-        this.subMenu.render(r, 96, y, 152, true, this.phase === 'ability' ? 'ABILITY' : 'ITEM');
-      } else {
-        r.window(96, y, 152, 72);
-        const hint =
-          this.phase === 'target'
-            ? `TARGET: ${this.targets[this.targetCursor]?.name.toUpperCase() ?? ''}`
-            : `${this.actor.name.toUpperCase()}'S TURN`;
-        r.text(hint, 104, y + 8);
-        this.battle.enemies.filter(isAlive).forEach((e, i) => {
-          r.text(e.name.toUpperCase(), 104, y + 24 + i * 10, COLORS.dim);
-        });
-        if (this.log.length > 0 && this.phase === 'command') {
-          r.text(this.log[this.log.length - 1].toUpperCase().slice(0, 23), 104, y + 58, COLORS.warn);
+        this.subMenu.render(r, subX, y, subW, true, this.phase === 'ability' ? 'ABILITY' : 'ITEM');
+        return;
+      }
+      r.window(subX, y, subW, SCREEN_H_PANEL);
+      const target = this.phase === 'target' ? this.targets[this.targetCursor] : undefined;
+      if (target) {
+        const v = this.shown.get(target.id) ?? { hp: target.hp, mp: target.mp };
+        r.text('TARGET', subX + 8, y + 8, COLORS.dim);
+        r.text(target.name.toUpperCase().slice(0, 20), subX + 8, y + 20, COLORS.gold);
+        if (target.side === 'party') {
+          r.text(`HP ${v.hp}/${target.maxHp}`, subX + 8, y + 32);
         }
+        r.text('ARROWS: CHOOSE', subX + 8, y + 56, COLORS.dim);
+        return;
+      }
+      r.text(`${this.actor.name.toUpperCase()}'S TURN`, subX + 8, y + 8, COLORS.gold);
+      this.battle.enemies
+        .filter(isAlive)
+        .slice(0, 3)
+        .forEach((e, i) => r.text(e.name.toUpperCase().slice(0, 20), subX + 8, y + 20 + i * 10, COLORS.dim));
+      if (this.log.length > 0 && this.phase === 'command') {
+        r.text(this.log[this.log.length - 1].toUpperCase().slice(0, 20), subX + 8, y + 56, COLORS.warn);
       }
       return;
     }
-    r.window(8, y, SCREEN_W - 16, 72);
-    this.log.forEach((line, i) => r.text(line, 16, y + 8 + i * 12));
+    r.window(RIGHT_X, y, RIGHT_W, SCREEN_H_PANEL);
+    this.log.forEach((line, i) => r.text(line, RIGHT_X + 8, y + 8 + i * 12));
     if (this.awaitingOk) {
       const label = this.endLines.length > 0 ? 'NEXT' : 'OK';
-      const x = SCREEN_W - 24 - label.length * 6;
+      const x = RIGHT_X + RIGHT_W - 12 - label.length * 6;
       r.text(label, x, y + 58, COLORS.gold);
       if (Math.floor(this.time * 3) % 2 === 0) {
         drawCursor(r, x - 8, y + 58, COLORS.gold);

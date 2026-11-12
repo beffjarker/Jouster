@@ -1,4 +1,4 @@
-export type InputAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'cancel' | 'mute';
+export type InputAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'cancel' | 'map' | 'mute';
 
 const KEY_BINDINGS: ReadonlyArray<[string, InputAction]> = [
   ['ArrowUp', 'up'],
@@ -15,7 +15,8 @@ const KEY_BINDINGS: ReadonlyArray<[string, InputAction]> = [
   ['KeyX', 'cancel'],
   ['Escape', 'cancel'],
   ['Backspace', 'cancel'],
-  ['KeyM', 'mute'],
+  ['KeyM', 'map'],
+  ['KeyN', 'mute'],
 ];
 
 const ACTION_BY_CODE = new Map<string, InputAction>(KEY_BINDINGS);
