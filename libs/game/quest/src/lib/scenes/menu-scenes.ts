@@ -9,6 +9,9 @@ import { GameContext, memberStatus, requireState } from './context';
 
 type FieldMode = 'main' | 'statusWho' | 'status' | 'item' | 'itemWho' | 'magicWho' | 'magic' | 'magicWho2';
 
+/** Party status row position while a message window (y=160) is open over the menu. */
+const FIELD_STATUS_Y_WITH_MESSAGE = 112;
+
 /** Field menu (X / Esc): party status, items and healing magic outside battle. */
 export class FieldMenuScene implements Scene {
   public readonly id = 'field-menu';
@@ -73,7 +76,9 @@ export class FieldMenuScene implements Scene {
       const title = this.mode === 'item' ? 'ITEMS' : this.mode === 'magic' ? 'MAGIC' : 'WHO?';
       this.sub.render(r, 88, 8, 160, true, title);
     }
-    drawPartyStatus(r, this.state.party.map(memberStatus), 190);
+    // Messages (e.g. spell results) cover the bottom of the screen, so lift the status above them.
+    const statusY = this.ctx.stack.top === this ? 190 : FIELD_STATUS_Y_WITH_MESSAGE;
+    drawPartyStatus(r, this.state.party.map(memberStatus), statusY);
   }
 
   private openMembers(mode: FieldMode): void {
