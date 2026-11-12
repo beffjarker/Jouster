@@ -242,6 +242,19 @@ function rockVariant(ctx: Ctx, variant: number): void {
   }
 }
 
+/** Cave wall with a lit torch in an iron bracket; the flame flickers between two frames. */
+function torch(ctx: Ctx, frame: number): void {
+  rockVariant(ctx, 0);
+  rect(ctx, 5, 4, 6, 8, 'rgba(255,170,60,0.18)');
+  rect(ctx, 7, 8, 2, 5, '#5a3a1a');
+  rect(ctx, 6, 8, 4, 1, '#3a3a40');
+  rect(ctx, 6, 12, 4, 1, '#3a3a40');
+  const lean = frame === 0 ? 0 : 1;
+  rect(ctx, 6 + lean, 4, 3, 4, '#e8641c');
+  rect(ctx, 7, 3 - lean, 2, 2, '#ffb030');
+  rect(ctx, 7, 5, 2, 2, '#fff0a0');
+}
+
 function cobble(ctx: Ctx): void {
   speckle(ctx, '#b0aa98', [['#8f8a7a', 0.12], ['#c8c2b0', 0.06]], 7);
 }
@@ -354,6 +367,7 @@ const TILE_DRAWERS: ReadonlyMap<string, TileDrawer> = new Map<string, TileDrawer
   ],
   ['fountain', (c, f) => fountain(c, f)],
   ['rock', (c, _f, v) => rockVariant(c, v)],
+  ['torch', (c, f) => torch(c, f)],
   ['caveFloor', (c) => speckle(c, '#6a5a4a', [['#5a4a3c', 0.14], ['#7d6c5a', 0.06]], 6)],
   ['caveWater', (c, f, v) => caveWaterVariant(c, f, v)],
   [
@@ -677,13 +691,15 @@ function hiResTile(low: HTMLCanvasElement, seed: number): HTMLCanvasElement {
   return setImageDensity(pixelsToCanvas(big), 2);
 }
 
+const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWater', 'fountain', 'torch']);
+
 /** Lazily rendered and cached 2x-density art (tiles, humanoid sprites, monster sprites). */
 export class Art {
   private readonly cache = new Map<string, HTMLCanvasElement>();
 
   /** Tile art; `variant` (see {@link tileVariant}) picks an alternate look where one exists. */
   public tile(id: string, frame = 0, variant = 0): HTMLCanvasElement {
-    const animated = id === 'water' || id === 'bridge' || id === 'caveWater' || id === 'fountain';
+    const animated = ANIMATED_TILES.has(id);
     const f = animated ? frame % 2 : 0;
     const v = variant % (TILE_VARIANT_COUNTS.get(id) ?? 1);
     return this.cached(`tile:${id}:${f}:${v}`, () => {

@@ -456,12 +456,39 @@ class below it.
 | --- | --- |
 | Where | Overworld and dungeons (Goblin Cave, later caves/towers). Towns and castles are always fully visible |
 | Start | Every tile is hidden (drawn as dark fog) except the area around the starting point |
-| Sight radius | **Tunable constant, default 4 tiles** (circle). Planned to try 3, 4 and 5 in play-testing; dungeons use radius − 1 (darker inside) |
+| Sight radius | Outdoors (overworld and towns): **8 tiles in clear weather**, minus the weather severity (14.1.1). Caves: fixed **3 tiles**, **+1** when a lit wall torch is in sight within 3 tiles. Circle shape |
 | Reveal | Each step marks every tile within the radius as explored. Explored tiles stay visible permanently |
 | Look | Unexplored tiles are solid fog with a soft 1-tile dithered edge; explored tiles outside the current radius are drawn slightly dimmed so the "live" area reads clearly |
 | Line of sight | Not in the first pass (a plain radius). Possible later: mountains/forest block sight, hills extend it |
 | Encounters/NPCs | Monsters and NPCs inside fog are not drawn |
 | Save | One bitset per map (1 bit per tile; 96×72 = 864 bytes), stored base64 in the save. Save version → 3; older saves start with only the area around the party revealed instead of being discarded |
+
+#### 14.1.1 Weather and seasons
+
+Weather and seasons apply outdoors only; caves have no weather. Both are derived from the step counter plus a
+per-journey seed (hash of the hero name and companion roster), so they need no extra save fields and never use the
+battle RNG. Weather does not affect encounters or battles.
+
+| Season | Steps (repeats every 1200) | Look | Possible weather |
+| --- | --- | --- | --- |
+| Spring | 0–299 | No tint | clear, cloudy, rain, storm, fog |
+| Summer | 300–599 | Warm tint | clear, cloudy, rain, storm |
+| Autumn | 600–899 | Orange tint | clear, cloudy, rain, storm, fog |
+| Winter | 900–1199 | White wash | clear, cloudy, snow, fog, blizzard |
+
+| Weather | Severity | Sight radius | Effect |
+| --- | --- | --- | --- |
+| Clear (sunny) | 0 | 8 | — |
+| Cloudy | 1 | 7 | Dimmed light, drifting cloud shadows |
+| Rain / Snow | 2 | 6 | Falling streaks / flakes |
+| Storm | 3 | 5 | Heavy rain with lightning flashes |
+| Fog | 4 | 4 | Drifting fog bands |
+| Blizzard | 5 | 3 | Dense, wind-driven snow |
+
+- Weather is rolled every 40 steps from the season's weighted table; every journey opens with clear skies.
+- A banner announces each change ("Summer has come.", "It starts to rain."). The field HUD and the `M` map
+  legend show `SEASON - WEATHER` (or `UNDERGROUND` in caves).
+- The Goblin Cave has wall torches (solid, animated tiles); the Wolf Den is unlit.
 
 **World map (`M` key)**
 
@@ -550,12 +577,13 @@ class below it.
 6. Battle presentation: side-view layout, battle poses, animation timeline, effects, speed option, tests.
 7. Verify: unit, balance and scene tests, lint, production build, browser screenshots; push to the open PR.
 
-**Assumptions to confirm in play-testing:** sight radius 4 (try 3–5), explored-but-out-of-sight tiles dimmed
+**Assumptions to confirm in play-testing:** sight radius (now set by weather, 14.1.1), explored-but-out-of-sight tiles dimmed
 rather than re-fogged, towns never fogged, one side quest per companion.
 
 ### 14.6 Implementation notes (first pass)
 
-- **Fog:** radius 4 on the overworld and 3 in caves (Goblin Cave, Wolf Den); towns are never fogged. Explored
+- **Fog:** radius 8 outdoors in clear weather minus weather severity (14.1.1); 3 in caves, +1 near a wall torch;
+  towns are never fogged. Explored
   tiles are stored per map as packed 32-bit words (`explored: Record<mapId, number[]>`) in save v3; v1/v2 saves
   migrate with only the area around the party revealed.
 - **Keys:** `M` opens/closes the world map (also **Map** in the field menu); `N` toggles sound. The map panel

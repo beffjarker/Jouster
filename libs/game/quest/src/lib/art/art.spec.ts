@@ -7,7 +7,7 @@ describe('tile variants', () => {
     MAPS.forEach((map) =>
       map.legend.filter((t) => t.solid).forEach((t) => solidIds.add(t.id)),
     );
-    const landscape = [...solidIds].filter((id) => id !== 'counter' && id !== 'fountain');
+    const landscape = [...solidIds].filter((id) => !['counter', 'fountain', 'torch'].includes(id));
     expect(landscape).toEqual(expect.arrayContaining(['mountain', 'tree', 'wall', 'rock']));
     landscape.forEach((id) => expect(TILE_VARIANT_COUNTS.get(id) ?? 1).toBeGreaterThanOrEqual(3));
   });

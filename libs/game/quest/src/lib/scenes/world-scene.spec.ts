@@ -2,9 +2,10 @@ import { InputAction, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { INN_RESPAWN, mapDef } from '../data/maps';
 import { LANDMARKS } from '../data/overworld-gen';
-import { isExplored } from '../state/fog';
+import { CAVE_FOG_RADIUS, isExplored } from '../state/fog';
 import { GameState, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
 import { createMember } from '../state/party';
+import { SUNNY_SIGHT_RADIUS, weatherAt, weatherSeed, weatherSightRadius } from '../state/weather';
 import { InputDriver } from '../testing/input-driver';
 import { GameContext } from './context';
 import { STEP_TIME, WorldScene } from './world-scene';
@@ -217,12 +218,42 @@ describe('WorldScene', () => {
     const h = setup({ mapId: 'overworld', ...start, facing: 'right' });
     const width = mapDef('overworld').rows[0].length;
     const bits = (): number[] => h.state.explored['overworld'];
+    const edge = start.x + SUNNY_SIGHT_RADIUS + 1;
     expect(isExplored(bits(), width, start.x, start.y)).toBe(true);
-    expect(isExplored(bits(), width, start.x + 5, start.y)).toBe(false);
+    expect(isExplored(bits(), width, start.x + SUNNY_SIGHT_RADIUS, start.y)).toBe(true);
+    expect(isExplored(bits(), width, edge, start.y)).toBe(false);
     h.hold('right', STEP_TIME + 0.02);
     h.run(0.3);
-    expect(isExplored(bits(), width, start.x + 5, start.y)).toBe(true);
+    expect(isExplored(bits(), width, edge, start.y)).toBe(true);
     expect(isExplored(bits(), width, start.x + 30, start.y)).toBe(false);
+  });
+
+  it('sees less far in bad weather', () => {
+    const start = grassRun();
+    const probe = newGameState('TEST', 'cleric');
+    const seed = weatherSeed(probe);
+    let steps = 0;
+    while (steps < 100000 && weatherAt(steps, seed) !== 'fog' && weatherAt(steps, seed) !== 'blizzard') {
+      steps += 40;
+    }
+    const radius = weatherSightRadius(weatherAt(steps, seed));
+    expect(radius).toBeLessThanOrEqual(4);
+    const h = setup({ ...probe, mapId: 'overworld', ...start, facing: 'right', steps });
+    const width = mapDef('overworld').rows[0].length;
+    expect(isExplored(h.state.explored['overworld'], width, start.x + radius, start.y)).toBe(true);
+    expect(isExplored(h.state.explored['overworld'], width, start.x + radius + 1, start.y)).toBe(false);
+  });
+
+  it('keeps cave sight fixed, with one extra tile near a wall torch', () => {
+    const width = mapDef('goblinCave').rows[0].length;
+    const dark = setup({ mapId: 'goblinCave', x: 13, y: 10, facing: 'right' });
+    const darkBits = dark.state.explored['goblinCave'];
+    expect(isExplored(darkBits, width, 13 + CAVE_FOG_RADIUS, 10)).toBe(true);
+    expect(isExplored(darkBits, width, 13 + CAVE_FOG_RADIUS + 1, 10)).toBe(false);
+    const lit = setup({ mapId: 'goblinCave', x: 3, y: 17, facing: 'right' });
+    const litBits = lit.state.explored['goblinCave'];
+    expect(isExplored(litBits, width, 3 + CAVE_FOG_RADIUS + 1, 17)).toBe(true);
+    expect(isExplored(litBits, width, 3 + CAVE_FOG_RADIUS + 2, 17)).toBe(false);
   });
 
   it('lets the Bone Captain rise after an inn rest during the Thornwick quest', () => {

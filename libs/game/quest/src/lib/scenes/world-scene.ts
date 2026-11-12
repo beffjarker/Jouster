@@ -14,7 +14,14 @@ import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '..
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, Warp, mapDef } from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
-import { CAVE_FOG_RADIUS, FOG_RADIUS, inSight, isExplored, revealAround } from '../state/fog';
+import {
+  CAVE_FOG_RADIUS,
+  TORCH_LIGHT_RADIUS,
+  TORCH_SIGHT_BONUS,
+  inSight,
+  isExplored,
+  revealAround,
+} from '../state/fog';
 import {
   GameState,
   MAX_PARTY,
@@ -25,6 +32,17 @@ import {
   saveGame,
 } from '../state/game-state';
 import { memberStats, restoreMember } from '../state/party';
+import {
+  SEASON_NAMES,
+  Season,
+  WEATHER,
+  WeatherKind,
+  seasonAt,
+  weatherAt,
+  weatherSeed,
+  weatherSightRadius,
+} from '../state/weather';
+import { drawSeasonTint, drawWeather } from '../ui/weather-fx';
 import { COLORS, SCREEN_H, SCREEN_W, ask, drawPartyStatus, say } from '../ui/widgets';
 import { BattleEnd, BattleScene } from './battle-scene';
 import { GameContext, memberStatus, requireState } from './context';
@@ -87,12 +105,20 @@ export class WorldScene implements Scene {
   private time = 0;
   private idle = 0;
   private nameTimer = 2.5;
+  private readonly seed: number;
+  private readonly torches: ReadonlyArray<{ x: number; y: number }>;
+  private toast = '';
+  private toastTimer = 0;
 
   constructor(private readonly ctx: GameContext) {
     this.state = requireState(ctx);
     this.map = mapDef(this.state.mapId);
     this.tiles = new TileMap(this.map.rows, this.map.legend);
     this.tileIds = new Map(this.map.legend.map((t) => [t.char, t.id]));
+    this.seed = weatherSeed(this.state);
+    this.torches = this.map.rows.flatMap((row, y) =>
+      [...row].flatMap((ch, x) => (this.tileIds.get(ch) === 'torch' ? [{ x, y }] : [])),
+    );
     this.syncWalkers();
     this.npcs = this.map.npcs.map((def) => ({
       def,
@@ -107,9 +133,25 @@ export class WorldScene implements Scene {
     this.reveal();
   }
 
-  /** Tiles the party can currently see around itself (fogged maps only). */
+  /** Caves have no sky: no weather or seasons underground. */
+  private get outdoors(): boolean {
+    return this.map.backdrop !== 'cave';
+  }
+
+  private get weather(): WeatherKind {
+    return weatherAt(this.state.steps, this.seed);
+  }
+
+  /**
+   * Tiles the party can currently see around itself (fogged maps only): 8 on a sunny day minus
+   * the weather's severity outdoors; a fixed radius in caves, +1 while a wall torch is near.
+   */
   private get sightRadius(): number {
-    return this.map.backdrop === 'cave' ? CAVE_FOG_RADIUS : FOG_RADIUS;
+    if (!this.outdoors) {
+      const lit = this.torches.some((t) => inSight(t.x - this.state.x, t.y - this.state.y, TORCH_LIGHT_RADIUS));
+      return CAVE_FOG_RADIUS + (lit ? TORCH_SIGHT_BONUS : 0);
+    }
+    return weatherSightRadius(this.weather);
   }
 
   private reveal(): void {
@@ -131,6 +173,7 @@ export class WorldScene implements Scene {
   public update(dt: number, input: InputManager): void {
     this.time += dt;
     this.nameTimer = Math.max(0, this.nameTimer - dt);
+    this.toastTimer = Math.max(0, this.toastTimer - dt);
     const next = this.pending.shift();
     if (next) {
       next();
@@ -188,6 +231,9 @@ export class WorldScene implements Scene {
         r.draw(this.ctx.art.tile(id, frame, variant), tx * TILE - camX, ty * TILE - camY);
       }
     }
+    if (this.outdoors) {
+      drawSeasonTint(r, seasonAt(this.state.steps));
+    }
     const sprites: Array<{ y: number; draw(): void }> = [];
     this.npcs
       .filter((n) => this.npcVisible(n) && this.explored(n.x, n.y))
@@ -220,6 +266,9 @@ export class WorldScene implements Scene {
       });
     });
     sprites.sort((a, b) => a.y - b.y).forEach((s) => s.draw());
+    if (this.outdoors) {
+      drawWeather(r, this.weather, this.time);
+    }
     if (this.map.fog) {
       this.renderFog(r, startX, startY, camX, camY);
     }
@@ -309,8 +358,10 @@ export class WorldScene implements Scene {
 
   private finishStep(): void {
     const s = this.state;
+    const before = { season: seasonAt(s.steps), weather: this.weather };
     s.steps++;
     s.stepsSinceBattle++;
+    this.announceSky(before.season, before.weather);
     s.party.forEach((m) => {
       const interval = classDef(m.classId).passive?.fieldMpStepInterval;
       if (interval && m.hp > 0 && s.steps % interval === 0) {
@@ -331,6 +382,28 @@ export class WorldScene implements Scene {
     if (table && rollEncounter(table.rate, s.stepsSinceBattle, this.ctx.rng)) {
       const max = s.party.length === 1 ? SOLO_MAX_ENEMIES : MAX_PARTY;
       this.startBattle(pickEncounter(table, this.ctx.rng, max));
+    }
+  }
+
+  /** Shows a short banner when the season turns or the weather changes (outdoors only). */
+  private announceSky(season: Season, weather: WeatherKind): void {
+    const nextSeason = seasonAt(this.state.steps);
+    const next = this.weather;
+    if (nextSeason !== season) {
+      this.showToast(`${SEASON_NAMES[nextSeason]} has come.`);
+    } else if (next !== weather) {
+      this.showToast(WEATHER[next].message);
+    } else {
+      return;
+    }
+    // Sight may have grown (e.g. the sky cleared), so reveal the wider area right away.
+    this.reveal();
+  }
+
+  private showToast(text: string): void {
+    if (this.outdoors) {
+      this.toast = text;
+      this.toastTimer = 2.5;
     }
   }
 
@@ -692,10 +765,20 @@ export class WorldScene implements Scene {
       const w = name.length * 6 + 20;
       r.window(SCREEN_W / 2 - w / 2, 8, w, 20);
       r.textCentered(name, SCREEN_W / 2, 14, COLORS.gold);
+    } else if (this.toastTimer > 0) {
+      const w = this.toast.length * 6 + 20;
+      r.window(SCREEN_W / 2 - w / 2, 8, w, 20);
+      r.textCentered(this.toast.toUpperCase(), SCREEN_W / 2, 14);
     } else if (this.idle > 1.2 && this.ctx.stack.top === this) {
       drawPartyStatus(r, this.state.party.map(memberStatus), 4);
       r.window(SCREEN_W - 64, SCREEN_H - 26, 56, 20);
       r.textRight(`${this.state.gold}G`, SCREEN_W - 14, SCREEN_H - 20, COLORS.gold);
+      if (this.outdoors) {
+        const sky = `${SEASON_NAMES[seasonAt(this.state.steps)]} - ${WEATHER[this.weather].name}`.toUpperCase();
+        const w = sky.length * 6 + 16;
+        r.window(SCREEN_W - w - 8, SCREEN_H - 50, w, 20);
+        r.textRight(sky, SCREEN_W - 16, SCREEN_H - 44);
+      }
     }
   }
 }
