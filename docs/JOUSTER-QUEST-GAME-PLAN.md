@@ -178,7 +178,7 @@ of changing the engine.
 
 - **Transition:** a screen flash or wipe leads to the battle scene: backdrop by region, 1–4 enemies, and party
   status windows.
-- **Presentation (revision 3):** side-view layout with enemies on the left and the party on the right, every
+- **Presentation (revision 3):** side-view layout with the party on the left and enemies on the right, every
   action animated (see 14.4).
 - **Commands:** Attack · Magic · Skill · Item · Defend · Run
 - **Attack** is available to every class and always uses the equipped melee weapon. It costs no MP and has no
@@ -470,9 +470,9 @@ class below it.
 **Layout (side view, 16-/32-bit RPG style)**
 
 - Region backdrop across the top two-thirds (grassland, forest, hills, cave; gradient sky plus ground strip).
-- **Enemies on the left**, facing right, at their sprite size (bosses larger).
-- **Party on the right**, facing left, in a slight diagonal, using the 32×32 character art with battle poses.
-- Bottom strip: command window on the left, party status (name, HP/MP bars) on the right; the message line sits
+- **Party on the left**, facing right, in a slight diagonal, using the 32×32 character art with battle poses.
+- **Enemies on the right**, facing left, at their sprite size (bosses larger).
+- Bottom strip: party status (name, HP/MP bars) on the left under the party, command window on the right; the message line sits
   above it.
 - The member choosing a command steps forward one half-tile and has a cursor over their head.
 
@@ -488,7 +488,7 @@ class below it.
 | Enemy attack | Enemy lunges toward the target, target flashes, shakes and shows the number; crits flash the screen |
 | Status | Small icon over the affected unit (poison bubble, sleep "Z", silence mark) |
 | Defeat | Enemy flashes and dissolves; a fallen party member drops to a KO pose (greyed) |
-| Run | Party turns and runs off to the right; on failure they stumble back |
+| Run | Party turns and runs off to the left; on failure they stumble back |
 | Victory | Party victory pose, then the result window (still waits for OK, as in revision 1) |
 
 - **Timing:** each action about 0.6–0.9 s. Holding confirm doubles speed; a "Battle speed" option (normal/fast)
