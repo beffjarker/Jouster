@@ -1,7 +1,8 @@
 # Jouster Quest — Game Plan
 
 > **Status:** Act I vertical slice implemented (see [Implementation status](#12-implementation-status-act-i-slice));
-> play-test revision 2 planned (see [Revision 2](#13-revision-2-play-test-feedback))
+> play-test revision 2 implemented (see [Revision 2](#13-revision-2-play-test-feedback)); revision 3 planned
+> (see [Revision 3](#14-revision-3-exploration-pacing-widescreen-and-battle-presentation))
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -10,10 +11,12 @@
 ## 1. Vision
 
 A small single-player, top-down RPG with 32-bit-era pixel art (GBA / late-SNES look). The player explores a
-large overworld, visits friendly towns, and fights turn-based battles against monsters and dragons. Outside
-towns, each step has a small chance of a random encounter. At the start, the player picks a character class and
-can later recruit up to two companions, for a party of three, all controlled by the player. The companions on
-offer are rolled randomly for each new game and never share the hero's class.
+large overworld hidden under a fog of war, visits friendly towns, and fights turn-based battles against monsters
+and dragons, shown side-on with the party and enemies animated. Outside towns, each step has a small chance of a
+random encounter. At the start, the player picks a character class and adventures alone until the first boss
+falls; after that, companions can be won over through side quests, for a party of up to three, all controlled by
+the player. The companions on offer are rolled randomly for each new game and never share the hero's class. The
+game fills a 16:9 widescreen canvas.
 
 ---
 
@@ -23,7 +26,7 @@ offer are rolled randomly for each new game and never share the hero's class.
 | --- | --- |
 | Language | TypeScript (strict, no `any`) |
 | Rendering | HTML5 Canvas 2D; no game engine dependency |
-| Resolution | Logical 256×240 layout rendered at 2× pixel density (512×480 backing canvas), integer-scaled with `image-rendering: pixelated` |
+| Resolution | **Widescreen 16:9** (revision 3): logical 384×216 layout rendered at 2× pixel density (768×432 backing canvas), integer-scaled with `image-rendering: pixelated`. Revision 2 used 256×240 (512×480) |
 | Tile size | 16×16 logical grid; tiles, characters and monsters are drawn with 32×32 pixels of detail |
 | Maps | Authored in [Tiled](https://www.mapeditor.org/), exported as JSON |
 | Save data | `localStorage` (versioned JSON schema) |
@@ -148,8 +151,9 @@ The Cleric is the hardest class to start with, so it sets the minimum viable pow
 | Solo win rate against the Goblin King at the expected level (level 6, shop gear) | ≥ 60% for every class |
 | Gap between the best and worst class's average fight length | ≤ 2× |
 | Full-party (3 members) win rate against Act bosses at the expected level | 70–90% |
-| Any hero + any one companion of a different class at level 5 against the Goblin King | ≥ 70% |
-| Any hero + any two companions (all classes different) at level 5 against the Goblin King | ≥ 70% |
+| Any hero + any one companion of a different class at level 5 against the Goblin King | ≥ 70% (revision 3: kept as a regression check only; in play the boss is fought solo) |
+| Any hero + any two companions (all classes different) at level 5 against the Goblin King | ≥ 70% (regression check only, as above) |
+| Solo hero at level 6 with shop gear against the Goblin King, every class (revision 3: the real path) | ≥ 60%, aim 65–80% |
 
 If a class misses a target, tune its numbers in `game-content` (growth curve, weapon stats, skill costs) instead
 of changing the engine.
@@ -159,6 +163,9 @@ of changing the engine.
 - **Class select:** at the start, the player chooses a class and enters a name.
 - **Party:** the player recruits companions through the story. Maximum party size is 3, and the player controls
   every member.
+- **Recruiting is locked until the first boss** (revision 3): the hero travels alone through the Prologue and
+  Act I. Companions can be met and talked to before then, but each one joins only after the Goblin King is
+  defeated **and** their personal side quest is finished (see 14.2).
 - **Random allies:** each new game rolls a companion for every companion spot in the world: a random name and a
   random class. No companion has the same class as the hero, and no two companions share a class. The roll is
   stored in the save, so the roster stays the same for that playthrough.
@@ -171,6 +178,8 @@ of changing the engine.
 
 - **Transition:** a screen flash or wipe leads to the battle scene: backdrop by region, 1–4 enemies, and party
   status windows.
+- **Presentation (revision 3):** side-view layout with enemies on the left and the party on the right, every
+  action animated (see 14.4).
 - **Commands:** Attack · Magic · Skill · Item · Defend · Run
 - **Attack** is available to every class and always uses the equipped melee weapon. It costs no MP and has no
   cooldown, so no class is left without a damage option when it runs out of MP.
@@ -293,9 +302,12 @@ NPCs with hints and side quests
 3. **Mobile:** touch controls are out of scope for the first release (keyboard only).
 4. **Companions:** each companion has a **fixed class** for the whole playthrough, but *which* companions exist is
    **rolled randomly per new game** (never the hero's class, no duplicate classes; see 4.7). The world is
-   **open**: companions can be met in any order and at any time, gated only by bosses or items (not by story
-   order). With a full party, a new companion can be swapped in; the one who leaves goes back to their home spot
-   and keeps their level.
+   **open**: companions can be met in any order, but (revision 3) none can join before the first boss, and each
+   needs their side quest finished. With a full party, a new companion can be swapped in; the one who leaves goes
+   back to their home spot and keeps their level.
+5. **Fog of war:** the overworld and dungeons start hidden and are revealed around the party; `M` opens a full
+   map showing only explored areas (see 14.1). Towns are always fully visible.
+6. **Screen:** 16:9 widescreen (384×216 logical, 768×432 canvas).
 
 ---
 
@@ -390,3 +402,114 @@ the enemy changes.
 4. Bigger world: seeded overworld generator, Brookhollow map, warps, reachability tests.
 5. 32-bit graphics: renderer pixel ratio, EPX upscale + shading + outlines, hi-res tiles, gradient windows.
 6. Verify: unit, balance and scene tests, lint, production build, browser screenshots; push to the open PR.
+
+---
+
+## 14. Revision 3 (exploration, pacing, widescreen and battle presentation)
+
+Feedback from the second play-test. Boss difficulty still felt right. Because the hero now fights the Goblin King
+alone, the solo boss target in 4.6 becomes the one that matters; the boss is only retuned if the simulator shows a
+class below it.
+
+### 14.1 Fog of war and world map
+
+| Rule | Detail |
+| --- | --- |
+| Where | Overworld and dungeons (Goblin Cave, later caves/towers). Towns and castles are always fully visible |
+| Start | Every tile is hidden (drawn as dark fog) except the area around the starting point |
+| Sight radius | **Tunable constant, default 4 tiles** (circle). Planned to try 3, 4 and 5 in play-testing; dungeons use radius − 1 (darker inside) |
+| Reveal | Each step marks every tile within the radius as explored. Explored tiles stay visible permanently |
+| Look | Unexplored tiles are solid fog with a soft 1-tile dithered edge; explored tiles outside the current radius are drawn slightly dimmed so the "live" area reads clearly |
+| Line of sight | Not in the first pass (a plain radius). Possible later: mountains/forest block sight, hills extend it |
+| Encounters/NPCs | Monsters and NPCs inside fog are not drawn |
+| Save | One bitset per map (1 bit per tile; 96×72 = 864 bytes), stored base64 in the save. Save version → 3; older saves start with only the area around the party revealed instead of being discarded |
+
+**World map (`M` key)**
+
+- Opens a full-screen overview of the **current map** (on the overworld, the whole 96×72 world) scaled to fit the
+  widescreen (about 2 logical px per tile, 4 real px at 2× density), framed like a parchment.
+- Only explored tiles are drawn, in simplified terrain colours; unexplored tiles show parchment/fog.
+- Markers: blinking party position, icons for discovered towns/caves with their names, and a pin for the active
+  side-quest target if its area has been explored.
+- `M`, `X` or `Esc` closes it. Not available during battles, dialogue or menus. Shown in the controls list on
+  the page.
+- Also reachable as **Map** in the field menu.
+
+### 14.2 Companion pacing and side quests
+
+- **Before the Goblin King:** no one can join. Companions still stand at their home spots, talk, and hint at what
+  troubles them ("I'd follow a proven hero — and I've a debt to settle first.").
+- **After the Goblin King:** each companion offers a **side quest**; completing it makes them join (or wait at the
+  tavern if the party is full). Quests are tied to the **spot**, not the class, so they work with any random roll.
+- Recruits are spread out so they don't all arrive at once: each quest sends the player to a different region,
+  and the cave companion's quest is the longest.
+
+| Spot | Side quest (first pass) | Reward besides the companion |
+| --- | --- | --- |
+| Aldmere tavern | **Lost heirloom:** recover a ring from a wolf den in the eastern hills (a new small cave; mini-boss Alpha Wolf) | 50 G |
+| Brookhollow | **Poisoned well:** bring a Moonpetal from the southern lakeshore, guarded by a Giant Toad | Antidote ×3 |
+| Thornwick ruins | **Restless dead:** defeat the Bone Captain haunting the ruins at night (talk to them after resting at an inn) | Iron charm (accessory, later) |
+| Goblin Cave | **Captive:** the companion is locked in the cave's lower cells; find the cell key on a goblin chieftain remnant deeper in the cave | Key opens a side treasure room |
+
+- New mini-bosses are tuned to be beatable **solo** at the expected level (level 6–8), roughly 60–70% of the
+  Goblin King's strength, and get simulator checks.
+- A simple **Quest log** in the field menu lists active quests with one-line hints.
+- Save adds `quests: Record<questId, 'locked' | 'offered' | 'active' | 'done'>`.
+
+### 14.3 Widescreen
+
+- Logical screen becomes **384×216 (16:9)**; backing canvas **768×432** at 2× density. The page frame and CSS
+  aspect ratio change to 16:9.
+- World view shows 24×13.5 tiles (was 16×15), so the camera reveals more sideways — this also makes the fog
+  radius feel natural.
+- All screens are re-laid out from `SCREEN_W`/`SCREEN_H` constants: title, class select, name entry, field menu,
+  shops, dialogue box (wider, 3 lines), battle. No hard-coded 256/240 values remain (a test greps for them).
+
+### 14.4 Battle presentation
+
+**Layout (side view, 16-/32-bit RPG style)**
+
+- Region backdrop across the top two-thirds (grassland, forest, hills, cave; gradient sky plus ground strip).
+- **Enemies on the left**, facing right, at their sprite size (bosses larger).
+- **Party on the right**, facing left, in a slight diagonal, using the 32×32 character art with battle poses.
+- Bottom strip: command window on the left, party status (name, HP/MP bars) on the right; the message line sits
+  above it.
+- The member choosing a command steps forward one half-tile and has a cursor over their head.
+
+**Animations (each action plays before its result text)**
+
+| Action | Animation |
+| --- | --- |
+| Party melee | Hero steps toward the target, weapon swing pose, slash sprite on the target, target flashes white and shakes, damage number floats up, hero steps back |
+| Ranged (Ranger) | Draw pose, arrow projectile flies to the target, hit flash and number |
+| Spell | Cast pose with a glow; element effect on the target(s): fire burst, ice shards, lightning bolt, holy light, dark swirl |
+| Heal / buff | Sparkles rising over the target, green number for healing; shield glint for Defend/Protect |
+| Item | Item icon pops over the user, then the effect |
+| Enemy attack | Enemy lunges toward the target, target flashes, shakes and shows the number; crits flash the screen |
+| Status | Small icon over the affected unit (poison bubble, sleep "Z", silence mark) |
+| Defeat | Enemy flashes and dissolves; a fallen party member drops to a KO pose (greyed) |
+| Run | Party turns and runs off to the right; on failure they stumble back |
+| Victory | Party victory pose, then the result window (still waits for OK, as in revision 1) |
+
+- **Timing:** each action about 0.6–0.9 s. Holding confirm doubles speed; a "Battle speed" option (normal/fast)
+  is stored in the save. Inputs never get skipped: command selection still waits for each member every round.
+- **Implementation:** the battle rules already produce an ordered event list per round. A new animation
+  **timeline** in the battle scene turns each event into tweens (position, flash, shake, particles, floating
+  numbers) and plays them in order; game logic is unchanged and stays deterministic. Sprites gain poses
+  (idle, ready, attack, cast, hurt, KO, victory), built from the same procedural art.
+- **Tests:** a fake clock steps the timeline; tests assert every event plays exactly once, HP displays update
+  only after the hit, and the scene returns to command input afterwards.
+
+### 14.5 Work breakdown
+
+1. Plan update (this section).
+2. Widescreen: constants, canvas/CSS, re-layout of all scenes, page spec; screenshot every screen.
+3. Fog of war: explored bitsets, reveal on step, fog rendering, save v3 migration, tests.
+4. World map overlay on `M` plus field-menu entry, markers, controls text.
+5. Companion pacing: recruit lock until the boss, quest state, quest log, four side quests (new small cave,
+   lakeshore area, night event at Thornwick, lower cells in the Goblin Cave), mini-bosses, simulator checks.
+6. Battle presentation: side-view layout, battle poses, animation timeline, effects, speed option, tests.
+7. Verify: unit, balance and scene tests, lint, production build, browser screenshots; push to the open PR.
+
+**Assumptions to confirm in play-testing:** sight radius 4 (try 3–5), explored-but-out-of-sight tiles dimmed
+rather than re-fogged, towns never fogged, one side quest per companion.
