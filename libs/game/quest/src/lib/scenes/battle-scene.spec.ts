@@ -8,6 +8,10 @@ import { GameContext } from './context';
 interface BattleInternals {
   phase: string;
   battle: Battle;
+  spots: Map<string, { x: number; y: number; size: number }>;
+  motions: Map<string, { kind: string }>;
+  floaters: Array<{ text: string }>;
+  gone: Set<string>;
 }
 
 function setup(): { scene: BattleScene; internals: BattleInternals; driver: InputDriver; onEnd: jest.Mock } {
@@ -86,6 +90,28 @@ describe('BattleScene', () => {
       driver.run(0.3);
     }
     expect(onEnd).toHaveBeenCalledWith('victory');
+  });
+
+  it('places the party on the left and enemies on the right', () => {
+    const { internals } = setup();
+    const hero = internals.spots.get(internals.battle.party[0].id);
+    const enemy = internals.spots.get(internals.battle.enemies[0].id);
+    expect(hero && enemy && hero.x + hero.size < enemy.x).toBe(true);
+  });
+
+  it('animates the attacker, floats damage and dissolves a defeated enemy', () => {
+    const { internals, driver } = setup();
+    const enemy = internals.battle.enemies[0];
+    const hero = internals.battle.party[0];
+    enemy.hp = 1;
+    driver.run(2);
+    driver.tap('confirm');
+    driver.tap('confirm');
+    expect(internals.motions.get(hero.id)?.kind).toBe('lunge');
+    driver.run(0.4);
+    expect(internals.floaters.length).toBeGreaterThan(0);
+    driver.run(1.5);
+    expect(internals.gone.has(enemy.id)).toBe(true);
   });
 
   it('can close the result screen with cancel (Esc)', () => {

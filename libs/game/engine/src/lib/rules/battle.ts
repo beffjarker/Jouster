@@ -1,5 +1,5 @@
 import { Rng } from '../core/rng';
-import { AbilityDef, AbilityTarget, ItemDef } from '../core/types';
+import { AbilityDef, AbilityTarget, Element, ItemDef } from '../core/types';
 import {
   Combatant,
   effectiveStat,
@@ -53,11 +53,36 @@ export interface CombatantUpdate {
   mp: number;
 }
 
+/** What a combatant is doing when it acts (drives battle animations). */
+export type BattleActKind = 'attack' | 'cast' | 'skill' | 'item' | 'defend';
+
+/** Presentation hints for a battle event; game logic never reads them. */
+export type BattleFx =
+  | {
+      type: 'act';
+      actorId: string;
+      act: BattleActKind;
+      targetId?: string;
+      /** True for abilities that hit every enemy. */
+      allTargets?: boolean;
+      element?: Element;
+      /** Ability effect (damage, heal, buff, ...) for casts and skills. */
+      effect?: AbilityDef['effect'];
+    }
+  | { type: 'hit'; targetId: string; amount: number; crit: boolean; element?: Element }
+  | { type: 'miss'; targetId: string }
+  | { type: 'ko'; targetId: string }
+  | { type: 'heal'; targetId: string; amount: number; mp?: boolean }
+  | { type: 'buff'; targetId: string }
+  | { type: 'revive'; targetId: string }
+  | { type: 'run'; success: boolean };
+
 /** A step of battle narration. `updates` lets the UI animate HP/MP as messages appear. */
 export interface BattleEvent {
   text: string;
   sound?: BattleSound;
   updates: CombatantUpdate[];
+  fx?: BattleFx;
 }
 
 export interface BattleConfig {
@@ -259,12 +284,13 @@ export class Battle {
     return this.config.rng.pick(taunters.length > 0 ? taunters : alive);
   }
 
-  private damage(target: Combatant, amount: number, events: BattleEvent[], crit: boolean): void {
+  private damage(target: Combatant, amount: number, events: BattleEvent[], crit: boolean, element?: Element): void {
     target.hp = Math.max(0, target.hp - amount);
     events.push({
       text: `${crit ? 'Critical hit! ' : ''}${target.name} takes ${amount} damage.`,
       sound: crit ? 'crit' : 'hit',
       updates: [this.update(target)],
+      fx: { type: 'hit', targetId: target.id, amount, crit, element },
     });
     if (!isAlive(target)) {
       target.buffs = [];
@@ -273,6 +299,7 @@ export class Battle {
         text: target.side === 'enemy' ? `${target.name} is defeated!` : `${target.name} has fallen!`,
         sound: 'ko',
         updates: [this.update(target)],
+        fx: { type: 'ko', targetId: target.id },
       });
     }
   }
@@ -289,7 +316,11 @@ export class Battle {
         this.executeItem(actor, action.itemId, action.targetId, events);
         return;
       case 'defend':
-        events.push({ text: `${actor.name} is defending.`, updates: [] });
+        events.push({
+          text: `${actor.name} is defending.`,
+          updates: [],
+          fx: { type: 'act', actorId: actor.id, act: 'defend' },
+        });
         return;
       case 'run':
         this.executeRun(actor, events);
@@ -302,11 +333,15 @@ export class Battle {
     if (!target) {
       return;
     }
-    events.push({ text: `${actor.name} attacks!`, updates: [] });
+    events.push({
+      text: `${actor.name} attacks!`,
+      updates: [],
+      fx: { type: 'act', actorId: actor.id, act: 'attack', targetId: target.id },
+    });
     for (let i = 0; i < actor.hits && isAlive(target); i++) {
       const hit = physicalHit(actor, target, this.config.rng, { multiplier: actor.hitMultiplier });
       if (hit.missed) {
-        events.push({ text: `${target.name} dodges!`, sound: 'miss', updates: [] });
+        events.push({ text: `${target.name} dodges!`, sound: 'miss', updates: [], fx: { type: 'miss', targetId: target.id } });
       } else {
         this.damage(target, hit.damage, events, hit.crit);
       }
@@ -327,6 +362,15 @@ export class Battle {
       text: `${actor.name} uses ${def.name}!`,
       sound: def.category === 'magic' ? 'spell' : undefined,
       updates: [this.update(actor)],
+      fx: {
+        type: 'act',
+        actorId: actor.id,
+        act: def.category === 'magic' ? 'cast' : 'skill',
+        targetId: def.target === 'self' ? actor.id : targetId,
+        allTargets: def.target === 'allEnemies',
+        element: def.element,
+        effect: def.effect,
+      },
     });
 
     switch (def.effect) {
@@ -347,7 +391,12 @@ export class Battle {
         return;
       case 'taunt':
         actor.tauntTurns = 3;
-        events.push({ text: `Enemies turn their rage on ${actor.name}!`, sound: 'buff', updates: [] });
+        events.push({
+          text: `Enemies turn their rage on ${actor.name}!`,
+          sound: 'buff',
+          updates: [],
+          fx: { type: 'buff', targetId: actor.id },
+        });
         return;
     }
   }
@@ -374,9 +423,9 @@ export class Battle {
               critBonus: (def.critBonus ?? 0) + (actor.actionsTaken === 0 ? def.firstTurnCritBonus ?? 0 : 0),
             });
       if (hit.missed) {
-        events.push({ text: `${target.name} dodges!`, sound: 'miss', updates: [] });
+        events.push({ text: `${target.name} dodges!`, sound: 'miss', updates: [], fx: { type: 'miss', targetId: target.id } });
       } else {
-        this.damage(target, hit.damage, events, hit.crit);
+        this.damage(target, hit.damage, events, hit.crit, def.element);
       }
     }
   }
@@ -398,7 +447,12 @@ export class Battle {
     }
     const amount = Math.min(target.maxHp - target.hp, healAmount(actor, this.config.rng, def.power, def.magScale ?? 2));
     target.hp += amount;
-    events.push({ text: `${target.name} recovers ${amount} HP.`, sound: 'heal', updates: [this.update(target)] });
+    events.push({
+      text: `${target.name} recovers ${amount} HP.`,
+      sound: 'heal',
+      updates: [this.update(target)],
+      fx: { type: 'heal', targetId: target.id, amount },
+    });
   }
 
   private abilityBuff(actor: Combatant, def: AbilityDef, targetId: string | undefined, events: BattleEvent[]): void {
@@ -413,6 +467,7 @@ export class Battle {
       text: `${target.name}'s ${stat === 'def' ? 'defense' : 'attack'} rises!`,
       sound: 'buff',
       updates: [],
+      fx: { type: 'buff', targetId: target.id },
     });
   }
 
@@ -425,7 +480,12 @@ export class Battle {
       return;
     }
     target.hp = Math.max(1, Math.floor(target.maxHp * percent));
-    events.push({ text: `${target.name} is revived!`, sound: 'heal', updates: [this.update(target)] });
+    events.push({
+      text: `${target.name} is revived!`,
+      sound: 'heal',
+      updates: [this.update(target)],
+      fx: { type: 'revive', targetId: target.id },
+    });
   }
 
   private steal(actor: Combatant, targetId: string | undefined, events: BattleEvent[]): void {
@@ -463,7 +523,11 @@ export class Battle {
       return;
     }
     this.config.inventory[itemId] = count - 1;
-    events.push({ text: `${actor.name} uses a ${item.name}.`, updates: [] });
+    events.push({
+      text: `${actor.name} uses a ${item.name}.`,
+      updates: [],
+      fx: { type: 'act', actorId: actor.id, act: 'item', targetId },
+    });
     if (item.effect === 'revive') {
       this.revive(actor, targetId, item.amount, events);
       return;
@@ -475,11 +539,21 @@ export class Battle {
     if (item.effect === 'healHp') {
       const amount = Math.min(target.maxHp - target.hp, item.amount);
       target.hp += amount;
-      events.push({ text: `${target.name} recovers ${amount} HP.`, sound: 'heal', updates: [this.update(target)] });
+      events.push({
+        text: `${target.name} recovers ${amount} HP.`,
+        sound: 'heal',
+        updates: [this.update(target)],
+        fx: { type: 'heal', targetId: target.id, amount },
+      });
     } else {
       const amount = Math.min(target.maxMp - target.mp, item.amount);
       target.mp += amount;
-      events.push({ text: `${target.name} recovers ${amount} MP.`, sound: 'heal', updates: [this.update(target)] });
+      events.push({
+        text: `${target.name} recovers ${amount} MP.`,
+        sound: 'heal',
+        updates: [this.update(target)],
+        fx: { type: 'heal', targetId: target.id, amount, mp: true },
+      });
     }
   }
 
@@ -490,9 +564,9 @@ export class Battle {
     }
     if (this.config.rng.chance(runChance(this.party, this.enemies))) {
       this.outcome = 'fled';
-      events.push({ text: 'The party escapes!', sound: 'run', updates: [] });
+      events.push({ text: 'The party escapes!', sound: 'run', updates: [], fx: { type: 'run', success: true } });
     } else {
-      events.push({ text: "Couldn't escape!", sound: 'miss', updates: [] });
+      events.push({ text: "Couldn't escape!", sound: 'miss', updates: [], fx: { type: 'run', success: false } });
     }
   }
 

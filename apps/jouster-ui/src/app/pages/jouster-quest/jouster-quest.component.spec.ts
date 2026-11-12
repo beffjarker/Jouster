@@ -38,8 +38,8 @@ describe('JousterQuestComponent', () => {
   it('starts the game on a pixel canvas and tears it down on destroy', () => {
     spectator = createComponent();
     const canvas = spectator.query<HTMLCanvasElement>('canvas.game-screen');
-    expect(canvas?.width).toBe(512);
-    expect(canvas?.height).toBe(480);
+    expect(canvas?.width).toBe(768);
+    expect(canvas?.height).toBe(432);
     expect(mockLastOptions?.keySource).toBe(canvas);
     expect(mockStart).toHaveBeenCalledTimes(1);
     spectator.fixture.destroy();
@@ -62,6 +62,6 @@ describe('JousterQuestComponent', () => {
   it('lists the keyboard controls', () => {
     spectator = createComponent();
     expect(spectator.query('.controls')).toHaveText('Controls');
-    expect(spectator.queryAll('.controls li').length).toBe(4);
+    expect(spectator.queryAll('.controls li').length).toBe(5);
   });
 });

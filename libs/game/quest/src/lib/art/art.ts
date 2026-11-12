@@ -415,6 +415,10 @@ const MONSTER_PALETTES: ReadonlyMap<string, Palette> = new Map([
   ['goblin', palette([['o', '#102a10'], ['g', '#5aa040'], ['d', '#3a7a2a'], ['r', '#ff3030'], ['b', '#8a5a2a'], ['n', '#5a3a1a'], ['w', '#ffffff'], ['y', '#f0d040']])],
   ['skeleton', palette([['o', '#303040'], ['w', '#f0f0e0'], ['l', '#b0b0a0'], ['k', '#101010'], ['r', '#ff4040']])],
   ['goblinKing', palette([['o', '#102a10'], ['g', '#5aa040'], ['d', '#3a7a2a'], ['r', '#ff3030'], ['b', '#7a2a8a'], ['n', '#4a1a5a'], ['w', '#ffffff'], ['y', '#f0d040']])],
+  ['alphaWolf', palette([['o', '#08080c'], ['g', '#3a3a48'], ['l', '#6a6a7a'], ['d', '#24242e'], ['r', '#ffd020'], ['w', '#f0f0f0'], ['k', '#000000']])],
+  ['boneCaptain', palette([['o', '#3a2010'], ['w', '#e8dca0'], ['l', '#b09a60'], ['k', '#401010'], ['r', '#ff2020']])],
+  ['goblinChief', palette([['o', '#102010'], ['g', '#7a9a3a'], ['d', '#4a6a2a'], ['r', '#ffa020'], ['b', '#6a4a2a'], ['n', '#8a2a1a'], ['w', '#ffffff'], ['y', '#b8b8c8']])],
+  ['giantToad', palette([['o', '#102a18'], ['g', '#4a8a3a'], ['d', '#2a5a2a'], ['l', '#d8d890'], ['y', '#f0c020'], ['k', '#101010']])],
 ]);
 
 const MONSTER_ROWS: ReadonlyMap<string, readonly string[]> = new Map<string, readonly string[]>([
@@ -462,6 +466,19 @@ const MONSTER_ROWS: ReadonlyMap<string, readonly string[]> = new Map<string, rea
       '..nnnooo', '.nnonbbb', '.nogobyb', '.nogonbb', '.nn.obbb', '.n..obbb', '....odo.', '...ooo..',
     ]),
   ],
+  [
+    'giantToad',
+    mirrorRows([
+      '........', '........', '........', '..ooo...', '.oyko...', '.ogggo..', 'ogggggoo', 'oggggggg',
+      'ogdggggg', 'odggglll', 'oddgllll', '.oddglll', '.oodggll', 'odgo.odd', 'ooo...oo', '........',
+    ]),
+  ],]);
+
+/** Recoloured monsters that reuse another monster's pixel rows. */
+const MONSTER_SHAPE: ReadonlyMap<string, string> = new Map([
+  ['alphaWolf', 'wolf'],
+  ['boneCaptain', 'skeleton'],
+  ['goblinChief', 'goblinKing'],
 ]);
 
 function hashSeed(id: string): number {
@@ -520,6 +537,11 @@ export class Art {
     });
   }
 
+  /** True when `spriteId` is a humanoid look (otherwise it is drawn as a monster). */
+  public isCharacter(spriteId: string): boolean {
+    return LOOKS.has(spriteId);
+  }
+
   /** Humanoid sprite facing down/up/right (draw `left` by flipping `right`). */
   public character(spriteId: string, facing: Facing, frame = 0): HTMLCanvasElement {
     const dir = facing === 'left' ? 'right' : facing;
@@ -535,7 +557,8 @@ export class Art {
 
   public monster(spriteId: string): HTMLCanvasElement {
     return this.cached(`mon:${spriteId}`, () => {
-      const rows = (MONSTER_ROWS.get(spriteId) ?? MONSTER_ROWS.get('slime') ?? []).map((r) => r.padEnd(16, '.').slice(0, 16));
+      const shape = MONSTER_SHAPE.get(spriteId) ?? spriteId;
+      const rows = (MONSTER_ROWS.get(shape) ?? MONSTER_ROWS.get('slime') ?? []).map((r) => r.padEnd(16, '.').slice(0, 16));
       return hiResSprite(pixelArtToCanvas(rows, MONSTER_PALETTES.get(spriteId) ?? new Map()));
     });
   }

@@ -4,7 +4,9 @@ import { COMPANION_SLOTS, CompanionInfo, companionSlot, rollCompanions } from '.
 import { WEAPONS } from '../data/equipment';
 import { PartyMember, createMember } from './party';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
+/** Older save versions that loadGame can migrate. */
+const MIGRATABLE_VERSIONS: readonly number[] = [2];
 export const SAVE_KEY = 'jouster-quest-save-v1';
 export const MAX_PARTY = 3;
 export const STARTING_GOLD = 50;
@@ -20,6 +22,10 @@ export interface GameState {
   companionLevels: Record<string, number>;
   /** Companion rolled for each companion slot at the start of this playthrough. */
   companions: Record<string, CompanionInfo>;
+  /** Explored tiles per fogged map, as a bitset of 32-bit words (row-major, see `state/fog.ts`). */
+  explored: Record<string, number[]>;
+  /** Companion side-quest progress per companion slot. */
+  quests: Record<string, QuestStatus>;
   mapId: string;
   x: number;
   y: number;
@@ -28,6 +34,9 @@ export interface GameState {
   stepsSinceBattle: number;
   playSeconds: number;
 }
+
+/** Companion side-quest progress (missing = not offered yet). */
+export type QuestStatus = 'active' | 'done';
 
 /** Minimal storage shape (window.localStorage or a test double). */
 export interface SaveStorage {
@@ -56,6 +65,8 @@ export function newGameState(heroName: string, classId: ClassId, rng: Rng = crea
     flags: {},
     companionLevels: {},
     companions: rollCompanions(classId, rng),
+    explored: {},
+    quests: {},
     mapId: 'aldmere',
     x: 4,
     y: 5,
@@ -71,13 +82,54 @@ export function inParty(state: GameState, companionId: string): boolean {
 }
 
 /** True when the companion is waiting at their home spot (unlocked and not in the party). */
-export function companionAvailable(state: GameState, companionId: string): boolean {
+export function companionPresent(state: GameState, companionId: string): boolean {
   const slot = companionSlot(companionId);
   return (
     companionId in state.companions &&
     !inParty(state, companionId) &&
     (!slot.requiresFlag || state.flags[slot.requiresFlag] === true)
   );
+}
+
+/**
+ * True when a present companion is willing to join: the Goblin King has fallen and the
+ * companion's side quest is done (companions who were in the party before always rejoin).
+ */
+export function companionAvailable(state: GameState, companionId: string): boolean {
+  return (
+    companionPresent(state, companionId) &&
+    state.flags['bossDefeated'] === true &&
+    state.quests[companionId] === 'done'
+  );
+}
+
+/**
+ * Advances a companion's side quest when the player talks to them. Returns the new stage:
+ * `locked` before the first boss, `offered` when the quest was just given, `active` while it is
+ * unfinished, `completed` when it was just turned in (reward granted), or `done` afterwards.
+ */
+export function advanceCompanionQuest(
+  state: GameState,
+  companionId: string,
+): 'locked' | 'offered' | 'active' | 'completed' | 'done' {
+  if (state.quests[companionId] === 'done') {
+    return 'done';
+  }
+  if (state.flags['bossDefeated'] !== true) {
+    return 'locked';
+  }
+  const quest = companionSlot(companionId).quest;
+  const wasActive = state.quests[companionId] === 'active';
+  if (state.flags[quest.doneFlag] !== true) {
+    state.quests[companionId] = 'active';
+    return wasActive ? 'active' : 'offered';
+  }
+  state.quests[companionId] = 'done';
+  state.gold += quest.reward.gold;
+  for (const [itemId, count] of Object.entries(quest.reward.items ?? {})) {
+    addItem(state, itemId, count);
+  }
+  return 'completed';
 }
 
 /** The companion rolled for a slot in this playthrough (the slot id doubles as the member id). */
@@ -144,7 +196,7 @@ export function loadGame(storage: SaveStorage): GameState | null {
     return null;
   }
   try {
-    const data = JSON.parse(raw) as Partial<GameState>;
+    const data = migrate(JSON.parse(raw) as Partial<GameState>);
     return isValidState(data) ? data : null;
   } catch {
     return null;
@@ -153,6 +205,20 @@ export function loadGame(storage: SaveStorage): GameState | null {
 
 export function hasSave(storage: SaveStorage): boolean {
   return loadGame(storage) !== null;
+}
+
+/** Upgrades older saves: v2 had no fog or quests (companions already met keep their place). */
+function migrate(s: Partial<GameState>): Partial<GameState> {
+  if (typeof s?.version !== 'number' || !MIGRATABLE_VERSIONS.includes(s.version)) {
+    return s;
+  }
+  const quests: Record<string, QuestStatus> = {};
+  for (const id of [...(s.party ?? []).map((m) => m.id), ...Object.keys(s.companionLevels ?? {})]) {
+    if (id !== 'hero') {
+      quests[id] = 'done';
+    }
+  }
+  return { ...s, version: SAVE_VERSION, explored: s.explored ?? {}, quests: s.quests ?? quests };
 }
 
 function isValidState(s: Partial<GameState>): s is GameState {
@@ -180,6 +246,10 @@ function isValidState(s: Partial<GameState>): s is GameState {
     s.flags !== null &&
     typeof s.companionLevels === 'object' &&
     s.companionLevels !== null &&
+    typeof s.explored === 'object' &&
+    s.explored !== null &&
+    typeof s.quests === 'object' &&
+    s.quests !== null &&
     validRoster(s.companions)
   );
 }

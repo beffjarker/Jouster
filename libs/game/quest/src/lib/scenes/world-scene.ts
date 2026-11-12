@@ -10,15 +10,25 @@ import {
 } from '@jouster/game/engine';
 import { TILE } from '../art/art';
 import { classDef } from '../data/classes';
-import { companionIntro } from '../data/companions';
+import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
-import { Backdrop, INN_RESPAWN, MapDef, NpcDef, Warp, mapDef } from '../data/maps';
+import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, Warp, mapDef } from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
-import { GameState, MAX_PARTY, companionInfo, recruitCompanion, saveGame } from '../state/game-state';
+import { CAVE_FOG_RADIUS, FOG_RADIUS, inSight, isExplored, revealAround } from '../state/fog';
+import {
+  GameState,
+  MAX_PARTY,
+  advanceCompanionQuest,
+  companionAvailable,
+  companionInfo,
+  recruitCompanion,
+  saveGame,
+} from '../state/game-state';
 import { memberStats, restoreMember } from '../state/party';
 import { COLORS, SCREEN_H, SCREEN_W, ask, drawPartyStatus, say } from '../ui/widgets';
 import { BattleEnd, BattleScene } from './battle-scene';
 import { GameContext, memberStatus, requireState } from './context';
+import { MapScene } from './map-scene';
 import { FieldMenuScene, ShopScene } from './menu-scenes';
 
 /** Seconds to walk one tile. */
@@ -29,6 +39,12 @@ const INN_PRICE_PER_MEMBER = 6;
 const REVIVE_PRICE_PER_LEVEL = 5;
 const KING_GIFT = 50;
 const ACT_ONE_REWARD = 200;
+const COMPANION_READY = 'I owe you. Shall I come along?';
+
+function rewardText(reward: { gold: number; items?: Record<string, number> }): string {
+  const items = Object.entries(reward.items ?? {}).map(([id, n]) => `${n} ${id}${n > 1 ? 's' : ''}`);
+  return [`${reward.gold} gold`, ...items].join(', ');
+}
 
 const DIRECTIONS: readonly Facing[] = ['up', 'down', 'left', 'right'];
 const OPPOSITE: ReadonlyMap<Facing, Facing> = new Map<Facing, Facing>([
@@ -45,6 +61,10 @@ interface Walker {
   fromY: number;
   facing: Facing;
 }
+
+const FOG = '#07060c';
+const FOG_DIM = 'rgba(7,6,12,0.5)';
+const FOG_EDGE = 'rgba(7,6,12,0.7)';
 
 interface NpcRuntime extends Walker {
   def: NpcDef;
@@ -84,6 +104,23 @@ export class WorldScene implements Scene {
       moveT: 1,
       wanderTimer: 1 + ctx.rng.next() * 2,
     }));
+    this.reveal();
+  }
+
+  /** Tiles the party can currently see around itself (fogged maps only). */
+  private get sightRadius(): number {
+    return this.map.backdrop === 'cave' ? CAVE_FOG_RADIUS : FOG_RADIUS;
+  }
+
+  private reveal(): void {
+    if (this.map.fog) {
+      revealAround(this.state, this.map.id, this.tiles.width, this.tiles.height, this.state.x, this.state.y, this.sightRadius);
+    }
+  }
+
+  /** True when tile (x, y) has been explored (always true on maps without fog). */
+  private explored(x: number, y: number): boolean {
+    return !this.map.fog || isExplored(this.state.explored[this.map.id], this.tiles.width, x, y);
   }
 
   /** Shows a message the next time this scene is active (e.g. after a fade). */
@@ -118,6 +155,12 @@ export class WorldScene implements Scene {
       this.ctx.stack.push(new FieldMenuScene(this.ctx));
       return;
     }
+    if (input.wasPressed('map')) {
+      this.idle = 0;
+      this.ctx.audio.play('confirm');
+      this.ctx.stack.push(new MapScene(this.ctx));
+      return;
+    }
     const dir = DIRECTIONS.find((d) => input.isDown(d));
     if (dir) {
       this.idle = 0;
@@ -146,17 +189,19 @@ export class WorldScene implements Scene {
     }
     const sprites: Array<{ y: number; draw(): void }> = [];
     this.npcs
-      .filter((n) => this.npcVisible(n))
+      .filter((n) => this.npcVisible(n) && this.explored(n.x, n.y))
       .forEach((n) => {
         const px = this.lerp(n.fromX, n.x, n.moveT) * TILE - camX;
         const py = this.lerp(n.fromY, n.y, n.moveT) * TILE - camY;
         const f = n.moveT < 1 ? Math.floor(n.moveT * 2) % 2 : frame;
+        const spriteId = n.def.sprite?.(this.state) ?? n.def.spriteId;
+        const humanoid = this.ctx.art.isCharacter(spriteId) || n.def.role === 'companion';
         sprites.push({
           y: py,
           draw: () =>
-            r.draw(this.ctx.art.character(n.def.sprite?.(this.state) ?? n.def.spriteId, n.facing, f), px, py, {
-              flipX: n.facing === 'left',
-            }),
+            humanoid
+              ? r.draw(this.ctx.art.character(spriteId, n.facing, f), px, py, { flipX: n.facing === 'left' })
+              : r.draw(this.ctx.art.monster(spriteId), px, py - (frame ? 1 : 0)),
         });
       });
     const walkFrame = this.moving ? Math.floor(this.moveT * 2 + this.state.steps) % 2 : frame;
@@ -174,7 +219,35 @@ export class WorldScene implements Scene {
       });
     });
     sprites.sort((a, b) => a.y - b.y).forEach((s) => s.draw());
+    if (this.map.fog) {
+      this.renderFog(r, startX, startY, camX, camY);
+    }
     this.renderHud(r);
+  }
+
+  /** Unexplored tiles are black (dithered at the edge); explored tiles out of sight are dimmed. */
+  private renderFog(r: Renderer, startX: number, startY: number, camX: number, camY: number): void {
+    const radius = this.sightRadius;
+    const half = TILE / 2;
+    for (let ty = startY; ty <= startY + SCREEN_H / TILE + 1; ty++) {
+      for (let tx = startX; tx <= startX + SCREEN_W / TILE + 1; tx++) {
+        const sx = tx * TILE - camX;
+        const sy = ty * TILE - camY;
+        if (!this.explored(tx, ty)) {
+          const edge =
+            this.explored(tx + 1, ty) || this.explored(tx - 1, ty) || this.explored(tx, ty + 1) || this.explored(tx, ty - 1);
+          if (edge) {
+            r.fillRect(sx, sy, TILE, TILE, FOG_EDGE);
+            r.fillRect(sx, sy, half, half, FOG);
+            r.fillRect(sx + half, sy + half, half, half, FOG);
+          } else {
+            r.fillRect(sx, sy, TILE, TILE, FOG);
+          }
+        } else if (!inSight(tx - this.state.x, ty - this.state.y, radius)) {
+          r.fillRect(sx, sy, TILE, TILE, FOG_DIM);
+        }
+      }
+    }
   }
 
   // --- Movement ------------------------------------------------------------------------------
@@ -228,6 +301,7 @@ export class WorldScene implements Scene {
     leader.y = ny;
     this.state.x = nx;
     this.state.y = ny;
+    this.reveal();
     this.moving = true;
     this.moveT = 0;
   }
@@ -255,7 +329,7 @@ export class WorldScene implements Scene {
     const table = tableId ? ENCOUNTER_TABLES.get(tableId) : undefined;
     if (table && rollEncounter(table.rate, s.stepsSinceBattle, this.ctx.rng)) {
       const max = s.party.length === 1 ? SOLO_MAX_ENEMIES : MAX_PARTY;
-      this.startBattle(pickEncounter(table, this.ctx.rng, max), false);
+      this.startBattle(pickEncounter(table, this.ctx.rng, max));
     }
   }
 
@@ -313,17 +387,17 @@ export class WorldScene implements Scene {
     return this.map.backdrop;
   }
 
-  private startBattle(monsterIds: string[], boss: boolean): void {
+  private startBattle(monsterIds: string[], boss?: BossDef): void {
     const battle = new BattleScene(this.ctx, {
       monsterIds,
-      boss,
+      boss: boss !== undefined,
       backdrop: this.backdropHere(),
       onEnd: (outcome) => this.afterBattle(outcome, boss),
     });
     this.ctx.stack.push(battle, true);
   }
 
-  private afterBattle(outcome: BattleEnd, boss: boolean): void {
+  private afterBattle(outcome: BattleEnd, boss?: BossDef): void {
     const s = this.state;
     if (outcome === 'defeat') {
       s.gold = Math.floor(s.gold / 2);
@@ -343,12 +417,8 @@ export class WorldScene implements Scene {
     }
     this.ctx.stack.pop(true);
     if (boss && outcome === 'victory') {
-      s.flags['bossDefeated'] = true;
-      this.queueMessage([
-        'The Goblin King falls! The cave trembles as his warband scatters.',
-        'Behind the throne, someone calls out from a cage...',
-        'Return to King Aldric with the news.',
-      ]);
+      s.flags[boss.defeatFlag] = true;
+      this.queueMessage(boss.victory);
     }
   }
 
@@ -396,19 +466,17 @@ export class WorldScene implements Scene {
       case 'church':
         this.talkToPriest();
         return;
-      case 'boss':
-        ask(
-          stack,
-          audio,
-          ['GOBLIN KING: Hrrah! More soft little heroes from Aldmere!', 'I will grind your bones for my throne!'],
-          ['FIGHT', 'RETREAT'],
-          (choice) => {
+      case 'boss': {
+        const boss = def.boss;
+        if (boss) {
+          ask(stack, audio, boss.lines, ['FIGHT', 'RETREAT'], (choice) => {
             if (choice === 0) {
-              this.startBattle(['goblinKing'], true);
+              this.startBattle(boss.monsterIds, boss);
             }
-          },
-        );
+          });
+        }
         return;
+      }
       case 'companion':
         if (def.companionId) {
           this.talkToCompanion(def.companionId);
@@ -442,7 +510,7 @@ export class WorldScene implements Scene {
         `KING ALDRIC: Welcome, ${hero}. Dark days have come to Greenwood Vale.`,
         'Goblins burned the village of Thornwick, and their king hides in a cave in the north-eastern hills.',
         `Defeat the Goblin King and Aldmere will reward you. Take ${KING_GIFT} gold for supplies.`,
-        'Allies may aid you: travelers wait in our tavern, in the ruins of Thornwick, and in Brookhollow to the south.',
+        'Travelers in our tavern, in the ruins of Thornwick and in Brookhollow may aid you - once you have proven yourself.',
       ]);
       return;
     }
@@ -470,10 +538,16 @@ export class WorldScene implements Scene {
         }
         s.gold -= price;
         s.party.forEach(restoreMember);
+        // Resting while the Thornwick quest is open lets the Bone Captain rise in the ruins.
+        const night = s.quests['thornwick'] === 'active' && !s.flags['boneCaptainDefeated'];
+        if (night) {
+          s.flags['thornwickNight'] = true;
+        }
         const saved = saveGame(this.ctx.storage, s);
         audio.play('heal');
         say(stack, audio, [
           'Good morning! Your party is fully rested.',
+          ...(night ? ['You dreamed of cold lights drifting over the ruins of Thornwick...'] : []),
           saved ? 'Your journey has been recorded.' : 'Your journey could not be saved in this browser.',
         ]);
       },
@@ -515,11 +589,51 @@ export class WorldScene implements Scene {
     });
   }
 
+  /**
+   * Companions never join before the Goblin King falls. After that each asks a favour (a side
+   * quest); once it is done they offer to join (and rejoin freely after leaving the party).
+   */
   private talkToCompanion(companionId: string): void {
     const { stack, audio } = this.ctx;
     const s = this.state;
     const c = companionInfo(s, companionId);
-    const intro = companionIntro(companionId, c);
+    const quest = companionSlot(companionId).quest;
+    const stage = advanceCompanionQuest(s, companionId);
+    switch (stage) {
+      case 'locked':
+        say(stack, audio, [...companionIntro(companionId, c), ...companionLines([PRE_BOSS_HINT], c)]);
+        return;
+      case 'offered':
+        audio.play('confirm');
+        say(stack, audio, [
+          ...companionIntro(companionId, c),
+          ...companionLines(quest.offer, c),
+          `New quest: ${quest.title}.`,
+        ]);
+        return;
+      case 'active':
+        say(stack, audio, companionLines(quest.reminder, c));
+        return;
+      case 'completed':
+        audio.play('victory');
+        say(stack, audio, [...companionLines(quest.thanks, c), `Quest complete: ${quest.title}. Received ${rewardText(quest.reward)}.`], () =>
+          this.offerToJoin(companionId),
+        );
+        return;
+      case 'done':
+        this.offerToJoin(companionId);
+        return;
+    }
+  }
+
+  private offerToJoin(companionId: string): void {
+    const { stack, audio } = this.ctx;
+    const s = this.state;
+    if (!companionAvailable(s, companionId)) {
+      return;
+    }
+    const c = companionInfo(s, companionId);
+    const intro = companionLines([`{name}: ${COMPANION_READY}`], c);
     const joined = (leaving?: string): void => {
       this.syncWalkers();
       audio.play('levelUp');
@@ -555,6 +669,10 @@ export class WorldScene implements Scene {
   }
 
   private handleEvent(id: string): void {
+    if (id === 'thornwick' && this.state.flags['thornwickNight'] && !this.state.flags['boneCaptainDefeated']) {
+      this.queueMessage(['Pale lights drift among the ruins. Something in old armour stands guard...']);
+      return;
+    }
     const s = this.state;
     if (id === 'thornwick' && !s.flags['sawRuins']) {
       s.flags['sawRuins'] = true;

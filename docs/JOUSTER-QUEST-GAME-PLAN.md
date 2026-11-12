@@ -513,3 +513,20 @@ class below it.
 
 **Assumptions to confirm in play-testing:** sight radius 4 (try 3–5), explored-but-out-of-sight tiles dimmed
 rather than re-fogged, towns never fogged, one side quest per companion.
+
+### 14.6 Implementation notes (first pass)
+
+- **Fog:** radius 4 on the overworld and 3 in caves (Goblin Cave, Wolf Den); towns are never fogged. Explored
+  tiles are stored per map as packed 32-bit words (`explored: Record<mapId, number[]>`) in save v3; v1/v2 saves
+  migrate with only the area around the party revealed.
+- **Keys:** `M` opens/closes the world map (also **Map** in the field menu); `N` toggles sound. The map panel
+  lists discovered places and the current quest hints.
+- **Side-quest bosses:** Alpha Wolf (Wolf Den, east of Aldmere), Giant Toad (southern lakeshore), Bone Captain
+  (Thornwick ruins, appears only after resting at an inn while that quest is active) and the Goblin Jailer, who
+  holds the cell key in the Goblin Cave. The simulator requires every class to win each of these fights solo at
+  level 7 with tier-2 gear at least 60% of the time.
+- **Battle:** side view with the party on the left and enemies on the right. First pass animations: lunge or hop
+  for attacks and casts, arrows for ranged attacks, hit shake, floating damage/heal numbers, sparkles and bursts,
+  fade-out for defeated enemies, slide-in at the start and a victory bob. Holding confirm plays events 2.5× faster.
+  Not done yet: separate battle pose sprites, per-element spell effects, status icons and a saved "Battle speed"
+  option.

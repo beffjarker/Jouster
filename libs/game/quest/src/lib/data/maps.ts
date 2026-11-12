@@ -1,5 +1,5 @@
 import { Facing, TileDef } from '@jouster/game/engine';
-import { GameState, companionAvailable } from '../state/game-state';
+import { GameState, companionPresent } from '../state/game-state';
 import { COMPANION_SLOTS } from './companions';
 import { LANDMARKS, generateOverworld } from './overworld-gen';
 
@@ -21,6 +21,30 @@ export interface NpcDef {
   wander?: boolean;
   /** For `companion` NPCs. */
   companionId?: string;
+  /** For `boss` NPCs: who you fight and the story flag set on victory. */
+  boss?: BossDef;
+}
+
+export interface BossDef {
+  monsterIds: string[];
+  /** Set when the boss is beaten (the NPC disappears). */
+  defeatFlag: string;
+  /** Taunt before the FIGHT / RETREAT choice. */
+  lines: string[];
+  /** Shown after winning. */
+  victory: string[];
+}
+
+/** A boss NPC that stays on the map until its `defeatFlag` is set (plus any extra condition). */
+function bossNpc(
+  id: string,
+  x: number,
+  y: number,
+  spriteId: string,
+  boss: BossDef,
+  extra: (s: GameState) => boolean = () => true,
+): NpcDef {
+  return { id, x, y, spriteId, facing: 'down', role: 'boss', boss, visible: (s) => !s.flags[boss.defeatFlag] && extra(s) };
 }
 
 export interface Warp {
@@ -51,6 +75,8 @@ export interface MapDef {
   /** Tile drawn outside the map edges. */
   outsideTile: string;
   backdrop: Backdrop;
+  /** Hidden under fog of war until explored (wilds and caves; towns are never fogged). */
+  fog?: boolean;
 }
 
 // --- Overworld (96x72, generated from a fixed seed) ----------------------------------------
@@ -68,6 +94,7 @@ const OVERWORLD_LEGEND: TileDef[] = [
   { char: 'A', id: 'town', solid: false },
   { char: 'B', id: 'town', solid: false },
   { char: 'O', id: 'caveEntrance', solid: false },
+  { char: 'W', id: 'caveEntrance', solid: false },
   { char: 'V', id: 'ruins', solid: false },
 ];
 
@@ -151,6 +178,32 @@ const CAVE_ROWS = [
   '############################',
 ];
 
+// --- Wolf Den (20x14) ----------------------------------------------------------------------
+
+const DEN_ROWS = [
+  '####################',
+  '#######______#######',
+  '######________######',
+  '######___~~___######',
+  '#######______#######',
+  '##########_#########',
+  '####_______#########',
+  '####_###############',
+  '####_____~~~____####',
+  '########_______#####',
+  '########_###########',
+  '#######___##########',
+  '#######_E_##########',
+  '####################',
+];
+
+const DEN_LEGEND: TileDef[] = [
+  { char: '#', id: 'rock', solid: true },
+  { char: '_', id: 'caveFloor', solid: false, encounterTableId: 'den' },
+  { char: '~', id: 'caveWater', solid: true },
+  { char: 'E', id: 'caveExit', solid: false },
+];
+
 const CAVE_LEGEND: TileDef[] = [
   { char: '#', id: 'rock', solid: true },
   { char: '_', id: 'caveFloor', solid: false, encounterTableId: 'cave' },
@@ -168,14 +221,21 @@ const kingLines = (s: GameState): string[] => {
   if (s.flags['metKing']) {
     return [
       'KING ALDRIC: The Goblin Cave lies past the river, in the eastern hills.',
-      'Allies may aid you: travelers wait in our tavern, in the ruins of Thornwick, and in Brookhollow to the south.',
+      'Travelers in our tavern, in the ruins of Thornwick and in Brookhollow may aid you - once you have proven yourself.',
       'Go where you will - but beware the cave, and rest at the inn.',
     ];
   }
   return [];
 };
 
-const { aldmere: ALDMERE_AT, goblinCave: CAVE_AT, thornwick: RUINS_AT, brookhollow: BROOK_AT } = LANDMARKS;
+const {
+  aldmere: ALDMERE_AT,
+  goblinCave: CAVE_AT,
+  thornwick: RUINS_AT,
+  brookhollow: BROOK_AT,
+  wolfDen: DEN_AT,
+  lakeshore: LAKE_AT,
+} = LANDMARKS;
 
 const BASE_MAPS: MapDef[] = [
   {
@@ -187,11 +247,33 @@ const BASE_MAPS: MapDef[] = [
         { x: ALDMERE_AT.x, y: ALDMERE_AT.y, toMap: 'aldmere', toX: 10, toY: 15, facing: 'up' },
         { x: CAVE_AT.x, y: CAVE_AT.y, toMap: 'goblinCave', toX: 2, toY: 17, facing: 'up' },
         { x: BROOK_AT.x, y: BROOK_AT.y, toMap: 'brookhollow', toX: 10, toY: 12, facing: 'up' },
+        { x: DEN_AT.x, y: DEN_AT.y, toMap: 'wolfDen', toX: 8, toY: 11, facing: 'up' },
       ],
-      npcs: [],
+      npcs: [
+        bossNpc('giantToad', LAKE_AT.x + 1, LAKE_AT.y, 'giantToad', {
+          monsterIds: ['giantToad'],
+          defeatFlag: 'giantToadDefeated',
+          lines: ['A toad the size of a cart blocks the shore. It croaks... hungrily.'],
+          victory: ['The Giant Toad flops back into the lake and does not return.'],
+        }),
+        bossNpc(
+          'boneCaptain',
+          RUINS_AT.x - 2,
+          RUINS_AT.y - 1,
+          'boneCaptain',
+          {
+            monsterIds: ['boneCaptain', 'skeleton'],
+            defeatFlag: 'boneCaptainDefeated',
+            lines: ['BONE CAPTAIN: Who disturbs the watch of Thornwick? Join my company... in death!'],
+            victory: ['The Bone Captain crumbles to dust. A cold wind leaves the ruins.'],
+          },
+          (s) => s.quests['thornwick'] === 'active' && s.flags['thornwickNight'] === true,
+        ),
+      ],
       events: [{ x: RUINS_AT.x, y: RUINS_AT.y, id: 'thornwick' }],
       outsideTile: '^',
       backdrop: 'field',
+      fog: true,
     },
   {
       id: 'aldmere',
@@ -283,19 +365,53 @@ const BASE_MAPS: MapDef[] = [
       legend: CAVE_LEGEND,
       warps: [{ x: 2, y: 18, toMap: 'overworld', toX: CAVE_AT.x, toY: CAVE_AT.y + 1, facing: 'down' }],
       npcs: [
-        {
-          id: 'goblinKing',
-          x: 23,
-          y: 2,
-          spriteId: 'goblinKingNpc',
-          facing: 'down',
-          role: 'boss',
-          visible: (s) => !s.flags['bossDefeated'],
-        },
+        bossNpc('goblinKing', 23, 2, 'goblinKingNpc', {
+          monsterIds: ['goblinKing'],
+          defeatFlag: 'bossDefeated',
+          lines: ['GOBLIN KING: Hrrah! More soft little heroes from Aldmere!', 'I will grind your bones for my throne!'],
+          victory: [
+            'The Goblin King falls! The cave trembles as his warband scatters.',
+            'Behind the throne, someone calls out from a cell...',
+            'Return to King Aldric with the news.',
+          ],
+        }),
+        bossNpc(
+          'goblinChief',
+          23,
+          8,
+          'goblinChief',
+          {
+            monsterIds: ['goblinChief', 'goblin'],
+            defeatFlag: 'goblinChiefDefeated',
+            lines: ['GOBLIN JAILER: The king is dead? Then the prisoner AND the gold are mine!'],
+            victory: ['The Goblin Jailer drops a heavy iron key.'],
+          },
+          (s) => s.flags['bossDefeated'] === true,
+        ),
       ],
       events: [],
       outsideTile: '#',
       backdrop: 'cave',
+      fog: true,
+    },
+  {
+      id: 'wolfDen',
+      name: 'Wolf Den',
+      rows: DEN_ROWS,
+      legend: DEN_LEGEND,
+      warps: [{ x: 8, y: 12, toMap: 'overworld', toX: DEN_AT.x, toY: DEN_AT.y + 1, facing: 'down' }],
+      npcs: [
+        bossNpc('alphaWolf', 10, 1, 'alphaWolf', {
+          monsterIds: ['alphaWolf', 'wolf'],
+          defeatFlag: 'alphaWolfDefeated',
+          lines: ['A huge black wolf rises from a nest of bones. Its yellow eyes fix on you.'],
+          victory: ['The Alpha Wolf falls. Without their leader, the pack scatters into the hills.'],
+        }),
+      ],
+      events: [],
+      outsideTile: '#',
+      backdrop: 'cave',
+      fog: true,
     },
   {
       id: 'brookhollow',
@@ -351,7 +467,7 @@ const BASE_MAPS: MapDef[] = [
     },
 ];
 
-/** Companion NPCs wait at their slot whenever they are unlocked and not in the party. */
+/** Companion NPCs wait at their slot whenever they are present (unlocked and not in the party). */
 function withCompanions(m: MapDef): MapDef {
   const companions: NpcDef[] = COMPANION_SLOTS.filter((c) => c.mapId === m.id).map((c) => ({
     id: c.id,
@@ -362,7 +478,7 @@ function withCompanions(m: MapDef): MapDef {
     facing: 'down',
     role: 'companion',
     companionId: c.id,
-    visible: (st: GameState) => companionAvailable(st, c.id),
+    visible: (st: GameState) => companionPresent(st, c.id),
   }));
   return { ...m, npcs: [...m.npcs, ...companions] };
 }

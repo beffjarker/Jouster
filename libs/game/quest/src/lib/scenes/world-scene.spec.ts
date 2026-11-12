@@ -2,6 +2,7 @@ import { InputAction, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { INN_RESPAWN, mapDef } from '../data/maps';
 import { LANDMARKS } from '../data/overworld-gen';
+import { isExplored } from '../state/fog';
 import { GameState, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
 import { createMember } from '../state/party';
 import { InputDriver } from '../testing/input-driver';
@@ -99,11 +100,29 @@ describe('WorldScene', () => {
     expect(loadGame(h.ctx.storage)?.party[0].name).toBe('TEST');
   });
 
-  it('recruits a companion in the tavern', () => {
+  it('only recruits a companion after the first boss and their side quest', () => {
     const h = setup({ mapId: 'aldmere', x: 15, y: 13, facing: 'up' });
     const rolled = h.state.companions['tavern'];
+    // Before the Goblin King falls companions only chat.
     h.tap('confirm');
     h.confirmUntilWorld();
+    expect(h.state.party).toHaveLength(1);
+    expect(h.state.quests['tavern']).toBeUndefined();
+
+    // After the boss they ask a favour first.
+    h.state.flags['bossDefeated'] = true;
+    h.tap('confirm');
+    h.confirmUntilWorld();
+    expect(h.state.party).toHaveLength(1);
+    expect(h.state.quests['tavern']).toBe('active');
+
+    // With the Alpha Wolf slain they hand over the reward and offer to join.
+    h.state.flags['alphaWolfDefeated'] = true;
+    const gold = h.state.gold;
+    h.tap('confirm');
+    h.confirmUntilWorld();
+    expect(h.state.quests['tavern']).toBe('done');
+    expect(h.state.gold).toBe(gold + 60);
     expect(h.state.party.map((m) => m.id)).toEqual(['hero', 'tavern']);
     expect(h.state.party[1]).toMatchObject({ name: rolled.name, classId: rolled.classId });
     expect(rolled.classId).not.toBe('cleric');
@@ -158,6 +177,8 @@ describe('WorldScene', () => {
     const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
     h.state.party[0] = createMember('hero', 'TEST', 'warrior');
     h.state.companions['thornwick'] = { name: 'Sera', classId: 'cleric' };
+    h.state.flags['bossDefeated'] = true;
+    h.state.quests['thornwick'] = 'done';
     expect(recruitCompanion(h.state, 'thornwick')).toBe(true);
     const [hero, sera] = h.state.party;
     hero.hp = 1;
@@ -183,6 +204,67 @@ describe('WorldScene', () => {
     expect(sera.hp).toBeGreaterThan(1);
     expect(sera.mp).toBe(startMp - 6);
   });
+  it('opens the world map with M', () => {
+    const h = setup({ mapId: 'overworld', x: LANDMARKS.aldmere.x, y: LANDMARKS.aldmere.y + 1, facing: 'down' });
+    h.tap('map');
+    expect(h.ctx.stack.top?.id).toBe('world-map');
+    h.tap('map');
+    expect(h.ctx.stack.top?.id).toBe('world');
+  });
+
+  it('reveals the fog of war around the party as it walks', () => {
+    const start = grassRun();
+    const h = setup({ mapId: 'overworld', ...start, facing: 'right' });
+    const width = mapDef('overworld').rows[0].length;
+    const bits = (): number[] => h.state.explored['overworld'];
+    expect(isExplored(bits(), width, start.x, start.y)).toBe(true);
+    expect(isExplored(bits(), width, start.x + 5, start.y)).toBe(false);
+    h.hold('right', STEP_TIME + 0.02);
+    h.run(0.3);
+    expect(isExplored(bits(), width, start.x + 5, start.y)).toBe(true);
+    expect(isExplored(bits(), width, start.x + 30, start.y)).toBe(false);
+  });
+
+  it('lets the Bone Captain rise after an inn rest during the Thornwick quest', () => {
+    const h = setup({ mapId: INN_RESPAWN.mapId, x: INN_RESPAWN.x, y: INN_RESPAWN.y, facing: 'up' });
+    h.tap('confirm');
+    h.confirmUntilWorld();
+    expect(h.state.flags['thornwickNight']).toBeUndefined();
+    h.state.quests['thornwick'] = 'active';
+    h.tap('confirm');
+    h.confirmUntilWorld();
+    expect(h.state.flags['thornwickNight']).toBe(true);
+  });
+
+  it('fights a mini-boss NPC and sets its defeat flag on victory', () => {
+    const den = mapDef('wolfDen');
+    const wolf = den.npcs.find((n) => n.role === 'boss');
+    if (!wolf?.boss) {
+      throw new Error('no den boss');
+    }
+    const h = setup({ mapId: 'wolfDen', x: wolf.x, y: wolf.y + 1, facing: 'up' });
+    h.ctx.rng = createRng(5);
+    h.tap('confirm');
+    expect(h.ctx.stack.top?.id).toBe('message');
+    for (let i = 0; i < 10 && h.ctx.stack.top?.id === 'message'; i++) {
+      h.tap('confirm');
+    }
+    h.run(1);
+    expect(h.ctx.stack.top?.id).toBe('battle');
+    const battle = h.ctx.stack.top as unknown as {
+      battle: { enemies: Array<{ hp: number }>; party: Array<{ hp: number; maxHp: number }> };
+    };
+    battle.battle.enemies.forEach((e) => (e.hp = 1));
+    battle.battle.party.forEach((m) => (m.hp = m.maxHp = 999));
+    for (let i = 0; i < 200 && h.ctx.stack.top?.id !== 'world'; i++) {
+      h.tap('confirm');
+      h.run(0.2);
+    }
+    h.confirmUntilWorld();
+
+    expect(h.state.flags[wolf.boss.defeatFlag]).toBe(true);
+  });
+
   it('marks the Thornwick ruins when visited', () => {
     const h = setup({ mapId: 'overworld', x: LANDMARKS.thornwick.x - 1, y: LANDMARKS.thornwick.y, facing: 'right' });
     h.hold('right', STEP_TIME + 0.02);
