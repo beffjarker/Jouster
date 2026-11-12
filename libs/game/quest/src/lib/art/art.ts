@@ -1,5 +1,18 @@
-import { Facing, Palette, createCanvas, mirrorRows, palette, pixelArtToCanvas } from '@jouster/game/engine';
+import {
+  Facing,
+  Palette,
+  canvasPixels,
+  createCanvas,
+  hiResSprite,
+  mirrorRows,
+  palette,
+  pixelArtToCanvas,
+  pixelsToCanvas,
+  scale2xPixels,
+  setImageDensity,
+} from '@jouster/game/engine';
 
+/** Logical tile size. Art is rendered at 2x density (32x32 real pixels per tile). */
 export const TILE = 16;
 
 type Ctx = CanvasRenderingContext2D;
@@ -451,7 +464,41 @@ const MONSTER_ROWS: ReadonlyMap<string, readonly string[]> = new Map<string, rea
   ],
 ]);
 
-/** Lazily rendered and cached art (tiles, humanoid sprites, monster sprites). */
+function hashSeed(id: string): number {
+  let h = 7;
+  for (const ch of id) {
+    h = (h * 31 + ch.charCodeAt(0)) | 0;
+  }
+  return h;
+}
+
+/**
+ * Upscales a 16x16 tile to 32x32 with EPX (smooth diagonals) and adds fine-grain texture
+ * plus a soft top-left light so ground reads with 32-bit-era depth.
+ */
+function hiResTile(low: HTMLCanvasElement, seed: number): HTMLCanvasElement {
+  const src = canvasPixels(low);
+  if (!src) {
+    return low;
+  }
+  const big = scale2xPixels(src);
+  const { width, height, data } = big;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const n = noise(x, y, seed);
+      const grain = n < 0.12 ? 0.9 : n > 0.92 ? 1.08 : 1;
+      const light = 1.04 - ((x + y) / (width + height)) * 0.08;
+      const k = grain * light;
+      const i = (y * width + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        data[i + c] = Math.min(255, data[i + c] * k);
+      }
+    }
+  }
+  return setImageDensity(pixelsToCanvas(big), 2);
+}
+
+/** Lazily rendered and cached 2x-density art (tiles, humanoid sprites, monster sprites). */
 export class Art {
   private readonly cache = new Map<string, HTMLCanvasElement>();
 
@@ -469,7 +516,7 @@ export class Art {
           rect(ctx, 0, 0, TILE, TILE, '#ff00ff');
         }
       }
-      return canvas;
+      return hiResTile(canvas, hashSeed(id));
     });
   }
 
@@ -482,14 +529,14 @@ export class Art {
       if (ctx) {
         drawHumanoid(ctx, LOOKS.get(spriteId) ?? (LOOKS.get('villager') as HumanoidLook), dir, frame % 2);
       }
-      return canvas;
+      return hiResSprite(canvas);
     });
   }
 
   public monster(spriteId: string): HTMLCanvasElement {
     return this.cached(`mon:${spriteId}`, () => {
       const rows = (MONSTER_ROWS.get(spriteId) ?? MONSTER_ROWS.get('slime') ?? []).map((r) => r.padEnd(16, '.').slice(0, 16));
-      return pixelArtToCanvas(rows, MONSTER_PALETTES.get(spriteId) ?? new Map());
+      return hiResSprite(pixelArtToCanvas(rows, MONSTER_PALETTES.get(spriteId) ?? new Map()));
     });
   }
 

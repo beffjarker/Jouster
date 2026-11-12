@@ -38,8 +38,8 @@ describe('JousterQuestComponent', () => {
   it('starts the game on a pixel canvas and tears it down on destroy', () => {
     spectator = createComponent();
     const canvas = spectator.query<HTMLCanvasElement>('canvas.game-screen');
-    expect(canvas?.width).toBe(256);
-    expect(canvas?.height).toBe(240);
+    expect(canvas?.width).toBe(512);
+    expect(canvas?.height).toBe(480);
     expect(mockLastOptions?.keySource).toBe(canvas);
     expect(mockStart).toHaveBeenCalledTimes(1);
     spectator.fixture.destroy();

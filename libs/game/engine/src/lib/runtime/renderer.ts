@@ -1,5 +1,5 @@
 import { CELL_HEIGHT, CELL_WIDTH, GLYPH_HEIGHT, GLYPHS, glyphFor, textWidth } from './pixel-font';
-import { createCanvas } from './sprite';
+import { createCanvas, imageDensity } from './sprite';
 
 export interface DrawOptions {
   flipX?: boolean;
@@ -7,19 +7,35 @@ export interface DrawOptions {
   alpha?: number;
 }
 
+export interface RendererOptions {
+  /**
+   * Real canvas pixels per logical pixel. With 2, a 512x480 canvas has a 256x240 logical
+   * layout while hi-density art (see `setImageDensity`) renders with full 32-bit-era detail.
+   */
+  pixelRatio?: number;
+}
+
 /**
- * Low-resolution 2D renderer with NES-style helpers (bitmap text, bordered windows).
- * Coordinates are in internal pixels; the canvas is scaled up with CSS.
+ * Pixel-art 2D renderer with retro helpers (bitmap text, bordered windows).
+ * Coordinates are in logical pixels; the canvas is scaled up with CSS.
  */
 export class Renderer {
   public readonly width: number;
   public readonly height: number;
+  public readonly pixelRatio: number;
   private readonly glyphCache = new Map<string, HTMLCanvasElement>();
 
-  constructor(public readonly ctx: CanvasRenderingContext2D) {
-    this.width = ctx.canvas.width;
-    this.height = ctx.canvas.height;
+  constructor(public readonly ctx: CanvasRenderingContext2D, opts: RendererOptions = {}) {
+    this.pixelRatio = Math.max(1, Math.floor(opts.pixelRatio ?? 1));
+    this.width = Math.floor(ctx.canvas.width / this.pixelRatio);
+    this.height = Math.floor(ctx.canvas.height / this.pixelRatio);
+    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     ctx.imageSmoothingEnabled = false;
+  }
+
+  /** Snaps a logical coordinate to the nearest real pixel. */
+  private snap(v: number): number {
+    return Math.round(v * this.pixelRatio) / this.pixelRatio;
   }
 
   public clear(color: string): void {
@@ -29,7 +45,7 @@ export class Renderer {
 
   public fillRect(x: number, y: number, w: number, h: number, color: string): void {
     this.ctx.fillStyle = color;
-    this.ctx.fillRect(Math.round(x), Math.round(y), w, h);
+    this.ctx.fillRect(this.snap(x), this.snap(y), w, h);
   }
 
   public strokeRect(x: number, y: number, w: number, h: number, color: string): void {
@@ -40,7 +56,7 @@ export class Renderer {
   }
 
   public draw(image: CanvasImageSource & { width: number; height: number }, x: number, y: number, opts: DrawOptions = {}): void {
-    const scale = opts.scale ?? 1;
+    const scale = (opts.scale ?? 1) / imageDensity(image);
     const w = image.width * scale;
     const h = image.height * scale;
     const ctx = this.ctx;
@@ -49,11 +65,11 @@ export class Renderer {
       ctx.globalAlpha = opts.alpha;
     }
     if (opts.flipX) {
-      ctx.translate(Math.round(x) + w, Math.round(y));
+      ctx.translate(this.snap(x) + w, this.snap(y));
       ctx.scale(-1, 1);
       ctx.drawImage(image, 0, 0, w, h);
     } else {
-      ctx.drawImage(image, Math.round(x), Math.round(y), w, h);
+      ctx.drawImage(image, this.snap(x), this.snap(y), w, h);
     }
     ctx.restore();
   }
@@ -79,9 +95,20 @@ export class Renderer {
     this.text(text, rightX - textWidth(text), y, color);
   }
 
-  /** NES-style window: black fill with a rounded double white border. */
-  public window(x: number, y: number, w: number, h: number, border = '#ffffff', fill = '#000000'): void {
-    this.fillRect(x + 1, y + 1, w - 2, h - 2, fill);
+  /**
+   * Retro window with a rounded double border. The default fill is a deep-blue vertical
+   * gradient (16/32-bit RPG style); pass a colour for a flat fill.
+   */
+  public window(x: number, y: number, w: number, h: number, border = '#ffffff', fill?: string): void {
+    if (fill) {
+      this.fillRect(x + 1, y + 1, w - 2, h - 2, fill);
+    } else {
+      const g = this.ctx.createLinearGradient(0, y, 0, y + h);
+      g.addColorStop(0, '#2a3a8c');
+      g.addColorStop(1, '#0a0f30');
+      this.ctx.fillStyle = g;
+      this.ctx.fillRect(this.snap(x + 1), this.snap(y + 1), w - 2, h - 2);
+    }
     this.fillRect(x + 2, y, w - 4, 1, border);
     this.fillRect(x + 2, y + h - 1, w - 4, 1, border);
     this.fillRect(x, y + 2, 1, h - 4, border);
