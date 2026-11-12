@@ -37,7 +37,7 @@ function defaultStorage(): SaveStorage {
   }
 }
 
-/** Boots Jouster Quest onto a 256x240 canvas. Call `start()` to show the title and `destroy()` to clean up. */
+/** Boots Jouster Quest onto a 512x480 canvas (256x240 logical layout at 2x pixel density). Call `start()` to show the title and `destroy()` to clean up. */
 export class JousterQuestGame {
   private readonly renderer: Renderer;
   private readonly input: InputManager;
@@ -50,7 +50,7 @@ export class JousterQuestGame {
       throw new Error('Canvas 2D context is not available');
     }
     context2d.imageSmoothingEnabled = false;
-    this.renderer = new Renderer(context2d);
+    this.renderer = new Renderer(context2d, { pixelRatio: 2 });
     this.input = new InputManager(options.keySource ?? window);
     this.ctx = {
       stack: new SceneStack((scene) => options.onSceneChange?.(scene?.id)),

@@ -2,8 +2,8 @@
 
 Content and scenes for **Jouster Quest**, a top-down retro RPG hosted at `/jouster-quest` in `jouster-ui`.
 
-- `data/` — classes, abilities, equipment, monsters, encounter tables, companions, maps (all balance numbers live here)
-- `art/` — original procedural pixel art (no third-party assets)
+- `data/` — classes, abilities, equipment, monsters, encounter tables, randomly rolled companions (never the hero's class), seeded 96x72 overworld generator, maps (all balance numbers live here)
+- `art/` — original procedural pixel art, upscaled to 32x32 per tile at 2x density (no third-party assets)
 - `scenes/` — title, name entry, world, battle, menus
 - `state/` — party, save/load (versioned JSON in `localStorage`)
 - `sim/` — seeded battle simulator that enforces class balance targets

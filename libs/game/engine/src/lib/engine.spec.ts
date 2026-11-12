@@ -6,6 +6,8 @@ import { wrapText } from './runtime/pixel-font';
 import { InputManager, KeyEventSource } from './runtime/input';
 import { FrameScheduler, GameLoop } from './runtime/game-loop';
 import { Scene, SceneStack } from './runtime/scene';
+import { Pixels, imageDensity, scale2xPixels, setImageDensity, shadePixels } from './runtime/sprite';
+import { Renderer } from './runtime/renderer';
 
 class FakeKeys implements KeyEventSource {
   private readonly listeners = new Map<string, Array<(e: Event) => void>>();
@@ -231,5 +233,83 @@ describe('SceneStack', () => {
     stack.reset(testScene('c'));
     expect(stack.size).toBe(1);
     expect(stack.top?.id).toBe('c');
+  });
+});
+
+/** Builds pixels from rows of single-character colour keys ('.' = transparent). */
+function px(rows: string[], colors: Record<string, [number, number, number]>): Pixels {
+  const width = rows[0].length;
+  const data = new Uint8ClampedArray(width * rows.length * 4);
+  rows.forEach((row, y) =>
+    [...row].forEach((ch, x) => {
+      const c = colors[ch];
+      if (c) {
+        data.set([c[0], c[1], c[2], 255], (y * width + x) * 4);
+      }
+    }),
+  );
+  return { width, height: rows.length, data };
+}
+
+function rgba(p: Pixels, x: number, y: number): number[] {
+  const i = (y * p.width + x) * 4;
+  return [...p.data.slice(i, i + 4)];
+}
+
+describe('hi-res pixel pipeline', () => {
+  const colors: Record<string, [number, number, number]> = { a: [200, 0, 0], b: [0, 0, 200] };
+
+  it('scale2x doubles size and keeps flat areas as solid blocks', () => {
+    const out = scale2xPixels(px(['aa', 'aa'], colors));
+    expect(out.width).toBe(4);
+    expect(out.height).toBe(4);
+    for (let y = 0; y < 4; y++) {
+      for (let x = 0; x < 4; x++) {
+        expect(rgba(out, x, y)).toEqual([200, 0, 0, 255]);
+      }
+    }
+  });
+
+  it('scale2x rounds a diagonal edge instead of producing 2x2 steps', () => {
+    // b a
+    // a a  -> the top-left output pixel of the 'b' block takes neighbour colour, not plain 'b'.
+    const src = px(['ba', 'aa'], colors);
+    const out = scale2xPixels(src);
+    expect(rgba(out, 0, 0)).toEqual([0, 0, 200, 255]);
+    expect(rgba(out, 1, 1)).toEqual([200, 0, 0, 255]);
+  });
+
+  it('shadePixels outlines the silhouette and lights the top edge', () => {
+    const p = px(['....', '.aa.', '.aa.', '.aa.', '.aa.', '.aa.', '....'], colors);
+    shadePixels(p, { outline: [1, 2, 3] });
+    expect(rgba(p, 0, 1)).toEqual([1, 2, 3, 255]);
+    expect(rgba(p, 0, 0)).toEqual([0, 0, 0, 0]);
+    expect(rgba(p, 1, 1)[0]).toBeGreaterThan(200);
+    expect(rgba(p, 1, 5)[0]).toBeLessThan(200);
+    expect(rgba(p, 1, 3)).toEqual([200, 0, 0, 255]);
+  });
+
+  it('tracks image density and the renderer divides it out of the draw size', () => {
+    const img = { width: 32, height: 32 };
+    expect(imageDensity(img)).toBe(1);
+    setImageDensity(img, 2);
+    expect(imageDensity(img)).toBe(2);
+
+    const drawImage = jest.fn();
+    const setTransform = jest.fn();
+    const ctx = {
+      canvas: { width: 512, height: 480 },
+      setTransform,
+      drawImage,
+      save: jest.fn(),
+      restore: jest.fn(),
+      imageSmoothingEnabled: true,
+    } as unknown as CanvasRenderingContext2D;
+    const r = new Renderer(ctx, { pixelRatio: 2 });
+    expect(r.width).toBe(256);
+    expect(r.height).toBe(240);
+    expect(setTransform).toHaveBeenCalledWith(2, 0, 0, 2, 0, 0);
+    r.draw(img as unknown as HTMLCanvasElement, 10.3, 4, { scale: 2 });
+    expect(drawImage).toHaveBeenCalledWith(img, 10.5, 4, 32, 32);
   });
 });
