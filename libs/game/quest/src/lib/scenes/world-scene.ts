@@ -10,11 +10,11 @@ import {
 } from '@jouster/game/engine';
 import { TILE } from '../art/art';
 import { classDef } from '../data/classes';
-import { companionDef } from '../data/companions';
+import { companionIntro } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { Backdrop, INN_RESPAWN, MapDef, NpcDef, Warp, mapDef } from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
-import { GameState, MAX_PARTY, recruitCompanion, saveGame } from '../state/game-state';
+import { GameState, MAX_PARTY, companionInfo, recruitCompanion, saveGame } from '../state/game-state';
 import { memberStats, restoreMember } from '../state/party';
 import { COLORS, SCREEN_H, SCREEN_W, ask, drawPartyStatus, say } from '../ui/widgets';
 import { BattleEnd, BattleScene } from './battle-scene';
@@ -153,7 +153,10 @@ export class WorldScene implements Scene {
         const f = n.moveT < 1 ? Math.floor(n.moveT * 2) % 2 : frame;
         sprites.push({
           y: py,
-          draw: () => r.draw(this.ctx.art.character(n.def.spriteId, n.facing, f), px, py, { flipX: n.facing === 'left' }),
+          draw: () =>
+            r.draw(this.ctx.art.character(n.def.sprite?.(this.state) ?? n.def.spriteId, n.facing, f), px, py, {
+              flipX: n.facing === 'left',
+            }),
         });
       });
     const walkFrame = this.moving ? Math.floor(this.moveT * 2 + this.state.steps) % 2 : frame;
@@ -439,7 +442,7 @@ export class WorldScene implements Scene {
         `KING ALDRIC: Welcome, ${hero}. Dark days have come to Greenwood Vale.`,
         'Goblins burned the village of Thornwick, and their king hides in a cave in the north-eastern hills.',
         `Defeat the Goblin King and Aldmere will reward you. Take ${KING_GIFT} gold for supplies.`,
-        'Allies may aid you: a sellsword drinks in our tavern, and Thornwick has survivors.',
+        'Allies may aid you: travelers wait in our tavern, in the ruins of Thornwick, and in Brookhollow to the south.',
       ]);
       return;
     }
@@ -515,7 +518,8 @@ export class WorldScene implements Scene {
   private talkToCompanion(companionId: string): void {
     const { stack, audio } = this.ctx;
     const s = this.state;
-    const c = companionDef(companionId);
+    const c = companionInfo(s, companionId);
+    const intro = companionIntro(companionId, c);
     const joined = (leaving?: string): void => {
       this.syncWalkers();
       audio.play('levelUp');
@@ -524,7 +528,7 @@ export class WorldScene implements Scene {
         ...(leaving ? [`${leaving} heads off and will wait at their usual spot.`] : []),
       ]);
     };
-    ask(stack, audio, [...c.intro, `Let ${c.name} join the party?`], ['YES', 'NO'], (choice) => {
+    ask(stack, audio, [...intro, `Let ${c.name} join the party?`], ['YES', 'NO'], (choice) => {
       if (choice !== 0) {
         say(stack, audio, [`${c.name.toUpperCase()}: Another time, then. I'll be here.`]);
         return;

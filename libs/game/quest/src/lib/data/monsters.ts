@@ -4,7 +4,7 @@ const LIST: MonsterDef[] = [
   {
     id: 'slime',
     name: 'Slime',
-    stats: { hp: 8, mp: 0, atk: 7, def: 2, agi: 3, mag: 0 },
+    stats: { hp: 10, mp: 0, atk: 8, def: 2, agi: 3, mag: 0 },
     xp: 3,
     gold: 3,
     weaknesses: ['fire'],
@@ -16,7 +16,7 @@ const LIST: MonsterDef[] = [
   {
     id: 'giantBat',
     name: 'Giant Bat',
-    stats: { hp: 10, mp: 0, atk: 8, def: 3, agi: 9, mag: 0 },
+    stats: { hp: 12, mp: 0, atk: 9, def: 3, agi: 9, mag: 0 },
     xp: 4,
     gold: 4,
     weaknesses: ['lightning'],
@@ -28,7 +28,7 @@ const LIST: MonsterDef[] = [
   {
     id: 'wolf',
     name: 'Grey Wolf',
-    stats: { hp: 14, mp: 0, atk: 10, def: 4, agi: 8, mag: 0 },
+    stats: { hp: 16, mp: 0, atk: 11, def: 4, agi: 8, mag: 0 },
     xp: 6,
     gold: 5,
     weaknesses: ['fire'],
@@ -40,7 +40,7 @@ const LIST: MonsterDef[] = [
   {
     id: 'goblin',
     name: 'Goblin',
-    stats: { hp: 18, mp: 0, atk: 11, def: 6, agi: 5, mag: 0 },
+    stats: { hp: 21, mp: 0, atk: 12, def: 6, agi: 5, mag: 0 },
     xp: 8,
     gold: 8,
     weaknesses: ['ice'],
@@ -55,7 +55,7 @@ const LIST: MonsterDef[] = [
   {
     id: 'skeleton',
     name: 'Skeleton',
-    stats: { hp: 20, mp: 0, atk: 12, def: 7, agi: 4, mag: 0 },
+    stats: { hp: 23, mp: 0, atk: 13, def: 7, agi: 4, mag: 0 },
     xp: 10,
     gold: 9,
     undead: true,

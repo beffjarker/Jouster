@@ -27,7 +27,7 @@ export function statsAtLevel(classDef: ClassDef, level: number): Stats {
 
 /** XP needed to go from `level` to `level + 1`. */
 export function xpToNext(level: number): number {
-  return Math.floor(8 * Math.pow(level, 1.5));
+  return Math.floor(11 * Math.pow(level, 1.5));
 }
 
 /** Total XP required to reach `level` from level 1. */

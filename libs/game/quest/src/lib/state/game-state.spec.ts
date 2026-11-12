@@ -1,4 +1,8 @@
+import { ClassId, createRng } from '@jouster/game/engine';
+import { CLASS_ORDER } from '../data/classes';
+import { COMPANION_NAMES, COMPANION_SLOTS, companionIntro, rollCompanions } from '../data/companions';
 import {
+  GameState,
   MAX_PARTY,
   SAVE_KEY,
   addItem,
@@ -51,45 +55,91 @@ describe('game state', () => {
   });
 });
 
-describe('recruiting', () => {
-  it('locks Ilya until the Goblin King is defeated', () => {
-    const s = newGameState('A', 'paladin');
-    expect(companionAvailable(s, 'ilya')).toBe(false);
-    expect(recruitCompanion(s, 'ilya')).toBe(false);
-    s.flags['bossDefeated'] = true;
-    expect(recruitCompanion(s, 'ilya')).toBe(true);
-    expect(s.party[1].classId).toBe('wizard');
+describe('companion roster', () => {
+  it.each(CLASS_ORDER)('a %s hero never meets a companion of the same class, and none repeat', (hero) => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const roster = rollCompanions(hero, createRng(seed));
+      const classes = COMPANION_SLOTS.map((slot) => roster[slot.id].classId);
+      expect(classes).not.toContain(hero);
+      expect(new Set(classes).size).toBe(classes.length);
+      COMPANION_SLOTS.forEach((slot) => {
+        expect(COMPANION_NAMES[roster[slot.id].classId]).toContain(roster[slot.id].name);
+      });
+    }
   });
 
-  it('allows any order and swaps when the party is full', () => {
-    const s = newGameState('A', 'cleric');
-    s.flags['bossDefeated'] = true;
-    expect(recruitCompanion(s, 'sera')).toBe(true);
-    expect(recruitCompanion(s, 'bren')).toBe(true);
-    expect(s.party).toHaveLength(MAX_PARTY);
-    expect(recruitCompanion(s, 'ilya')).toBe(false);
-    expect(recruitCompanion(s, 'ilya', 'hero')).toBe(false);
-    expect(recruitCompanion(s, 'ilya', 'sera')).toBe(true);
-    expect(s.party.map((m) => m.id)).toEqual(['hero', 'bren', 'ilya']);
-    expect(companionAvailable(s, 'sera')).toBe(true);
-    expect(recruitCompanion(s, 'bren')).toBe(false);
+  it('varies between new games', () => {
+    const rosters = new Set(
+      Array.from({ length: 20 }, (_, i) => JSON.stringify(newGameState('A', 'warrior', createRng(i + 1)).companions)),
+    );
+    expect(rosters.size).toBeGreaterThan(5);
   });
 
-  it('companions join at least at the hero level and keep their own level', () => {
-    const s = newGameState('A', 'warrior');
-    grantXp(s.party[0], 500);
-    recruitCompanion(s, 'sera');
-    expect(s.party[1].level).toBe(s.party[0].level);
-    grantXp(s.party[1], 5000);
-    const seraLevel = s.party[1].level;
-    recruitCompanion(s, 'bren');
-    s.flags['bossDefeated'] = true;
-    recruitCompanion(s, 'ilya', 'sera');
-    recruitCompanion(s, 'sera', 'bren');
-    expect(s.party.find((m) => m.id === 'sera')?.level).toBe(seraLevel);
+  it('stores the roster in the save', () => {
+    const storage = memoryStorage();
+    const s = newGameState('A', 'rogue', createRng(3));
+    saveGame(storage, s);
+    expect(loadGame(storage)?.companions).toEqual(s.companions);
+    storage.setItem(SAVE_KEY, JSON.stringify({ ...s, companions: undefined }));
+    expect(loadGame(storage)).toBeNull();
+  });
+
+  it('builds an intro from the slot story and the class pitch', () => {
+    const intro = companionIntro('tavern', { name: 'Vex', classId: 'rogue' });
+    expect(intro[0]).toContain('VEX:');
+    expect(intro[intro.length - 1]).toContain('I am Vex, a rogue.');
   });
 });
 
+describe('recruiting', () => {
+  /** A fixed roster so the tests do not depend on the roll. */
+  function withRoster(hero: ClassId): GameState {
+    const s = newGameState('A', hero, createRng(1));
+    s.companions = {
+      tavern: { name: 'Bren', classId: 'warrior' },
+      thornwick: { name: 'Sera', classId: 'cleric' },
+      brookhollow: { name: 'Fenn', classId: 'ranger' },
+      cave: { name: 'Ilya', classId: 'wizard' },
+    };
+    return s;
+  }
+
+  it('locks the cave companion until the Goblin King is defeated', () => {
+    const s = withRoster('paladin');
+    expect(companionAvailable(s, 'cave')).toBe(false);
+    expect(recruitCompanion(s, 'cave')).toBe(false);
+    s.flags['bossDefeated'] = true;
+    expect(recruitCompanion(s, 'cave')).toBe(true);
+    expect(s.party[1]).toMatchObject({ id: 'cave', name: 'Ilya', classId: 'wizard' });
+  });
+
+  it('allows any order and swaps when the party is full', () => {
+    const s = withRoster('paladin');
+    s.flags['bossDefeated'] = true;
+    expect(recruitCompanion(s, 'thornwick')).toBe(true);
+    expect(recruitCompanion(s, 'tavern')).toBe(true);
+    expect(s.party).toHaveLength(MAX_PARTY);
+    expect(recruitCompanion(s, 'cave')).toBe(false);
+    expect(recruitCompanion(s, 'cave', 'hero')).toBe(false);
+    expect(recruitCompanion(s, 'cave', 'thornwick')).toBe(true);
+    expect(s.party.map((m) => m.id)).toEqual(['hero', 'tavern', 'cave']);
+    expect(companionAvailable(s, 'thornwick')).toBe(true);
+    expect(recruitCompanion(s, 'tavern')).toBe(false);
+  });
+
+  it('companions join at least at the hero level and keep their own level', () => {
+    const s = withRoster('rogue');
+    grantXp(s.party[0], 500);
+    recruitCompanion(s, 'thornwick');
+    expect(s.party[1].level).toBe(s.party[0].level);
+    grantXp(s.party[1], 5000);
+    const seraLevel = s.party[1].level;
+    recruitCompanion(s, 'tavern');
+    recruitCompanion(s, 'brookhollow', 'thornwick');
+    recruitCompanion(s, 'thornwick', 'tavern');
+    expect(s.party.find((m) => m.id === 'thornwick')?.level).toBe(seraLevel);
+  });
+});
 describe('field restoration', () => {
   it('heals, restores MP and revives within limits', () => {
     const s = newGameState('A', 'cleric');
