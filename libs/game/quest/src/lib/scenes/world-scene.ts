@@ -8,7 +8,7 @@ import {
   pickEncounter,
   rollEncounter,
 } from '@jouster/game/engine';
-import { TILE } from '../art/art';
+import { TILE, tileVariant } from '../art/art';
 import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
@@ -184,7 +184,8 @@ export class WorldScene implements Scene {
       for (let tx = startX; tx <= startX + SCREEN_W / TILE + 1; tx++) {
         const ch = this.tiles.charAt(tx, ty);
         const id = ch === undefined ? outside : this.tileIds.get(ch) ?? outside;
-        r.draw(this.ctx.art.tile(id, frame), tx * TILE - camX, ty * TILE - camY);
+        const variant = tileVariant(this.map.id, id, tx, ty);
+        r.draw(this.ctx.art.tile(id, frame, variant), tx * TILE - camX, ty * TILE - camY);
       }
     }
     const sprites: Array<{ y: number; draw(): void }> = [];
