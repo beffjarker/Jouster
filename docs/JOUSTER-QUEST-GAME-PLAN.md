@@ -1,8 +1,10 @@
 # Jouster Quest — Game Plan
 
-> **Status:** Act I vertical slice implemented (see [Implementation status](#12-implementation-status-act-i-slice));
-> play-test revision 2 implemented (see [Revision 2](#13-revision-2-play-test-feedback)); revision 3 planned
-> (see [Revision 3](#14-revision-3-exploration-pacing-widescreen-and-battle-presentation))
+> **Status:** Act I vertical slice, play-test revision 2 and revision 3 are implemented and in play-testing
+> (see [Implementation status](#12-implementation-status-act-i-slice),
+> [Revision 2](#13-revision-2-play-test-feedback) and
+> [Revision 3](#14-revision-3-exploration-pacing-widescreen-and-battle-presentation)). Acts II–Finale are not
+> started.
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -28,8 +30,8 @@ game fills a 16:9 widescreen canvas.
 | Rendering | HTML5 Canvas 2D; no game engine dependency |
 | Resolution | **Widescreen 16:9** (revision 3): logical 384×216 layout rendered at 2× pixel density (768×432 backing canvas), integer-scaled with `image-rendering: pixelated`. Revision 2 used 256×240 (512×480) |
 | Tile size | 16×16 logical grid; tiles, characters and monsters are drawn with 32×32 pixels of detail |
-| Maps | Authored in [Tiled](https://www.mapeditor.org/), exported as JSON |
-| Save data | `localStorage` (versioned JSON schema) |
+| Maps | Towns and dungeons are character grids in TypeScript; the overworld is generated from a fixed seed with hand-placed landmarks (Tiled was dropped, see 12) |
+| Save data | One save in `localStorage` (versioned JSON schema, currently version 3, older versions migrated) |
 | Audio | Web Audio API: chiptune-style SFX and optional music loops |
 
 ### Nx structure
@@ -54,9 +56,12 @@ apps/
 | System | Responsibilities |
 | --- | --- |
 | **Game loop** | Fixed-timestep update (60 Hz) and `requestAnimationFrame` render |
-| **Scene manager** | Stack of scenes: Title, ClassSelect, Overworld, Town, Dungeon, Battle, Menu, Dialogue, GameOver |
-| **Input** | Arrows/WASD move; Z/Enter confirm; X/Esc cancel; Space opens the menu; optional Gamepad API |
-| **Tilemap** | Layers: ground, decoration, collision, encounter zones, warps, NPC spawns |
+| **Scene manager** | Stack of scenes with fades: Title, ClassSelect, NameEntry, World (overworld, towns, dungeons), Battle, field Menu, Shop, Dialogue, World Map, GameOver |
+| **Input** | Arrows/WASD move; Z/Enter/Space confirm; X/Esc cancel and open the field menu; M world map; N sound on/off. Read only while the canvas has focus. Gamepad and touch are deferred |
+| **Tilemap** | Ground tiles with collision, encounter terrain, warps and NPC spawns |
+| **Fog of war** | Hidden overworld and dungeon tiles revealed within a radius of the party; explored tiles saved per map (14.1) |
+| **World map** | `M` overlay of the current map's explored tiles, discovered places and quest hints (14.1) |
+| **Quests** | Main quest plus one side quest per companion, shown in the field menu's quest log (14.2) |
 | **Movement** | 4-direction, grid-locked, smooth movement between tiles, 2-frame walk cycle |
 | **Camera** | Follows the player and clamps to map bounds |
 | **Dialogue** | Typewriter text box, portraits (optional), yes/no prompts, sets and reads story flags |
@@ -64,7 +69,7 @@ apps/
 | **Battle** | Turn-based combat (section 5) |
 | **Inventory/Equipment** | Weapon, armor, shield, and accessory slots; consumables; key items; gold |
 | **Progression** | XP curve, level-ups, per-class stat growth, spells learned by level |
-| **Save/Load** | Save at inns or the church; 3 save slots; schema version for migrations |
+| **Save/Load** | Save at the inn or chapel; one save slot (more slots deferred); schema version for migrations |
 | **Audio** | SFX (step, hit, spell, level-up) and per-scene music |
 
 ---
@@ -136,7 +141,8 @@ The Cleric is the hardest class to start with, so it sets the minimum viable pow
 
 ### 4.5 Help for solo play (before the first companion)
 
-- In the Prologue and Act I, random encounters have **at most 2 enemies** until the first companion joins.
+- While the hero is alone, random encounters have **at most 2 enemies**. Since no one can join before the Goblin
+  King, this covers the whole Prologue and Act I.
 - The **Goblin King** boss scales with the size of the party (×0.75 HP when alone).
 - Starting kit for every class: 3 Herbs and 50 gold. Classes without spells (Warrior, Rogue) get 2 more Herbs.
 - Running away is slightly easier when alone (+10%).
@@ -154,9 +160,10 @@ The Cleric is the hardest class to start with, so it sets the minimum viable pow
 | Any hero + any one companion of a different class at level 5 against the Goblin King | ≥ 70% (revision 3: kept as a regression check only; in play the boss is fought solo) |
 | Any hero + any two companions (all classes different) at level 5 against the Goblin King | ≥ 70% (regression check only, as above) |
 | Solo hero at level 6 with shop gear against the Goblin King, every class (revision 3: the real path) | ≥ 60%, aim 65–80% |
+| Solo hero at level 7 with tier-2 gear against each side-quest mini-boss fight, every class (revision 3) | ≥ 60% |
 
-If a class misses a target, tune its numbers in `game-content` (growth curve, weapon stats, skill costs) instead
-of changing the engine.
+If a class misses a target, tune its numbers in `game-quest` data files (growth curve, weapon stats, skill costs)
+instead of changing the engine.
 
 ### 4.7 Party
 
@@ -180,11 +187,14 @@ of changing the engine.
   status windows.
 - **Presentation (revision 3):** side-view layout with the party on the left and enemies on the right, every
   action animated (see 14.4).
-- **Commands:** Attack · Magic · Skill · Item · Defend · Run
+- **Commands:** Attack · Ability (spells and skills) · Item · Defend · Run
 - **Attack** is available to every class and always uses the equipped melee weapon. It costs no MP and has no
   cooldown, so no class is left without a damage option when it runs out of MP.
 - **Turn order:** sort by `AGI + random(0..AGI/4)` each round; the player picks commands for all members, then
   the round resolves.
+- **Waiting for the player (play-test 1 fix):** every round, the battle stops and waits for a command from each
+  living party member; it never resolves a round on its own. When the battle ends, the result text (XP, gold,
+  level-ups, drops) stays on screen until the player presses OK (Z/Enter) or Esc.
 - **Damage formula (starting point):**
 
   ```text
@@ -206,7 +216,7 @@ of changing the engine.
 
 ### Premise
 
-The ancient dragon **Vharzul** wakes beneath the Ember Mountains and burns the border village of Thornwick. The
+The ancient dragon **Vyrmorth** (draft name: Vharzul) wakes beneath the Ember Mountains and burns the border village of Thornwick. The
 King of **Aldmere** calls on a lone hero to find the three **Dragon Seals** and forge **Dragonbane**, the only
 weapon that can end the dragon's reign.
 
@@ -215,14 +225,14 @@ weapon that can end the dragon's reign.
 | Act | Region | Enemies | Key events |
 | --- | --- | --- | --- |
 | **Prologue** | Aldmere Castle & Thornwick | Tutorial slimes | Class select; the King's quest; Thornwick in ashes |
-| **Act I** | Greenwood | Slime, Wolf, Goblin, Giant Bat | Recruit companion #1; clear the Goblin Cave; boss: **Goblin King** |
+| **Act I** | Greenwood | Slime, Wolf, Goblin, Giant Bat, Skeleton | Hero travels alone; clear the Goblin Cave; boss: **Goblin King**. Afterwards, companion side quests open (Alpha Wolf, Giant Toad, Bone Captain, Goblin Jailer) |
 | **Act II** | Sunscar Desert & Mirewood Marsh | Scorpion, Sand Worm, Lizardman, Wraith | Two Dragon Seals from shrines; bosses: **Sand Wyrm**, **Marsh Witch** |
-| **Act III** | Frost Peaks | Ice Troll, Wyvern, Yeti, Frost Mage | Recruit companion #2; third seal; forge Dragonbane; boss: **Wyvern Matriarch** |
-| **Finale** | Ember Mountains (volcano lair) | Fire Drake, Magma Golem, Dragon Cultist | Two-phase final boss: **Vharzul the Ashen** |
+| **Act III** | Frost Peaks | Ice Troll, Wyvern, Yeti, Frost Mage | Third seal; forge Dragonbane; boss: **Wyvern Matriarch** |
+| **Finale** | Ember Mountains (volcano lair) | Fire Drake, Magma Golem, Dragon Cultist | Two-phase final boss: **Vyrmorth** |
 
 ### Content scope (target)
 
-- 3 towns (Aldmere, Sandhollow, Frostgate) plus the ruins of Thornwick
+- 4 towns (Aldmere and Brookhollow built; Sandhollow and Frostgate planned) plus the ruins of Thornwick
 - 1 overworld map with 5 regions
 - 4 dungeons and 1 final lair
 - About 25 monster types and 5 bosses
@@ -241,25 +251,26 @@ NPCs with hints and side quests
   characters and monsters, finer texture on ground tiles, and gradient-filled menu windows.
 - **Sprites:** 32×32-pixel overworld characters (4 directions × 2 frames); 32×32-pixel monsters shown 2–4× in
   battle; tiles have 32×32 pixels of detail on a 16×16 logical grid. The bitmap font stays chunky for readability.
-- **Tools:** Aseprite or LibreSprite for sprites; Tiled for maps.
-- **Placeholders:** CC0 assets (for example from OpenGameArt or Kenney) until custom art is ready; track licenses
-  in `CREDITS.md`.
+- **Tools:** all art is currently drawn in code (`Art` class); Aseprite or LibreSprite if hand-made sprites are added.
+- **Assets:** the first release uses only original procedural pixel art. CC0 sprite sheets (for example from
+  OpenGameArt or Kenney) may replace it later through the `Art` class; any added files must be listed in
+  `CREDITS.md`.
 - **Audio:** procedural chiptune SFX with Web Audio; optional looping tracks per region and battle.
 
 ---
 
 ## 8. Phased Roadmap
 
-| Phase | Goal | Deliverables |
-| --- | --- | --- |
-| **1. Foundation** | Engine skeleton | Nx libs, `/game` route, canvas scaling, game loop, input, one test map with collision |
-| **2. Overworld** | Exploration | Tiled map loader, grid movement, camera, warps, a town, NPC dialogue |
-| **3. Characters** | Class select | Class data, title screen, class-select screen, stats model |
-| **4. Battle** | Core combat | Encounter rolls, battle scene, turn system, enemy AI, XP and level-ups, defeat handling |
-| **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load |
-| **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King |
-| **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, mobile touch controls (stretch) |
+| Phase | Goal | Deliverables | Status |
+| --- | --- | --- | --- |
+| **1. Foundation** | Engine skeleton | Nx libs, `/jouster-quest` route, canvas scaling, game loop, input, one test map with collision | Done |
+| **2. Overworld** | Exploration | Map loader, grid movement, camera, warps, a town, NPC dialogue | Done |
+| **3. Characters** | Class select | Class data, title screen, class-select screen, stats model | Done |
+| **4. Battle** | Core combat | Encounter rolls, battle scene, turn system, enemy AI, XP and level-ups, defeat handling | Done |
+| **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done (weapons only; armor slots deferred) |
+| **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
+| **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Not started |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, battle animations) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -267,14 +278,18 @@ NPCs with hints and side quests
 
 ## 9. Testing Strategy
 
-- **Unit (Jest, `libs/game-engine`, `libs/game-content`):** damage formula, turn order, encounter-rate RNG
-  (with a seeded RNG), XP curve and level-ups, inventory and equipment, save-schema migration, content validation
-  (every monster or item referenced by a map exists).
-- **Balance (Jest, `libs/game-content`):** a seeded battle simulator runs each class alone and in a full party
-  through the encounters in section 4.6, then fails if any target is missed. It also checks that every class's
-  level 1 stats add up to 36 points and that every class has a melee basic Attack.
-- **E2E (Cypress, `apps/jouster-ui-e2e`):** smoke test: load `/game` → pick a class → move → trigger a seeded
-  encounter → win a battle → save → reload.
+- **Unit (Jest, `libs/game/engine`, `libs/game/quest`):** damage formula, turn order, encounter-rate RNG
+  (with a seeded RNG), XP curve and level-ups, inventory and equipment, save-schema migration, fog bitsets,
+  content validation (every monster, item, boss and quest pin referenced by a map exists and is in bounds).
+- **Balance (Jest, `libs/game/quest`):** a seeded battle simulator runs each class alone and with companions
+  through the encounters in section 4.6, including every side-quest mini-boss, then fails if any target is
+  missed. It also checks that every class's level 1 stats add up to 36 points and that every class has a melee
+  basic Attack.
+- **Scenes (Jest, headless):** a scripted input driver plays the title flow, world movement, fog reveal, `M` map,
+  companion quest flow, battles (command waits, animations, result screen) and menus without a DOM.
+- **Page (Jest, `apps/jouster-ui`):** the `/jouster-quest` component boots the game on a 16:9 canvas.
+- **E2E (Cypress, `apps/jouster-ui-e2e`):** planned, not written yet: load `/jouster-quest` → pick a class → move
+  → trigger a seeded encounter → win a battle → save → reload.
 - **Coverage target:** ≥80% on engine logic.
 - Use a seeded RNG everywhere so battle and encounter outcomes are reproducible in tests.
 
@@ -308,6 +323,18 @@ NPCs with hints and side quests
 5. **Fog of war:** the overworld and dungeons start hidden and are revealed around the party; `M` opens a full
    map showing only explored areas (see 14.1). Towns are always fully visible.
 6. **Screen:** 16:9 widescreen (384×216 logical, 768×432 canvas).
+7. **Class balance:** every class, including the Cleric, must be able to win alone (possibly with more effort),
+   and every class has a real melee Attack (section 4).
+8. **Battle input:** each round waits for every party member's command, and the result screen waits for OK/Enter
+   or Esc (section 5).
+9. **Graphics:** 32-bit-era look (section 13.3).
+10. **World size:** much larger overworld, 96×72 tiles (section 13.2).
+11. **Difficulty:** early enemies slightly harder and about 38% more XP per level; boss difficulty kept
+    (section 13.4).
+12. **Companion pacing:** no recruiting before the first boss; companions can be met and talked to earlier, and
+    each joins after a side quest (section 14.2).
+13. **Battle layout:** side view with the **party on the left and enemies on the right**, every action animated
+    (section 14.4).
 
 ---
 
@@ -318,18 +345,25 @@ NPCs with hints and side quests
 | Engine | Seeded RNG, fixed-step loop, keyboard input, scene stack with fades, renderer + 5×7 pixel font, tilemap, Web Audio SFX |
 | Rules | Battle (turn order, attack/ability/item/defend/run, elements, status, crits), XP curve, encounters with grace steps |
 | Classes | Warrior, Paladin, Cleric, Wizard, Rogue, Ranger — equal stat budget, every class has a melee Attack |
-| World | Greenwood Vale overworld, Aldmere (castle, inn, chapel, shops, tavern), Thornwick ruins, Goblin Cave |
-| Companions | Bren (Warrior, Aldmere tavern), Sera (Cleric, Thornwick ruins), Ilya (Wizard, Goblin Cave — after the Goblin King) |
-| Story | King's quest → Goblin King boss → epilogue teasing **Vyrmorth**; the world stays open afterwards |
+| World | Greenwood Vale overworld (96×72, seeded), Aldmere (castle, inn, chapel, shops, tavern), Brookhollow, Thornwick ruins, Goblin Cave, Wolf Den, southern lakeshore; fog of war and `M` world map |
+| Companions | Four spots (Aldmere tavern, Thornwick ruins, Brookhollow, Goblin Cave) with a random name and class per new game; each joins after the Goblin King and their side quest |
+| Story | King's quest → Goblin King boss → companion side quests → epilogue teasing **Vyrmorth**; the world stays open afterwards |
 | Economy | Gold, item shop, weapon shop with trade-in, inn (heal + save), chapel (revive + save) |
-| Saves | Versioned JSON in `localStorage` with validation |
+| Saves | Versioned JSON in `localStorage` with validation; version 3 with migration from versions 1 and 2 |
+| Battle | Side view (party left, enemies right) with animations; waits for every member's command each round and for OK on the result screen |
 | Tests | Engine unit tests, content validation, seeded balance simulator, headless scene-flow tests, Angular page spec |
+
+**Play-test fixes**
+
+- Battles no longer resolve rounds without asking: each living member chooses an action every round, and the
+  result screen waits for OK/Enter or Esc.
+- Casting a heal from the field menu now spends the caster's MP (Sera's MP bar didn't drop before).
 
 **Deviations from the plan**
 
 - The dragon is named **Vyrmorth** (the plan's draft name was Vharzul).
 - Maps are authored as character grids in TypeScript instead of Tiled JSON (small maps, no extra tooling).
-- Field menu opens with X/Esc (not Space); Space is an extra confirm key.
+- Field menu opens with X/Esc (not Space); Space is an extra confirm key. `M` opens the world map, `N` toggles sound.
 - Keyboard input is only read while the game canvas has focus.
 - Full parties may beat the trio balance targets slightly; solo and duo targets are enforced by the simulator.
 - Armor/shield/accessory slots, status-curing at the chapel, and music loops are deferred to later phases.
@@ -444,12 +478,12 @@ class below it.
 - Recruits are spread out so they don't all arrive at once: each quest sends the player to a different region,
   and the cave companion's quest is the longest.
 
-| Spot | Side quest (first pass) | Reward besides the companion |
+| Spot | Side quest (as built) | Reward besides the companion |
 | --- | --- | --- |
-| Aldmere tavern | **Lost heirloom:** recover a ring from a wolf den in the eastern hills (a new small cave; mini-boss Alpha Wolf) | 50 G |
-| Brookhollow | **Poisoned well:** bring a Moonpetal from the southern lakeshore, guarded by a Giant Toad | Antidote ×3 |
-| Thornwick ruins | **Restless dead:** defeat the Bone Captain haunting the ruins at night (talk to them after resting at an inn) | Iron charm (accessory, later) |
-| Goblin Cave | **Captive:** the companion is locked in the cave's lower cells; find the cell key on a goblin chieftain remnant deeper in the cave | Key opens a side treasure room |
+| Aldmere tavern | **The Wolf Den:** slay the Alpha Wolf (with a wolf) in its den in the far eastern hills, past Thornwick | 60 G |
+| Brookhollow | **The Lake Beast:** drive off the Giant Toad on the west shore of the southern lake | 30 G, Herb ×4 |
+| Thornwick ruins | **Restless Bones:** rest at an inn, then defeat the Bone Captain (with a skeleton) in the ruins that night | 40 G, Tonic ×2 |
+| Goblin Cave | **The Cell Key:** the companion is locked in a cell; take the key from the Goblin Jailer (with a goblin) in the cave's east chamber | 80 G |
 
 - New mini-bosses are tuned to be beatable **solo** at the expected level (level 6–8), roughly 60–70% of the
   Goblin King's strength, and get simulator checks.
@@ -500,7 +534,7 @@ class below it.
 - **Tests:** a fake clock steps the timeline; tests assert every event plays exactly once, HP displays update
   only after the hit, and the scene returns to command input afterwards.
 
-### 14.5 Work breakdown
+### 14.5 Work breakdown (all done in the first pass, except where 14.6 says otherwise)
 
 1. Plan update (this section).
 2. Widescreen: constants, canvas/CSS, re-layout of all scenes, page spec; screenshot every screen.
