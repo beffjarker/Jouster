@@ -206,7 +206,7 @@ export class NameEntryScene implements Scene {
   private start(): void {
     const name = this.name.trim() || 'HERO';
     this.ctx.audio.play('confirm');
-    const state: GameState = newGameState(name, this.classId);
+    const state: GameState = newGameState(name, this.classId, this.ctx.rng);
     this.ctx.state = state;
     const world = new WorldScene(this.ctx);
     this.ctx.stack.replace(world, true);

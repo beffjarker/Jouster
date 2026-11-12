@@ -4,6 +4,7 @@ import { CLASSES } from '../data/classes';
 import { ITEMS, WEAPONS, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { INN_RESPAWN, MAPS, MapDef } from '../data/maps';
 import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
+import { OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
 import { newGameState } from '../state/game-state';
 
 function tileMap(def: MapDef): TileMap {
@@ -34,6 +35,13 @@ function reachable(def: MapDef, sx: number, sy: number): Set<string> {
 describe('Jouster Quest content', () => {
   it.each([...MAPS.values()].map((m) => [m.id, m] as const))('map %s is rectangular and uses known tiles', (_, def) => {
     expect(() => tileMap(def)).not.toThrow();
+  });
+
+  it('the overworld is the large generated map and is identical on every load', () => {
+    const world = MAPS.get('overworld') as MapDef;
+    expect(world.rows).toHaveLength(OVERWORLD_H);
+    expect(world.rows.every((r) => r.length === OVERWORLD_W)).toBe(true);
+    expect(generateOverworld()).toEqual(world.rows);
   });
 
   it('every warp starts and lands on a walkable tile', () => {

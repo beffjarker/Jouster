@@ -1,6 +1,5 @@
 import { ClassId, createRng, statBudget } from '@jouster/game/engine';
 import { CLASS_ORDER, classDef } from '../data/classes';
-import { COMPANION_LIST } from '../data/companions';
 import { ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
 import { WEAPONS } from '../data/equipment';
 import { pickEncounter } from '@jouster/game/engine';
@@ -72,30 +71,29 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     expect(stats.winRate).toBeGreaterThanOrEqual(0.6);
   });
 
-  // Companions have fixed classes. Before the boss only Bren (warrior) and Sera (cleric) can join,
-  // so every hero class is tested with each of them, and as the full pre-boss trio.
-  const preBossCompanions: ClassId[] = COMPANION_LIST.filter((c) => !c.requiresFlag).map((c) => c.classId);
-
-  it.each(CLASS_ORDER.flatMap((hero) => preBossCompanions.map((ally) => [hero, ally] as const)))(
-    'a %s hero + %s companion at level 5 beats the Goblin King >= 70%% of the time',
-    (a, b) => {
-      const party = [tier2(createMember('a', 'A', a, 5)), tier2(createMember('b', 'B', b, 5))];
-      const stats = runMany(N, (i) =>
-        simulateFight(party, ['goblinKing'], { herb: 3 }, createRng(15000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
-      );
-      expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
-    },
+  // Companions are rolled per game: any class except the hero's, never repeated. So every hero is
+  // tested with every other class as a single companion, and every three-class party.
+  const pairs = CLASS_ORDER.flatMap((hero) => CLASS_ORDER.filter((c) => c !== hero).map((ally) => [hero, ally] as const));
+  const trios = CLASS_ORDER.flatMap((a, i) =>
+    CLASS_ORDER.slice(i + 1).flatMap((b, j) => CLASS_ORDER.slice(i + j + 2).map((c) => [a, b, c] as const)),
   );
 
-  it.each(CLASS_ORDER)('a %s hero + Bren + Sera at level 5 beats the Goblin King >= 70%% of the time', (hero) => {
-    const party = [hero, ...preBossCompanions].map((c, i) => tier2(createMember(`m${i}`, `M${i}`, c, 5)));
+  it.each(pairs)('a %s hero + %s companion at level 5 beats the Goblin King >= 70%% of the time', (a, b) => {
+    const party = [tier2(createMember('a', 'A', a, 5)), tier2(createMember('b', 'B', b, 5))];
+    const stats = runMany(N, (i) =>
+      simulateFight(party, ['goblinKing'], { herb: 3 }, createRng(15000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
+    );
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it.each(trios)('a %s + %s + %s party at level 5 beats the Goblin King >= 70%% of the time', (...classes) => {
+    const party = classes.map((c, i) => tier2(createMember(`m${i}`, `M${i}`, c, 5)));
     const stats = runMany(N, (i) =>
       simulateFight(party, ['goblinKing'], { herb: 3 }, createRng(12000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
 });
-
 function fail(): never {
   throw new Error('missing data');
 }

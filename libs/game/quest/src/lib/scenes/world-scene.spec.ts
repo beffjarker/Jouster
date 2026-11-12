@@ -1,6 +1,7 @@
 import { InputAction, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
-import { INN_RESPAWN } from '../data/maps';
+import { INN_RESPAWN, mapDef } from '../data/maps';
+import { LANDMARKS } from '../data/overworld-gen';
 import { GameState, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
 import { createMember } from '../state/party';
 import { InputDriver } from '../testing/input-driver';
@@ -49,6 +50,18 @@ function setup(place: Partial<GameState>, alwaysEncounter = false): Harness {
   };
 }
 
+/** An overworld grass tile with more grass to its right (for encounter tests). */
+function grassRun(): { x: number; y: number } {
+  const rows = mapDef('overworld').rows;
+  for (let y = 0; y < rows.length; y++) {
+    const x = rows[y].indexOf('...');
+    if (x > 0) {
+      return { x, y };
+    }
+  }
+  throw new Error('no grass');
+}
+
 describe('WorldScene', () => {
   it('walks one tile per step and blocks on solid tiles', () => {
     const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
@@ -88,14 +101,16 @@ describe('WorldScene', () => {
 
   it('recruits a companion in the tavern', () => {
     const h = setup({ mapId: 'aldmere', x: 15, y: 13, facing: 'up' });
+    const rolled = h.state.companions['tavern'];
     h.tap('confirm');
     h.confirmUntilWorld();
-    expect(h.state.party.map((m) => m.id)).toEqual(['hero', 'bren']);
-    expect(h.state.party[1].classId).toBe('warrior');
+    expect(h.state.party.map((m) => m.id)).toEqual(['hero', 'tavern']);
+    expect(h.state.party[1]).toMatchObject({ name: rolled.name, classId: rolled.classId });
+    expect(rolled.classId).not.toBe('cleric');
   });
 
   it('warps between maps', () => {
-    const h = setup({ mapId: 'overworld', x: 10, y: 15, facing: 'up' });
+    const h = setup({ mapId: 'overworld', x: LANDMARKS.aldmere.x, y: LANDMARKS.aldmere.y + 1, facing: 'up' });
     h.hold('up', STEP_TIME + 0.02);
     h.run(1);
     expect(h.state.mapId).toBe('aldmere');
@@ -104,14 +119,14 @@ describe('WorldScene', () => {
   });
 
   it('starts a random battle on encounter tiles', () => {
-    const h = setup({ mapId: 'overworld', x: 5, y: 14, facing: 'right', stepsSinceBattle: 50 }, true);
+    const h = setup({ mapId: 'overworld', ...grassRun(), facing: 'right', stepsSinceBattle: 50 }, true);
     h.hold('right', STEP_TIME + 0.02);
     h.run(1);
     expect(h.ctx.stack.top?.id).toBe('battle');
   });
 
   it('plays a battle through to the end and returns to the world', () => {
-    const h = setup({ mapId: 'overworld', x: 5, y: 14, facing: 'right', stepsSinceBattle: 50 }, true);
+    const h = setup({ mapId: 'overworld', ...grassRun(), facing: 'right', stepsSinceBattle: 50 }, true);
     h.hold('right', STEP_TIME + 0.02);
     h.run(1);
     h.ctx.rng = createRng(5);
@@ -142,7 +157,8 @@ describe('WorldScene', () => {
   it('spends the caster MP when healing from the field menu', () => {
     const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
     h.state.party[0] = createMember('hero', 'TEST', 'warrior');
-    expect(recruitCompanion(h.state, 'sera')).toBe(true);
+    h.state.companions['thornwick'] = { name: 'Sera', classId: 'cleric' };
+    expect(recruitCompanion(h.state, 'thornwick')).toBe(true);
     const [hero, sera] = h.state.party;
     hero.hp = 1;
     sera.hp = 1;
@@ -168,7 +184,7 @@ describe('WorldScene', () => {
     expect(sera.mp).toBe(startMp - 6);
   });
   it('marks the Thornwick ruins when visited', () => {
-    const h = setup({ mapId: 'overworld', x: 26, y: 21, facing: 'right' });
+    const h = setup({ mapId: 'overworld', x: LANDMARKS.thornwick.x - 1, y: LANDMARKS.thornwick.y, facing: 'right' });
     h.hold('right', STEP_TIME + 0.02);
     h.run(0.2);
     expect(h.state.flags['sawRuins']).toBe(true);

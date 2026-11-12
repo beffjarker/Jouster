@@ -1,6 +1,7 @@
 import { Facing, TileDef } from '@jouster/game/engine';
 import { GameState, companionAvailable } from '../state/game-state';
-import { COMPANION_LIST } from './companions';
+import { COMPANION_SLOTS } from './companions';
+import { LANDMARKS, generateOverworld } from './overworld-gen';
 
 export type NpcRole = 'talk' | 'king' | 'inn' | 'itemShop' | 'weaponShop' | 'church' | 'boss' | 'companion';
 
@@ -9,6 +10,8 @@ export interface NpcDef {
   x: number;
   y: number;
   spriteId: string;
+  /** Sprite chosen from game state (overrides `spriteId`), e.g. for rolled companions. */
+  sprite?(state: GameState): string;
   facing: Facing;
   role: NpcRole;
   /** Dialogue for `talk` NPCs (or intro lines for other roles). */
@@ -50,40 +53,9 @@ export interface MapDef {
   backdrop: Backdrop;
 }
 
-// --- Overworld (40x30) ---------------------------------------------------------------------
+// --- Overworld (96x72, generated from a fixed seed) ----------------------------------------
 
-const OVERWORLD_ROWS = [
-  '^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^',
-  '^fffff........^^^^^^~.^^^^^^^^^^^^^^^^^^',
-  '^ffffff........^^^^^~.^^^^^^^^^^^^^^^^^^',
-  '^ffffff.............~.....hhh^^^O^^^^^^^',
-  '^fffffff............~.....hhhhhh:hhhhhh^',
-  '^ffffff.............~....hhhhhhh:hhhhhh^',
-  '^ffffff........f....~....hhhhfhh:hhhhhh^',
-  '^^ffff.......fffff..~...hhhfffff:hhhhhh^',
-  '^^.f........fffffff.~..hhhffffff:hhhhhh^',
-  '^^^..........fffff..~..hhhffffff:hhhhhh^',
-  '^^.............f....~..hhfffffff:fhhhhh^',
-  '^^..................~..hhhffffff:hhhhhh^',
-  '^...................~..hhhffffff:hhhhhh^',
-  '^...................~..hhhhfffff:hhhhhh^',
-  '^.........A:::::::::=::::::::::::hhhhhh^',
-  '^...................~...hhhhhhhhhhhhhhh^',
-  '^^..............f...~....hhhhhhhhhhh^^^^',
-  '^^^...........fffff.~....hhhhhhhhhhh^^^^',
-  '^^^^.........fffffff~.....hhhhhhhhhh^^^^',
-  '^^^...........fffff.~.....hhhhhhhhhh^^^^',
-  '^^..............f...~.......hhhhhhhh^^^^',
-  '^..f................~......V.hhhhhfh^^^^',
-  '^ffffff.............~........f...fff^^^^',
-  '^ffffffff...........~....fffffffffff^^^^',
-  '^ffffffff...........~...ffffffffffff^^^^',
-  '^fffffffff..........~..fffffffffffff^^^^',
-  '^ffffffff...........~...fffffffffff^^^^^',
-  '^ffffffff.......~~~~~~~..fffffffff^^^^^^',
-  '^ffffff.......~~~~~~~~~~~....f...^^^^^^^',
-  '^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^',
-];
+const OVERWORLD_ROWS = generateOverworld();
 
 const OVERWORLD_LEGEND: TileDef[] = [
   { char: '.', id: 'grass', solid: false, encounterTableId: 'greenwood' },
@@ -94,6 +66,7 @@ const OVERWORLD_LEGEND: TileDef[] = [
   { char: '~', id: 'water', solid: true },
   { char: '=', id: 'bridge', solid: false },
   { char: 'A', id: 'town', solid: false },
+  { char: 'B', id: 'town', solid: false },
   { char: 'O', id: 'caveEntrance', solid: false },
   { char: 'V', id: 'ruins', solid: false },
 ];
@@ -131,6 +104,26 @@ const TOWN_LEGEND: TileDef[] = [
   { char: 'c', id: 'counter', solid: true },
   { char: '~', id: 'fountain', solid: true },
   { char: 'E', id: 'cobble', solid: false },
+];
+
+// --- Brookhollow (22x15) -------------------------------------------------------------------
+
+const BROOKHOLLOW_ROWS = [
+  'TTTTTTTTTTTTTTTTTTTTTT',
+  'TggggggggggggggggggggT',
+  'Tg#####gggggggg#####gT',
+  'Tg#www#gggggggg#www#gT',
+  'Tg#ccc#gggg_ggg#ccc#gT',
+  'Tg__________________gT',
+  'Tgggggg___~~___ggggggT',
+  'Tggggg__________gggggT',
+  'Tg####ggg____ggg####gT',
+  'Tg####ggg____ggg####gT',
+  'Tggggggggg____gggggggT',
+  'TTgggggggg____ggggggTT',
+  'TTgggggggg____ggggggTT',
+  'TTTTTTTTTTEETTTTTTTTTT',
+  'TTTTTTTTTTTTTTTTTTTTTT',
 ];
 
 // --- Goblin Cave (28x20) -------------------------------------------------------------------
@@ -175,12 +168,14 @@ const kingLines = (s: GameState): string[] => {
   if (s.flags['metKing']) {
     return [
       'KING ALDRIC: The Goblin Cave lies past the river, in the eastern hills.',
-      'Allies may aid you: a sellsword drinks in our tavern, and Thornwick has survivors.',
+      'Allies may aid you: travelers wait in our tavern, in the ruins of Thornwick, and in Brookhollow to the south.',
       'Go where you will - but beware the cave, and rest at the inn.',
     ];
   }
   return [];
 };
+
+const { aldmere: ALDMERE_AT, goblinCave: CAVE_AT, thornwick: RUINS_AT, brookhollow: BROOK_AT } = LANDMARKS;
 
 const BASE_MAPS: MapDef[] = [
   {
@@ -189,11 +184,12 @@ const BASE_MAPS: MapDef[] = [
       rows: OVERWORLD_ROWS,
       legend: OVERWORLD_LEGEND,
       warps: [
-        { x: 10, y: 14, toMap: 'aldmere', toX: 10, toY: 15, facing: 'up' },
-        { x: 32, y: 3, toMap: 'goblinCave', toX: 2, toY: 17, facing: 'up' },
+        { x: ALDMERE_AT.x, y: ALDMERE_AT.y, toMap: 'aldmere', toX: 10, toY: 15, facing: 'up' },
+        { x: CAVE_AT.x, y: CAVE_AT.y, toMap: 'goblinCave', toX: 2, toY: 17, facing: 'up' },
+        { x: BROOK_AT.x, y: BROOK_AT.y, toMap: 'brookhollow', toX: 10, toY: 12, facing: 'up' },
       ],
       npcs: [],
-      events: [{ x: 27, y: 21, id: 'thornwick' }],
+      events: [{ x: RUINS_AT.x, y: RUINS_AT.y, id: 'thornwick' }],
       outsideTile: '^',
       backdrop: 'field',
     },
@@ -203,8 +199,8 @@ const BASE_MAPS: MapDef[] = [
       rows: ALDMERE_ROWS,
       legend: TOWN_LEGEND,
       warps: [
-        { x: 10, y: 16, toMap: 'overworld', toX: 10, toY: 15, facing: 'down' },
-        { x: 11, y: 16, toMap: 'overworld', toX: 10, toY: 15, facing: 'down' },
+        { x: 10, y: 16, toMap: 'overworld', toX: ALDMERE_AT.x, toY: ALDMERE_AT.y + 1, facing: 'down' },
+        { x: 11, y: 16, toMap: 'overworld', toX: ALDMERE_AT.x, toY: ALDMERE_AT.y + 1, facing: 'down' },
       ],
       npcs: [
         { id: 'king', x: 4, y: 2, spriteId: 'king', facing: 'down', role: 'king', lines: kingLines },
@@ -285,7 +281,7 @@ const BASE_MAPS: MapDef[] = [
       name: 'Goblin Cave',
       rows: CAVE_ROWS,
       legend: CAVE_LEGEND,
-      warps: [{ x: 2, y: 18, toMap: 'overworld', toX: 32, toY: 4, facing: 'down' }],
+      warps: [{ x: 2, y: 18, toMap: 'overworld', toX: CAVE_AT.x, toY: CAVE_AT.y + 1, facing: 'down' }],
       npcs: [
         {
           id: 'goblinKing',
@@ -301,15 +297,68 @@ const BASE_MAPS: MapDef[] = [
       outsideTile: '#',
       backdrop: 'cave',
     },
+  {
+      id: 'brookhollow',
+      name: 'Brookhollow',
+      rows: BROOKHOLLOW_ROWS,
+      legend: TOWN_LEGEND,
+      warps: [
+        { x: 10, y: 13, toMap: 'overworld', toX: BROOK_AT.x, toY: BROOK_AT.y + 1, facing: 'down' },
+        { x: 11, y: 13, toMap: 'overworld', toX: BROOK_AT.x, toY: BROOK_AT.y + 1, facing: 'down' },
+      ],
+      npcs: [
+        { id: 'brookInn', x: 4, y: 3, spriteId: 'innkeeper', facing: 'down', role: 'inn' },
+        { id: 'brookShop', x: 17, y: 3, spriteId: 'merchant', facing: 'down', role: 'itemShop' },
+        {
+          id: 'fisher',
+          x: 8,
+          y: 7,
+          spriteId: 'elder',
+          facing: 'down',
+          role: 'talk',
+          wander: true,
+          lines: () => [
+            'FISHER: Welcome to Brookhollow. The road north runs to Aldmere.',
+            'East of the great river the land rises into hills. Goblins nest there.',
+          ],
+        },
+        {
+          id: 'brookChild',
+          x: 14,
+          y: 10,
+          spriteId: 'child',
+          facing: 'down',
+          role: 'talk',
+          wander: true,
+          lines: () => ['Wolves hunt in the deep woods. Stay on the roads if you are hurt!'],
+        },
+        {
+          id: 'farmer',
+          x: 5,
+          y: 10,
+          spriteId: 'villager',
+          facing: 'right',
+          role: 'talk',
+          lines: (s) =>
+            s.flags['bossDefeated']
+              ? ['FARMER: The goblin raids have stopped! Bless you, traveler.']
+              : ['FARMER: Goblins took half my harvest. Somebody ought to deal with that king of theirs.'],
+        },
+      ],
+      events: [],
+      outsideTile: 'T',
+      backdrop: 'field',
+    },
 ];
 
-/** Companion NPCs wait at their home spot whenever they are unlocked and not in the party. */
+/** Companion NPCs wait at their slot whenever they are unlocked and not in the party. */
 function withCompanions(m: MapDef): MapDef {
-  const companions: NpcDef[] = COMPANION_LIST.filter((c) => c.mapId === m.id).map((c) => ({
+  const companions: NpcDef[] = COMPANION_SLOTS.filter((c) => c.mapId === m.id).map((c) => ({
     id: c.id,
     x: c.x,
     y: c.y,
-    spriteId: c.classId,
+    spriteId: 'villager',
+    sprite: (st: GameState) => st.companions[c.id]?.classId ?? 'villager',
     facing: 'down',
     role: 'companion',
     companionId: c.id,

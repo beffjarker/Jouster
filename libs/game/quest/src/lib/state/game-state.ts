@@ -1,10 +1,10 @@
-import { ClassId, Facing, totalXpForLevel } from '@jouster/game/engine';
+import { ClassId, Facing, Rng, createRng, timeSeed, totalXpForLevel } from '@jouster/game/engine';
 import { CLASS_ORDER, classDef } from '../data/classes';
-import { companionDef } from '../data/companions';
+import { COMPANION_SLOTS, CompanionInfo, companionSlot, rollCompanions } from '../data/companions';
 import { WEAPONS } from '../data/equipment';
 import { PartyMember, createMember } from './party';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const SAVE_KEY = 'jouster-quest-save-v1';
 export const MAX_PARTY = 3;
 export const STARTING_GOLD = 50;
@@ -18,6 +18,8 @@ export interface GameState {
   flags: Record<string, boolean>;
   /** Levels of companions who left the party (so they rejoin at least at that level). */
   companionLevels: Record<string, number>;
+  /** Companion rolled for each companion slot at the start of this playthrough. */
+  companions: Record<string, CompanionInfo>;
   mapId: string;
   x: number;
   y: number;
@@ -44,7 +46,8 @@ export function memoryStorage(): SaveStorage {
   };
 }
 
-export function newGameState(heroName: string, classId: ClassId): GameState {
+/** Starts a new journey. The companion roster is rolled with `rng` (random when omitted). */
+export function newGameState(heroName: string, classId: ClassId, rng: Rng = createRng(timeSeed())): GameState {
   return {
     version: SAVE_VERSION,
     party: [createMember('hero', heroName, classId, 1)],
@@ -52,6 +55,7 @@ export function newGameState(heroName: string, classId: ClassId): GameState {
     inventory: { herb: STARTING_HERBS + classDef(classId).bonusHerbs },
     flags: {},
     companionLevels: {},
+    companions: rollCompanions(classId, rng),
     mapId: 'aldmere',
     x: 4,
     y: 5,
@@ -68,8 +72,21 @@ export function inParty(state: GameState, companionId: string): boolean {
 
 /** True when the companion is waiting at their home spot (unlocked and not in the party). */
 export function companionAvailable(state: GameState, companionId: string): boolean {
-  const def = companionDef(companionId);
-  return !inParty(state, companionId) && (!def.requiresFlag || state.flags[def.requiresFlag] === true);
+  const slot = companionSlot(companionId);
+  return (
+    companionId in state.companions &&
+    !inParty(state, companionId) &&
+    (!slot.requiresFlag || state.flags[slot.requiresFlag] === true)
+  );
+}
+
+/** The companion rolled for a slot in this playthrough (the slot id doubles as the member id). */
+export function companionInfo(state: GameState, companionId: string): CompanionInfo {
+  const info = state.companions[companionId];
+  if (!info) {
+    throw new Error(`Unknown companion: ${companionId}`);
+  }
+  return info;
 }
 
 /**
@@ -77,9 +94,9 @@ export function companionAvailable(state: GameState, companionId: string): boole
  * rejoin keep their own level (stored in `companionLevels`) if it is higher.
  */
 export function createCompanion(state: GameState, companionId: string): PartyMember {
-  const def = companionDef(companionId);
+  const info = companionInfo(state, companionId);
   const level = Math.max(state.party[0]?.level ?? 1, state.companionLevels[companionId] ?? 1);
-  const member = createMember(def.id, def.name, def.classId, level);
+  const member = createMember(companionId, info.name, info.classId, level);
   member.xp = totalXpForLevel(level);
   return member;
 }
@@ -162,6 +179,18 @@ function isValidState(s: Partial<GameState>): s is GameState {
     typeof s.flags === 'object' &&
     s.flags !== null &&
     typeof s.companionLevels === 'object' &&
-    s.companionLevels !== null
+    s.companionLevels !== null &&
+    validRoster(s.companions)
   );
+}
+
+function validRoster(roster: unknown): boolean {
+  if (typeof roster !== 'object' || roster === null) {
+    return false;
+  }
+  const r = roster as Record<string, CompanionInfo | undefined>;
+  return COMPANION_SLOTS.every((slot) => {
+    const c = r[slot.id];
+    return typeof c?.name === 'string' && CLASS_ORDER.includes(c.classId);
+  });
 }
