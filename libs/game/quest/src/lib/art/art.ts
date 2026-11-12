@@ -208,33 +208,20 @@ function bricks(ctx: Ctx, base: string, line: string): void {
   }
 }
 
-/** Town wall: grey brick, rough fieldstone blocks, or moss-covered brick. */
+/**
+ * Town wall. All variants share the same brick colours and bond so neighbouring tiles join
+ * seamlessly; they differ only by small details inside individual bricks.
+ */
 function wallVariant(ctx: Ctx, variant: number): void {
+  bricks(ctx, '#8a8a9a', '#5a5a6a');
   if (variant === 1) {
-    rect(ctx, 0, 0, TILE, TILE, '#5e5a52');
-    const stones: ReadonlyArray<[number, number, number, number, string]> = [
-      [0, 0, 7, 5, '#8a857a'],
-      [8, 0, 8, 4, '#968f82'],
-      [0, 6, 4, 4, '#7e796e'],
-      [5, 5, 6, 5, '#928b7e'],
-      [12, 5, 4, 5, '#857f74'],
-      [0, 11, 9, 5, '#8c867a'],
-      [10, 11, 6, 5, '#7a756a'],
-    ];
-    stones.forEach(([x, y, w, h, color]) => {
-      rect(ctx, x, y, w, h, color);
-      rect(ctx, x, y, w, 1, '#aaa496');
-    });
+    rect(ctx, 9, 4, 6, 3, '#7c7c8c');
+    rect(ctx, 2, 9, 1, 1, '#5a5a6a');
+    rect(ctx, 3, 10, 2, 1, '#5a5a6a');
   } else if (variant === 2) {
-    bricks(ctx, '#84889a', '#565a6a');
-    rect(ctx, 0, 12, 16, 4, '#4a7a3a');
-    rect(ctx, 2, 10, 3, 2, '#4a7a3a');
-    rect(ctx, 9, 9, 2, 3, '#4a7a3a');
-    rect(ctx, 13, 11, 2, 1, '#4a7a3a');
-    rect(ctx, 3, 13, 2, 1, '#6aa050');
-    rect(ctx, 11, 14, 3, 1, '#6aa050');
-  } else {
-    bricks(ctx, '#8a8a9a', '#5a5a6a');
+    rect(ctx, 1, 0, 5, 3, '#7c7c8c');
+    rect(ctx, 11, 11, 2, 1, '#5e7a4a');
+    rect(ctx, 12, 10, 1, 1, '#5e7a4a');
   }
 }
 
@@ -710,7 +697,7 @@ export class Art {
           rect(ctx, 0, 0, TILE, TILE, '#ff00ff');
         }
       }
-      return hiResTile(canvas, hashSeed(id) + v * 101);
+      return hiResTile(canvas, id === 'wall' ? hashSeed(id) : hashSeed(id) + v * 101);
     });
   }
 
