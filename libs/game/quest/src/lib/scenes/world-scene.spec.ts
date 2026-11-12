@@ -1,7 +1,8 @@
 import { InputAction, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { INN_RESPAWN } from '../data/maps';
-import { GameState, hasSave, loadGame, memoryStorage, newGameState } from '../state/game-state';
+import { GameState, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
+import { createMember } from '../state/party';
 import { InputDriver } from '../testing/input-driver';
 import { GameContext } from './context';
 import { STEP_TIME, WorldScene } from './world-scene';
@@ -138,6 +139,34 @@ describe('WorldScene', () => {
     expect(h.ctx.stack.top?.id).toBe('field-menu');
   });
 
+  it('spends the caster MP when healing from the field menu', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    h.state.party[0] = createMember('hero', 'TEST', 'warrior');
+    expect(recruitCompanion(h.state, 'sera')).toBe(true);
+    const [hero, sera] = h.state.party;
+    hero.hp = 1;
+    sera.hp = 1;
+    const startMp = sera.mp;
+    expect(startMp).toBeGreaterThanOrEqual(6);
+    h.tap('cancel');
+    h.tap('down');
+    h.tap('down');
+    h.tap('confirm'); // MAGIC
+    h.tap('down');
+    h.tap('confirm'); // caster: Sera
+    h.tap('confirm'); // Heal
+    h.tap('confirm'); // target: hero
+    expect(hero.hp).toBeGreaterThan(1);
+    expect(sera.mp).toBe(startMp - 3);
+
+    h.tap('confirm'); // reveal message text
+    h.tap('confirm'); // close message, back to the spell list
+    h.tap('confirm'); // Heal
+    h.tap('down');
+    h.tap('confirm'); // target: Sera
+    expect(sera.hp).toBeGreaterThan(1);
+    expect(sera.mp).toBe(startMp - 6);
+  });
   it('marks the Thornwick ruins when visited', () => {
     const h = setup({ mapId: 'overworld', x: 26, y: 21, facing: 'right' });
     h.hold('right', STEP_TIME + 0.02);

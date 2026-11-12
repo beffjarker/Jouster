@@ -264,9 +264,11 @@ export function drawPartyStatus(r: Renderer, entries: StatusEntry[], y: number, 
     const hpColor = dead ? COLORS.hpLow : e.hp <= e.maxHp / 4 ? COLORS.warn : COLORS.text;
     r.text(e.name.slice(0, 7), x + 7, y + 6, dead ? COLORS.hpLow : COLORS.text);
     r.textRight(`L${e.level}`, x + w - 6, y + 6, COLORS.dim);
-    r.text(`HP${String(e.hp).padStart(4)}`, x + 7, y + 16, hpColor);
+    r.text('HP', x + 7, y + 16, hpColor);
+    r.textRight(`${e.hp}/${e.maxHp}`, x + w - 6, y + 16, hpColor);
     r.bar(x + 7, y + 25, w - 14, 2, e.maxHp ? e.hp / e.maxHp : 0, dead ? COLORS.hpLow : COLORS.hp);
-    r.text(`MP${String(e.mp).padStart(4)}`, x + 7, y + 29, COLORS.text);
+    r.text('MP', x + 7, y + 29, COLORS.text);
+    r.textRight(`${e.mp}/${e.maxMp}`, x + w - 6, y + 29, COLORS.text);
     r.bar(x + 7, y + 38, w - 14, 2, e.maxMp ? e.mp / e.maxMp : 0, COLORS.mp);
     x += w + gap;
   });
