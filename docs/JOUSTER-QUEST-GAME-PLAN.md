@@ -411,9 +411,9 @@ coordinates, so the save version is bumped and old saves are not offered on the 
   tiles (trees, hills, mountains, houses) go through the same smoothing, shading and outline as sprites.
 - **Tile variants:** every impassable landscape tile has 3 looks, picked per map position by a deterministic
   hash (`tileVariant`), so they are scattered randomly but never change between frames, reloads or saves.
-  Mountain: snowy peak, twin peaks, bare crag. Tree/forest: broadleaf, pine, fruit tree. Wall: brick,
-  fieldstone, mossy brick. Cave rock: plain, boulder, crystal vein. Water: plain, lily pad, rock (cave water:
-  stalagmite). The game RNG is not used, so battle and encounter rolls are unchanged.
+  Mountain: snowy peak, twin peaks, bare crag. Tree/forest: broadleaf, pine, fruit tree. Wall: same brick
+  bond and colours on every variant (plain, darker brick + crack, darker brick + moss fleck) so walls join
+  seamlessly. Cave rock: plain, boulder, crystal vein. Water: plain, lily pad, rock (cave water: stalagmite). The game RNG is not used, so battle and encounter rolls are unchanged.
 - **UI:** windows get a dark-blue vertical gradient fill; text stays the chunky bitmap font for readability.
 - Everything is still original, procedurally drawn pixel art (no third-party files).
 
