@@ -22,7 +22,7 @@ describe('NavigationComponent menu visibility', () => {
   });
 
   it('shows only public pages when logged out', () => {
-    expect(labels()).toEqual(['Interactive Playground', 'About', 'Contact']);
+    expect(labels()).toEqual(['Interactive Playground', 'Jouster Quest', 'About', 'Contact']);
     expect(labels()).not.toContain('Life Map');
   });
 
@@ -41,6 +41,6 @@ describe('NavigationComponent menu visibility', () => {
     authenticated$.next(false);
     spectator.detectChanges();
 
-    expect(labels()).toEqual(['Interactive Playground', 'About', 'Contact']);
+    expect(labels()).toEqual(['Interactive Playground', 'Jouster Quest', 'About', 'Contact']);
   });
 });

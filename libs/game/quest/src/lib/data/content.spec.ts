@@ -1,0 +1,102 @@
+import { FACING_DELTA, TileMap } from '@jouster/game/engine';
+import { ABILITIES } from '../data/abilities';
+import { CLASSES } from '../data/classes';
+import { ITEMS, WEAPONS, WEAPON_SHOP_STOCK } from '../data/equipment';
+import { INN_RESPAWN, MAPS, MapDef } from '../data/maps';
+import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
+import { newGameState } from '../state/game-state';
+
+function tileMap(def: MapDef): TileMap {
+  return new TileMap(def.rows, def.legend);
+}
+
+/** Flood fill of walkable tiles from a start point (NPC tiles are treated as walls). */
+function reachable(def: MapDef, sx: number, sy: number): Set<string> {
+  const map = tileMap(def);
+  const blocked = new Set(def.npcs.map((n) => `${n.x},${n.y}`));
+  const seen = new Set<string>([`${sx},${sy}`]);
+  const queue = [{ x: sx, y: sy }];
+  while (queue.length) {
+    const p = queue.shift() as { x: number; y: number };
+    for (const d of Object.values(FACING_DELTA)) {
+      const x = p.x + d.x;
+      const y = p.y + d.y;
+      const key = `${x},${y}`;
+      if (!seen.has(key) && !map.isSolid(x, y) && !blocked.has(key)) {
+        seen.add(key);
+        queue.push({ x, y });
+      }
+    }
+  }
+  return seen;
+}
+
+describe('Jouster Quest content', () => {
+  it.each([...MAPS.values()].map((m) => [m.id, m] as const))('map %s is rectangular and uses known tiles', (_, def) => {
+    expect(() => tileMap(def)).not.toThrow();
+  });
+
+  it('every warp starts and lands on a walkable tile', () => {
+    MAPS.forEach((def) => {
+      const map = tileMap(def);
+      def.warps.forEach((w) => {
+        expect(map.isSolid(w.x, w.y)).toBe(false);
+        const target = MAPS.get(w.toMap);
+        expect(target).toBeDefined();
+        expect(tileMap(target as MapDef).isSolid(w.toX, w.toY)).toBe(false);
+      });
+    });
+  });
+
+  it('every NPC stands on a walkable tile and can be talked to', () => {
+    MAPS.forEach((def) => {
+      const map = tileMap(def);
+      const start = def.warps[0];
+      const reach = reachable(def, start.x, start.y);
+      def.npcs.forEach((npc) => {
+        expect(map.isSolid(npc.x, npc.y)).toBe(false);
+        const talkable = Object.values(FACING_DELTA).some((d) => {
+          const adj = `${npc.x + d.x},${npc.y + d.y}`;
+          const across = `${npc.x + d.x * 2},${npc.y + d.y * 2}`;
+          const counter = map.tileAt(npc.x + d.x, npc.y + d.y)?.id === 'counter';
+          return reach.has(adj) || (counter && reach.has(across));
+        });
+        expect({ npc: npc.id, talkable }).toEqual({ npc: npc.id, talkable: true });
+      });
+    });
+  });
+
+  it('all warps, events and the new-game start are reachable from each map entrance', () => {
+    MAPS.forEach((def) => {
+      const start = def.warps[0];
+      const reach = reachable(def, start.x, start.y);
+      [...def.warps, ...def.events].forEach((p) => {
+        expect({ map: def.id, p, ok: reach.has(`${p.x},${p.y}`) }).toEqual({ map: def.id, p, ok: true });
+      });
+    });
+    const s = newGameState('Hero', 'cleric');
+    const town = MAPS.get(s.mapId) as MapDef;
+    expect(reachable(town, s.x, s.y).has(`${town.warps[0].x},${town.warps[0].y}`)).toBe(true);
+    expect(reachable(town, INN_RESPAWN.x, INN_RESPAWN.y).size).toBeGreaterThan(10);
+  });
+
+  it('references between data tables resolve', () => {
+    CLASSES.forEach((c) => {
+      expect(WEAPONS.has(c.startingWeaponId)).toBe(true);
+      c.abilities.forEach((a) => expect(ABILITIES.has(a.abilityId)).toBe(true));
+      expect(WEAPON_SHOP_STOCK.some((id) => WEAPONS.get(id)?.family === c.weaponFamily)).toBe(true);
+    });
+    MONSTERS.forEach((m) => {
+      m.actions.filter((a) => a.action !== 'attack').forEach((a) => expect(ABILITIES.has(a.action)).toBe(true));
+      m.drops.forEach((d) => expect(ITEMS.has(d.itemId)).toBe(true));
+    });
+    ENCOUNTER_TABLES.forEach((t) => t.groups.forEach((g) => g.monsterIds.forEach((id) => expect(MONSTERS.has(id)).toBe(true))));
+    MAPS.forEach((m) =>
+      m.legend.forEach((t) => {
+        if (t.encounterTableId) {
+          expect(ENCOUNTER_TABLES.has(t.encounterTableId)).toBe(true);
+        }
+      }),
+    );
+  });
+});

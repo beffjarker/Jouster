@@ -1,0 +1,34 @@
+<div class="page-container">
+  <jstr-page-title></jstr-page-title>
+
+  <div class="game-frame">
+    <canvas
+      #screen
+      class="game-screen"
+      width="256"
+      height="240"
+      tabindex="0"
+      role="application"
+      aria-label="Jouster Quest game screen. Use the arrow keys to move, Z or Enter to confirm, X or Escape for the menu."
+      data-scene="loading"
+      (click)="focusCanvas()"
+    ></canvas>
+    <p *ngIf="unsupported" class="unsupported" role="alert">
+      Your browser does not support the canvas features this game needs.
+    </p>
+  </div>
+
+  <section class="controls" aria-labelledby="quest-controls-heading">
+    <h2 id="quest-controls-heading">Controls</h2>
+    <ul>
+      <li><kbd>Arrows</kbd> / <kbd>WASD</kbd> move and choose</li>
+      <li><kbd>Z</kbd> / <kbd>Enter</kbd> / <kbd>Space</kbd> talk and confirm</li>
+      <li><kbd>X</kbd> / <kbd>Esc</kbd> open the menu and go back</li>
+      <li><kbd>M</kbd> mute sound</li>
+    </ul>
+    <p class="hint">
+      Click the game screen to give it keyboard focus. Save at the inn or the chapel in Aldmere.
+      A keyboard is required; touch controls are not supported yet.
+    </p>
+  </section>
+</div>

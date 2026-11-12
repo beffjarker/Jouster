@@ -85,6 +85,15 @@ export const PAGE_REGISTRY: PageConfig[] = [
     isPublic: false,
   },
   {
+    path: '/jouster-quest',
+    title: 'Jouster Quest',
+    icon: '🐉',
+    description: 'Retro top-down RPG',
+    showTitleOnPage: true,
+    requiresAuth: false,
+    isPublic: true,
+  },
+  {
     path: '/about',
     title: 'About',
     icon: 'ℹ️',

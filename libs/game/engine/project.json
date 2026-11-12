@@ -1,0 +1,28 @@
+{
+  "name": "game-engine",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/game/engine/src",
+  "projectType": "library",
+  "tags": [
+    "scope:game"
+  ],
+  "targets": {
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": [
+        "{workspaceRoot}/coverage/libs/game/engine"
+      ],
+      "options": {
+        "jestConfig": "libs/game/engine/jest.config.ts"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "options": {
+        "lintFilePatterns": [
+          "libs/game/engine/src/**/*.ts"
+        ]
+      }
+    }
+  }
+}
