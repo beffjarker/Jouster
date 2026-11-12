@@ -1,0 +1,104 @@
+import { Battle, SceneStack, createRng } from '@jouster/game/engine';
+import { Art } from '../art/art';
+import { memoryStorage, newGameState } from '../state/game-state';
+import { InputDriver } from '../testing/input-driver';
+import { BattleEnd, BattleScene } from './battle-scene';
+import { GameContext } from './context';
+
+interface BattleInternals {
+  phase: string;
+  battle: Battle;
+}
+
+function setup(): { scene: BattleScene; internals: BattleInternals; driver: InputDriver; onEnd: jest.Mock } {
+  const ctx: GameContext = {
+    stack: new SceneStack(),
+    audio: { play: jest.fn(), toggleMute: jest.fn(), muted: false, dispose: jest.fn() } as never,
+    art: {} as Art,
+    rng: createRng(3),
+    storage: memoryStorage(),
+    state: newGameState('TEST', 'warrior'),
+  };
+  const onEnd = jest.fn<void, [BattleEnd]>();
+  const scene = new BattleScene(ctx, { monsterIds: ['slime'], backdrop: 'field', onEnd });
+  ctx.stack.push(scene);
+  const driver = new InputDriver((dt, input) => ctx.stack.update(dt, input));
+  return { scene, internals: scene as unknown as BattleInternals, driver, onEnd };
+}
+
+describe('BattleScene', () => {
+  it('waits for the player to choose an action every round, even with a single enemy', () => {
+    const { internals, driver } = setup();
+    const enemy = internals.battle.enemies[0];
+    const hero = internals.battle.party[0];
+    enemy.hp = enemy.maxHp = 999;
+    hero.hp = hero.maxHp = 999;
+
+    driver.run(2);
+    expect(internals.phase).toBe('command');
+    driver.run(10);
+    expect(internals.phase).toBe('command');
+    expect(enemy.hp).toBe(999);
+
+    driver.tap('confirm');
+    expect(internals.phase).toBe('target');
+    driver.tap('confirm');
+    expect(internals.phase).toBe('events');
+
+    driver.run(5);
+    expect(internals.phase).toBe('command');
+    const hpAfterRound = enemy.hp;
+    expect(hpAfterRound).toBeLessThan(999);
+    driver.run(10);
+    expect(internals.phase).toBe('command');
+    expect(enemy.hp).toBe(hpAfterRound);
+  });
+
+  it('ignores a confirm pressed right as the command menu reappears', () => {
+    const { internals, driver } = setup();
+    const enemy = internals.battle.enemies[0];
+    enemy.hp = enemy.maxHp = 999;
+    internals.battle.party[0].hp = 999;
+    driver.run(2);
+    driver.tap('confirm');
+    driver.tap('confirm');
+    // Mash confirm through the round playback; the extra presses must not choose the next action.
+    for (let i = 0; i < 40 && internals.phase !== 'command'; i++) {
+      driver.tap('confirm');
+    }
+    expect(internals.phase).toBe('command');
+    driver.run(1);
+    expect(internals.phase).toBe('command');
+  });
+
+  it('keeps the result screen open until the player presses OK', () => {
+    const { internals, driver, onEnd } = setup();
+    internals.battle.enemies[0].hp = 1;
+    driver.run(2);
+    driver.tap('confirm');
+    driver.tap('confirm');
+    driver.run(30);
+    expect(internals.phase).toBe('end');
+    expect(onEnd).not.toHaveBeenCalled();
+
+    for (let i = 0; i < 5 && onEnd.mock.calls.length === 0; i++) {
+      driver.tap('confirm');
+      driver.run(0.3);
+    }
+    expect(onEnd).toHaveBeenCalledWith('victory');
+  });
+
+  it('can close the result screen with cancel (Esc)', () => {
+    const { internals, driver, onEnd } = setup();
+    internals.battle.enemies[0].hp = 1;
+    driver.run(2);
+    driver.tap('confirm');
+    driver.tap('confirm');
+    driver.run(30);
+    for (let i = 0; i < 5 && onEnd.mock.calls.length === 0; i++) {
+      driver.tap('cancel');
+      driver.run(0.3);
+    }
+    expect(onEnd).toHaveBeenCalledWith('victory');
+  });
+});

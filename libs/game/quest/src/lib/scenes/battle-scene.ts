@@ -43,6 +43,11 @@ interface Vitals {
 const COMMANDS = ['ATTACK', 'ABILITY', 'ITEM', 'DEFEND', 'RUN'];
 const EVENT_DELAY = 0.6;
 const MAX_LOG_LINES = 5;
+/** Ignore input briefly when the command menu reappears so text-skipping presses don't pick actions. */
+const COMMAND_INPUT_GUARD = 0.35;
+/** Result lines per page; the last row is reserved for the OK prompt. */
+const END_PAGE_LINES = 4;
+const END_INPUT_GUARD = 0.25;
 
 const SOUND_FOR: ReadonlyMap<BattleSound, SoundId> = new Map<BattleSound, SoundId>([
   ['hit', 'hit'],
@@ -75,6 +80,7 @@ export class BattleScene implements Scene {
   private queue: BattleEvent[] = [];
   private timer = 0;
   private time = 0;
+  private inputGuard = 0;
   private actorIndex = 0;
   private actions: BattleAction[] = [];
   private readonly commandMenu: ListMenu;
@@ -128,6 +134,12 @@ export class BattleScene implements Scene {
   public update(dt: number, input: InputManager): void {
     this.time += dt;
     this.flash.forEach((t, id) => (t - dt <= 0 ? this.flash.delete(id) : this.flash.set(id, t - dt)));
+    if (this.inputGuard > 0) {
+      this.inputGuard = Math.max(0, this.inputGuard - dt);
+      if (this.phase === 'command') {
+        return;
+      }
+    }
     switch (this.phase) {
       case 'intro':
         this.timer += dt;
@@ -171,6 +183,7 @@ export class BattleScene implements Scene {
     this.actions = [];
     this.actorIndex = this.battle.party.findIndex(isAlive);
     this.commandMenu.cursor = 0;
+    this.inputGuard = COMMAND_INPUT_GUARD;
     this.phase = 'command';
   }
 
@@ -284,10 +297,6 @@ export class BattleScene implements Scene {
     }
     this.targets = targets;
     this.targetCursor = 0;
-    if (targets.length === 1 && targets[0].side === 'enemy') {
-      this.confirmTarget(targets[0]);
-      return;
-    }
     this.phase = 'target';
   }
 
@@ -426,7 +435,10 @@ export class BattleScene implements Scene {
       this.state.gold += loot.gold;
       loot.items.forEach((id) => addItem(this.state, id));
     }
-    this.endLines = lines;
+    this.endLines = lines.flatMap((line) => wrapText(line, 37));
+    if (this.endLines.length > 0) {
+      this.log = [];
+    }
     this.timer = 0;
     this.phase = 'end';
     if (this.outcomeSound) {
@@ -434,26 +446,42 @@ export class BattleScene implements Scene {
     }
   }
 
+  /** True while the result screen is waiting for the player to press OK (next page or close). */
+  private get awaitingOk(): boolean {
+    return this.phase === 'end' && (this.endLines.length === 0 || this.log.length >= END_PAGE_LINES);
+  }
+
+  /**
+   * Reveals result lines a page at a time, then waits for Enter/Esc before leaving the battle.
+   * Never closes on its own so the player can read the results.
+   */
   private updateEnd(dt: number, input: InputManager): void {
     this.timer -= dt;
-    if (input.wasPressed('confirm')) {
+    const pressed = input.wasPressed('confirm') || input.wasPressed('cancel');
+    if (this.awaitingOk) {
+      if (!pressed || this.timer > -END_INPUT_GUARD) {
+        return;
+      }
+      this.ctx.audio.play('confirm');
+      if (this.endLines.length === 0) {
+        this.phase = 'events';
+        this.timer = Number.POSITIVE_INFINITY;
+        this.options.onEnd(this.battle.outcome as BattleEnd);
+        return;
+      }
+      this.log = [];
+      this.timer = 0;
+    }
+    if (pressed) {
       this.timer = Math.min(this.timer, 0);
     }
-    if (this.endLines.length > 0) {
-      if (this.timer <= 0) {
-        const line = this.endLines.shift() as string;
-        if (line.includes('level')) {
-          this.ctx.audio.play('levelUp');
-        }
-        this.addLog(line);
-        this.timer = EVENT_DELAY;
+    if (this.timer <= 0) {
+      const line = this.endLines.shift() as string;
+      if (line.includes('level')) {
+        this.ctx.audio.play('levelUp');
       }
-      return;
-    }
-    if (this.timer <= -0.2 && (input.wasPressed('confirm') || input.wasPressed('cancel') || this.timer < -1.5)) {
-      this.phase = 'events';
-      this.timer = Number.POSITIVE_INFINITY;
-      this.options.onEnd(this.battle.outcome as BattleEnd);
+      this.log.push(line);
+      this.timer = this.endLines.length > 0 && this.log.length < END_PAGE_LINES ? EVENT_DELAY : 0;
     }
   }
 
@@ -535,8 +563,13 @@ export class BattleScene implements Scene {
     }
     r.window(8, y, SCREEN_W - 16, 72);
     this.log.forEach((line, i) => r.text(line, 16, y + 8 + i * 12));
-    if (this.phase === 'end' && this.endLines.length === 0 && Math.floor(this.time * 3) % 2 === 0) {
-      drawCursor(r, SCREEN_W - 22, y + 58);
+    if (this.awaitingOk) {
+      const label = this.endLines.length > 0 ? 'NEXT' : 'OK';
+      const x = SCREEN_W - 24 - label.length * 6;
+      r.text(label, x, y + 58, COLORS.gold);
+      if (Math.floor(this.time * 3) % 2 === 0) {
+        drawCursor(r, x - 8, y + 58, COLORS.gold);
+      }
     }
   }
 }
