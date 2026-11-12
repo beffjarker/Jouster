@@ -24,7 +24,7 @@ describe('page-registry', () => {
       (url) => expect(isPrivatePath(url)).toBe(true),
     );
 
-    it.each(['/', '/about', '/interactive-playground', '/timelines', '/contact?from=timeline', '/about;ref=timeline'])(
+    it.each(['/', '/about', '/interactive-playground', '/jouster-quest', '/timelines', '/contact?from=timeline', '/about;ref=timeline'])(
       'treats %s as public',
       (url) => expect(isPrivatePath(url)).toBe(false),
     );
