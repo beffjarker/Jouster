@@ -52,7 +52,17 @@ function grass(ctx: Ctx): void {
   speckle(ctx, GRASS, [['#2f7d2f', 0.08], ['#5cbc4c', 0.06]], 1);
 }
 
-function tree(ctx: Ctx, dark = '#1d5a25', mid = '#2f7a32', light = '#4fa04a'): void {
+interface TreeColors {
+  dark: string;
+  mid: string;
+  light: string;
+}
+
+const FOREST_TREE: TreeColors = { dark: '#1d5a25', mid: '#2f7a32', light: '#4fa04a' };
+const TOWN_TREE: TreeColors = { dark: '#15451c', mid: '#25682a', light: '#3e8e3e' };
+
+/** Round broadleaf tree. */
+function tree(ctx: Ctx, { dark, mid, light }: TreeColors = FOREST_TREE): void {
   rect(ctx, 7, 11, 2, 4, '#6b4320');
   rect(ctx, 3, 3, 10, 9, dark);
   rect(ctx, 2, 5, 12, 5, dark);
@@ -63,21 +73,113 @@ function tree(ctx: Ctx, dark = '#1d5a25', mid = '#2f7a32', light = '#4fa04a'): v
   rect(ctx, 1, 13, 14, 1, 'rgba(0,0,0,0.25)');
 }
 
-function water(ctx: Ctx, frame: number, base = '#2a5fc8', wave = '#7fb0ff'): void {
+/** Three-tier conifer, lit from the left. */
+function pine(ctx: Ctx, { dark, mid, light }: TreeColors): void {
+  rect(ctx, 7, 12, 2, 3, '#5a3818');
+  const tiers: ReadonlyArray<[number, number]> = [
+    [1, 5],
+    [4, 8],
+    [7, 12],
+  ];
+  tiers.forEach(([top, bottom], t) => {
+    for (let y = top; y < bottom; y++) {
+      const half = Math.min(6, 1 + (y - top) + t);
+      rect(ctx, 8 - half, y, half, 1, mid);
+      rect(ctx, 8, y, half, 1, dark);
+      rect(ctx, 8 - half, y, 1, 1, light);
+    }
+  });
+  rect(ctx, 2, 14, 12, 1, 'rgba(0,0,0,0.25)');
+}
+
+/** Broadleaf tree with fruit and a forked trunk. */
+function fruitTree(ctx: Ctx, colors: TreeColors): void {
+  tree(ctx, colors);
+  rect(ctx, 6, 11, 1, 2, '#6b4320');
+  rect(ctx, 9, 11, 1, 2, '#6b4320');
+  const fruit: ReadonlyArray<[number, number]> = [
+    [5, 7],
+    [9, 4],
+    [11, 7],
+    [7, 9],
+  ];
+  fruit.forEach(([x, y]) => rect(ctx, x, y, 1, 1, '#d03a2a'));
+}
+
+function treeVariant(ctx: Ctx, variant: number, colors: TreeColors): void {
+  if (variant === 1) {
+    pine(ctx, colors);
+  } else if (variant === 2) {
+    fruitTree(ctx, colors);
+  } else {
+    tree(ctx, colors);
+  }
+}
+
+function water(ctx: Ctx, frame: number, base = '#2a5fc8', wave = '#7fb0ff', phase = 0): void {
   rect(ctx, 0, 0, TILE, TILE, base);
   for (let y = 2; y < TILE; y += 5) {
-    const off = (y * 3 + frame * 4) % TILE;
+    const off = (y * 3 + frame * 4 + phase) % TILE;
     rect(ctx, off, y, 4, 1, wave);
     rect(ctx, (off + 9) % TILE, y + 2, 3, 1, wave);
   }
 }
 
-function mountain(ctx: Ctx): void {
+/** Water tile: plain, with a lily pad, or with a rock breaking the surface. */
+function waterVariant(ctx: Ctx, frame: number, variant: number): void {
+  water(ctx, frame, '#2a5fc8', '#7fb0ff', variant * 5);
+  if (variant === 1) {
+    rect(ctx, 4, 5, 5, 3, '#3a8a3a');
+    rect(ctx, 5, 4, 3, 1, '#3a8a3a');
+    rect(ctx, 6, 6, 1, 2, '#2a5fc8');
+    rect(ctx, 5, 5, 1, 1, '#6cc05a');
+    rect(ctx, 10, 10, 2, 2, '#f0c0d8');
+  } else if (variant === 2) {
+    rect(ctx, 8, 8, 5, 3, '#6a6a72');
+    rect(ctx, 9, 7, 3, 1, '#8a8a92');
+    rect(ctx, 9, 8, 2, 1, '#a8a8b0');
+    rect(ctx, 7, 11, 7, 1, '#b8d8ff');
+  }
+}
+
+/** Underground water: plain, offset ripples, or a stalagmite rising out of it. */
+function caveWaterVariant(ctx: Ctx, frame: number, variant: number): void {
+  water(ctx, frame, '#1a3a7a', '#4a70b0', variant * 6);
+  if (variant === 2) {
+    rect(ctx, 6, 5, 4, 7, '#4a3c36');
+    rect(ctx, 7, 3, 2, 2, '#4a3c36');
+    rect(ctx, 6, 5, 1, 7, '#6a5a50');
+    rect(ctx, 5, 12, 6, 1, '#6a90c8');
+  }
+}
+
+/** One triangular peak; the left face is lit and the top `snow` rows are snow-capped. */
+function peak(ctx: Ctx, cx: number, top: number, slope: number, snow: number, rock: [string, string]): void {
+  for (let y = top; y < 15; y++) {
+    const half = Math.max(1, Math.floor((y - top + 1) * slope));
+    const snowy = y < top + snow;
+    rect(ctx, cx - half, y, half, 1, snowy ? '#f0f0f0' : rock[0]);
+    rect(ctx, cx, y, half, 1, snowy ? '#c8c8d8' : rock[1]);
+  }
+}
+
+/** Mountain tile: tall snowy peak, twin peaks, or a low bare crag with a boulder. */
+function mountain(ctx: Ctx, variant = 0): void {
   grass(ctx);
-  for (let y = 1; y < 15; y++) {
-    const half = Math.floor((y + 1) / 2);
-    rect(ctx, 8 - half, y, half * 2, 1, y < 5 ? '#f0f0f0' : '#8a8478');
-    rect(ctx, 8, y, half, 1, y < 5 ? '#c8c8d8' : '#635e55');
+  const grey: [string, string] = ['#8a8478', '#635e55'];
+  if (variant === 1) {
+    peak(ctx, 11, 2, 0.5, 3, grey);
+    peak(ctx, 5, 5, 0.5, 2, ['#958e80', '#6c665c']);
+  } else if (variant === 2) {
+    const brown: [string, string] = ['#8a7a64', '#5e5244'];
+    peak(ctx, 8, 4, 0.7, 0, brown);
+    rect(ctx, 6, 8, 1, 3, '#433a30');
+    rect(ctx, 7, 10, 1, 2, '#433a30');
+    rect(ctx, 10, 7, 1, 2, '#433a30');
+    rect(ctx, 1, 12, 4, 3, '#7a7268');
+    rect(ctx, 2, 11, 2, 1, '#9a9288');
+  } else {
+    peak(ctx, 8, 1, 0.5, 4, grey);
   }
   rect(ctx, 0, 15, 16, 1, '#4a463f');
 }
@@ -103,6 +205,53 @@ function bricks(ctx: Ctx, base: string, line: string): void {
     for (let x = off; x < TILE; x += 8) {
       rect(ctx, x, y, 1, 3, line);
     }
+  }
+}
+
+/** Town wall: grey brick, rough fieldstone blocks, or moss-covered brick. */
+function wallVariant(ctx: Ctx, variant: number): void {
+  if (variant === 1) {
+    rect(ctx, 0, 0, TILE, TILE, '#5e5a52');
+    const stones: ReadonlyArray<[number, number, number, number, string]> = [
+      [0, 0, 7, 5, '#8a857a'],
+      [8, 0, 8, 4, '#968f82'],
+      [0, 6, 4, 4, '#7e796e'],
+      [5, 5, 6, 5, '#928b7e'],
+      [12, 5, 4, 5, '#857f74'],
+      [0, 11, 9, 5, '#8c867a'],
+      [10, 11, 6, 5, '#7a756a'],
+    ];
+    stones.forEach(([x, y, w, h, color]) => {
+      rect(ctx, x, y, w, h, color);
+      rect(ctx, x, y, w, 1, '#aaa496');
+    });
+  } else if (variant === 2) {
+    bricks(ctx, '#84889a', '#565a6a');
+    rect(ctx, 0, 12, 16, 4, '#4a7a3a');
+    rect(ctx, 2, 10, 3, 2, '#4a7a3a');
+    rect(ctx, 9, 9, 2, 3, '#4a7a3a');
+    rect(ctx, 13, 11, 2, 1, '#4a7a3a');
+    rect(ctx, 3, 13, 2, 1, '#6aa050');
+    rect(ctx, 11, 14, 3, 1, '#6aa050');
+  } else {
+    bricks(ctx, '#8a8a9a', '#5a5a6a');
+  }
+}
+
+/** Cave rock: plain stone, a boulder, or a crystal-veined wall. */
+function rockVariant(ctx: Ctx, variant: number): void {
+  speckle(ctx, '#3a2e2c', [['#55443e', 0.18], ['#241c1a', 0.1]], 5 + variant);
+  if (variant === 1) {
+    rect(ctx, 3, 5, 10, 8, '#5a4a44');
+    rect(ctx, 4, 4, 8, 1, '#5a4a44');
+    rect(ctx, 4, 5, 4, 3, '#76645c');
+    rect(ctx, 3, 13, 10, 1, '#1a1412');
+  } else if (variant === 2) {
+    rect(ctx, 2, 3, 1, 3, '#5ac8d8');
+    rect(ctx, 3, 5, 1, 2, '#5ac8d8');
+    rect(ctx, 10, 9, 1, 4, '#8a6ae0');
+    rect(ctx, 11, 8, 1, 2, '#b8a0ff');
+    rect(ctx, 6, 12, 2, 1, '#5ac8d8');
   }
 }
 
@@ -159,7 +308,7 @@ function fountain(ctx: Ctx, frame: number): void {
   rect(ctx, 9 - frame, 9, 2, 1, '#b0d8ff');
 }
 
-type TileDrawer = (ctx: Ctx, frame: number) => void;
+type TileDrawer = (ctx: Ctx, frame: number, variant: number) => void;
 
 const TILE_DRAWERS: ReadonlyMap<string, TileDrawer> = new Map<string, TileDrawer>([
   ['grass', (c) => grass(c)],
@@ -167,21 +316,21 @@ const TILE_DRAWERS: ReadonlyMap<string, TileDrawer> = new Map<string, TileDrawer
   ['road', (c) => speckle(c, '#c8a165', [['#a98450', 0.12], ['#dcbc84', 0.05]], 4)],
   [
     'forest',
-    (c) => {
+    (c, _f, v) => {
       grass(c);
-      tree(c);
+      treeVariant(c, v, FOREST_TREE);
     },
   ],
   [
     'tree',
-    (c) => {
+    (c, _f, v) => {
       speckle(c, '#48a648', [['#3a8a3a', 0.07]], 2);
-      tree(c, '#15451c', '#25682a', '#3e8e3e');
+      treeVariant(c, v, TOWN_TREE);
     },
   ],
   ['hills', (c) => hills(c)],
-  ['mountain', (c) => mountain(c)],
-  ['water', (c, f) => water(c, f)],
+  ['mountain', (c, _f, v) => mountain(c, v)],
+  ['water', (c, f, v) => waterVariant(c, f, v)],
   [
     'bridge',
     (c, f) => {
@@ -197,7 +346,7 @@ const TILE_DRAWERS: ReadonlyMap<string, TileDrawer> = new Map<string, TileDrawer
   ['town', (c) => town(c)],
   ['caveEntrance', (c) => caveEntrance(c)],
   ['ruins', (c) => ruins(c)],
-  ['wall', (c) => bricks(c, '#8a8a9a', '#5a5a6a')],
+  ['wall', (c, _f, v) => wallVariant(c, v)],
   ['cobble', (c) => cobble(c)],
   [
     'carpet',
@@ -217,9 +366,9 @@ const TILE_DRAWERS: ReadonlyMap<string, TileDrawer> = new Map<string, TileDrawer
     },
   ],
   ['fountain', (c, f) => fountain(c, f)],
-  ['rock', (c) => speckle(c, '#3a2e2c', [['#55443e', 0.18], ['#241c1a', 0.1]], 5)],
+  ['rock', (c, _f, v) => rockVariant(c, v)],
   ['caveFloor', (c) => speckle(c, '#6a5a4a', [['#5a4a3c', 0.14], ['#7d6c5a', 0.06]], 6)],
-  ['caveWater', (c, f) => water(c, f, '#1a3a7a', '#4a70b0')],
+  ['caveWater', (c, f, v) => caveWaterVariant(c, f, v)],
   [
     'caveExit',
     (c) => {
@@ -481,6 +630,32 @@ const MONSTER_SHAPE: ReadonlyMap<string, string> = new Map([
   ['goblinChief', 'goblinKing'],
 ]);
 
+/** Number of art variants for tiles that have more than one look (all solid landscape tiles). */
+export const TILE_VARIANT_COUNTS: ReadonlyMap<string, number> = new Map<string, number>([
+  ['mountain', 3],
+  ['forest', 3],
+  ['tree', 3],
+  ['wall', 3],
+  ['rock', 3],
+  ['water', 3],
+  ['caveWater', 3],
+]);
+
+/**
+ * Deterministic pseudo-random variant for the tile at (x, y) on `mapId`, so the same spot
+ * always looks the same across frames, reloads and saves without touching the game RNG.
+ */
+export function tileVariant(mapId: string, tileId: string, x: number, y: number): number {
+  const count = TILE_VARIANT_COUNTS.get(tileId) ?? 1;
+  if (count <= 1) {
+    return 0;
+  }
+  let h = hashSeed(mapId) ^ Math.imul(x + 1, 374761393) ^ Math.imul(y + 1, 668265263);
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  h ^= h >>> 16;
+  return (h >>> 0) % count;
+}
+
 function hashSeed(id: string): number {
   let h = 7;
   for (const ch of id) {
@@ -519,21 +694,23 @@ function hiResTile(low: HTMLCanvasElement, seed: number): HTMLCanvasElement {
 export class Art {
   private readonly cache = new Map<string, HTMLCanvasElement>();
 
-  public tile(id: string, frame = 0): HTMLCanvasElement {
+  /** Tile art; `variant` (see {@link tileVariant}) picks an alternate look where one exists. */
+  public tile(id: string, frame = 0, variant = 0): HTMLCanvasElement {
     const animated = id === 'water' || id === 'bridge' || id === 'caveWater' || id === 'fountain';
     const f = animated ? frame % 2 : 0;
-    return this.cached(`tile:${id}:${f}`, () => {
+    const v = variant % (TILE_VARIANT_COUNTS.get(id) ?? 1);
+    return this.cached(`tile:${id}:${f}:${v}`, () => {
       const canvas = createCanvas(TILE, TILE);
       const ctx = canvas.getContext('2d');
       const drawer = TILE_DRAWERS.get(id);
       if (ctx) {
         if (drawer) {
-          drawer(ctx, f);
+          drawer(ctx, f, v);
         } else {
           rect(ctx, 0, 0, TILE, TILE, '#ff00ff');
         }
       }
-      return hiResTile(canvas, hashSeed(id));
+      return hiResTile(canvas, hashSeed(id) + v * 101);
     });
   }
 
