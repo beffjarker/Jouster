@@ -4,6 +4,7 @@ import { MapDef, mapDef } from '../data/maps';
 import { LANDMARKS } from '../data/overworld-gen';
 import { GameState } from '../state/game-state';
 import { isExplored } from '../state/fog';
+import { SEASON_NAMES, WEATHER, currentWeather, seasonAt } from '../state/weather';
 import { COLORS, SCREEN_H, SCREEN_W } from '../ui/widgets';
 import { GameContext, requireState } from './context';
 
@@ -28,6 +29,7 @@ const TILE_COLORS: Readonly<Record<string, string>> = {
   counter: '#6a4020',
   fountain: '#4a8ae0',
   rock: '#4a4048',
+  torch: '#e8841c',
   caveFloor: '#8a7a6a',
   caveWater: '#2a4a8a',
   caveExit: '#e0c040',
@@ -187,13 +189,18 @@ export class MapScene implements Scene {
     const width = Math.floor((SCREEN_W - x - 20) / 6);
     for (const line of questLog(this.state)) {
       for (const part of wrapText(line, width)) {
-        if (y > SCREEN_H - 30) {
+        if (y > SCREEN_H - 40) {
           break;
         }
         r.text(part, x + 8, y, COLORS.dim);
         y += 9;
       }
     }
+    const sky =
+      this.map.backdrop === 'cave'
+        ? 'UNDERGROUND'
+        : `${SEASON_NAMES[seasonAt(this.state.steps)]} - ${WEATHER[currentWeather(this.state)].name}`.toUpperCase();
+    r.text(sky, x + 8, SCREEN_H - 29, COLORS.gold);
     r.text('M / X: CLOSE', x + 8, SCREEN_H - 18, COLORS.dim);
   }
 

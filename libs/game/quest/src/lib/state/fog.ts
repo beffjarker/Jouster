@@ -1,9 +1,14 @@
 import { GameState } from './game-state';
+import { SUNNY_SIGHT_RADIUS } from './weather';
 
-/** How many tiles around the party are revealed in the open wilds. */
-export const FOG_RADIUS = 4;
-/** Caves are darker: the party sees one tile less. */
-export const CAVE_FOG_RADIUS = FOG_RADIUS - 1;
+/** How many tiles around the party are revealed in the open wilds on a sunny day (see `weather.ts`). */
+export const FOG_RADIUS = SUNNY_SIGHT_RADIUS;
+/** Caves are dark and have no weather: the party always sees this far underground. */
+export const CAVE_FOG_RADIUS = 3;
+/** Extra sight in a cave while a wall torch is nearby. */
+export const TORCH_SIGHT_BONUS = 1;
+/** A wall torch lights the cave within this many tiles. */
+export const TORCH_LIGHT_RADIUS = 3;
 
 const WORD_BITS = 32;
 
