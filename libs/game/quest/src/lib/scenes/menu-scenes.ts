@@ -1,5 +1,5 @@
 import { TILE, fitScale } from '../art/art';
-import { InputManager, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
+import { InputAction, InputManager, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { classDef } from '../data/classes';
 import { ITEMS, WEAPONS } from '../data/equipment';
@@ -71,7 +71,10 @@ const SUB_W = Math.min(220, SCREEN_W - SUB_X - 8);
 /** Characters that fit on one line of the shop's description window. */
 const SHOP_CHARS = charsFit(SCREEN_W - 32);
 
-/** Field menu (X / Esc, or I / E straight to ITEM / EQUIP): status, items, equipment and healing magic. */
+/**
+ * Field menu (X / Esc, or I / E straight to ITEM / EQUIP): status, items, equipment and healing magic.
+ * The key that opened it closes it again from any submenu (X / Esc still steps back one level, as everywhere).
+ */
 export class FieldMenuScene implements Scene {
   public readonly id = 'field-menu';
   public readonly overlay = true;
@@ -84,9 +87,12 @@ export class FieldMenuScene implements Scene {
   private spellId = '';
   private slot: GearSlot = 'weapon';
   private subIds: string[] = [];
+  /** Action that opened the menu and closes it again (`cancel` already backs out level by level). */
+  private readonly opener: InputAction | null;
 
   constructor(private readonly ctx: GameContext, open?: 'item' | 'equip') {
     this.state = requireState(ctx);
+    this.opener = open === 'item' ? 'items' : open === 'equip' ? 'equip' : null;
     this.main = new ListMenu(MAIN_MENU.map((label) => ({ label })), ctx.audio);
     if (open === 'item') {
       this.main.cursor = MAIN_MENU.indexOf('ITEM');
@@ -100,6 +106,12 @@ export class FieldMenuScene implements Scene {
   }
 
   public update(_dt: number, input: InputManager): void {
+    // On a status page E means "equip this member", so it does not close the menu there.
+    if (this.opener && input.wasPressed(this.opener) && !(this.mode === 'status' && this.opener === 'equip')) {
+      this.ctx.audio.play('cancel');
+      this.ctx.stack.pop();
+      return;
+    }
     if (this.mode === 'main') {
       const res = this.main.update(input);
       const entry = res?.kind === 'select' ? MAIN_MENU[res.index] : undefined;
