@@ -1032,6 +1032,36 @@ compared in the browser before committing to the rest.
 - **Process:** any revision that adds or changes a key updates `CONTROLS` and section 3 "Input" in the same
   commit (added to the work breakdown checklist below).
 
+### 16.5 Option: isometric view (evaluated, not committed to)
+
+**Question:** switch the world view from top-down to isometric (diamond tiles), using isometric asset packs.
+
+**What stays the same:** maps, collision, movement, encounters, fog *data*, weather *data* and saves all use grid
+coordinates, so the game logic is unchanged. Battles (side view), menus, shops and the title screen are
+unaffected.
+
+**What changes:**
+
+| Area | Work |
+| --- | --- |
+| Projection | World renderer maps grid (x, y) to screen ((x − y)·w/2, (x + y)·h/2); camera follows the projected leader |
+| Depth sorting | Tall tiles (trees, walls, mountains, signs) are sorted together with characters by (x + y) so the party can walk behind buildings; today tiles draw first, then sprites |
+| Controls | Arrow keys point along diamond diagonals on screen; either rotate input 45° (up = north-east) or accept "screen-diagonal" movement; needs play-testing |
+| Fog, weather, signs, map overlay, quest pins | Redrawn in diamond shape / projected positions; world map overlay can stay top-down |
+| Viewport | 384×216 shows fewer iso tiles; sight radius (sunny 8) and camera need retuning |
+| Art | Every tile and character needs an isometric version with 4 diagonal facings; the procedural top-down art cannot be reused, so there is no fallback per tile |
+| Tests | Projection round-trip, depth-order and input-mapping tests; scene tests mostly unchanged |
+
+**Style risk (main concern):** Kenney's isometric packs are mostly smooth 3D-rendered art, not pixel art, which
+moves away from the 16–32-bit Dragon Warrior / Zelda look in section 1 and toward a Final Fantasy Tactics feel.
+Pixel-art CC0 isometric sets exist (e.g. Screaming Brain Studios on OpenGameArt) but their coverage of towns,
+caves, characters and monsters must be checked first.
+
+**Effort:** ~2–3 weeks (vs ~1–1.5 for the top-down Kenney swap), mostly in rendering, depth sorting and art.
+
+**Decision:** not started. Do the top-down Kenney tile spike first; then, if wanted, a **one-map isometric
+prototype** (Aldmere only, behind `?view=iso`) so both looks can be compared in the browser before committing.
+
 ### 16.4 Work breakdown
 
 1. Plan update (this section) — done first, before any code.
@@ -1039,4 +1069,6 @@ compared in the browser before committing to the rest.
 3. Companion level 1 / party-only XP, save v4 migration and simulator checks (16.1).
 4. Art spike (16.2): add Kenney Tiny Town / Tiny Dungeon sheets and `CREDITS.md`; swap tiles behind an `?art=`
    toggle with procedural fallback; owner reviews screenshots before characters and monsters are converted.
-5. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
+5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the Kenney
+   spike review.
+6. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
