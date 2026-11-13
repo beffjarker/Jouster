@@ -11,6 +11,7 @@ import {
   scale2xPixels,
   setImageDensity,
 } from '@jouster/game/engine';
+import { LPC_CELL, LPC_TILES, LpcSheetId, lpcGroundCell } from './lpc-manifest';
 
 /** Logical tile size. Art is rendered at 2x density (32x32 real pixels per tile). */
 export const TILE = 16;
@@ -164,8 +165,10 @@ function peak(ctx: Ctx, cx: number, top: number, slope: number, snow: number, ro
 }
 
 /** Mountain tile: tall snowy peak, twin peaks, or a low bare crag with a boulder. */
-function mountain(ctx: Ctx, variant = 0): void {
-  grass(ctx);
+function mountain(ctx: Ctx, variant = 0, ground = true): void {
+  if (ground) {
+    grass(ctx);
+  }
   const grey: [string, string] = ['#8a8478', '#635e55'];
   if (variant === 1) {
     peak(ctx, 11, 2, 0.5, 3, grey);
@@ -184,8 +187,10 @@ function mountain(ctx: Ctx, variant = 0): void {
   rect(ctx, 0, 15, 16, 1, '#4a463f');
 }
 
-function hills(ctx: Ctx): void {
-  grass(ctx);
+function hills(ctx: Ctx, ground = true): void {
+  if (ground) {
+    grass(ctx);
+  }
   const mound = (cx: number, cy: number, w: number): void => {
     for (let i = 0; i < 4; i++) {
       const ww = w - i * 2;
@@ -243,8 +248,10 @@ function rockVariant(ctx: Ctx, variant: number): void {
 }
 
 /** Cave wall with a lit torch in an iron bracket; the flame flickers between two frames. */
-function torch(ctx: Ctx, frame: number): void {
-  rockVariant(ctx, 0);
+function torch(ctx: Ctx, frame: number, ground = true): void {
+  if (ground) {
+    rockVariant(ctx, 0);
+  }
   rect(ctx, 5, 4, 6, 8, 'rgba(255,170,60,0.18)');
   rect(ctx, 7, 8, 2, 5, '#5a3a1a');
   rect(ctx, 6, 8, 4, 1, '#3a3a40');
@@ -270,8 +277,10 @@ function planks(ctx: Ctx, base: string, line: string): void {
   rect(ctx, 13, 12, 1, 3, line);
 }
 
-function town(ctx: Ctx): void {
-  grass(ctx);
+function town(ctx: Ctx, ground = true): void {
+  if (ground) {
+    grass(ctx);
+  }
   const house = (x: number, y: number, roof: string): void => {
     rect(ctx, x, y + 3, 6, 4, '#e8d8b0');
     for (let i = 0; i < 3; i++) {
@@ -284,14 +293,16 @@ function town(ctx: Ctx): void {
   house(5, 8, '#c0392b');
 }
 
-function caveEntrance(ctx: Ctx): void {
-  mountain(ctx);
+function caveEntrance(ctx: Ctx, ground = true): void {
+  mountain(ctx, 0, ground);
   rect(ctx, 5, 8, 6, 7, '#101010');
   rect(ctx, 6, 7, 4, 1, '#101010');
 }
 
-function ruins(ctx: Ctx): void {
-  speckle(ctx, '#4a6a3a', [['#2a2a2a', 0.15], ['#6a5a3a', 0.08]], 3);
+function ruins(ctx: Ctx, ground = true): void {
+  if (ground) {
+    speckle(ctx, '#4a6a3a', [['#2a2a2a', 0.15], ['#6a5a3a', 0.08]], 3);
+  }
   rect(ctx, 2, 4, 2, 8, '#8a8a8a');
   rect(ctx, 2, 4, 5, 2, '#8a8a8a');
   rect(ctx, 10, 6, 2, 7, '#7a7a7a');
@@ -300,12 +311,28 @@ function ruins(ctx: Ctx): void {
   rect(ctx, 7, 10, 1, 1, '#ffd040');
 }
 
-function fountain(ctx: Ctx, frame: number): void {
-  cobble(ctx);
+function fountain(ctx: Ctx, frame: number, ground = true): void {
+  if (ground) {
+    cobble(ctx);
+  }
   rect(ctx, 1, 1, 14, 14, '#7a7a8a');
   rect(ctx, 3, 3, 10, 10, '#3a7ae0');
   rect(ctx, 6 + frame, 6, 2, 2, '#b0d8ff');
   rect(ctx, 9 - frame, 9, 2, 1, '#b0d8ff');
+}
+
+function bridgeDeck(c: Ctx): void {
+  rect(c, 0, 2, 16, 12, '#a0703a');
+  for (let x = 3; x < 16; x += 4) {
+    rect(c, x, 2, 1, 12, '#6a4520');
+  }
+  rect(c, 0, 2, 16, 1, '#5a3a1a');
+  rect(c, 0, 13, 16, 1, '#5a3a1a');
+}
+
+function caveExitGlow(c: Ctx): void {
+  rect(c, 3, 3, 10, 10, '#d8c890');
+  rect(c, 5, 5, 6, 6, '#fff8d0');
 }
 
 type TileDrawer = (ctx: Ctx, frame: number, variant: number) => void;
@@ -335,12 +362,7 @@ const TILE_DRAWERS: ReadonlyMap<string, TileDrawer> = new Map<string, TileDrawer
     'bridge',
     (c, f) => {
       water(c, f);
-      rect(c, 0, 2, 16, 12, '#a0703a');
-      for (let x = 3; x < 16; x += 4) {
-        rect(c, x, 2, 1, 12, '#6a4520');
-      }
-      rect(c, 0, 2, 16, 1, '#5a3a1a');
-      rect(c, 0, 13, 16, 1, '#5a3a1a');
+      bridgeDeck(c);
     },
   ],
   ['town', (c) => town(c)],
@@ -374,10 +396,27 @@ const TILE_DRAWERS: ReadonlyMap<string, TileDrawer> = new Map<string, TileDrawer
     'caveExit',
     (c) => {
       speckle(c, '#6a5a4a', [['#5a4a3c', 0.14]], 6);
-      rect(c, 3, 3, 10, 10, '#d8c890');
-      rect(c, 5, 5, 6, 6, '#fff8d0');
+      caveExitGlow(c);
     },
   ],
+]);
+
+/**
+ * Object layers drawn (transparent background) over sheet ground art, for tiles whose object is
+ * not converted to sheet art yet. Tiles not listed here are ground only when sheet art is used.
+ */
+const OVERLAY_DRAWERS: ReadonlyMap<string, TileDrawer> = new Map<string, TileDrawer>([
+  ['forest', (c, _f, v) => treeVariant(c, v, FOREST_TREE)],
+  ['tree', (c, _f, v) => treeVariant(c, v, TOWN_TREE)],
+  ['hills', (c) => hills(c, false)],
+  ['mountain', (c, _f, v) => mountain(c, v, false)],
+  ['town', (c) => town(c, false)],
+  ['caveEntrance', (c) => caveEntrance(c, false)],
+  ['ruins', (c) => ruins(c, false)],
+  ['bridge', (c) => bridgeDeck(c)],
+  ['fountain', (c, f) => fountain(c, f, false)],
+  ['torch', (c, f) => torch(c, f, false)],
+  ['caveExit', (c) => caveExitGlow(c)],
 ]);
 
 /** Look of a humanoid sprite (heroes, companions and townsfolk). */
@@ -841,15 +880,52 @@ export function drawSign(ctx: Ctx, kind: string): void {
   (SIGN_ICONS.get(kind) ?? SIGN_ICONS.get('item') as SignIcon)(ctx);
 }
 
-/** Lazily rendered and cached 2x-density art (tiles, humanoid sprites, monster sprites). */
+/** Loaded art sheets (LPC atlases) by id; see `loadLpcSheets`. */
+export type ArtSheets = ReadonlyMap<LpcSheetId, CanvasImageSource>;
+
+/** Art style toggle (`?art=` on the page): procedural only, or LPC sheets with procedural fallback. */
+export type ArtStyle = 'classic' | 'lpc';
+
+/**
+ * Lazily rendered and cached 2x-density art (tiles, humanoid sprites, monster sprites).
+ * With sheets (see {@link useSheets}) tiles listed in `LPC_TILES` use LPC ground art drawn 1:1,
+ * with any not-yet-converted object drawn procedurally on top; everything else stays procedural.
+ */
 export class Art {
   private readonly cache = new Map<string, HTMLCanvasElement>();
+  private sheets: ArtSheets | null = null;
 
-  /** Tile art; `variant` (see {@link tileVariant}) picks an alternate look where one exists. */
-  public tile(id: string, frame = 0, variant = 0): HTMLCanvasElement {
+  constructor(sheets?: ArtSheets) {
+    this.sheets = sheets ?? null;
+  }
+
+  /** Which style is in use right now. */
+  public get style(): ArtStyle {
+    return this.sheets ? 'lpc' : 'classic';
+  }
+
+  /** Switches to sheet art (or back to procedural with `null`) and drops cached art. */
+  public useSheets(sheets: ArtSheets | null): void {
+    this.sheets = sheets;
+    this.cache.clear();
+  }
+
+  /**
+   * Tile art; `variant` (see {@link tileVariant}) picks an alternate look where one exists, and
+   * `ground` (see `groundVariant`) picks among look-alike sheet ground cells.
+   */
+  public tile(id: string, frame = 0, variant = 0, ground = 0): HTMLCanvasElement {
     const animated = ANIMATED_TILES.has(id);
     const f = animated ? frame % 2 : 0;
     const v = variant % (TILE_VARIANT_COUNTS.get(id) ?? 1);
+    const lpc = this.sheets ? LPC_TILES.get(id) : undefined;
+    if (lpc && this.sheets) {
+      const sheets = this.sheets;
+      const cell = lpcGroundCell(lpc, ground, f);
+      return this.cached(`lpc:${id}:${f}:${v}:${cell.sheet}:${cell.col}:${cell.row}`, () =>
+        this.sheetTile(sheets, id, cell.sheet, cell.col, cell.row, f, v),
+      );
+    }
     return this.cached(`tile:${id}:${f}:${v}`, () => {
       const canvas = createCanvas(TILE, TILE);
       const ctx = canvas.getContext('2d');
@@ -905,6 +981,26 @@ export class Art {
       }
       return hiResSprite(canvas);
     });
+  }
+
+  private sheetTile(sheets: ArtSheets, id: string, sheet: LpcSheetId, col: number, row: number, f: number, v: number): HTMLCanvasElement {
+    const canvas = createCanvas(TILE * 2, TILE * 2);
+    const ctx = canvas.getContext('2d');
+    const image = sheets.get(sheet);
+    if (ctx && image) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, col * LPC_CELL, row * LPC_CELL, LPC_CELL, LPC_CELL, 0, 0, LPC_CELL, LPC_CELL);
+      const overlay = OVERLAY_DRAWERS.get(id);
+      if (overlay) {
+        const low = createCanvas(TILE, TILE);
+        const lowCtx = low.getContext('2d');
+        if (lowCtx) {
+          overlay(lowCtx, f, v);
+          ctx.drawImage(hiResTile(low, hashSeed(id) + v * 101), 0, 0);
+        }
+      }
+    }
+    return setImageDensity(canvas, 2);
   }
 
   private cached(key: string, build: () => HTMLCanvasElement): HTMLCanvasElement {

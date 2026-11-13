@@ -10,6 +10,7 @@ import {
   scaledEncounterRate,
 } from '@jouster/game/engine';
 import { TILE, tileVariant } from '../art/art';
+import { groundVariant } from '../art/lpc-manifest';
 import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
@@ -251,7 +252,7 @@ export class WorldScene implements Scene {
         const ch = this.tiles.charAt(tx, ty);
         const id = ch === undefined ? outside : this.tileIds.get(ch) ?? outside;
         const variant = tileVariant(this.map.id, id, tx, ty);
-        r.draw(this.ctx.art.tile(id, frame, variant), tx * TILE - camX, ty * TILE - camY);
+        r.draw(this.ctx.art.tile(id, frame, variant, groundVariant(tx, ty)), tx * TILE - camX, ty * TILE - camY);
       }
     }
     if (this.outdoors) {

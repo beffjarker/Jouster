@@ -908,10 +908,10 @@ replacing inns, Herbs or Heal. The Cleric recovers fastest, the Paladin in betwe
 
 ---
 
-## 16. Revision 5 (planned — not implemented yet)
+## 16. Revision 5 (implemented; art beyond tiles awaits review)
 
 Three requests after revision 4, plus the art and view follow-ups. Status per subsection: 16.3, 16.1 and 16.6
-are implemented; the rest is the agreed plan.
+are implemented; the 16.2 tile spike is in, behind `?art=lpc`; characters, monsters and 16.5 wait for review.
 
 ### 16.1 Companions start low and level only in the party (implemented)
 
@@ -1072,6 +1072,18 @@ and record their credits, then a spike swaps only the overworld and town tiles b
 `?art=classic|lpc|kenney` toggle, so the looks can be compared in the browser before converting characters and
 monsters.
 
+**Spike, as built (tiles only):**
+
+- `public/game-assets/lpc/` holds the unmodified LPC Tile Atlas (`terrain_atlas.png`, `base_out_atlas.png`, the
+  original `Attribution.txt`) and a `CREDITS.md` (authors, CC-BY-SA 3.0 / GPL 3.0, source URL).
+- `art/lpc-manifest.ts` maps tile ids to 32 px sheet cells (2 or 3 look-alike ground cells each, chosen by
+  `groundVariant(x, y)`; water cycles cells to animate). Objects (trees, mountains, towns, cave mouths, torches,
+  bridges, fountains) are still our procedural art, drawn over the sheet ground.
+- Loading is **non-blocking** instead of a loading screen: `?art=lpc` starts the game with procedural art and
+  swaps tiles in once both sheets load (`loadLpcSheets` + `Art.useSheets`); a failed load keeps procedural art.
+- `?art=kenney` is not offered (Kenney packs are not downloaded). Default stays `classic` until the owner
+  reviews; tests cover cell bounds, credits for every sheet, the loader and the style switch.
+
 ### 16.3 Keep the jouster-ui control list in sync
 
 **Problem:** the controls list on the `/jouster-quest` page is hand-written HTML, so new keys can be forgotten
@@ -1188,7 +1200,8 @@ avoids laying out sprites twice.
    camera centring for small maps; screenshots of every scene reviewed. Done.
 4. Art spike (16.2): add LPC base / Tile Atlas sheets and `CREDITS.md`; swap tiles behind an `?art=` toggle
    (LPC → Kenney → procedural fallback); owner reviews screenshots before characters (character generator) and
-   monsters are converted, and decides on the optional 480×270 viewport.
+   monsters are converted, and decides on the optional 480×270 viewport. Tile spike done behind `?art=lpc`
+   (non-blocking load, no Kenney yet); **waiting for owner review**.
 5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the LPC
    spike review.
 6. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
