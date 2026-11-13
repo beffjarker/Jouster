@@ -912,7 +912,7 @@ replacing inns, Herbs or Heal. The Cleric recovers fastest, the Paladin in betwe
 
 Three requests after revision 4, plus the art and view follow-ups. Status per subsection: 16.3, 16.1 and 16.6
 are implemented; 16.2 LPC tiles, characters and most monsters are in and LPC is the default art (16.7);
-16.5 is not started.
+16.8 redraws the original (`?art=classic`) art natively at LPC density; 16.5 is not started.
 
 ### 16.1 Companions start low and level only in the party (implemented)
 
@@ -1208,6 +1208,7 @@ avoids laying out sprites twice.
    (non-blocking load, no Kenney yet); reviewed and approved by the owner.
 4b. LPC characters and monsters (16.7): build script, generated sheets and layout, credits, sprite anchoring,
    LPC as default. Done.
+4b2. HD procedural art (16.8): original art redrawn natively at 2? density. Done.
 4c. Next: LPC objects (trees, mountains, town and cave markers), art for wolf / alpha wolf / giant toad,
    attack and cast animations from the ULPC slash / spellcast rows, animated slime and bat frames.
 5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the LPC
@@ -1240,3 +1241,29 @@ avoids laying out sprites twice.
 - **Tests:** every humanoid look has a row, every converted monster has all of its variants (and no extra ones),
   every cell is inside the shipped PNGs, credits list the sheets, anchor / fit helpers, sheet vs procedural
   fallback, and the `?art=` switch.
+
+### 16.8 HD procedural art at LPC density (implemented)
+
+Goal: the original procedural art should be as pixel dense and detailed as the LPC art, instead of 16 px art
+upscaled by EPX.
+
+- **Toolkit:** `art/hd-paint.ts` is a small pure raster painter (`Paint`): shapes (ellipse, box, polygon,
+  segment, union / cut / clip), shaded fills with a light direction, sphere shading, rim shade, ordered dither and
+  value noise, plus `outline()` (dark, hue-matched selective outline) and `mirror()`. `tone(colour, k)` builds
+  hue-shifted ramps: shadows shift cooler, highlights warmer, like hand-made pixel art.
+- **Tiles** (`art/hd-tiles.ts`): every tile is painted natively at 32?32 real pixels (density 2) with
+  3?5 shade ramps, texture noise and per-variant detail; water and lava keep their animation frames.
+  Objects (trees, rocks, signs, markers) are separate layers with outlines, so LPC mode can draw them over
+  LPC ground (`paintTile(id, frame, variant, false)`).
+- **Characters** (`art/hd-characters.ts`): humanoids are 64?64 real cells (32 logical, feet on the bottom
+  edge), the same frame size as LPC, so `tileAnchor` / `fitScale` need no special cases. Faces, hair, helmets,
+  robes, armour and weapons are layered; `left` is the mirrored `right` frame. Monsters (slime shapes, bat, wolf,
+  giant toad, skeleton, goblins, Goblin King) use 64?64 cells facing left; variants keep their colours.
+  Shop signs are 32?32 real.
+- **Modes:** `?art=classic` uses only the HD procedural art. LPC mode uses LPC sheets plus the HD art for
+  object overlays, monsters without LPC art (wolf, alpha wolf, giant toad, bone captain) and shop signs.
+- **Unchanged:** battle backdrop, UI, colours, variants and animation frame counts. The engine's EPX
+  helpers stay (tested there) but quest no longer uses them.
+- **Tests:** paint primitives (shapes, outline, mirror, tone ramps), every tile id paints at 32?32 with opaque
+  ground, objects-only layers are transparent around the object, every look / facing / frame paints a 64?64
+  figure standing on the bottom edge, every monster shape and sign paints and is distinct.
