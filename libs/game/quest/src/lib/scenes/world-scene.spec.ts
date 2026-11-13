@@ -180,6 +180,41 @@ describe('WorldScene', () => {
     expect(h.ctx.stack.top?.id).toBe('field-menu');
   });
 
+  it('opens the menu straight on EQUIP with E and equips armor from the bag', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    h.state.inventory['leatherArmor'] = 1;
+    h.tap('equip');
+    expect(h.ctx.stack.top?.id).toBe('field-menu');
+    h.tap('confirm'); // hero
+    h.tap('down');
+    h.tap('confirm'); // ARMOR
+    h.tap('confirm'); // Leather Armor
+    expect(h.state.party[0].armorId).toBe('leatherArmor');
+    expect(h.state.inventory['leatherArmor']).toBeUndefined();
+  });
+
+  it('opens the menu with I', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    h.tap('items');
+    expect(h.ctx.stack.top?.id).toBe('field-menu');
+  });
+
+  it('buys armor from the Aldmere armorer and equips it now', () => {
+    const h = setup({ mapId: 'aldmere', x: 19, y: 9, facing: 'right', gold: 500 });
+    const tapUntil = (id: string): void => {
+      for (let i = 0; i < 12 && h.ctx.stack.top?.id !== id; i++) {
+        h.tap('confirm');
+      }
+    };
+    h.tap('confirm');
+    tapUntil('shop');
+    expect(h.ctx.stack.top?.id).toBe('shop');
+    h.tap('confirm'); // Cloth Robe
+    tapUntil('shop'); // "Equip it now?" -> first choice is the hero
+    expect(h.state.party[0].armorId).toBe('clothRobe');
+    expect(h.state.gold).toBe(470);
+  });
+
   it('spends the caster MP when healing from the field menu', () => {
     const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
     h.state.party[0] = createMember('hero', 'TEST', 'warrior');
@@ -193,6 +228,7 @@ describe('WorldScene', () => {
     const startMp = sera.mp;
     expect(startMp).toBeGreaterThanOrEqual(6);
     h.tap('cancel');
+    h.tap('down');
     h.tap('down');
     h.tap('down');
     h.tap('confirm'); // MAGIC

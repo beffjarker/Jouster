@@ -10,6 +10,7 @@ import { expectedDamage, runMany, simulateFight } from './simulator';
 import { MONSTERS } from '../data/monsters';
 import { monstersToCombatants } from '../state/party';
 import { mapDef } from '../data/maps';
+import { GEAR, gearUsableBy } from '../data/gear';
 
 const N = 400;
 
@@ -21,6 +22,15 @@ function tier2(m: PartyMember): PartyMember {
   const family = classDef(m.classId).weaponFamily;
   const w = [...WEAPONS.values()].find((x) => x.family === family && x.tier === 2);
   return { ...m, weaponId: w?.id ?? m.weaponId };
+}
+
+/** Tier-2 weapon plus the best armor, shield and accessory of up to `tier` this class can wear (plan 15.4). */
+function geared(m: PartyMember, tier = 2): PartyMember {
+  const best = (slot: string): string | undefined =>
+    [...GEAR.values()]
+      .filter((g) => g.slot === slot && g.tier <= tier && gearUsableBy(g, m.classId))
+      .sort((x, y) => y.price - x.price)[0]?.id;
+  return { ...tier2(m), armorId: best('armor'), shieldId: best('shield'), accessoryId: best('accessory') };
 }
 
 function killRounds(classId: ClassId, level: number, monsterId: string): number {
@@ -118,6 +128,16 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
       }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.6);
+  });
+
+  // Plan 15.4: armor helps but must not make the first boss a formality for a solo hero.
+  it.each(CLASS_ORDER)('%s solo vs the Goblin King at level 6 with full tier-2 gear: helps, stays a fight', (id) => {
+    const fight = (m: PartyMember): ReturnType<typeof runMany> =>
+      runMany(N, (i) => simulateFight([m], ['goblinKing'], { herb: 6, tonic: 1 }, createRng(9000 + i), { bossHpScale: BOSS_HP_SCALE[0] }));
+    const plain = fight(tier2(createMember('h', 'Hero', id, 6)));
+    const armored = fight(geared(createMember('h', 'Hero', id, 6)));
+    expect(armored.winRate).toBeGreaterThanOrEqual(plain.winRate - 0.02);
+    expect(armored.avgRounds).toBeGreaterThanOrEqual(4);
   });
 
   // Side-quest mini-bosses (with their minions) as placed in the world.

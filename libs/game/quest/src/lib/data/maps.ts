@@ -3,7 +3,7 @@ import { GameState, companionPresent } from '../state/game-state';
 import { COMPANION_SLOTS } from './companions';
 import { LANDMARKS, generateOverworld } from './overworld-gen';
 
-export type NpcRole = 'talk' | 'king' | 'inn' | 'itemShop' | 'weaponShop' | 'church' | 'boss' | 'companion';
+export type NpcRole = 'talk' | 'king' | 'inn' | 'itemShop' | 'weaponShop' | 'armorShop' | 'church' | 'boss' | 'companion';
 
 export interface NpcDef {
   id: string;
@@ -109,9 +109,9 @@ const ALDMERE_ROWS = [
   'T#rrrrrr#g__g#wwwwww#ggT',
   'T###rr###g__g###ww###ggT',
   'Tgg_rr__________ww__gggT',
-  'Tg_________~~_________gT',
-  'Tg_________~~_________gT',
-  'Tgg____________________T',
+  'Tg_________~~_______###T',
+  'Tg_________~~_______cw#T',
+  'Tgg_________________###T',
   'T##########_###########T',
   'T#www##www#_#wwww##www#T',
   'T#ccc##ccc#_#wwww##ccc#T',
@@ -321,6 +321,8 @@ const BASE_MAPS: MapDef[] = [
         { id: 'priest', x: 16, y: 3, spriteId: 'priest', facing: 'down', role: 'church' },
         { id: 'itemShop', x: 3, y: 12, spriteId: 'merchant', facing: 'down', role: 'itemShop' },
         { id: 'weaponShop', x: 8, y: 12, spriteId: 'smith', facing: 'down', role: 'weaponShop' },
+        // Armorer's stall in the east plaza; talk to him across the counter at (20,9).
+        { id: 'armorShop', x: 21, y: 9, spriteId: 'guard', facing: 'left', role: 'armorShop' },
         { id: 'innkeeper', x: 20, y: 12, spriteId: 'innkeeper', facing: 'down', role: 'inn' },
         {
           id: 'barkeep',

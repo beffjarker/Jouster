@@ -720,8 +720,12 @@ menu opens with `X`/`Esc` and has STATUS, ITEM, MAGIC, QUESTS, MAP and CLOSE.
   STATUS screen ("E: EQUIP") show them.
 - Shops sell armor, shields and accessories by town tier; the item shop's description box shows the stat and which
   classes can use it.
-- **Save:** version 4 adds `equipment: { weapon, armor?, shield?, accessory? }` per member; v3 saves migrate with
-  the current weapon and empty other slots.
+- **Save:** worn gear is stored as optional `armorId` / `shieldId` / `accessoryId` fields on each member (the
+  weapon keeps `weaponId`). Because the new fields are optional, v3 saves load unchanged with empty slots, so the
+  save version stays 3; unknown gear ids make a save invalid. *(Implemented this way instead of a v4
+  `equipment` object.)*
+- **Where to buy:** Aldmere's armorer stall in the east plaza (talk across the counter) sells all ten pieces;
+  a companion who leaves the party returns bought gear (and a non-starting weapon) to the bag.
 - **Balance:** enemy damage was tuned without armor, so armor DEF is kept modest (tier 1 +2, tier 2 +4) and the
   simulator re-runs all 4.6 targets with "best affordable gear" at each checkpoint.
 

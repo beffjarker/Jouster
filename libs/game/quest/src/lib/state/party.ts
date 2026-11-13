@@ -13,6 +13,7 @@ import {
 } from '@jouster/game/engine';
 import { classDef, fieldHpStepInterval } from '../data/classes';
 import { WEAPONS } from '../data/equipment';
+import { GEAR } from '../data/gear';
 
 export interface PartyMember {
   id: string;
@@ -23,6 +24,10 @@ export interface PartyMember {
   hp: number;
   mp: number;
   weaponId: string;
+  /** Worn gear ids (plan 15.4); missing = empty slot. */
+  armorId?: string;
+  shieldId?: string;
+  accessoryId?: string;
 }
 
 export function weaponDef(id: string): WeaponDef {
@@ -49,16 +54,23 @@ export function createMember(id: string, name: string, classId: ClassId, level =
   };
 }
 
-/** Stats including weapon bonuses (ATK, MAG, DEF). */
+/** Stats including weapon bonuses (ATK, MAG, DEF) and worn armor, shield and accessory. */
 export function memberStats(m: PartyMember): Stats {
   const base = statsAtLevel(classDef(m.classId), m.level);
   const w = weaponDef(m.weaponId);
-  return {
+  const s: Stats = {
     ...base,
     atk: base.atk + w.atk,
     def: base.def + (w.def ?? 0),
     mag: base.mag + (w.mag ?? 0),
   };
+  for (const id of [m.armorId, m.shieldId, m.accessoryId]) {
+    const g = id ? GEAR.get(id) : undefined;
+    for (const [k, v] of Object.entries(g?.bonus ?? {})) {
+      s[k as keyof Stats] += v;
+    }
+  }
+  return s;
 }
 
 export function memberAbilities(m: PartyMember): string[] {
