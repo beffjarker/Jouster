@@ -845,8 +845,8 @@ export class BattleScene implements Scene {
       const survivors = this.members.filter((m) => m.hp > 0);
       const share = Math.ceil(rewards.xp / Math.max(1, survivors.length));
       this.state.gold += rewards.gold;
-      const goldText = rewards.gold > 0 ? `Found ${rewards.gold} gold.` : 'No gold found.';
-      lines.push('Victory!', `Each survivor gains ${share} XP. ${goldText}`);
+      const goldText = rewards.gold > 0 ? ` Found ${rewards.gold} gold.` : '';
+      lines.push('Victory!', `Each survivor gains ${share} XP.${goldText}`);
       rewards.items.forEach((id) => {
         addItem(this.state, id);
         lines.push(`Found a ${ITEMS.get(id)?.name ?? id}!`);
