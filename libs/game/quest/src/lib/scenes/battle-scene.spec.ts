@@ -4,6 +4,8 @@ import { memoryStorage, newGameState } from '../state/game-state';
 import { InputDriver } from '../testing/input-driver';
 import { BattleEnd, BattleScene } from './battle-scene';
 import { GameContext } from './context';
+import { applyRestore, canRestore } from './menu-scenes';
+import { memberStats } from '../state/party';
 
 interface BattleInternals {
   phase: string;
@@ -114,6 +116,28 @@ describe('BattleScene', () => {
     expect(internals.gone.has(enemy.id)).toBe(true);
   });
 
+  it('greys out full-HP allies for heals and will not use a heal on them', () => {
+    const { internals, driver } = setup();
+    const t = internals as unknown as BattleInternals & {
+      targets: unknown[];
+      beginTarget(targets: unknown[], restore?: 'hp' | 'mp'): void;
+      log: string[];
+    };
+    const hero = internals.battle.party[0];
+    hero.hp = hero.maxHp;
+    driver.run(2);
+    t.beginTarget([hero], 'hp');
+    expect(internals.phase).toBe('command');
+    expect(t.log.join(' ')).toMatch(/full HP/);
+
+    hero.hp = hero.maxHp - 1;
+    t.beginTarget([hero], 'hp');
+    expect(internals.phase).toBe('target');
+    hero.hp = hero.maxHp;
+    driver.tap('confirm');
+    expect(internals.phase).toBe('target');
+  });
+
   it('can close the result screen with cancel (Esc)', () => {
     const { internals, driver, onEnd } = setup();
     internals.battle.enemies[0].hp = 1;
@@ -126,5 +150,27 @@ describe('BattleScene', () => {
       driver.run(0.3);
     }
     expect(onEnd).toHaveBeenCalledWith('victory');
+  });
+});
+
+describe('field restores', () => {
+  it('never heals above max and greys out members a restore cannot help', () => {
+    const state = newGameState('TEST', 'cleric');
+    const m = state.party[0];
+    const max = memberStats(m);
+    m.hp = max.hp;
+    expect(canRestore(m, 'healHp')).toBe(false);
+    expect(applyRestore(m, 'healHp', 50)).toBeNull();
+    m.hp = max.hp - 3;
+    expect(canRestore(m, 'healHp')).toBe(true);
+    expect(applyRestore(m, 'healHp', 50)).toContain('3 HP');
+    expect(m.hp).toBe(max.hp);
+    m.mp = 0;
+    applyRestore(m, 'healMp', 999);
+    expect(m.mp).toBe(max.mp);
+    expect(canRestore(m, 'revive')).toBe(false);
+    m.hp = 0;
+    expect(canRestore(m, 'healHp')).toBe(false);
+    expect(canRestore(m, 'revive')).toBe(true);
   });
 });

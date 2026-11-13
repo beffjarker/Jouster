@@ -494,5 +494,10 @@ export function mapDef(id: string): MapDef {
   return m;
 }
 
+/** True for wilds, caves and dens (any map with a tile that can trigger encounters); false for towns. */
+export function mapHasEncounters(def: MapDef): boolean {
+  return def.legend.some((t) => t.encounterTableId !== undefined);
+}
+
 /** Where the party wakes up after a defeat (in front of the inn counter). */
 export const INN_RESPAWN = { mapId: 'aldmere', x: 20, y: 14, facing: 'up' as Facing };

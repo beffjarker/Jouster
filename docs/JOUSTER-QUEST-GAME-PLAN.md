@@ -655,7 +655,7 @@ the clouds, fog banks, rain and snow move with the camera and look glued to the 
 **Plan:**
 
 - Monsters get a `goldChance` (0–1) and gold is rolled per monster on victory with the battle RNG.
-  Defaults: common monsters **45%**, mini-bosses and bosses **100%**.
+  Defaults: common monsters **55%** (45% was tried first but failed the economy check), mini-bosses and bosses **100%**.
 - When gold drops, the amount varies **75–125%** of the monster's `gold` value (rounded, at least 1).
 - The result window says "No gold found." when nothing dropped; the Rogue's Steal still adds its gold as now.
 - Expected gold per ordinary fight falls to roughly half. The balance simulator gains an **economy check**: a

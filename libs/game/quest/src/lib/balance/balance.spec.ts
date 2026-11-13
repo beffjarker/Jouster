@@ -1,9 +1,11 @@
-import { ClassId, createRng, statBudget } from '@jouster/game/engine';
+import { ClassId, createRng, statBudget, totalXpForLevel } from '@jouster/game/engine';
 import { CLASS_ORDER, classDef } from '../data/classes';
 import { ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
-import { WEAPONS } from '../data/equipment';
+import { ITEMS, WEAPONS } from '../data/equipment';
 import { pickEncounter } from '@jouster/game/engine';
-import { PartyMember, createMember, memberToCombatant } from '../state/party';
+import { DEFAULT_GOLD_CHANCE, PartyMember, createMember, memberToCombatant } from '../state/party';
+import { STARTING_GOLD } from '../state/game-state';
+import { ABILITIES } from '../data/abilities';
 import { expectedDamage, runMany, simulateFight } from './simulator';
 import { MONSTERS } from '../data/monsters';
 import { monstersToCombatants } from '../state/party';
@@ -61,6 +63,52 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
   it('fight length gap between classes is <= 2x', () => {
     const rounds = CLASS_ORDER.map((id) => greenwood.get(id)?.avgRounds ?? 0);
     expect(Math.max(...rounds) / Math.min(...rounds)).toBeLessThanOrEqual(2);
+  });
+
+  it('solo economy: Greenwood fights up to level 6 pay for a tier-2 weapon plus Herbs (plan 15.2)', () => {
+    const table = ENCOUNTER_TABLES.get('greenwood') ?? fail();
+    const rng = createRng(77);
+    let xp = 0;
+    let gold = 0;
+    const fights = 2000;
+    for (let i = 0; i < fights; i++) {
+      pickEncounter(table, rng, SOLO_MAX_ENEMIES).forEach((id) => {
+        const m = MONSTERS.get(id) ?? fail();
+        xp += m.xp;
+        gold += m.gold * (m.goldChance ?? (m.boss ? 1 : DEFAULT_GOLD_CHANCE));
+      });
+    }
+    const fightsToL6 = totalXpForLevel(6) / (xp / fights);
+    const earned = STARTING_GOLD + fightsToL6 * (gold / fights);
+    const tier2Price = Math.max(...[...WEAPONS.values()].filter((w) => w.tier === 2).map((w) => w.price));
+    const herbs = 10 * (ITEMS.get('herb')?.price ?? 0);
+    expect(earned).toBeGreaterThanOrEqual(tier2Price + herbs);
+    // ...but gold should not be so plentiful that the shop is trivial.
+    expect(earned).toBeLessThanOrEqual((tier2Price + herbs) * 2.5);
+  });
+
+  // Plan 15.3: a dearer attack of the same class must clearly out-damage a cheaper one.
+  const goblin = (): ReturnType<typeof monstersToCombatants>[0] => monstersToCombatants([MONSTERS.get('goblin') ?? fail()])[0];
+  const ability = (id: string): NonNullable<ReturnType<typeof ABILITIES.get>> => ABILITIES.get(id) ?? fail();
+  const levels = Array.from({ length: 17 }, (_, i) => i + 4);
+
+  it.each(levels)('cleric level %i with the best mace: Smite >= 1.2x Holy Strike > Attack', (level) => {
+    const c = memberToCombatant(tier2(createMember('h', 'Hero', 'cleric', level)));
+    const holy = expectedDamage(c, goblin(), ability('holyStrike'));
+    expect(expectedDamage(c, goblin(), ability('smite'))).toBeGreaterThanOrEqual(holy * 1.2);
+    expect(holy).toBeGreaterThan(expectedDamage(c, goblin()));
+  });
+
+  it.each(levels)('paladin level %i: Holy Strike beats a plain Attack', (level) => {
+    const c = memberToCombatant(tier2(createMember('h', 'Hero', 'paladin', level)));
+    expect(expectedDamage(c, goblin(), ability('holyStrike'))).toBeGreaterThan(expectedDamage(c, goblin()));
+  });
+
+  it.each(levels)('wizard level %i with the best staff: Fire >= 1.2x Arcane Strike; Bolt on 2 foes > Fire', (level) => {
+    const c = memberToCombatant(tier2(createMember('h', 'Hero', 'wizard', level)));
+    const fire = expectedDamage(c, goblin(), ability('fire'));
+    expect(fire).toBeGreaterThanOrEqual(expectedDamage(c, goblin(), ability('arcaneStrike')) * 1.2);
+    expect(expectedDamage(c, goblin(), ability('bolt')) * 2).toBeGreaterThan(fire);
   });
 
   it.each(CLASS_ORDER)('%s solo beats the Goblin King >= 60%% at level 6 with shop gear', (id) => {

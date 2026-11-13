@@ -13,7 +13,7 @@ import { TILE, tileVariant } from '../art/art';
 import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
-import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, Warp, mapDef } from '../data/maps';
+import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, Warp, mapDef, mapHasEncounters } from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
 import {
   CAVE_FOG_RADIUS,
@@ -32,7 +32,7 @@ import {
   recruitCompanion,
   saveGame,
 } from '../state/game-state';
-import { memberStats, restoreMember } from '../state/party';
+import { applyFieldRegen, restoreMember } from '../state/party';
 import {
   SEASON_NAMES,
   Season,
@@ -268,7 +268,7 @@ export class WorldScene implements Scene {
     });
     sprites.sort((a, b) => a.y - b.y).forEach((s) => s.draw());
     if (this.outdoors) {
-      drawWeather(r, this.weather, this.time);
+      drawWeather(r, this.weather, this.time, { x: camX, y: camY });
     }
     if (this.map.fog) {
       this.renderFog(r, startX, startY, camX, camY);
@@ -363,12 +363,7 @@ export class WorldScene implements Scene {
     s.steps++;
     s.stepsSinceBattle++;
     this.announceSky(before.season, before.weather);
-    s.party.forEach((m) => {
-      const interval = classDef(m.classId).passive?.fieldMpStepInterval;
-      if (interval && m.hp > 0 && s.steps % interval === 0) {
-        m.mp = Math.min(memberStats(m).mp, m.mp + 1);
-      }
-    });
+    s.party.forEach((m) => applyFieldRegen(m, s.steps, mapHasEncounters(this.map)));
     const warp = this.map.warps.find((w) => w.x === s.x && w.y === s.y);
     if (warp) {
       this.warpTo(warp);

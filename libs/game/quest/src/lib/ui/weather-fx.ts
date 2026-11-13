@@ -90,8 +90,31 @@ function cloudShape(index: number, color: string, flat: boolean): HTMLCanvasElem
   return canvas;
 }
 
-/** Drifting cloud shapes (shadows on the ground, or fog banks with `flat`). */
-function clouds(r: Renderer, time: number, count: number, color: string, alpha: number, flat: boolean, speed: number): void {
+/** Camera position in logical px; weather is anchored to the world, so it is drawn relative to this. */
+export interface WeatherCamera {
+  x: number;
+  y: number;
+}
+
+/** Spans (logical px) over which world-anchored clouds repeat; 3×3 screens holds 9× the per-screen count. */
+const CLOUD_SPAN_X = SCREEN_W * 3;
+const CLOUD_SPAN_Y = SCREEN_H * 3;
+
+/**
+ * Drifting cloud shapes (shadows on the ground, or fog banks with `flat`). Each cloud has a fixed spot in the
+ * world plus its own wind drift, so walking makes clouds slide the opposite way instead of following the party.
+ */
+function clouds(
+  r: Renderer,
+  time: number,
+  cam: WeatherCamera,
+  perScreen: number,
+  color: string,
+  alpha: number,
+  flat: boolean,
+  speed: number,
+): void {
+  const count = perScreen * 9;
   for (let i = 0; i < count; i++) {
     const shape = cloudShape(i % CLOUD_SHAPES, color, flat);
     if (!shape) {
@@ -100,8 +123,12 @@ function clouds(r: Renderer, time: number, count: number, color: string, alpha: 
     const scale = 0.8 + rand(i, 10) * 0.7;
     const w = shape.width * scale;
     const v = speed * (0.6 + rand(i, 11) * 0.8);
-    const x = wrap(rand(i, 12) * (SCREEN_W + w) + time * v, SCREEN_W + w) - w;
-    const y = rand(i, 13) * (SCREEN_H - 20) - 20 + Math.sin(time * 0.2 + i) * 3;
+    const h = shape.height * scale;
+    const x = wrap(rand(i, 12) * CLOUD_SPAN_X + time * v - cam.x, CLOUD_SPAN_X) - w;
+    const y = wrap(rand(i, 13) * CLOUD_SPAN_Y - cam.y, CLOUD_SPAN_Y) - h + Math.sin(time * 0.2 + i) * 3;
+    if (x >= SCREEN_W || y >= SCREEN_H || x + w <= 0 || y + h <= 0) {
+      continue;
+    }
     const a = alpha * (0.7 + rand(i, 14) * 0.6) * (flat ? 0.8 + Math.sin(time * 0.5 + i * 2) * 0.2 : 1);
     r.draw(shape, x, y, { scale, alpha: a });
   }
@@ -110,14 +137,14 @@ function clouds(r: Renderer, time: number, count: number, color: string, alpha: 
 // --- Rain, snow and lightning ---------------------------------------------------------------
 
 /** Rain streaks with per-drop length, speed and shade, a swaying wind angle and splashes. */
-function rain(r: Renderer, time: number, count: number, speed: number, heavy: boolean): void {
+function rain(r: Renderer, time: number, cam: WeatherCamera, count: number, speed: number, heavy: boolean): void {
   const wind = (heavy ? -0.35 : -0.18) + Math.sin(time * 0.4) * 0.08;
   const span = SCREEN_H + 24;
   for (let i = 0; i < count; i++) {
     const v = speed * (0.75 + rand(i, 20) * 0.5);
     const len = 3 + Math.floor(rand(i, 21) * (heavy ? 5 : 3));
-    const y = wrap(rand(i, 22) * span + time * v, span) - 12;
-    const x = wrap(rand(i, 23) * SCREEN_W + y * wind, SCREEN_W);
+    const y = wrap(rand(i, 22) * span + time * v - cam.y, span) - 12;
+    const x = wrap(rand(i, 23) * SCREEN_W + y * wind - cam.x, SCREEN_W);
     const shade = rand(i, 24);
     const color = shade < 0.3 ? 'rgba(220,235,255,0.7)' : shade < 0.7 ? 'rgba(170,200,255,0.55)' : 'rgba(130,160,220,0.4)';
     const dx = wind < -0.25 ? -1 : 0;
@@ -133,8 +160,8 @@ function rain(r: Renderer, time: number, count: number, speed: number, heavy: bo
     if (t > 0.35) {
       continue;
     }
-    const x = rand(cycle * 97 + i, 27) * SCREEN_W;
-    const y = rand(cycle * 89 + i, 28) * SCREEN_H;
+    const x = wrap(rand(cycle * 97 + i, 27) * SCREEN_W - cam.x, SCREEN_W);
+    const y = wrap(rand(cycle * 89 + i, 28) * SCREEN_H - cam.y, SCREEN_H);
     const w = 2 + Math.floor(t * 10);
     r.fillRect(x - w / 2, y, w, 1, 'rgba(210,225,255,0.45)');
     if (t < 0.15) {
@@ -144,15 +171,15 @@ function rain(r: Renderer, time: number, count: number, speed: number, heavy: bo
 }
 
 /** Snowflakes with depth: big near flakes fall faster and brighter; some are little crosses. */
-function snow(r: Renderer, time: number, count: number, speed: number, drift: number): void {
+function snow(r: Renderer, time: number, cam: WeatherCamera, count: number, speed: number, drift: number): void {
   const span = SCREEN_H + 16;
   const gust = drift === 0 ? 0 : drift * (0.75 + Math.sin(time * 0.7) * 0.35);
   for (let i = 0; i < count; i++) {
     const depth = rand(i, 30);
     const v = speed * (0.5 + depth * 0.9);
-    const y = wrap(rand(i, 31) * span + time * v, span) - 8;
+    const y = wrap(rand(i, 31) * span + time * v - cam.y, span) - 8;
     const sway = Math.sin(time * (0.8 + rand(i, 32) * 1.4) + i) * (2 + rand(i, 33) * 6);
-    const x = wrap(rand(i, 34) * SCREEN_W + time * gust * (0.6 + depth * 0.6) + sway, SCREEN_W);
+    const x = wrap(rand(i, 34) * SCREEN_W + time * gust * (0.6 + depth * 0.6) + sway - cam.x, SCREEN_W);
     const alpha = 0.45 + depth * 0.5;
     const color = `rgba(255,255,255,${alpha.toFixed(2)})`;
     if (drift !== 0 && depth > 0.5) {
@@ -202,37 +229,40 @@ function lightning(r: Renderer, time: number): void {
   }
 }
 
-/** Draws the weather over the outdoor scene (call before the fog of war and HUD). */
-export function drawWeather(r: Renderer, kind: WeatherKind, time: number): void {
+/**
+ * Draws the weather over the outdoor scene (call before the fog of war and HUD). Clouds, fog banks, rain, snow and
+ * splashes are anchored to the world through `cam`; the tint and lightning flash stay screen-wide.
+ */
+export function drawWeather(r: Renderer, kind: WeatherKind, time: number, cam: WeatherCamera = { x: 0, y: 0 }): void {
   switch (kind) {
     case 'cloudy':
       r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(30,40,60,0.12)');
-      clouds(r, time, 5, '#141a2c', 0.22, false, 9);
+      clouds(r, time, cam, 5, '#141a2c', 0.22, false, 9);
       break;
     case 'rain':
       r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(30,40,70,0.2)');
-      clouds(r, time, 4, '#101626', 0.18, false, 14);
-      rain(r, time, 80, 220, false);
+      clouds(r, time, cam, 4, '#101626', 0.18, false, 14);
+      rain(r, time, cam, 80, 220, false);
       break;
     case 'storm':
       r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(15,20,40,0.32)');
-      clouds(r, time, 5, '#080c18', 0.25, false, 24);
-      rain(r, time, 130, 320, true);
+      clouds(r, time, cam, 5, '#080c18', 0.25, false, 24);
+      rain(r, time, cam, 130, 320, true);
       lightning(r, time);
       break;
     case 'snow':
       r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(200,210,230,0.1)');
-      clouds(r, time, 3, '#2a3040', 0.12, false, 6);
-      snow(r, time, 70, 22, 0);
+      clouds(r, time, cam, 3, '#2a3040', 0.12, false, 6);
+      snow(r, time, cam, 70, 22, 0);
       break;
     case 'blizzard':
       r.fillRect(0, 0, SCREEN_W, SCREEN_H, `rgba(225,232,245,${(0.3 + Math.sin(time * 0.9) * 0.06).toFixed(3)})`);
-      clouds(r, time, 5, '#f0f4ff', 0.3, true, -60);
-      snow(r, time, 170, 90, -140);
+      clouds(r, time, cam, 5, '#f0f4ff', 0.3, true, -60);
+      snow(r, time, cam, 170, 90, -140);
       break;
     case 'fog':
       r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(205,210,220,0.26)');
-      clouds(r, time, 8, '#eef0f4', 0.35, true, 7);
+      clouds(r, time, cam, 8, '#eef0f4', 0.35, true, 7);
       break;
     default:
       break;

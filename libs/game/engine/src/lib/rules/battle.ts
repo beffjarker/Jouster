@@ -4,6 +4,7 @@ import {
   Combatant,
   effectiveStat,
   healAmount,
+  cappedRestore,
   initiative,
   isAlive,
   magicalHit,
@@ -221,7 +222,11 @@ export class Battle {
     if (!this.cachedRewards) {
       const { rng } = this.config;
       const items = [...this.stolenItems];
+      let gold = 0;
       this.enemies.forEach((e) => {
+        if (e.gold > 0 && rng.chance(e.goldChance ?? 1)) {
+          gold += Math.max(1, Math.round(e.gold * (0.75 + rng.next() * 0.5)));
+        }
         e.drops.forEach((d) => {
           if (rng.chance(d.chance)) {
             items.push(d.itemId);
@@ -230,7 +235,7 @@ export class Battle {
       });
       this.cachedRewards = {
         xp: this.enemies.reduce((s, e) => s + e.xp, 0),
-        gold: this.enemies.reduce((s, e) => s + e.gold, 0) + this.stolenGold,
+        gold: gold + this.stolenGold,
         items,
       };
     }
@@ -445,7 +450,7 @@ export class Battle {
     if (!target) {
       return;
     }
-    const amount = Math.min(target.maxHp - target.hp, healAmount(actor, this.config.rng, def.power, def.magScale ?? 2));
+    const amount = cappedRestore(target.hp, target.maxHp, healAmount(actor, this.config.rng, def.power, def.magScale ?? 2));
     target.hp += amount;
     events.push({
       text: `${target.name} recovers ${amount} HP.`,
@@ -537,7 +542,7 @@ export class Battle {
       return;
     }
     if (item.effect === 'healHp') {
-      const amount = Math.min(target.maxHp - target.hp, item.amount);
+      const amount = cappedRestore(target.hp, target.maxHp, item.amount);
       target.hp += amount;
       events.push({
         text: `${target.name} recovers ${amount} HP.`,
@@ -546,7 +551,7 @@ export class Battle {
         fx: { type: 'heal', targetId: target.id, amount },
       });
     } else {
-      const amount = Math.min(target.maxMp - target.mp, item.amount);
+      const amount = cappedRestore(target.mp, target.maxMp, item.amount);
       target.mp += amount;
       events.push({
         text: `${target.name} recovers ${amount} MP.`,
@@ -591,7 +596,7 @@ export class Battle {
     const regenUpdates: CombatantUpdate[] = [];
     this.all.forEach((c) => {
       if (isAlive(c) && c.battleHpRegen > 0 && c.hp < c.maxHp) {
-        c.hp = Math.min(c.maxHp, c.hp + c.battleHpRegen);
+        c.hp += cappedRestore(c.hp, c.maxHp, c.battleHpRegen);
         regenUpdates.push(this.update(c));
       }
       c.buffs = c.buffs

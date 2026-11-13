@@ -27,7 +27,7 @@ const LIST: MonsterDef[] = [
   },
   {
     id: 'wolf',
-    name: 'Grey Wolf',
+    name: 'Wolf',
     stats: { hp: 16, mp: 0, atk: 11, def: 4, agi: 8, mag: 0 },
     xp: 6,
     gold: 5,

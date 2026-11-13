@@ -93,7 +93,7 @@ export interface ClassPassive {
   description: string;
   /** HP regained at the end of every battle round. */
   battleHpRegen?: number;
-  /** Regain 1 MP every N steps on the field. */
+  /** Regain 1 MP every N steps on maps with encounters (not in towns). */
   fieldMpStepInterval?: number;
 }
 
@@ -113,6 +113,8 @@ export interface ClassDef {
   critChance: number;
   abilities: LearnedAbility[];
   passive?: ClassPassive;
+  /** Regain 1 HP every N steps on maps with encounters (default 24). */
+  fieldHpStepInterval?: number;
   /** Extra Herbs in the starting kit (classes without healing magic). */
   bonusHerbs: number;
 }
@@ -134,6 +136,8 @@ export interface MonsterDef {
   stats: Stats;
   xp: number;
   gold: number;
+  /** Chance (0–1) of dropping gold; defaults to 1 for bosses and DEFAULT_GOLD_CHANCE for others. */
+  goldChance?: number;
   undead?: boolean;
   boss?: boolean;
   weaknesses: Element[];

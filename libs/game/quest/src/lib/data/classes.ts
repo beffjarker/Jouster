@@ -39,12 +39,13 @@ const LIST: ClassDef[] = [
     id: 'paladin',
     name: 'Paladin',
     role: 'Hybrid',
-    description: 'Sword and shield, holy strikes and healing.',
+    description: 'Sword and shield, holy strikes and healing. Recovers HP faster on the road.',
     base: { hp: 28, mp: 8, atk: 10, def: 9, agi: 4, mag: 4 },
     growth: { hp: 6, mp: 2, atk: 1.5, def: 1.5, agi: 0.5, mag: 0.5 },
     startingWeaponId: 'knightBlade',
     weaponFamily: 'swordShield',
     critChance: 1 / 32,
+    fieldHpStepInterval: 16,
     abilities: [
       { level: 1, abilityId: 'holyStrike' },
       { level: 2, abilityId: 'heal' },
@@ -62,6 +63,7 @@ const LIST: ClassDef[] = [
     startingWeaponId: 'woodMace',
     weaponFamily: 'mace',
     critChance: 1 / 32,
+    fieldHpStepInterval: 10,
     abilities: [
       { level: 1, abilityId: 'holyStrike' },
       { level: 1, abilityId: 'heal' },
@@ -72,9 +74,9 @@ const LIST: ClassDef[] = [
     passive: {
       id: 'blessed',
       name: 'Blessed',
-      description: '+1 HP each battle round, +1 MP every 4 steps.',
+      description: '+1 HP each battle round; outside towns +1 HP every 10 steps and +1 MP every 12 steps.',
       battleHpRegen: 1,
-      fieldMpStepInterval: 4,
+      fieldMpStepInterval: 12,
     },
     bonusHerbs: 0,
   },
@@ -114,6 +116,13 @@ const LIST: ClassDef[] = [
 
 export const CLASSES: ReadonlyMap<ClassId, ClassDef> = new Map(LIST.map((c) => [c.id, c]));
 export const CLASS_ORDER: readonly ClassId[] = LIST.map((c) => c.id);
+
+/** Steps per 1 HP of field regen for classes without their own interval. */
+export const DEFAULT_FIELD_HP_STEP_INTERVAL = 24;
+
+export function fieldHpStepInterval(id: ClassId): number {
+  return classDef(id).fieldHpStepInterval ?? DEFAULT_FIELD_HP_STEP_INTERVAL;
+}
 
 export function classDef(id: ClassId): ClassDef {
   const def = CLASSES.get(id);
