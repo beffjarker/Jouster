@@ -57,7 +57,7 @@ apps/
 | --- | --- |
 | **Game loop** | Fixed-timestep update (60 Hz) and `requestAnimationFrame` render |
 | **Scene manager** | Stack of scenes with fades: Title, ClassSelect, NameEntry, World (overworld, towns, dungeons), Battle, field Menu, Shop, Dialogue, World Map, GameOver |
-| **Input** | Arrows/WASD move; Z/Enter/Space confirm; X/Esc cancel and open the field menu; M world map; N sound on/off. Read only while the canvas has focus. Gamepad and touch are deferred |
+| **Input** | Arrows/WASD move; Z/Enter/Space confirm; X/Esc cancel and open the field menu; M world map; N sound on/off. Planned (15.4): I opens Items, E opens Equip. Read only while the canvas has focus. Gamepad and touch are deferred |
 | **Tilemap** | Ground tiles with collision, encounter terrain, warps and NPC spawns |
 | **Fog of war** | Hidden overworld and dungeon tiles revealed within a radius of the party; explored tiles saved per map (14.1) |
 | **World map** | `M` overlay of the current map's explored tiles, discovered places and quest hints (14.1) |
@@ -67,7 +67,7 @@ apps/
 | **Dialogue** | Typewriter text box, portraits (optional), yes/no prompts, sets and reads story flags |
 | **Encounters** | Step counter in danger tiles; per-region rate (default ~1/16 per step); towns are safe. Each area has a level (Greenwood 2, Forest 4, Hills 5, Cave 6, Den 6); when the highest party level is more than 3 above it, the rate drops to ¼ and halves for each further level (floor 1/32 of the base) |
 | **Battle** | Turn-based combat (section 5) |
-| **Inventory/Equipment** | Weapon, armor, shield, and accessory slots; consumables; key items; gold |
+| **Inventory/Equipment** | Weapon slot today (equipped by buying it); armor, shield and accessory slots with an EQUIP menu planned (15.4); consumables; key items; gold |
 | **Progression** | XP curve, level-ups, per-class stat growth, spells learned by level |
 | **Save/Load** | Save at the inn or chapel; one save slot (more slots deferred); schema version for migrations |
 | **Audio** | SFX (step, hit, spell, level-up) and per-scene music |
@@ -267,7 +267,7 @@ NPCs with hints and side quests
 | **2. Overworld** | Exploration | Map loader, grid movement, camera, warps, a town, NPC dialogue | Done |
 | **3. Characters** | Class select | Class data, title screen, class-select screen, stats model | Done |
 | **4. Battle** | Core combat | Encounter rolls, battle scene, turn system, enemy AI, XP and level-ups, defeat handling | Done |
-| **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done (weapons only; armor slots deferred) |
+| **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done for weapons (equipped by buying them); armor, shield and accessory slots, an EQUIP menu and `I`/`E` shortcuts are planned in 15.4 |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Not started |
 | **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, battle animations) |
@@ -366,7 +366,7 @@ NPCs with hints and side quests
 - Field menu opens with X/Esc (not Space); Space is an extra confirm key. `M` opens the world map, `N` toggles sound.
 - Keyboard input is only read while the game canvas has focus.
 - Full parties may beat the trio balance targets slightly; solo and duo targets are enforced by the simulator.
-- Armor/shield/accessory slots, status-curing at the chapel, and music loops are deferred to later phases.
+- Armor/shield/accessory slots (now planned in 15.4), status-curing at the chapel, and music loops are deferred.
 
 ---
 
@@ -473,7 +473,8 @@ class below it.
 
 Weather and seasons apply outdoors only; caves have no weather. Both are derived from the step counter plus a
 per-journey seed (hash of the hero name and companion roster), so they need no extra save fields and never use the
-battle RNG. Weather does not affect encounters or battles.
+battle RNG. Weather does not affect encounters or battles. Clouds, fog banks and precipitation will be anchored
+to the world rather than the screen (15.1).
 
 | Season | Steps (repeats every 1200) | Look | Possible weather |
 | --- | --- | --- | --- |
@@ -519,6 +520,8 @@ battle RNG. Weather does not affect encounters or battles.
   tavern if the party is full). Quests are tied to the **spot**, not the class, so they work with any random roll.
 - Recruits are spread out so they don't all arrive at once: each quest sends the player to a different region,
   and the cave companion's quest is the longest.
+- **Known gap (to be reworked in 15.6):** the Alpha Wolf and Giant Toad can currently be beaten before their quest
+  exists; the companion then skips straight to "quest complete" when first asked.
 
 | Spot | Side quest (as built) | Reward besides the companion |
 | --- | --- | --- |
@@ -607,3 +610,177 @@ rather than re-fogged, towns never fogged, one side quest per companion.
   fade-out for defeated enemies, slide-in at the start and a victory bob. Holding confirm plays events 2.5× faster.
   Not done yet: separate battle pose sprites, per-element spell effects, status icons and a saved "Battle speed"
   option.
+
+### 14.7 Polish done after the first pass
+
+These shipped on PR #184 after the first revision 3 pass, in response to play-testing:
+
+- **Tile variants (13.3):** every impassable landscape tile has 3 hashed looks; walls share one brick bond so
+  buildings read as one piece.
+- **Weather and seasons (14.1.1):** outdoor sight radius 8 in sunshine, minus weather severity; caves fixed at 3,
+  +1 near wall torches. Shaped clouds and fog banks, varied rain, snow and lightning.
+- **Out-levelled areas (section 3, Encounters):** encounters become rare once the party is more than 3 levels above
+  an area.
+- **Monster looks (13.3):** cosmetic colour and shape variants for common monsters (slime ×6, others ×3).
+- **Descriptions (13.3):** item and spell descriptions in the field menu and battle lists.
+
+---
+
+## 15. Revision 4 (play-test feedback, planned — not implemented yet)
+
+Feedback from the fourth play-test. Nothing in this section is built yet; it is the agreed plan.
+
+### 15.1 Weather stays with the land
+
+**Problem:** the weather overlay is drawn in screen space (`drawWeather(r, kind, time)`), so when the party walks
+the clouds, fog banks, rain and snow move with the camera and look glued to the player.
+
+**Plan:**
+
+- Pass the camera position (in logical px) to `drawWeather`. Cloud shadows and fog banks are placed in **world
+  space** (`worldX - cameraX`) and wrap over a world-sized span, so walking past a cloud makes it slide off-screen
+  the opposite way while it keeps its own slow wind drift.
+- Rain and snow are also offset by the camera (wrapped to the screen), so the particle field stays fixed to the
+  ground and only falls and drifts with the wind. Splashes are anchored to world tiles.
+- Lightning flashes and the season tint stay full-screen (they are light, not objects).
+- Map changes reset nothing visible; the same weather continues because it is derived from steps.
+- **Test:** a unit test draws two frames with the same time and a camera moved by one tile and checks the cloud
+  draw positions moved by exactly −1 tile (a recording `Renderer` double).
+
+### 15.2 Gold drops are a chance, not a certainty
+
+**Problem:** every win pays every monster's full gold (`rewards()` sums `e.gold`), so gold is effectively 100%.
+
+**Plan:**
+
+- Monsters get a `goldChance` (0–1) and gold is rolled per monster on victory with the battle RNG.
+  Defaults: common monsters **45%**, mini-bosses and bosses **100%**.
+- When gold drops, the amount varies **75–125%** of the monster's `gold` value (rounded, at least 1).
+- The result window says "No gold found." when nothing dropped; the Rogue's Steal still adds its gold as now.
+- Expected gold per ordinary fight falls to roughly half. The balance simulator gains an **economy check**: a
+  solo hero who fights the expected number of battles can still afford the tier-2 weapon before level 7
+  (section 14.6); if not, raise `goldChance` slightly rather than prices.
+
+### 15.3 Smite must beat Holy Strike
+
+**Problem:** Holy Strike (2 MP) is `ATK + MAG` physical damage, while Smite (3 MP) is `7 + MAG` magic damage.
+With a mace, Holy Strike out-damages Smite at every level (e.g. Cleric L4 with an Iron Mace: about 25 vs 16), so
+the dearer spell is worse.
+
+**Rule:** a higher-MP attack of the same class must do clearly more damage on average than a cheaper one.
+
+**Plan (starting values; the simulator tunes the final numbers):**
+
+| Ability | MP | Now | Planned |
+| --- | --- | --- | --- |
+| Holy Strike | 2 | ATK + 1.0 × MAG, minus DEF/2, holy | ATK + 0.5 × MAG, ×1.1, minus DEF/2, holy |
+| Smite | 3 | 7 + 1.0 × MAG, ignores DEF, holy | 12 + 2.0 × MAG, ignores DEF, holy (still ×weakness vs undead) |
+
+- Expected Cleric results vs a goblin: L4 with an Iron Mace, Attack ≈ 16, Holy Strike ≈ 22, Smite ≈ 30;
+  L20, Holy Strike ≈ 50, Smite ≈ 62.
+- Holy Strike stays clearly better than a plain Attack, so the solo Cleric (4.4) keeps its early-game tool;
+  the Paladin's Holy Strike loses about 2 damage at level 1.
+- **Tests:** a new balance test averages 500 seeded hits of each ability for the Cleric at every level 4–20
+  with the best mace on sale and requires Smite ≥ 1.2 × Holy Strike and Holy Strike > Attack. Existing solo targets
+  in 4.6 must still pass; if the solo Cleric misses one, raise Holy Strike's multiplier, not Smite.
+- Add the same "higher cost = more damage" check for Fire/Ice vs Arcane Strike and Bolt.
+
+### 15.4 Equipment: armor slots and how to equip
+
+**Today:** only weapons exist. A weapon is equipped by **buying it** in the weapon shop: it goes on the party
+member whose class uses it, and the old one is traded in. There is no equip command and no `I` key; the field
+menu opens with `X`/`Esc` and has STATUS, ITEM, MAGIC, QUESTS, MAP and CLOSE.
+
+**Plan (finishes the deferred part of phase 5):**
+
+| Slot | Examples | Stat |
+| --- | --- | --- |
+| Weapon | (existing, by class family) | ATK (staves also MAG) |
+| Armor | Cloth Robe, Leather Armor, Chain Mail, Plate | DEF (heavier armor class-restricted) |
+| Shield | Buckler, Kite Shield | DEF (Warrior, Paladin only) |
+| Accessory | Ring of Vigor (+HP), Swift Boots (+AGI), Sage Charm (+MAG) | One stat |
+
+- Bought gear goes into the **inventory**, not straight onto a member. Weapons keep their trade-in offer at the
+  shop ("Equip now? YES / NO").
+- **Field menu:** new **EQUIP** entry: choose member → choose slot → choose an item from the inventory that this
+  class can use. The list shows the stat change (e.g. `DEF 9 → 12`) before confirming. Unequipping returns the item
+  to the inventory.
+- **Keyboard shortcuts (new):**
+
+| Key | Action |
+| --- | --- |
+| `X` / `Esc` | Field menu (unchanged) |
+| `I` | Open the field menu straight on **ITEM** |
+| `E` | Open the field menu straight on **EQUIP** |
+| `M` | World map (unchanged) |
+| `N` | Sound on/off (unchanged) |
+
+  Shortcuts work only on the world screen (not in battle, dialogue or shops). The page's controls list and the
+  STATUS screen ("E: EQUIP") show them.
+- Shops sell armor, shields and accessories by town tier; the item shop's description box shows the stat and which
+  classes can use it.
+- **Save:** version 4 adds `equipment: { weapon, armor?, shield?, accessory? }` per member; v3 saves migrate with
+  the current weapon and empty other slots.
+- **Balance:** enemy damage was tuned without armor, so armor DEF is kept modest (tier 1 +2, tier 2 +4) and the
+  simulator re-runs all 4.6 targets with "best affordable gear" at each checkpoint.
+
+### 15.5 Healing never exceeds maximum HP
+
+**Audit (current code):** battle Heal, battle items, field Heal/items (`applyRestore`), Cleric regen, level-ups and
+the inn all clamp to max HP, and the shown amount is the clamped amount. No over-heal path was found by code
+review.
+
+**Plan (make it guaranteed and remove waste):**
+
+- One shared `restoreHp(target, amount)` helper (engine) used by every heal path, returning the actual amount;
+  same for MP.
+- In battle, a heal or healing item aimed at a full-HP ally is **greyed out** in the target list (as the field
+  menu already says "It would have no effect."), so MP and items are not wasted on 0 HP.
+- Battle combatants read max HP from `memberStats` including future armor/accessory bonuses, so +HP gear cannot
+  leave HP above max after it is removed (unequipping clamps HP/MP).
+- **Tests:** a property-style test runs every heal ability and item on members at random HP, including full HP,
+  and asserts `hp ≤ maxHp` and that the reported amount equals the HP actually gained.
+
+### 15.6 Companion side quests rework
+
+**What happens today:**
+
+- The Alpha Wolf (Wolf Den) and the Giant Toad (lakeshore) can be fought **at any time**, even before the
+  Goblin King or before their quest is offered. Beating one sets its flag and shows only its victory line; nothing
+  links it to the companion.
+- Later, after the Goblin King, talking to that companion goes straight to **"Quest complete"** with the reward,
+  so the player never hears the request and the thanks have no context.
+- The Bone Captain only appears while the Thornwick quest is active (after resting at an inn), and the Goblin
+  Jailer only after the Goblin King, so those two cannot be done early.
+
+**Plan:**
+
+1. **Mini-bosses are dormant until their quest is active.** The Alpha Wolf and Giant Toad are not on the map
+   before the quest is offered; their spots show signs instead (tracks and a mauled cart at the den, a ruined
+   fishing net at the shore) with a short description. This matches the Bone Captain and Jailer.
+2. **Quest stages are explicit:** `locked` (before the Goblin King) → `available` (companion has something to
+   ask) → `active` (accepted) → `ready` (mini-boss beaten) → `done` (turned in). The player can **accept or
+   decline** the request (YES/NO), and the quest log shows each stage.
+3. **On victory** over a quest mini-boss, a message names the companion ("Return to Bren in Aldmere.") and the map
+   pin moves to the companion.
+4. **Turning in** plays the thanks, gives the reward and then asks to join (as now).
+5. **Old saves:** a save where a mini-boss was beaten early keeps the flag; that quest goes straight to `ready`,
+   and the companion says a bridging line ("You already slew the alpha? Then I owe you twice.") before the reward,
+   so nothing is lost.
+6. Optional later idea (not in this pass): each quest gives a small story reward tied to the companion's class
+   (e.g. a ring for a Wizard), so the quests feel personal even with random rolls.
+
+- **Tests:** scene tests check that the wolf/toad are absent before the quest, appear once accepted, that winning
+  moves the quest to `ready`, and that turning in rewards once; a save-migration test covers early kills.
+
+### 15.7 Work breakdown
+
+1. Plan update (this section) — done first, before any code.
+2. World-anchored weather (15.1) and its renderer test.
+3. Gold chance and amount variance, result text, economy check (15.2).
+4. Holy Strike / Smite retune and the "cost = power" balance tests (15.3).
+5. Heal helper, battle target greying, heal property test (15.5).
+6. Side-quest stages, dormant mini-bosses, accept/decline, victory messages, save migration (15.6).
+7. Equipment slots, EQUIP menu, `I`/`E` shortcuts, armor shops, save v4 and simulator re-check (15.4) —
+   the largest item, done last.
+8. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
