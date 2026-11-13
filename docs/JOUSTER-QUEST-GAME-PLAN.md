@@ -28,7 +28,7 @@ game fills a 16:9 widescreen canvas.
 | --- | --- |
 | Language | TypeScript (strict, no `any`) |
 | Rendering | HTML5 Canvas 2D; no game engine dependency |
-| Resolution | **Widescreen 16:9** (revision 3): logical 384×216 layout rendered at 2× pixel density (768×432 backing canvas), integer-scaled with `image-rendering: pixelated`. Revision 2 used 256×240 (512×480) |
+| Resolution | **Widescreen 16:9** (revision 3): logical 384×216 layout rendered at 2× pixel density (768×432 backing canvas), integer-scaled with `image-rendering: pixelated`. Revision 2 used 256×240 (512×480). **Revision 5 (planned, 16.6):** 960×540 native canvas (480×270 logical), 30×17 tiles of 32×32 art drawn 1:1 |
 | Tile size | 16×16 logical grid; tiles, characters and monsters are drawn with 32×32 pixels of detail |
 | Maps | Towns and dungeons are character grids in TypeScript; the overworld is generated from a fixed seed with hand-placed landmarks (Tiled was dropped, see 12) |
 | Save data | One save in `localStorage` (versioned JSON schema, currently version 3, older versions migrated) |
@@ -325,7 +325,7 @@ NPCs with hints and side quests
    back to their home spot and keeps their level.
 5. **Fog of war:** the overworld and dungeons start hidden and are revealed around the party; `M` opens a full
    map showing only explored areas (see 14.1). Towns are always fully visible.
-6. **Screen:** 16:9 widescreen (384×216 logical, 768×432 canvas).
+6. **Screen:** 16:9 widescreen (384×216 logical, 768×432 canvas); moving to 960×540 in revision 5 (16.6).
 7. **Class balance:** every class, including the Cleric, must be able to win alone (possibly with more effort),
    and every class has a real melee Attack (section 4).
 8. **Battle input:** each round waits for every party member's command, and the result screen waits for OK/Enter
@@ -1015,11 +1015,7 @@ them from git history before the repo is ever made public; keep them out of AI t
 - **Rules to keep:** ≥ 3 variants for solid landscape tiles (seamless walls), signs and weather stay procedural or
   are hand-made, and sign/NPC placement still reads clearly against the busier LPC art (screenshot review).
 
-**Option: larger viewport (decide after the spike).** Today the screen is 384×216 logical (768×432 canvas) =
-24×13.5 tiles. LPC art at native size keeps that view as-is. If the owner wants to see more of the world, move to
-**480×270 logical (960×540 canvas) = 30×17 tiles**: page frame and CSS scale, HUD, menu and message box layout,
-camera clamping on small maps, and a check that sight radius (sunny 8) still feels right. Roughly 1–2 days,
-independent of the art swap.
+**Larger view:** decided; see 16.6 (960×540 native canvas, 30×17 tiles, LPC art drawn 1:1).
 
 **Kenney packs (secondary, for gaps):**
 
@@ -1056,8 +1052,8 @@ the sheet sprite at load time.
 
 **Effort estimate:** loader, manifest and hybrid `Art` ~1–2 days; tiles ~1–2 days; characters/NPCs with the
 generator ~2 days (taller 64×64 sprites need draw-offset and battle-pose work); monsters with variants ~2 days;
-credits and screenshots ~1 day. Roughly **1.5–2 weeks**, done incrementally; the optional larger viewport adds
-1–2 days.
+credits and screenshots ~1 day. Roughly **1.5–2 weeks**, done incrementally; the larger view (16.6) adds
+~3–5 days.
 
 **First step (proposed):** download the LPC base assets / Tile Atlas (no login needed, so this can be scripted)
 and record their credits, then a spike swaps only the overworld and town tiles behind an
@@ -1110,11 +1106,62 @@ caves, characters and monsters must be checked first.
 top-down LPC tile spike first; then, if wanted, a **one-map isometric
 prototype** (Aldmere only, behind `?view=iso`) so both looks can be compared in the browser before committing.
 
+### 16.6 Modern widescreen view at native resolution (decided 2026-11-13)
+
+**Goal:** a larger, modern 16:9 view that shows more of the world, with art drawn at its real resolution (no
+upscaled 16×16 pixels), while keeping crisp pixel art.
+
+**Today:** 384×216 logical layout at 2× density = 768×432 canvas, 24×13.5 tiles of 32 real pixels. CSS stretches
+it to 1152px wide, a **1.5× non-integer** scale that makes some pixels wider than others.
+
+**Options considered:**
+
+| Canvas | Tiles visible (32×32) | Integer scales | Notes |
+| --- | --- | --- | --- |
+| 768×432 (today) | 24×13.5 | 2.5× to 1080p (not integer) | Smallest view |
+| **960×540 (chosen)** | **30×17** | **2× = 1920×1080, 4× = 3840×2160** | ~56% more world on screen; standard 16:9; LPC art 1:1 |
+| 1280×720 | 40×22.5 | 1.5× to 1080p (not integer), 3× = 4K | Very wide view; characters look small; towns would need to be ~2× bigger |
+| 1920×1080 with 64×64 tiles | 30×17 | 1× | Needs 64px art (LPC would be upscaled 2× again); far fewer pixel-art packs |
+
+**Decision:** **960×540 canvas** (480×270 logical units at 2× density, so the existing layout code, `TILE = 16`
+logical units and the renderer's density handling stay as they are). LPC 32×32 tiles and 64×64 characters are
+drawn **1:1, never upscaled**; the full canvas is 24-bit colour, so there is no palette limit beyond the art's
+own style.
+
+**Display scaling (suggested):**
+
+- The page shows the canvas at the **largest integer scale that fits** (1× = 960 px wide in the normal page;
+  2× = 1920×1080 full screen), letterboxed in black, so pixels stay square and even.
+- Add a **full-screen toggle** (`F` key and a page button; Fullscreen API) to get the 2× / 4× sizes on big
+  monitors. On screens narrower than 960 px it falls back to fit-to-width (non-integer, acceptable on phones).
+- Keep `image-rendering: pixelated`.
+
+**What changes:**
+
+| Area | Work |
+| --- | --- |
+| Screen constants | `SCREEN_W/H` 384×216 → 480×270 in `ui/widgets.ts`; canvas `width/height` 960×540 in the page; page and canvas tests updated |
+| HUD and menus | Replace hard-coded positions/heights (title screen y values, class select window 184, menu window 200, map overlay `MAP_AREA_W` 216, battle panel widths, gold/sky boxes) with values derived from `SCREEN_W/H`, so a future size change is one edit |
+| Battle scene | Wider field: spread heroes and up to 4 monsters further apart; LPC heroes use their side-facing attack/cast rows at 1:1; monsters drawn at their native size (larger sheet art where available) rather than scaled up |
+| Small maps | Aldmere 24×18, Brookhollow 22×15, Goblin Cave 28×20 and the Den 20×14 are narrower than 30 tiles. Camera centres maps smaller than the view, and the area outside is filled: towns get a 4–6 tile decorative border (fields, forest, river) added to their maps; caves show solid rock / darkness |
+| Fog and weather | Sight radius stays sunny 8 (17-tile circle; the wider view shows fog at the left/right edges, which suits exploring); revisit after play-testing. Cloud and particle spans already scale with `SCREEN_W/H` |
+| Text | The bitmap font is drawn at logical size, so it shrinks ~20% relative to the window. Option: a crisper 2×-density font (finer glyphs, same layout size) if readability suffers |
+| Controls list | Add `F` = full screen to `CONTROLS` (16.3) |
+
+**Tests:** canvas is 960×540; every scene renders within `SCREEN_W/H` (no window drawn off-screen); camera
+centring for maps smaller than the view; town border tiles are not walkable and don't trigger encounters.
+
+**Effort:** constants and layout ~1–2 days; battle relayout ~1 day; town borders and camera centring ~1 day;
+integer scaling and full screen ~0.5 day. Roughly **3–5 days**. Doing it **before** the LPC character work
+avoids laying out sprites twice.
+
 ### 16.4 Work breakdown
 
 1. Plan update (this section) — done first, before any code.
 2. Controls single source of truth and sync tests (16.3) — smallest, do first.
 3. Companion level 1 / party-only XP, save v4 migration and simulator checks (16.1).
+3b. Widescreen 960×540 (16.6): constants, layout derived from screen size, integer scaling and full screen, town
+   borders and camera centring; screenshots of every scene for review.
 4. Art spike (16.2): add LPC base / Tile Atlas sheets and `CREDITS.md`; swap tiles behind an `?art=` toggle
    (LPC → Kenney → procedural fallback); owner reviews screenshots before characters (character generator) and
    monsters are converted, and decides on the optional 480×270 viewport.
