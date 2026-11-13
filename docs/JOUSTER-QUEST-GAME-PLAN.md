@@ -254,9 +254,9 @@ NPCs with hints and side quests
 - **Sprites:** 32×32-pixel overworld characters (4 directions × 2 frames); 32×32-pixel monsters shown 2–4× in
   battle; tiles have 32×32 pixels of detail on a 16×16 logical grid. The bitmap font stays chunky for readability.
 - **Tools:** all art is currently drawn in code (`Art` class); Aseprite or LibreSprite if hand-made sprites are added.
-- **Assets:** the first release uses only original procedural pixel art. Licensed sprite sheets (CraftPix
-  preferred, CC0 packs such as Kenney to fill gaps) may replace it through the `Art` class; any added files must
-  be listed in `CREDITS.md`. See 16.2 for the licensing rules.
+- **Assets:** the first release uses only original procedural pixel art. CC0 sprite sheets from Kenney
+  (decided 2026-11-13) may replace it through the `Art` class; any added files must be listed in `CREDITS.md`.
+  CraftPix is deferred; see 16.2 for the licensing notes.
 - **Audio:** procedural chiptune SFX with Web Audio; optional looping tracks per region and battle.
 
 ---
@@ -937,12 +937,16 @@ XP is already given only to party members who survive a battle, so benched compa
   a companion swapped out and back keeps level and XP; an old save with `companionLevels` loads correctly;
   simulator checks above.
 
-### 16.2 Using third-party art (CraftPix or other free assets)
+### 16.2 Using third-party art (decision: Kenney CC0)
 
 **Today:** every tile, character, monster, sign and weather sprite is drawn in code by the `Art` class (16×16
 logical, rendered at 2× detail). Scenes only call `art.tile(id, frame, variant)`, `art.character(...)`,
 `art.monster(...)` and `art.sign(...)`, which return canvases. That narrow interface is what makes a swap
 practical: only `Art` needs to change.
+
+**Decision (2026-11-13):** use **Kenney CC0 packs** for now. They need no license bookkeeping, can be committed
+and shared freely (even if the repo goes public again), and can be shown to AI tools while building the manifest.
+CraftPix stays a possible later upgrade; the licensing review below is kept for that.
 
 **Licensing (re-examined after the repository was made private, 2026-11-13):**
 
@@ -969,26 +973,29 @@ practical: only `Art` needs to change.
 - **Account:** downloads require logging in on craftpix.net in a browser (no third-party sign-in), so packs are
   downloaded by the owner by hand, not by scripts or CI.
 
-**Recommendation:** use **CraftPix as the main art source** and commit the PNGs to this private repo under one
-folder, `apps/jouster-ui/public/game-assets/craftpix/`, with a `LICENSE-NOTE.md` that records the pack name,
-URL, freebie/premium, and download date. Kenney CC0 packs fill any gaps, under `game-assets/cc0/`. Safeguards:
+**If CraftPix is adopted later:** commit its PNGs only while the repo is private, under
+`apps/jouster-ui/public/game-assets/craftpix/` (or a private submodule) with a `LICENSE-NOTE.md` per pack; purge
+them from git history before the repo is ever made public; keep them out of AI tools; and credit them in
+`CREDITS.md`. Its 32×32 packs match our real pixel density with no scaling.
 
-- **If the repo is ever made public again,** the `craftpix/` folder must first be removed **and purged from git
-  history** (`git filter-repo`), and production builds then fetch the files from private storage at deploy time.
-  To make that cheaper, the folder can instead live in a small private git submodule (`jouster-game-assets`)
-  from the start; decided in the spike (step 4 below).
-- PR preview artifacts and deployments stay private/unlisted as they are today; no CraftPix file is attached to
-  a public release.
-- A unit test fails if any manifest entry points at a CraftPix file that has no `LICENSE-NOTE.md` entry.
+**Kenney packs to use:**
 
-**CraftPix fit:** many CraftPix top-down packs are drawn at 32×32 or 16×16. 32×32 tiles match our real pixel
-density exactly (16×16 logical × 2) and need no scaling; 16×16 packs are scaled 2× like the procedural art. Packs
-from one artist series should be used per category (tiles, characters, monsters) so the styles match.
+| Pack | Use | Size |
+| --- | --- | --- |
+| **Tiny Town** | Overworld and town tiles: grass, trees, water, paths, houses, walls, fences, signs | 16×16 |
+| **Tiny Dungeon** | Cave tiles, torches, and heroes/monsters (knight, wizard, slime, goblin, etc.) | 16×16 |
+| **Roguelike RPG / Roguelike Characters** | Extra terrain variants and NPC outfits if Tiny packs fall short | 16×16 |
+
+**Kenney fit:** all packs are 16×16, our logical grid; they are scaled 2× (nearest-neighbour) to our real pixel
+density, keeping the chunky look. The Tiny series shares one style, so tiles, characters and monsters match.
+Tiny packs have single-frame, mostly front-facing characters, so walk cycles (4 directions × 2 frames) are made by
+flipping plus a 1px bob, or the procedural characters are kept; monster look variants come from palette swaps of
+the sheet sprite at load time.
 
 **What the swap takes:**
 
-1. **Asset pipeline:** PNG sheets under `apps/jouster-ui/public/game-assets/craftpix/` and `cc0/` (already
-   served by the `public` assets glob), plus a typed manifest in `@jouster/game/quest` mapping our ids (`grass`, `wall` variants,
+1. **Asset pipeline:** PNG sheets under `apps/jouster-ui/public/game-assets/kenney/` (already served by the
+   `public` assets glob), plus a typed manifest in `@jouster/game/quest` mapping our ids (`grass`, `wall` variants,
    `warrior` facing/frame, `slime` variants, sign kinds) to sheet + cell.
 2. **Loading:** a small async loader (Image → canvas) and a **loading screen** before the title, because the
    current `Art` is synchronous. The loader resolves to an `Art` that reads from sheets.
@@ -1000,16 +1007,15 @@ from one artist series should be used per category (tiles, characters, monsters)
    battle poses, signs, weather) stay procedural or are hand-edited in Aseprite/LibreSprite.
 5. **Style check:** packs mixed from different artists clash; pick one family per category and do a screenshot
    review before committing.
-6. **Credits and tests:** add `CREDITS.md` (pack, author, license, URL; CraftPix credited although not
-   required); tests that every manifest entry points
-   inside its sheet and every tile/monster/class id has art (sheet or procedural).
+6. **Credits and tests:** add `CREDITS.md` (pack, author Kenney, CC0, URL; credit given although not
+   required); tests that every manifest entry points inside its sheet and every tile/monster/class id has art (sheet or procedural).
 
 **Effort estimate:** loader, manifest and hybrid `Art` ~1–2 days; tiles ~1 day; characters/NPCs ~1–2 days;
 monsters with variants ~2 days; polish and screenshots ~1 day. Roughly **1–1.5 weeks**, done incrementally.
 
-**First step (proposed):** the owner picks CraftPix packs (top-down tileset, characters, monsters) and drops the
-downloaded zips in a local folder; the spike swaps only the overworld and town tiles to the chosen tileset behind
-a `?art=classic|pack` toggle, so both looks can be compared in the browser before committing to the rest.
+**First step (proposed):** download Kenney Tiny Town and Tiny Dungeon (no login needed, so this can be scripted),
+then a spike swaps only the overworld and town tiles behind a `?art=classic|pack` toggle, so both looks can be
+compared in the browser before committing to the rest.
 
 ### 16.3 Keep the jouster-ui control list in sync
 
@@ -1031,7 +1037,6 @@ a `?art=classic|pack` toggle, so both looks can be compared in the browser befor
 1. Plan update (this section) — done first, before any code.
 2. Controls single source of truth and sync tests (16.3) — smallest, do first.
 3. Companion level 1 / party-only XP, save v4 migration and simulator checks (16.1).
-4. Art spike (16.2): owner chooses and downloads CraftPix packs; decide in-repo folder vs private submodule;
-   swap tiles behind an `?art=` toggle with procedural fallback; owner reviews screenshots before characters and
-   monsters are converted.
+4. Art spike (16.2): add Kenney Tiny Town / Tiny Dungeon sheets and `CREDITS.md`; swap tiles behind an `?art=`
+   toggle with procedural fallback; owner reviews screenshots before characters and monsters are converted.
 5. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
