@@ -1,4 +1,4 @@
-import { ClassId, createRng } from '@jouster/game/engine';
+import { ClassId, createRng, totalXpForLevel } from '@jouster/game/engine';
 import { CLASS_ORDER } from '../data/classes';
 import { COMPANION_NAMES, COMPANION_SLOTS, companionIntro, rollCompanions } from '../data/companions';
 import {
@@ -14,6 +14,7 @@ import {
   loadGame,
   markQuestReady,
   memoryStorage,
+  companionJoinLevel,
   newGameState,
   questStage,
   recruitCompanion,
@@ -50,14 +51,48 @@ describe('game state', () => {
     s.flags['bossDefeated'] = true;
     s.quests['thornwick'] = 'done';
     recruitCompanion(s, 'thornwick');
-    const v2: Partial<GameState> = { ...s, version: 2 };
+    const v2: Partial<GameState> & { companionLevels?: Record<string, number> } = {
+      ...s,
+      version: 2,
+      companionLevels: { tavern: 4 },
+    };
     delete v2.explored;
     delete v2.quests;
+    delete v2.companionProgress;
     storage.setItem(SAVE_KEY, JSON.stringify(v2));
     const loaded = loadGame(storage);
-    expect(loaded?.version).toBe(3);
+    expect(loaded?.version).toBe(4);
     expect(loaded?.explored).toEqual({});
-    expect(loaded?.quests).toEqual({ thornwick: 'done' });
+    expect(loaded?.quests).toEqual({ thornwick: 'done', tavern: 'done' });
+    expect(loaded?.companionProgress).toEqual({ tavern: { level: 4, xp: totalXpForLevel(4) } });
+  });
+
+  it('migrates version 3 saves: companion levels become level + XP, with no downgrade', () => {
+    const storage = memoryStorage();
+    const s = newGameState('ANA', 'wizard', createRng(2));
+    const v3: Partial<GameState> & { companionLevels?: Record<string, number> } = {
+      ...s,
+      version: 3,
+      companionLevels: { thornwick: 7, cave: 2 },
+    };
+    delete v3.companionProgress;
+    storage.setItem(SAVE_KEY, JSON.stringify(v3));
+    const loaded = loadGame(storage);
+    expect(loaded?.version).toBe(4);
+    expect(loaded?.companionProgress).toEqual({
+      thornwick: { level: 7, xp: totalXpForLevel(7) },
+      cave: { level: 2, xp: totalXpForLevel(2) },
+    });
+    expect(loaded && 'companionLevels' in loaded).toBe(false);
+  });
+
+  it('rejects a save with malformed companion progress', () => {
+    const storage = memoryStorage();
+    const s = newGameState('ANA', 'wizard', createRng(2));
+    storage.setItem(SAVE_KEY, JSON.stringify({ ...s, companionProgress: { tavern: { level: 'x' } } }));
+    expect(loadGame(storage)).toBeNull();
+    storage.setItem(SAVE_KEY, JSON.stringify({ ...s, companionProgress: undefined }));
+    expect(loadGame(storage)).toBeNull();
   });
 
   it('reports a failed save when storage throws', () => {
@@ -182,9 +217,9 @@ describe('recruiting', () => {
     expect(questStage(s, 'brookhollow')).toBe('ready');
     const herbs = s.inventory['herb'] ?? 0;
     expect(completeCompanionQuest(s, 'brookhollow')).toBe(true);
-    expect(s.inventory['herb']).toBe(herbs + 4);
+    expect(s.inventory['herb']).toBe(herbs + 6);
     expect(completeCompanionQuest(s, 'brookhollow')).toBe(false);
-    expect(s.inventory['herb']).toBe(herbs + 4);
+    expect(s.inventory['herb']).toBe(herbs + 6);
   });
 
   it('gives every companion a home and an early-kill line', () => {
@@ -192,6 +227,10 @@ describe('recruiting', () => {
       expect(slot.home.length).toBeGreaterThan(0);
       expect(slot.quest.already.length).toBeGreaterThan(0);
     });
+  });
+
+  it('includes a starter kit of at least 2 Herbs in every side-quest reward', () => {
+    COMPANION_SLOTS.forEach((slot) => expect(slot.quest.reward.items?.['herb'] ?? 0).toBeGreaterThanOrEqual(2));
   });
   it('shows the cave companion only after the Goblin King is defeated', () => {
     const s = withRoster('paladin');
@@ -214,17 +253,35 @@ describe('recruiting', () => {
     expect(recruitCompanion(s, 'tavern')).toBe(false);
   });
 
-  it('companions join at least at the hero level and keep their own level', () => {
+  it('first-time companions join at half the hero level (minimum 1), not at the hero level', () => {
+    expect(companionJoinLevel(1)).toBe(1);
+    expect(companionJoinLevel(3)).toBe(1);
+    expect(companionJoinLevel(6)).toBe(3);
+    expect(companionJoinLevel(11)).toBe(5);
     const s = unlocked(withRoster('rogue'));
-    grantXp(s.party[0], 500);
     recruitCompanion(s, 'thornwick');
-    expect(s.party[1].level).toBe(s.party[0].level);
-    grantXp(s.party[1], 5000);
-    const seraLevel = s.party[1].level;
+    expect(s.party[1].level).toBe(1);
+    expect(s.party[1].xp).toBe(totalXpForLevel(1));
+    grantXp(s.party[0], totalXpForLevel(8));
     recruitCompanion(s, 'tavern');
+    expect(s.party[0].level).toBeGreaterThanOrEqual(8);
+    expect(s.party[2].level).toBe(companionJoinLevel(s.party[0].level));
+    expect(s.party[2].level).toBeLessThan(s.party[0].level);
+  });
+
+  it('a companion swapped out and back keeps exactly their level and XP; benched ones stay frozen', () => {
+    const s = unlocked(withRoster('rogue'));
+    recruitCompanion(s, 'thornwick');
+    recruitCompanion(s, 'tavern');
+    grantXp(s.party[1], 137);
+    const sera = { level: s.party[1].level, xp: s.party[1].xp };
     recruitCompanion(s, 'brookhollow', 'thornwick');
+    expect(s.companionProgress['thornwick']).toEqual(sera);
+    // The hero levels up a lot while Sera is benched; she does not.
+    grantXp(s.party[0], totalXpForLevel(12));
     recruitCompanion(s, 'thornwick', 'tavern');
-    expect(s.party.find((m) => m.id === 'thornwick')?.level).toBe(seraLevel);
+    const back = s.party.find((m) => m.id === 'thornwick');
+    expect(back).toMatchObject(sera);
   });
 });
 

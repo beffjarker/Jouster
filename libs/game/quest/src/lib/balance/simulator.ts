@@ -101,6 +101,8 @@ export function chooseAction(battle: Battle, actor: Combatant, inventory: Record
 export interface FightResult {
   outcome: BattleOutcome;
   rounds: number;
+  /** Whether each party member (same order as `members`) is still standing at the end. */
+  alive: boolean[];
 }
 
 export interface FightOptions {
@@ -132,7 +134,7 @@ export function simulateFight(
     const actions = party.filter(isAlive).map((c) => chooseAction(battle, c, inv));
     battle.resolveRound(actions);
   }
-  return { outcome: battle.outcome, rounds: battle.round };
+  return { outcome: battle.outcome, rounds: battle.round, alive: party.map(isAlive) };
 }
 
 export interface FightStats {
