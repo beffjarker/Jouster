@@ -847,7 +847,28 @@ free, and MP almost never runs low.
 - **Tests:** a world-scene test walks 24 steps on the overworld (+2 MP) and 24 steps in a town (+0 MP), and
   checks MP never goes above max.
 
-### 15.10 Work breakdown
+### 15.10 Slow HP regeneration while walking (all classes)
+
+**Goal:** every living party member slowly recovers HP while walking, so a long trek is a little kinder without
+replacing inns, Herbs or Heal. The Cleric recovers fastest, the Paladin in between.
+
+| Class | Field HP regen | Approx. per average gap between fights (~16 steps) |
+| --- | --- | --- |
+| Warrior, Wizard, Rogue, Ranger | **+1 HP every 24 steps** | ~0.7 HP |
+| Paladin | **+1 HP every 16 steps** | ~1 HP |
+| Cleric | **+1 HP every 10 steps** | ~1.6 HP |
+
+- Same rules as Cleric MP regen (15.9): only on maps with encounters (not in towns), not for KO'd members, never
+  above max HP, and uses the shared `restoreHp` helper (15.5).
+- Data: a class-level `fieldHpStepInterval` (default 24) overridden by the Paladin and Cleric, so the simulator can
+  tune it. Paladin and Cleric passive/class descriptions mention their faster regen.
+- Battle HP regen (Cleric +1 HP per round) is unchanged; no class gains battle regen from this.
+- **Balance check:** the simulator includes field HP regen between fights; solo win rates must not exceed their
+  targets by much (no class should stop needing inns). If they do, lengthen the intervals.
+- **Tests:** walking 48 overworld steps gives +2 HP for a Warrior, +3 for a Paladin and +4 for a Cleric (+MP per
+  15.9); 48 town steps give +0; HP never exceeds max and KO'd members stay at 0.
+
+### 15.11 Work breakdown
 
 1. Plan update (this section) — done first, before any code.
 2. World-anchored weather (15.1) and its renderer test.
@@ -860,4 +881,5 @@ free, and MP almost never runs low.
 8. Building signs (15.7), including the armor shop sign added with 15.4.
 9. Generic monster names and the colour-word test (15.8).
 10. Slower Cleric MP regen, town exclusion and simulator re-check (15.9).
-11. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
+11. Field HP regen for all classes (Cleric > Paladin > others) with the same rules (15.10).
+12. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
