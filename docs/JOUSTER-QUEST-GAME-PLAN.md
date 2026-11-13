@@ -134,7 +134,8 @@ The Cleric is the hardest class to start with, so it sets the minimum viable pow
   option when facing tough enemies.
 - **Heal** (3 MP): restores `MAG×2 + rand(8..12)`, roughly a third to a half of max HP at level 1.
 - ***Blessed*** (passive): regains 1 MP every 4 steps on the overworld and 1 HP per turn in battle. This lets
-  a Cleric keep fighting without resting at the inn after every few fights.
+  a Cleric keep fighting without resting at the inn after every few fights. **Being slowed to 1 MP every 12
+  steps (15.9).**
 - **Protect** (2 MP): +50% DEF for 3 turns. Strong against bosses.
 - **Expected difference:** fights last about 1.5–2× longer than for a Warrior. The Cleric uses more MP but fewer
   potions.
@@ -823,7 +824,30 @@ other look-specific words. Monsters without variants (bosses and mini-bosses) ke
 - **Test:** a data test fails if any monster with more than one look has a colour word (grey, gray, red, blue,
   green, black, white, brown, gold, purple, teal) in its name.
 
-### 15.9 Work breakdown
+### 15.9 Slower Cleric MP regeneration
+
+**Problem:** *Blessed* gives the Cleric +1 MP every 4 steps, on every map including towns. Encounters come about
+every 16 steps, so the Cleric regains ~4 MP between fights — more than a full Heal (3 MP). Healing is effectively
+free, and MP almost never runs low.
+
+**Plan:**
+
+| Setting | Now | Planned |
+| --- | --- | --- |
+| Field MP regen | +1 MP every 4 steps | **+1 MP every 12 steps** |
+| Where it applies | Every map, including towns | Only on maps with encounters (overworld, caves, dens); not in towns, so pacing in town does not refill MP |
+| Battle HP regen | +1 HP per round | Unchanged |
+| Class/passive text | "+1 MP every 4 steps" | "+1 MP every 12 steps outside towns" |
+
+- Between average fights this is ~1.3 MP: about one Heal every two to three fights, so the Cleric still needs
+  inns and Tonics less often than other classes, but must plan MP.
+- The interval stays a data value (`fieldMpStepInterval`) so the simulator can tune it between 10 and 16.
+- **Balance check:** the simulator's solo-Cleric runs (4.4, 4.6) model field regen by steps between fights; the
+  solo win-rate targets must still pass. If they fail, first make Holy Strike slightly stronger (15.3), not regen.
+- **Tests:** a world-scene test walks 24 steps on the overworld (+2 MP) and 24 steps in a town (+0 MP), and
+  checks MP never goes above max.
+
+### 15.10 Work breakdown
 
 1. Plan update (this section) — done first, before any code.
 2. World-anchored weather (15.1) and its renderer test.
@@ -835,4 +859,5 @@ other look-specific words. Monsters without variants (bosses and mini-bosses) ke
    the largest item.
 8. Building signs (15.7), including the armor shop sign added with 15.4.
 9. Generic monster names and the colour-word test (15.8).
-10. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
+10. Slower Cleric MP regen, town exclusion and simulator re-check (15.9).
+11. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
