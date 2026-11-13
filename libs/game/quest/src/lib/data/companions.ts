@@ -14,6 +14,8 @@ export interface CompanionSlot {
   mapId: string;
   x: number;
   y: number;
+  /** Where to find the companion again, for messages ("Return to Bren in Aldmere."). */
+  home: string;
   /** Story flag that must be set before the companion appears. */
   requiresFlag?: string;
   /** Why the companion is here (`{name}` is replaced). */
@@ -37,6 +39,8 @@ export interface CompanionQuest {
   offer: string[];
   reminder: string[];
   thanks: string[];
+  /** Said before the thanks when the mini-boss was already beaten before the quest was accepted. */
+  already: string[];
   reward: { gold: number; items?: Record<string, number> };
 }
 
@@ -55,6 +59,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
     mapId: 'aldmere',
     x: 15,
     y: 12,
+    home: 'the Aldmere tavern',
     intro: ['{name}: Coin is scarce and the goblins are many. I could use honest work.'],
     quest: {
       title: 'The Wolf Den',
@@ -67,6 +72,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
       ],
       reminder: ['{name}: The Alpha Wolf still hunts from its den in the eastern hills.'],
       thanks: ['{name}: The alpha is dead? The farmers will sleep tonight. Here - the bounty is yours.'],
+      already: ['{name}: Wait - you already slew the alpha? Then I owe you twice.'],
       reward: { gold: 60 },
     },
   },
@@ -75,6 +81,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
     mapId: 'overworld',
     x: 70,
     y: 53,
+    home: 'the Thornwick ruins',
     intro: [
       '{name}: I was passing through Thornwick when the goblins came... I could not save it.',
       'They came from a cave in the north-eastern hills. Let me help you end this.',
@@ -90,6 +97,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
       ],
       reminder: ['{name}: The Bone Captain rises at night. Rest at an inn, then come back.'],
       thanks: ['{name}: Thornwick can finally rest. Take this - I found it in the ashes.'],
+      already: ['{name}: The Bone Captain is already dust? You work fast.'],
       reward: { gold: 40, items: { tonic: 2 } },
     },
   },
@@ -98,6 +106,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
     mapId: 'brookhollow',
     x: 14,
     y: 4,
+    home: 'Brookhollow',
     intro: ['{name}: Brookhollow is quiet - too quiet for me. I hear you hunt goblins?'],
     quest: {
       title: 'The Lake Beast',
@@ -110,6 +119,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
       ],
       reminder: ['{name}: The Giant Toad still squats on the west shore of the lake.'],
       thanks: ['{name}: Ha! The lake is ours again. The fishers sent these for you.'],
+      already: ['{name}: You already chased off the toad? Then I owe you twice.'],
       reward: { gold: 30, items: { herb: 4 } },
     },
   },
@@ -118,6 +128,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
     mapId: 'goblinCave',
     x: 25,
     y: 2,
+    home: 'the cell in the Goblin Cave',
     requiresFlag: 'bossDefeated',
     intro: [
       '{name}: Over here, behind the bars! The goblins caught me poking around the dragon seal.',
@@ -134,6 +145,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
       ],
       reminder: ['{name}: The Jailer is in the eastern chamber. Please hurry!'],
       thanks: ['{name}: The key! Free at last. The goblins hoarded some gold - take it.'],
+      already: ['{name}: You already have the key? Bless you!'],
       reward: { gold: 80 },
     },
   },

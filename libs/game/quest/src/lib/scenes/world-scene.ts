@@ -26,9 +26,12 @@ import {
 import {
   GameState,
   MAX_PARTY,
-  advanceCompanionQuest,
+  answerCompanionQuest,
   companionAvailable,
   companionInfo,
+  completeCompanionQuest,
+  markQuestReady,
+  questStage,
   recruitCompanion,
   saveGame,
 } from '../state/game-state';
@@ -491,7 +494,11 @@ export class WorldScene implements Scene {
     this.ctx.stack.pop(true);
     if (boss && outcome === 'victory') {
       s.flags[boss.defeatFlag] = true;
-      this.queueMessage(boss.victory);
+      const readyId = markQuestReady(s, boss.defeatFlag);
+      const giver = readyId ? companionInfo(s, readyId) : null;
+      this.queueMessage(
+        giver && readyId ? [...boss.victory, `Return to ${giver.name} in ${companionSlot(readyId).home}.`] : boss.victory,
+      );
     }
   }
 
@@ -671,28 +678,48 @@ export class WorldScene implements Scene {
     const s = this.state;
     const c = companionInfo(s, companionId);
     const quest = companionSlot(companionId).quest;
-    const stage = advanceCompanionQuest(s, companionId);
-    switch (stage) {
+    switch (questStage(s, companionId)) {
       case 'locked':
         say(stack, audio, [...companionIntro(companionId, c), ...companionLines([PRE_BOSS_HINT], c)]);
         return;
-      case 'offered':
-        audio.play('confirm');
-        say(stack, audio, [
-          ...companionIntro(companionId, c),
-          ...companionLines(quest.offer, c),
-          `New quest: ${quest.title}.`,
-        ]);
+      case 'available': {
+        const firstTime = s.quests[companionId] === undefined;
+        ask(
+          stack,
+          audio,
+          [...(firstTime ? companionIntro(companionId, c) : []), ...companionLines(quest.offer, c), `Accept the quest "${quest.title}"?`],
+          ['YES', 'NO'],
+          (choice) => {
+            answerCompanionQuest(s, companionId, choice === 0);
+            if (choice === 0) {
+              audio.play('confirm');
+              say(stack, audio, [`New quest: ${quest.title}.`]);
+            } else {
+              say(stack, audio, [`${c.name.toUpperCase()}: I understand. If you change your mind, I'll be here.`]);
+            }
+          },
+        );
         return;
+      }
       case 'active':
         say(stack, audio, companionLines(quest.reminder, c));
         return;
-      case 'completed':
+      case 'ready': {
+        const early = s.quests[companionId] !== 'ready';
+        completeCompanionQuest(s, companionId);
         audio.play('victory');
-        say(stack, audio, [...companionLines(quest.thanks, c), `Quest complete: ${quest.title}. Received ${rewardText(quest.reward)}.`], () =>
-          this.offerToJoin(companionId),
+        say(
+          stack,
+          audio,
+          [
+            ...(early ? companionLines(quest.already, c) : []),
+            ...companionLines(quest.thanks, c),
+            `Quest complete: ${quest.title}. Received ${rewardText(quest.reward)}.`,
+          ],
+          () => this.offerToJoin(companionId),
         );
         return;
+      }
       case 'done':
         this.offerToJoin(companionId);
         return;
@@ -742,11 +769,22 @@ export class WorldScene implements Scene {
   }
 
   private handleEvent(id: string): void {
+    const s = this.state;
+    if (id === 'denNest' && !s.flags['alphaWolfDefeated'] && s.quests['tavern'] !== 'active') {
+      this.queueMessage([
+        'A nest of gnawed bones. Huge paw prints lead deeper into the hills...',
+        'Whatever made them is out hunting. Someone in Aldmere may know more.',
+      ]);
+      return;
+    }
+    if (id === 'lakeShore' && !s.flags['giantToadDefeated'] && s.quests['brookhollow'] !== 'active') {
+      this.queueMessage(['A torn fishing net lies in the reeds, slick with slime. Something big lives in this lake.']);
+      return;
+    }
     if (id === 'thornwick' && this.state.flags['thornwickNight'] && !this.state.flags['boneCaptainDefeated']) {
       this.queueMessage(['Pale lights drift among the ruins. Something in old armour stands guard...']);
       return;
     }
-    const s = this.state;
     if (id === 'thornwick' && !s.flags['sawRuins']) {
       s.flags['sawRuins'] = true;
       this.queueMessage([

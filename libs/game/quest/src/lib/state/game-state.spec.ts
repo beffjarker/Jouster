@@ -6,13 +6,16 @@ import {
   MAX_PARTY,
   SAVE_KEY,
   addItem,
-  advanceCompanionQuest,
+  answerCompanionQuest,
   companionAvailable,
   companionPresent,
+  completeCompanionQuest,
   hasSave,
   loadGame,
+  markQuestReady,
   memoryStorage,
   newGameState,
+  questStage,
   recruitCompanion,
   saveGame,
 } from './game-state';
@@ -135,34 +138,61 @@ describe('recruiting', () => {
     expect(companionPresent(s, 'tavern')).toBe(true);
     expect(companionPresent(s, 'cave')).toBe(false);
     expect(recruitCompanion(s, 'tavern')).toBe(false);
-    expect(advanceCompanionQuest(s, 'thornwick')).toBe('done');
+    expect(questStage(s, 'thornwick')).toBe('done');
     delete s.quests['thornwick'];
-    expect(advanceCompanionQuest(s, 'thornwick')).toBe('locked');
+    expect(questStage(s, 'thornwick')).toBe('locked');
   });
 
-  it('runs the side quest: offer, reminder, turn in with reward, then join', () => {
+  it('runs the side quest: offer, decline, accept, kill, turn in with reward, then join', () => {
     const s = withRoster('paladin');
     s.flags['bossDefeated'] = true;
-    expect(advanceCompanionQuest(s, 'tavern')).toBe('offered');
-    expect(advanceCompanionQuest(s, 'tavern')).toBe('active');
+    expect(questStage(s, 'tavern')).toBe('available');
+    answerCompanionQuest(s, 'tavern', false);
+    expect(s.quests['tavern']).toBe('available');
+    expect(questStage(s, 'tavern')).toBe('available');
+    answerCompanionQuest(s, 'tavern', true);
+    expect(questStage(s, 'tavern')).toBe('active');
     expect(recruitCompanion(s, 'tavern')).toBe(false);
+    expect(completeCompanionQuest(s, 'tavern')).toBe(false);
     s.flags['alphaWolfDefeated'] = true;
+    expect(markQuestReady(s, 'alphaWolfDefeated')).toBe('tavern');
+    expect(questStage(s, 'tavern')).toBe('ready');
+    expect(recruitCompanion(s, 'tavern')).toBe(false);
     const gold = s.gold;
-    expect(advanceCompanionQuest(s, 'tavern')).toBe('completed');
+    expect(completeCompanionQuest(s, 'tavern')).toBe(true);
     expect(s.gold).toBe(gold + COMPANION_SLOTS[0].quest.reward.gold);
-    expect(advanceCompanionQuest(s, 'tavern')).toBe('done');
+    expect(completeCompanionQuest(s, 'tavern')).toBe(false);
+    expect(s.gold).toBe(gold + COMPANION_SLOTS[0].quest.reward.gold);
+    expect(questStage(s, 'tavern')).toBe('done');
     expect(recruitCompanion(s, 'tavern')).toBe(true);
   });
 
-  it('completes immediately when the mini-boss was already beaten', () => {
+  it('only readies a quest that was accepted', () => {
+    const s = withRoster('paladin');
+    s.flags['bossDefeated'] = true;
+    expect(markQuestReady(s, 'alphaWolfDefeated')).toBeNull();
+    expect(markQuestReady(s, 'unknownFlag')).toBeNull();
+    expect(s.quests['tavern']).toBeUndefined();
+  });
+
+  it('treats a mini-boss beaten before the quest (older saves) as ready, rewarding once', () => {
     const s = withRoster('warrior');
     s.flags['bossDefeated'] = true;
     s.flags['giantToadDefeated'] = true;
+    expect(questStage(s, 'brookhollow')).toBe('ready');
     const herbs = s.inventory['herb'] ?? 0;
-    expect(advanceCompanionQuest(s, 'brookhollow')).toBe('completed');
+    expect(completeCompanionQuest(s, 'brookhollow')).toBe(true);
+    expect(s.inventory['herb']).toBe(herbs + 4);
+    expect(completeCompanionQuest(s, 'brookhollow')).toBe(false);
     expect(s.inventory['herb']).toBe(herbs + 4);
   });
 
+  it('gives every companion a home and an early-kill line', () => {
+    COMPANION_SLOTS.forEach((slot) => {
+      expect(slot.home.length).toBeGreaterThan(0);
+      expect(slot.quest.already.length).toBeGreaterThan(0);
+    });
+  });
   it('shows the cave companion only after the Goblin King is defeated', () => {
     const s = withRoster('paladin');
     expect(companionPresent(s, 'cave')).toBe(false);
