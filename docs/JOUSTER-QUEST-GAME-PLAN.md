@@ -254,9 +254,9 @@ NPCs with hints and side quests
 - **Sprites:** 32×32-pixel overworld characters (4 directions × 2 frames); 32×32-pixel monsters shown 2–4× in
   battle; tiles have 32×32 pixels of detail on a 16×16 logical grid. The bitmap font stays chunky for readability.
 - **Tools:** all art is currently drawn in code (`Art` class); Aseprite or LibreSprite if hand-made sprites are added.
-- **Assets:** the first release uses only original procedural pixel art. CC0 sprite sheets (for example from
-  OpenGameArt or Kenney) may replace it later through the `Art` class; any added files must be listed in
-  `CREDITS.md`. Swapping in third-party art is examined in 16.2.
+- **Assets:** the first release uses only original procedural pixel art. Licensed sprite sheets (CraftPix
+  preferred, CC0 packs such as Kenney to fill gaps) may replace it through the `Art` class; any added files must
+  be listed in `CREDITS.md`. See 16.2 for the licensing rules.
 - **Audio:** procedural chiptune SFX with Web Audio; optional looping tracks per region and battle.
 
 ---
@@ -944,24 +944,51 @@ logical, rendered at 2× detail). Scenes only call `art.tile(id, frame, variant)
 `art.monster(...)` and `art.sign(...)`, which return canvases. That narrow interface is what makes a swap
 practical: only `Art` needs to change.
 
-**Licensing (the deciding factor):**
+**Licensing (re-examined after the repository was made private, 2026-11-13):**
 
-| Source | License | Can the files live in this repo? | Notes |
+| Source | License | Files in this repo? | Notes |
 | --- | --- | --- | --- |
-| **Kenney** (Tiny Town, Tiny Dungeon, Roguelike RPG) | CC0 (public domain) | **Yes** | 16×16 tiles, matches our grid; no attribution required (credit anyway) |
-| **OpenGameArt** | Varies (CC0, CC-BY, CC-BY-SA, GPL) | Only CC0/CC-BY packs | CC-BY needs credits; avoid -SA/GPL to keep the code license clean |
-| **CraftPix freebies / premium** | CraftPix license: use in games OK, no attribution needed | **No** | Redistributing the source PNGs is forbidden, and this repository is **public**, so committing them would make the files downloadable by anyone |
-| **itch.io packs** | Per pack | Depends | Read each license; many forbid redistribution like CraftPix |
+| **CraftPix freebies** | CraftPix license §2: personal and commercial games, edits allowed, no attribution required | **Yes, while the repo stays private** | No reselling or redistributing the files or near-copies; no AI use (see below) |
+| **CraftPix premium** | CraftPix license §1: same, bought per pack or by subscription; downloads stay usable after the subscription ends | **Yes, while private** | Same restrictions; non-transferable, licensed to the buyer only |
+| **Kenney** | CC0 (public domain) | Yes, always | 16×16; fallback for gaps CraftPix doesn't cover |
+| **OpenGameArt / itch.io** | Per pack | Depends | Use only CC0/CC-BY (credit it) or licenses at least as permissive as CraftPix's |
 
-**Recommendation:** use **CC0 packs (Kenney first)** for anything committed to the repo. CraftPix art is possible
-only if the PNGs are kept **out of git**: stored privately (e.g. a private S3 bucket) and copied into the build by
-CI at deploy time, with the procedural art as the fallback for local and CI test runs. That adds pipeline work and
-makes the game look different for contributors, so it is not the first choice.
+**What the CraftPix license allows and forbids for this project:**
+
+- **Allowed:** shipping the art inside the game on the website. Browsers download the PNGs to draw them, and the
+  license explicitly says "an app that uses the art as part of the game is fine".
+- **Forbidden:** any feature that lets players save or export the art (for example a sprite viewer or a
+  "download sheet" button); publishing the raw files (public repo, public bucket listing, public GitHub
+  release or artifact); giving the files to other developers to reuse — the license is **non-transferable**, so
+  any future collaborator needs their own CraftPix account/license or must work with the procedural fallback.
+- **AI clause (license §3):** the assets may not be used for "training, fine-tuning, developing, testing,
+  validating, or improving" AI/ML systems. Writing game code with an AI assistant is not training a model, but
+  to stay well clear of it: CraftPix images are **not uploaded or shown to AI tools** (including Copilot chat),
+  sheet layouts are taken from each pack's file names, readme or Tiled `.tsx` data, and visual review of the
+  result is done by a person. If unsure, ask CraftPix support before starting.
+- **Account:** downloads require logging in on craftpix.net in a browser (no third-party sign-in), so packs are
+  downloaded by the owner by hand, not by scripts or CI.
+
+**Recommendation:** use **CraftPix as the main art source** and commit the PNGs to this private repo under one
+folder, `apps/jouster-ui/public/game-assets/craftpix/`, with a `LICENSE-NOTE.md` that records the pack name,
+URL, freebie/premium, and download date. Kenney CC0 packs fill any gaps, under `game-assets/cc0/`. Safeguards:
+
+- **If the repo is ever made public again,** the `craftpix/` folder must first be removed **and purged from git
+  history** (`git filter-repo`), and production builds then fetch the files from private storage at deploy time.
+  To make that cheaper, the folder can instead live in a small private git submodule (`jouster-game-assets`)
+  from the start; decided in the spike (step 4 below).
+- PR preview artifacts and deployments stay private/unlisted as they are today; no CraftPix file is attached to
+  a public release.
+- A unit test fails if any manifest entry points at a CraftPix file that has no `LICENSE-NOTE.md` entry.
+
+**CraftPix fit:** many CraftPix top-down packs are drawn at 32×32 or 16×16. 32×32 tiles match our real pixel
+density exactly (16×16 logical × 2) and need no scaling; 16×16 packs are scaled 2× like the procedural art. Packs
+from one artist series should be used per category (tiles, characters, monsters) so the styles match.
 
 **What the swap takes:**
 
-1. **Asset pipeline:** PNG sheets under `apps/jouster-ui/public/game-assets/` (already served by the `public`
-   assets glob), plus a typed manifest in `@jouster/game/quest` mapping our ids (`grass`, `wall` variants,
+1. **Asset pipeline:** PNG sheets under `apps/jouster-ui/public/game-assets/craftpix/` and `cc0/` (already
+   served by the `public` assets glob), plus a typed manifest in `@jouster/game/quest` mapping our ids (`grass`, `wall` variants,
    `warrior` facing/frame, `slime` variants, sign kinds) to sheet + cell.
 2. **Loading:** a small async loader (Image → canvas) and a **loading screen** before the title, because the
    current `Art` is synchronous. The loader resolves to an `Art` that reads from sheets.
@@ -973,14 +1000,16 @@ makes the game look different for contributors, so it is not the first choice.
    battle poses, signs, weather) stay procedural or are hand-edited in Aseprite/LibreSprite.
 5. **Style check:** packs mixed from different artists clash; pick one family per category and do a screenshot
    review before committing.
-6. **Credits and tests:** add `CREDITS.md` (pack, author, license, URL); tests that every manifest entry points
+6. **Credits and tests:** add `CREDITS.md` (pack, author, license, URL; CraftPix credited although not
+   required); tests that every manifest entry points
    inside its sheet and every tile/monster/class id has art (sheet or procedural).
 
 **Effort estimate:** loader, manifest and hybrid `Art` ~1–2 days; tiles ~1 day; characters/NPCs ~1–2 days;
 monsters with variants ~2 days; polish and screenshots ~1 day. Roughly **1–1.5 weeks**, done incrementally.
 
-**First step (proposed):** a spike that swaps only the overworld and town tiles to Kenney Tiny Town behind a
-`?art=classic|pack` toggle, so both looks can be compared in the browser before committing to the rest.
+**First step (proposed):** the owner picks CraftPix packs (top-down tileset, characters, monsters) and drops the
+downloaded zips in a local folder; the spike swaps only the overworld and town tiles to the chosen tileset behind
+a `?art=classic|pack` toggle, so both looks can be compared in the browser before committing to the rest.
 
 ### 16.3 Keep the jouster-ui control list in sync
 
@@ -1002,6 +1031,7 @@ monsters with variants ~2 days; polish and screenshots ~1 day. Roughly **1–1.5
 1. Plan update (this section) — done first, before any code.
 2. Controls single source of truth and sync tests (16.3) — smallest, do first.
 3. Companion level 1 / party-only XP, save v4 migration and simulator checks (16.1).
-4. Art spike: Kenney tiles behind an `?art=` toggle with procedural fallback (16.2); review screenshots with the
-   user before converting characters and monsters.
+4. Art spike (16.2): owner chooses and downloads CraftPix packs; decide in-repo folder vs private submodule;
+   swap tiles behind an `?art=` toggle with procedural fallback; owner reviews screenshots before characters and
+   monsters are converted.
 5. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
