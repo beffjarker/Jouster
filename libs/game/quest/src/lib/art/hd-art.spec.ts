@@ -2,7 +2,7 @@ import { MAPS } from '../data/maps';
 import { CHARACTER_LOOK_IDS, TILE_VARIANT_COUNTS } from './art';
 import { HD_MONSTER_SHAPES, HD_SPRITE, LOOKS, paintHumanoid, paintMonster } from './hd-characters';
 import { Paint } from './hd-paint';
-import { HD_TILE, HD_TILES, paintTile } from './hd-tiles';
+import { HD_TILE, HD_TILES, SHADOW_CASTERS, WALL_SHADOW_ROWS, paintTile, paintWallShadow } from './hd-tiles';
 
 function opaque(p: Paint): number {
   let n = 0;
@@ -46,6 +46,34 @@ describe('HD tiles', () => {
       });
     expect(paintTile('grass', 0, 0, false)).toBeNull();
     expect(paintTile('nope', 0, 0)).toBeNull();
+  });
+
+  it('keeps the town floor clearly apart from the walls (warmer and lighter)', () => {
+    const avg = (id: string): number[] => {
+      const d = paintTile(id, 0, 0)?.data ?? new Uint8ClampedArray(4);
+      const sum = [0, 0, 0];
+      for (let i = 0; i < d.length; i += 4) {
+        sum[0] += d[i];
+        sum[1] += d[i + 1];
+        sum[2] += d[i + 2];
+      }
+      return sum.map((c) => c / (d.length / 4));
+    };
+    const [fr, fg, fb] = avg('cobble');
+    const [wr, wg, wb] = avg('wall');
+    expect(fr - fb).toBeGreaterThan(wr - wb + 30);
+    expect(fr + fg + fb).toBeGreaterThan(wr + wg + wb);
+  });
+
+  it('paints a soft shadow along the top edge only, for the tile below a wall', () => {
+    expect(SHADOW_CASTERS.has('wall')).toBe(true);
+    expect(SHADOW_CASTERS.has('cobble')).toBe(false);
+    const p = paintWallShadow();
+    expect([p.width, p.height]).toEqual([HD_TILE, HD_TILE]);
+    expect(p.get(5, 0)[3]).toBeGreaterThan(p.get(5, WALL_SHADOW_ROWS - 2)[3]);
+    expect(p.get(5, WALL_SHADOW_ROWS - 2)[3]).toBeGreaterThan(0);
+    expect(p.get(5, WALL_SHADOW_ROWS)[3]).toBe(0);
+    expect(p.get(31, 31)[3]).toBe(0);
   });
 });
 
