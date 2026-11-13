@@ -1,9 +1,12 @@
 import { Facing, Palette, createCanvas, imageDensity, palette, setImageDensity } from '@jouster/game/engine';
 import { Backdrop } from '../data/maps';
-import { paintBackdrop } from './hd-backdrops';
+import { paintBackdrop, paintShadow, paintTitleBackdrop } from './hd-backdrops';
 import { HumanoidLook, LOOKS, paintHumanoid, paintMonster, paintSign } from './hd-characters';
 import { ART_SCALE, Paint, box } from './hd-paint';
 import { paintTile, paintWallShadow } from './hd-tiles';
+
+/** Logical width of {@link Art.shadow}. */
+export const SHADOW_W = 32;
 
 export { SHADOW_CASTERS } from './hd-tiles';
 import { LPC_CELL, LPC_TILES, LpcSheetId, lpcGroundCell } from './lpc-manifest';
@@ -302,6 +305,16 @@ export class Art {
   /** Painted battle backdrop `kind` of `width` x `height` logical pixels with the horizon at `horizon`. */
   public backdrop(kind: Backdrop, width: number, height: number, horizon: number): HTMLCanvasElement {
     return this.cached(`backdrop:${kind}:${width}x${height}:${horizon}`, () => paintBackdrop(kind, width, height, horizon).toCanvas());
+  }
+
+  /** Painted night scene behind the title, class and name screens, with the horizon at `horizon`. */
+  public titleBackdrop(width: number, height: number, horizon: number): HTMLCanvasElement {
+    return this.cached(`title:${width}x${height}:${horizon}`, () => paintTitleBackdrop(width, height, horizon).toCanvas());
+  }
+
+  /** Soft elliptical ground shadow, {@link SHADOW_W} logical pixels wide. */
+  public shadow(): HTMLCanvasElement {
+    return this.cached('shadow', () => paintShadow(SHADOW_W).toCanvas());
   }
 
   /** Town sign sprite (transparent background) advertising the service `kind` (see SignKind). */

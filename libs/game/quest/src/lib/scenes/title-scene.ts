@@ -1,5 +1,6 @@
 import { InputManager, PointerPoint, Renderer, Scene } from '@jouster/game/engine';
 import { TILE, fitScale, spriteSize, tileAnchor } from '../art/art';
+import { titleTwinkles } from '../art/hd-backdrops';
 import { CLASS_ORDER, classDef } from '../data/classes';
 import { ABILITIES } from '../data/abilities';
 import { GameState, hasSave, loadGame, newGameState } from '../state/game-state';
@@ -8,6 +9,10 @@ import { COLORS, ListMenu, SCREEN_H, SCREEN_W, charsFit, inRect } from '../ui/wi
 
 /** The title and name screens were laid out for a 216-unit-tall screen; centre that block vertically. */
 const OY = Math.floor((SCREEN_H - 216) / 2);
+/** Horizon of the painted title backdrop, just under the class line-up. */
+const HORIZON = 138 + OY;
+/** Blinking glints over the painted stars, clear of the moon (upper left). */
+const TWINKLES = titleTwinkles(SCREEN_W, HORIZON, 24).filter((t) => Math.hypot(t.x - SCREEN_W * 0.15, t.y - HORIZON * 0.3) > 30);
 import { GameContext } from './context';
 import { WorldScene } from './world-scene';
 
@@ -42,14 +47,15 @@ export class TitleScene implements Scene {
   }
 
   public render(r: Renderer): void {
-    r.clear('#0b0b2a');
-    for (let i = 0; i < 40; i++) {
-      const x = (i * 97) % SCREEN_W;
-      const y = (i * 53) % (100 + OY);
-      const on = Math.floor(this.time * 2 + i) % 5 !== 0;
-      r.fillRect(x, y, 1, 1, on ? '#ffffff' : '#555577');
-    }
-    drawMountains(r, 138 + OY);
+    r.draw(this.ctx.art.titleBackdrop(SCREEN_W, SCREEN_H, HORIZON), 0, 0);
+    TWINKLES.forEach((t, i) => {
+      const a = Math.max(0, Math.sin(this.time * (1.3 + (i % 5) * 0.4) + i * 2.1));
+      if (a > 0.05) {
+        const c = `rgba(255,255,255,${(a * 0.9).toFixed(2)})`;
+        r.fillRect(t.x - 1, t.y - 0.25, 2.5, 0.5, c);
+        r.fillRect(t.x, t.y - 1.25, 0.5, 2.5, c);
+      }
+    });
     r.textCentered('JOUSTER', SCREEN_W / 2 + 1, 41 + OY, '#802010');
     r.textCentered('JOUSTER', SCREEN_W / 2, 40 + OY, COLORS.gold);
     r.textCentered('QUEST', SCREEN_W / 2 + 1, 53 + OY, '#802010');
@@ -67,14 +73,10 @@ export class TitleScene implements Scene {
   }
 }
 
-function drawMountains(r: Renderer, baseY: number): void {
-  for (let x = 0; x < SCREEN_W; x++) {
-    const h = 30 + Math.round(18 * Math.sin(x / 23) + 10 * Math.sin(x / 7 + 1));
-    r.fillRect(x, baseY - h, 1, h, '#1e2050');
-    const h2 = 14 + Math.round(8 * Math.sin(x / 13 + 2));
-    r.fillRect(x, baseY - h2, 1, h2, '#283a28');
-  }
-  r.fillRect(0, baseY, SCREEN_W, SCREEN_H - baseY, '#1a2a18');
+/** Draws the title's night scene, dimmed, behind the class and name screens. */
+function dimBackdrop(r: Renderer, ctx: GameContext): void {
+  r.draw(ctx.art.titleBackdrop(SCREEN_W, SCREEN_H, HORIZON), 0, 0);
+  r.fade(0.62, '#000000');
 }
 
 /** Choose the hero's class; shows stats, weapon and abilities. */
@@ -101,7 +103,7 @@ export class ClassSelectScene implements Scene {
   }
 
   public render(r: Renderer): void {
-    r.clear('#000000');
+    dimBackdrop(r, this.ctx);
     r.textCentered('CHOOSE YOUR CLASS', SCREEN_W / 2, 8, COLORS.gold);
     this.menu.render(r, 8, 24, 76);
     const id = CLASS_ORDER[this.menu.cursor];
@@ -242,7 +244,7 @@ export class NameEntryScene implements Scene {
   }
 
   public render(r: Renderer): void {
-    r.clear('#000000');
+    dimBackdrop(r, this.ctx);
     const cls = classDef(this.classId);
     r.textCentered(`NAME YOUR ${cls.name.toUpperCase()}`, SCREEN_W / 2, 60 + OY, COLORS.gold);
     const portrait = this.ctx.art.character(this.classId, 'down', Math.floor(this.time * 3) % 2);

@@ -16,7 +16,7 @@ import {
   isAlive,
   wrapText,
 } from '@jouster/game/engine';
-import { fitScale, monsterVariant } from '../art/art';
+import { SHADOW_W, fitScale, monsterVariant, spriteSize } from '../art/art';
 import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
@@ -939,14 +939,16 @@ export class BattleScene implements Scene {
   }
 
   private shadow(r: Renderer, x: number, y: number, size: number): void {
-    r.fillRect(x + size * 0.15, y + size - 2, size * 0.7, 3, 'rgba(0,0,0,0.3)');
+    const img = this.ctx.art.shadow();
+    const scale = (size * 0.8) / SHADOW_W;
+    r.draw(img, x + size * 0.1, y + size - (spriteSize(img).height * scale) / 2 - 1, { scale });
   }
 
   private drawMember(r: Renderer, c: Combatant, spot: Spot): void {
     const p = this.pose(c);
     const v = this.shown.get(c.id);
     const down = (v?.hp ?? c.hp) <= 0;
-    this.shadow(r, spot.x, spot.y, spot.size);
+    this.shadow(r, p.x, spot.y, spot.size);
     const fleeing = this.motions.get(c.id)?.kind === 'flee';
     const walking = this.motions.has(c.id) || this.phase === 'intro' || this.isActing(c);
     const frame = walking ? Math.floor(this.time * 6) % 2 : 0;
@@ -973,7 +975,7 @@ export class BattleScene implements Scene {
     if (dying !== undefined) {
       alpha = Math.max(0, dying / DISSOLVE_TIME);
     } else {
-      this.shadow(r, spot.x, spot.y, spot.size);
+      this.shadow(r, p.x, spot.y, spot.size);
     }
     const sprite = this.ctx.art.monster(def.spriteId, this.looks.get(e.id));
     r.draw(sprite, p.x, p.y - bob, { scale: fitScale(sprite, spot.size), alpha });
