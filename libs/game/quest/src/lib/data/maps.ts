@@ -56,6 +56,27 @@ export interface Warp {
   facing: Facing;
 }
 
+/** Service a town sign advertises (plan 15.7). */
+export type SignKind = 'inn' | 'tavern' | 'item' | 'weapon' | 'armor' | 'chapel' | 'castle';
+
+/** A pixel-icon sign hanging on a wall tile next to a service building's door. */
+export interface TownSign {
+  x: number;
+  y: number;
+  kind: SignKind;
+}
+
+/** Name and short blurb shown when the player reads a sign. */
+export const SIGN_TEXT: Readonly<Record<SignKind, { name: string; blurb: string }>> = {
+  inn: { name: 'Inn', blurb: 'rest and recover' },
+  tavern: { name: 'Tavern', blurb: 'ale and hired swords' },
+  item: { name: 'Item Shop', blurb: 'herbs, tonics and feathers' },
+  weapon: { name: 'Smithy', blurb: 'blades, staves and maces' },
+  armor: { name: 'Armorer', blurb: 'armor, shields and charms' },
+  chapel: { name: 'Chapel', blurb: 'revival and the book of deeds' },
+  castle: { name: 'Castle', blurb: 'hall of King Aldric' },
+};
+
 export interface MapEvent {
   x: number;
   y: number;
@@ -77,6 +98,8 @@ export interface MapDef {
   backdrop: Backdrop;
   /** Hidden under fog of war until explored (wilds and caves; towns are never fogged). */
   fog?: boolean;
+  /** Building signs, each on a wall tile (towns only). */
+  signs?: readonly TownSign[];
 }
 
 // --- Overworld (96x72, generated from a fixed seed) ----------------------------------------
@@ -367,6 +390,15 @@ const BASE_MAPS: MapDef[] = [
           lines: () => ['Press X or Esc to open your menu. You can heal with Herbs there, too.'],
         },
       ],
+      signs: [
+        { x: 3, y: 6, kind: 'castle' },
+        { x: 15, y: 6, kind: 'chapel' },
+        { x: 3, y: 11, kind: 'item' },
+        { x: 8, y: 11, kind: 'weapon' },
+        { x: 13, y: 14, kind: 'tavern' },
+        { x: 20, y: 11, kind: 'inn' },
+        { x: 21, y: 8, kind: 'armor' },
+      ],
       events: [],
       outsideTile: 'T',
       backdrop: 'field',
@@ -480,6 +512,10 @@ const BASE_MAPS: MapDef[] = [
               ? ['FARMER: The goblin raids have stopped! Bless you, traveler.']
               : ['FARMER: Goblins took half my harvest. Somebody ought to deal with that king of theirs.'],
         },
+      ],
+      signs: [
+        { x: 2, y: 4, kind: 'inn' },
+        { x: 19, y: 4, kind: 'item' },
       ],
       events: [],
       outsideTile: 'T',

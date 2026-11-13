@@ -780,6 +780,67 @@ function hiResTile(low: HTMLCanvasElement, seed: number): HTMLCanvasElement {
 
 const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWater', 'fountain', 'torch']);
 
+type SignIcon = (ctx: Ctx) => void;
+
+const SIGN_ICONS: ReadonlyMap<string, SignIcon> = new Map<string, SignIcon>([
+  ['inn', (ctx) => {
+    rect(ctx, 4, 8, 8, 2, '#c0392b');
+    rect(ctx, 4, 7, 3, 1, '#f0f0f0');
+    rect(ctx, 4, 10, 1, 1, '#3a2410');
+    rect(ctx, 11, 10, 1, 1, '#3a2410');
+  }],
+  ['tavern', (ctx) => {
+    rect(ctx, 5, 6, 5, 5, '#e0a020');
+    rect(ctx, 5, 6, 5, 1, '#fff6d8');
+    rect(ctx, 10, 7, 2, 1, '#e0a020');
+    rect(ctx, 11, 7, 1, 3, '#e0a020');
+    rect(ctx, 10, 9, 1, 1, '#e0a020');
+  }],
+  ['item', (ctx) => {
+    rect(ctx, 7, 5, 2, 2, '#c8c8d0');
+    rect(ctx, 6, 7, 4, 1, '#c8c8d0');
+    rect(ctx, 5, 8, 6, 3, '#3ac060');
+    rect(ctx, 6, 8, 1, 1, '#a0f0b0');
+  }],
+  ['weapon', (ctx) => {
+    for (let i = 0; i < 6; i++) {
+      rect(ctx, 5 + i, 5 + i, 1, 1, '#d8d8e0');
+      rect(ctx, 10 - i, 5 + i, 1, 1, '#d8d8e0');
+    }
+    rect(ctx, 4, 10, 2, 1, '#8a5a20');
+    rect(ctx, 10, 10, 2, 1, '#8a5a20');
+  }],
+  ['armor', (ctx) => {
+    rect(ctx, 5, 5, 6, 4, '#3a6ac8');
+    rect(ctx, 6, 9, 4, 1, '#3a6ac8');
+    rect(ctx, 7, 10, 2, 1, '#3a6ac8');
+    rect(ctx, 7, 5, 2, 5, '#e0c040');
+  }],
+  ['chapel', (ctx) => {
+    rect(ctx, 7, 5, 2, 6, '#f0e0a0');
+    rect(ctx, 5, 7, 6, 2, '#f0e0a0');
+  }],
+  ['castle', (ctx) => {
+    rect(ctx, 4, 8, 8, 3, '#f0c020');
+    rect(ctx, 4, 6, 1, 2, '#f0c020');
+    rect(ctx, 7, 5, 2, 3, '#f0c020');
+    rect(ctx, 11, 6, 1, 2, '#f0c020');
+    rect(ctx, 7, 9, 2, 1, '#c0392b');
+  }],
+]);
+
+/** A hanging wooden shop sign: iron bracket, two chains and a board with the service icon. */
+export function drawSign(ctx: Ctx, kind: string): void {
+  rect(ctx, 1, 1, 14, 1, '#2a2a30');
+  rect(ctx, 1, 0, 1, 3, '#2a2a30');
+  rect(ctx, 4, 2, 1, 2, '#5a5a64');
+  rect(ctx, 11, 2, 1, 2, '#5a5a64');
+  rect(ctx, 2, 4, 12, 9, '#3a2410');
+  rect(ctx, 3, 4, 10, 8, '#8a5a2a');
+  rect(ctx, 3, 4, 10, 1, '#a8743a');
+  (SIGN_ICONS.get(kind) ?? SIGN_ICONS.get('item') as SignIcon)(ctx);
+}
+
 /** Lazily rendered and cached 2x-density art (tiles, humanoid sprites, monster sprites). */
 export class Art {
   private readonly cache = new Map<string, HTMLCanvasElement>();
@@ -831,6 +892,18 @@ export class Art {
       const rows = (MONSTER_ROWS.get(shape) ?? MONSTER_ROWS.get('slime') ?? []).map((r) => r.padEnd(16, '.').slice(0, 16));
       const colors = new Map([...(MONSTER_PALETTES.get(spriteId) ?? new Map<string, string>()), ...(look.colors ?? [])]);
       return hiResSprite(pixelArtToCanvas(rows, colors));
+    });
+  }
+
+  /** Town sign sprite (transparent background) advertising the service `kind` (see SignKind). */
+  public sign(kind: string): HTMLCanvasElement {
+    return this.cached(`sign:${kind}`, () => {
+      const canvas = createCanvas(TILE, TILE);
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        drawSign(ctx, kind);
+      }
+      return hiResSprite(canvas);
     });
   }
 

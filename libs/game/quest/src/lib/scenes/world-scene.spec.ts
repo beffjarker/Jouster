@@ -91,6 +91,16 @@ describe('WorldScene', () => {
     expect(h.state.gold).toBe(100);
   });
 
+  it('reads a town sign when facing it', () => {
+    const h = setup({ mapId: 'aldmere', x: 3, y: 10, facing: 'down' });
+    h.tap('confirm');
+    expect(h.ctx.stack.top?.id).toBe('message');
+    const pages = (h.ctx.stack.top as unknown as { pages: string[][] }).pages.flat().join(' ');
+    expect(pages).toContain('ALDMERE ITEM SHOP');
+    h.confirmUntilWorld();
+    expect(h.ctx.stack.top?.id).toBe('world');
+  });
+
   it('rests at the inn, restoring the party and saving', () => {
     const h = setup({ mapId: INN_RESPAWN.mapId, x: INN_RESPAWN.x, y: INN_RESPAWN.y, facing: 'up' });
     h.state.party[0].hp = 1;
