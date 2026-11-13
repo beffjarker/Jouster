@@ -11,11 +11,14 @@ export const LPC_CELL = 32;
 export const LPC_SHEETS = {
   terrain: 'terrain_atlas.png',
   outside: 'base_out_atlas.png',
+  /** Built by `tools/game-assets/build-lpc-sprites.py`; layout in `lpc-sprites.generated.ts`. */
+  characters: 'characters.png',
+  monsters: 'monsters.png',
 } as const;
 
 export type LpcSheetId = keyof typeof LPC_SHEETS;
 
-/** Size in real pixels of every LPC sheet (both atlases are 1024x1024). */
+/** Size in real pixels of the two tile atlases (`terrain` and `outside` are 1024x1024). */
 export const LPC_SHEET_SIZE = 1024;
 
 /** One 32x32 cell of a sheet, by column and row. */

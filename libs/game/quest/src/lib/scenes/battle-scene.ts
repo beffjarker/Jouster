@@ -15,7 +15,7 @@ import {
   isAlive,
   wrapText,
 } from '@jouster/game/engine';
-import { monsterVariant } from '../art/art';
+import { fitScale, monsterVariant } from '../art/art';
 import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
@@ -980,12 +980,13 @@ export class BattleScene implements Scene {
     const walking = this.motions.has(c.id) || this.phase === 'intro' || this.isActing(c);
     const frame = walking ? Math.floor(this.time * 6) % 2 : 0;
     const sprite = this.ctx.art.character(c.sourceId, fleeing ? 'left' : 'right', frame);
+    const scale = fitScale(sprite, spot.size);
     const flashing = this.flash.has(c.id) && Math.floor(this.time * 20) % 2 === 0;
     if (down) {
-      r.draw(sprite, p.x, p.y + 6, { scale: PARTY_SCALE, alpha: 0.35 });
+      r.draw(sprite, p.x, p.y + 6, { scale, alpha: 0.35 });
       return;
     }
-    r.draw(sprite, p.x, p.y, { scale: PARTY_SCALE, flipX: fleeing, alpha: flashing ? 0.4 : 1 });
+    r.draw(sprite, p.x, p.y, { scale, alpha: flashing ? 0.4 : 1 });
   }
 
   private drawEnemy(r: Renderer, e: Combatant, spot: Spot): void {
@@ -1003,7 +1004,8 @@ export class BattleScene implements Scene {
     } else {
       this.shadow(r, spot.x, spot.y, spot.size);
     }
-    r.draw(this.ctx.art.monster(def.spriteId, this.looks.get(e.id)), p.x, p.y - bob, { scale: spot.size / SPRITE_PX, alpha });
+    const sprite = this.ctx.art.monster(def.spriteId, this.looks.get(e.id));
+    r.draw(sprite, p.x, p.y - bob, { scale: fitScale(sprite, spot.size), alpha });
     if (dying !== undefined) {
       // Dissolve: drifting embers as the sprite fades out.
       const k = 1 - dying / DISSOLVE_TIME;

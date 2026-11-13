@@ -4,6 +4,7 @@ import {
   canvasPixels,
   createCanvas,
   hiResSprite,
+  imageDensity,
   mirrorRows,
   palette,
   pixelArtToCanvas,
@@ -12,9 +13,41 @@ import {
   setImageDensity,
 } from '@jouster/game/engine';
 import { LPC_CELL, LPC_TILES, LpcSheetId, lpcGroundCell } from './lpc-manifest';
+import {
+  LPC_CHARACTER_CELL,
+  LPC_CHARACTER_FACINGS,
+  LPC_CHARACTER_ROWS,
+  LPC_CHARACTER_STEPS,
+  LPC_MONSTERS,
+  LPC_MONSTER_CELL,
+} from './lpc-sprites.generated';
 
 /** Logical tile size. Art is rendered at 2x density (32x32 real pixels per tile). */
 export const TILE = 16;
+
+/** Anything `Renderer.draw` accepts; sizes are in real pixels (see `imageDensity`). */
+type Sized = CanvasImageSource & { width: number; height: number };
+
+/** Logical (on-screen at scale 1) size of a sprite. LPC sprites are bigger than one tile. */
+export function spriteSize(image: Sized): { width: number; height: number } {
+  const d = imageDensity(image);
+  return { width: image.width / d, height: image.height / d };
+}
+
+/** Scale that fits a sprite's frame into a `size` x `size` logical box (procedural 16px sprites: `size / 16`). */
+export function fitScale(image: Sized, size: number): number {
+  const s = spriteSize(image);
+  return size / Math.max(s.width, s.height);
+}
+
+/**
+ * Logical offset to subtract from a tile's top-left so a sprite drawn at `scale` stands on that tile:
+ * centred horizontally, bottoms aligned. Zero for tile-sized sprites.
+ */
+export function tileAnchor(image: Sized, scale = 1): { x: number; y: number } {
+  const s = spriteSize(image);
+  return { x: (s.width * scale - TILE) / 2, y: s.height * scale - TILE };
+}
 
 type Ctx = CanvasRenderingContext2D;
 
@@ -455,6 +488,9 @@ const LOOKS: ReadonlyMap<string, HumanoidLook> = new Map<string, HumanoidLook>([
   ['goblinKingNpc', { skin: '#5aa040', hair: '#2a5a20', body: '#7a2a8a', trim: '#e0c040', legs: '#4a1a5a', hat: 'crown', hatColor: '#f0d040', cape: '#5a1a6a' }],
 ]);
 
+/** Every humanoid look id (classes and NPCs); each has a row in the LPC `characters.png`. */
+export const CHARACTER_LOOK_IDS: readonly string[] = [...LOOKS.keys()];
+
 function drawHumanoid(ctx: Ctx, look: HumanoidLook, facing: Facing, frame: number): void {
   const side = facing === 'left' || facing === 'right';
   const back = facing === 'up';
@@ -883,6 +919,18 @@ export function drawSign(ctx: Ctx, kind: string): void {
 /** Loaded art sheets (LPC atlases) by id; see `loadLpcSheets`. */
 export type ArtSheets = ReadonlyMap<LpcSheetId, CanvasImageSource>;
 
+/** A horizontally mirrored copy of a sprite, keeping its image density. */
+function mirrored(source: HTMLCanvasElement): HTMLCanvasElement {
+  const canvas = createCanvas(source.width, source.height);
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    ctx.translate(source.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(source, 0, 0);
+  }
+  return setImageDensity(canvas, imageDensity(source));
+}
+
 /** Art style toggle (`?art=` on the page): procedural only, or LPC sheets with procedural fallback. */
 export type ArtStyle = 'classic' | 'lpc';
 
@@ -946,22 +994,49 @@ export class Art {
     return LOOKS.has(spriteId);
   }
 
-  /** Humanoid sprite facing down/up/right (draw `left` by flipping `right`). */
+  /**
+   * Humanoid sprite for any facing. LPC sheets give a 32x32 logical frame (stand it on a tile with
+   * {@link tileAnchor}); procedural art is one tile, with `left` mirrored from `right`.
+   */
   public character(spriteId: string, facing: Facing, frame = 0): HTMLCanvasElement {
-    const dir = facing === 'left' ? 'right' : facing;
-    return this.cached(`chr:${spriteId}:${dir}:${frame % 2}`, () => {
+    const f = frame % 2;
+    const row = this.sheets?.get('characters') ? LPC_CHARACTER_ROWS.get(spriteId) : undefined;
+    if (row !== undefined) {
+      const { width, height } = LPC_CHARACTER_CELL;
+      const col = LPC_CHARACTER_FACINGS.indexOf(facing) * LPC_CHARACTER_STEPS + (f % LPC_CHARACTER_STEPS);
+      return this.cached(`lpcchr:${spriteId}:${facing}:${f}`, () =>
+        this.sheetSprite('characters', col * width, row * height, width, height),
+      );
+    }
+    if (facing === 'left') {
+      return this.cached(`chr:${spriteId}:left:${f}`, () => mirrored(this.character(spriteId, 'right', f)));
+    }
+    const dir = facing;
+    return this.cached(`chr:${spriteId}:${dir}:${f}`, () => {
       const canvas = createCanvas(TILE, TILE);
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        drawHumanoid(ctx, LOOKS.get(spriteId) ?? (LOOKS.get('villager') as HumanoidLook), dir, frame % 2);
+        drawHumanoid(ctx, LOOKS.get(spriteId) ?? (LOOKS.get('villager') as HumanoidLook), dir, f);
       }
       return hiResSprite(canvas);
     });
   }
 
-  /** Monster sprite; `variant` (see {@link monsterVariant}) picks an alternate colour/shape. */
+  /**
+   * Monster sprite; `variant` (see {@link monsterVariant}) picks an alternate colour/shape. LPC monsters
+   * face left (towards the party); humanoid ones are 32x32 logical frames, the rest one tile.
+   */
   public monster(spriteId: string, variant = 0): HTMLCanvasElement {
     const v = variant % monsterVariantCount(spriteId);
+    const lpc = LPC_MONSTERS.get(`${spriteId}:${v}`);
+    if (lpc && this.sheets?.get(lpc.sheet)) {
+      const { width, height } = LPC_CHARACTER_CELL;
+      return this.cached(`lpcmon:${spriteId}:${v}`, () =>
+        lpc.sheet === 'characters'
+          ? this.sheetSprite('characters', 0, lpc.index * height, width, height)
+          : this.sheetSprite('monsters', lpc.index * LPC_MONSTER_CELL, 0, LPC_MONSTER_CELL, LPC_MONSTER_CELL),
+      );
+    }
     return this.cached(`mon:${spriteId}:${v}`, () => {
       const look = MONSTER_VARIANTS.get(spriteId)?.[v] ?? {};
       const shape = look.shape ?? MONSTER_SHAPE.get(spriteId) ?? spriteId;
@@ -981,6 +1056,18 @@ export class Art {
       }
       return hiResSprite(canvas);
     });
+  }
+
+  /** A real-pixel region of a sprite sheet, copied 1:1 into a 2x-density canvas. */
+  private sheetSprite(sheet: LpcSheetId, sx: number, sy: number, w: number, h: number): HTMLCanvasElement {
+    const canvas = createCanvas(w, h);
+    const ctx = canvas.getContext('2d');
+    const image = this.sheets?.get(sheet);
+    if (ctx && image) {
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(image, sx, sy, w, h, 0, 0, w, h);
+    }
+    return setImageDensity(canvas, 2);
   }
 
   private sheetTile(sheets: ArtSheets, id: string, sheet: LpcSheetId, col: number, row: number, f: number, v: number): HTMLCanvasElement {

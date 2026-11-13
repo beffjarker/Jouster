@@ -26,18 +26,18 @@ export interface JousterQuestOptions {
   scheduler?: FrameScheduler;
   seed?: number;
   /**
-   * Art style (plan 16.2 spike): `classic` (procedural, default) or `lpc`, which loads the LPC tile
-   * sheets in the background and switches tiles over once they arrive (procedural art until then, or
-   * if loading fails).
+   * Art style: `classic` (procedural only; the default when omitted) or `lpc`, which loads the LPC sheets in
+   * the background and switches tiles, characters and monsters over once they arrive (procedural art until
+   * then, or if loading fails). The page passes {@link artStyleFromQuery}, which defaults to `lpc`.
    */
   art?: ArtStyle;
   /** Folder URL of the LPC sheets; defaults to `game-assets/lpc/`. */
   lpcAssetBase?: string;
 }
 
-/** Reads the art style from a URL query such as `?art=lpc`; anything else is `classic`. */
+/** Reads the art style from the page URL query: LPC sheet art unless it asks for `?art=classic`. */
 export function artStyleFromQuery(search: string): ArtStyle {
-  return new URLSearchParams(search).get('art') === 'lpc' ? 'lpc' : 'classic';
+  return new URLSearchParams(search).get('art') === 'classic' ? 'classic' : 'lpc';
 }
 
 /** Scenes that consume raw typing, where the mute hotkey must not fire. */

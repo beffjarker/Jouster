@@ -908,10 +908,11 @@ replacing inns, Herbs or Heal. The Cleric recovers fastest, the Paladin in betwe
 
 ---
 
-## 16. Revision 5 (implemented; art beyond tiles awaits review)
+## 16. Revision 5 (implemented; LPC objects and remaining monsters next)
 
 Three requests after revision 4, plus the art and view follow-ups. Status per subsection: 16.3, 16.1 and 16.6
-are implemented; the 16.2 tile spike is in, behind `?art=lpc`; characters, monsters and 16.5 wait for review.
+are implemented; 16.2 LPC tiles, characters and most monsters are in and LPC is the default art (16.7);
+16.5 is not started.
 
 ### 16.1 Companions start low and level only in the party (implemented)
 
@@ -1081,8 +1082,8 @@ monsters.
   bridges, fountains) are still our procedural art, drawn over the sheet ground.
 - Loading is **non-blocking** instead of a loading screen: `?art=lpc` starts the game with procedural art and
   swaps tiles in once both sheets load (`loadLpcSheets` + `Art.useSheets`); a failed load keeps procedural art.
-- `?art=kenney` is not offered (Kenney packs are not downloaded). Default stays `classic` until the owner
-  reviews; tests cover cell bounds, credits for every sheet, the loader and the style switch.
+- `?art=kenney` is not offered (Kenney packs are not downloaded). After the owner's review LPC became the
+  default (`?art=classic` opts out, see 16.7); tests cover cell bounds, credits for every sheet, the loader and the style switch.
 
 ### 16.3 Keep the jouster-ui control list in sync
 
@@ -1201,7 +1202,38 @@ avoids laying out sprites twice.
 4. Art spike (16.2): add LPC base / Tile Atlas sheets and `CREDITS.md`; swap tiles behind an `?art=` toggle
    (LPC → Kenney → procedural fallback); owner reviews screenshots before characters (character generator) and
    monsters are converted, and decides on the optional 480×270 viewport. Tile spike done behind `?art=lpc`
-   (non-blocking load, no Kenney yet); **waiting for owner review**.
+   (non-blocking load, no Kenney yet); reviewed and approved by the owner.
+4b. LPC characters and monsters (16.7): build script, generated sheets and layout, credits, sprite anchoring,
+   LPC as default. Done.
+4c. Next: LPC objects (trees, mountains, town and cave markers), art for wolf / alpha wolf / giant toad,
+   attack and cast animations from the ULPC slash / spellcast rows, animated slime and bat frames.
 5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the LPC
    spike review.
 6. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
+
+### 16.7 LPC phase 2: characters and monsters (implemented)
+
+- **Build script:** `tools/game-assets/build-lpc-sprites.py` downloads layers from the Universal LPC Spritesheet
+  Generator (ULPC) and LPC Base Assets (cached in `tmp/lpc-cache`), composites one recipe per look (body, head,
+  hair, clothes, armour, weapon), and writes:
+  - `public/game-assets/lpc/characters.png`: 64?64 cells; one row per look (6 classes + 12 NPC looks), columns =
+    4 facings ? 2 walk steps; then rows for the humanoid monsters (goblin ?3, skeleton ?3, Goblin King, goblin
+    chief, bone captain) in a single left-facing frame.
+  - `public/game-assets/lpc/monsters.png`: 32 px cells for slime ?6 and bat ?3 (LPC Base Assets, hue-shifted
+    per variant), facing left.
+  - `art/lpc-sprites.generated.ts` (layout constants) and a generated section of `CREDITS.md` that lists every
+    layer's authors and licences (CC0, CC-BY, OGA-BY, CC-BY-SA, GPL); the composited sheets are CC-BY-SA 3.0.
+  - Bow walk art exists only as ULPC `walk_128` custom animations; the script centre-crops those to 64 px.
+    Missing layers are skipped rather than failing the build.
+- **Sizes:** an LPC frame is 64 px drawn at density 2, i.e. 32?32 logical (a figure ~24 px tall on a 16 px
+  tile). `tileAnchor(img)` centres a sprite on its tile with the feet on the tile's bottom edge;
+  `fitScale(img, box)` scales any sprite into a battle or portrait box, so procedural 16 px and LPC 32 px art
+  share the same call sites. `left` is a real frame (LPC) or a mirrored copy (procedural); scenes no longer flip.
+- **Monsters face left** because the party stands on the left in battle. Variants keep their stats; only art
+  changes. Wolf, alpha wolf and giant toad have no suitable LPC art yet and stay procedural.
+- **Default art:** LPC is the default; `?art=classic` keeps the original procedural art. Sheets still load
+  non-blockingly, with procedural fallback if a sheet fails.
+- **Known limitation:** ULPC has no child hair, so the child NPC is bald.
+- **Tests:** every humanoid look has a row, every converted monster has all of its variants (and no extra ones),
+  every cell is inside the shipped PNGs, credits list the sheets, anchor / fit helpers, sheet vs procedural
+  fallback, and the `?art=` switch.

@@ -9,7 +9,7 @@ import {
   rollEncounter,
   scaledEncounterRate,
 } from '@jouster/game/engine';
-import { TILE, tileVariant } from '../art/art';
+import { TILE, tileAnchor, tileVariant } from '../art/art';
 import { groundVariant } from '../art/lpc-manifest';
 import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
@@ -274,10 +274,11 @@ export class WorldScene implements Scene {
         const humanoid = this.ctx.art.isCharacter(spriteId) || n.def.role === 'companion';
         sprites.push({
           y: py,
-          draw: () =>
-            humanoid
-              ? r.draw(this.ctx.art.character(spriteId, n.facing, f), px, py, { flipX: n.facing === 'left' })
-              : r.draw(this.ctx.art.monster(spriteId), px, py - (frame ? 1 : 0)),
+          draw: () => {
+            const sprite = humanoid ? this.ctx.art.character(spriteId, n.facing, f) : this.ctx.art.monster(spriteId);
+            const a = tileAnchor(sprite);
+            r.draw(sprite, px - a.x, py - a.y - (!humanoid && frame ? 1 : 0));
+          },
         });
       });
     const walkFrame = this.moving ? Math.floor(this.moveT * 2 + this.state.steps) % 2 : frame;
@@ -289,9 +290,10 @@ export class WorldScene implements Scene {
       const px = this.lerp(w.fromX, w.x, this.moveT) * TILE - camX;
       const py = this.lerp(w.fromY, w.y, this.moveT) * TILE - camY;
       const sprite = this.ctx.art.character(member.classId, w.facing, walkFrame);
+      const a = tileAnchor(sprite);
       sprites.push({
         y: py + (i === 0 ? 0.5 : -i * 0.01),
-        draw: () => r.draw(sprite, px, py, { flipX: w.facing === 'left', alpha: member.hp > 0 ? 1 : 0.45 }),
+        draw: () => r.draw(sprite, px - a.x, py - a.y, { alpha: member.hp > 0 ? 1 : 0.45 }),
       });
     });
     sprites.sort((a, b) => a.y - b.y).forEach((s) => s.draw());

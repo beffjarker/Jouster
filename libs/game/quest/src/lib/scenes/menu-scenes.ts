@@ -1,3 +1,4 @@
+import { TILE, fitScale } from '../art/art';
 import { InputManager, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { classDef } from '../data/classes';
@@ -388,7 +389,8 @@ export class FieldMenuScene implements Scene {
     const cls = classDef(m.classId);
     const x = 88;
     r.window(x, 8, SCREEN_W - x - 8, SCREEN_H - 16);
-    r.draw(this.ctx.art.character(m.classId, 'down', 0), x + 8, 14, { scale: 2 });
+    const portrait = this.ctx.art.character(m.classId, 'down', 0);
+    r.draw(portrait, x + 8, 14, { scale: fitScale(portrait, TILE * 2) });
     r.text(m.name.toUpperCase(), x + 44, 16, COLORS.gold);
     r.text(`${cls.name.toUpperCase()} L${m.level}`, x + 44, 28);
     const next = m.level >= MAX_LEVEL ? '-' : String(Math.max(0, totalXpForLevel(m.level + 1) - m.xp));
