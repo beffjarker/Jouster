@@ -1,6 +1,7 @@
 import { InputAction, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { INN_RESPAWN, mapDef } from '../data/maps';
+import { ENCOUNTER_TABLES } from '../data/monsters';
 import { LANDMARKS } from '../data/overworld-gen';
 import { CAVE_FOG_RADIUS, isExplored } from '../state/fog';
 import { GameState, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
@@ -226,6 +227,27 @@ describe('WorldScene', () => {
     h.run(0.3);
     expect(isExplored(bits(), width, edge, start.y)).toBe(true);
     expect(isExplored(bits(), width, start.x + 30, start.y)).toBe(false);
+  });
+
+  it('makes monsters shy away from a party that far out-levels the area', () => {
+    const rateAt = (level: number): number => {
+      const h = setup({ mapId: 'overworld', ...grassRun(), facing: 'right', stepsSinceBattle: 50 });
+      h.state.party[0].level = level;
+      const rates: number[] = [];
+      h.ctx.rng.chance = (p: number): boolean => {
+        rates.push(p);
+        return false;
+      };
+      h.hold('right', STEP_TIME + 0.02);
+      h.run(0.3);
+      return rates[rates.length - 1];
+    };
+    const base = ENCOUNTER_TABLES.get('greenwood')?.rate ?? 0;
+    const area = ENCOUNTER_TABLES.get('greenwood')?.level ?? 0;
+    expect(rateAt(1)).toBeCloseTo(base);
+    expect(rateAt(area + 3)).toBeCloseTo(base);
+    expect(rateAt(area + 4)).toBeCloseTo(base / 4);
+    expect(rateAt(area + 8)).toBeLessThan(base / 16);
   });
 
   it('sees less far in bad weather', () => {

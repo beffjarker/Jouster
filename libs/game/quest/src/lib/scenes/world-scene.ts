@@ -7,6 +7,7 @@ import {
   TileMap,
   pickEncounter,
   rollEncounter,
+  scaledEncounterRate,
 } from '@jouster/game/engine';
 import { TILE, tileVariant } from '../art/art';
 import { classDef } from '../data/classes';
@@ -379,7 +380,10 @@ export class WorldScene implements Scene {
     }
     const tableId = this.tiles.tileAt(s.x, s.y)?.encounterTableId;
     const table = tableId ? ENCOUNTER_TABLES.get(tableId) : undefined;
-    if (table && rollEncounter(table.rate, s.stepsSinceBattle, this.ctx.rng)) {
+    // Monsters shy away from a party that far out-levels the area.
+    const partyLevel = Math.max(...s.party.map((m) => m.level));
+    const rate = table ? scaledEncounterRate(table.rate, partyLevel, table.level) : 0;
+    if (table && rollEncounter(rate, s.stepsSinceBattle, this.ctx.rng)) {
       const max = s.party.length === 1 ? SOLO_MAX_ENEMIES : MAX_PARTY;
       this.startBattle(pickEncounter(table, this.ctx.rng, max));
     }

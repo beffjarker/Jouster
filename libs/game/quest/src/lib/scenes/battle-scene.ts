@@ -15,13 +15,14 @@ import {
   isAlive,
   wrapText,
 } from '@jouster/game/engine';
+import { monsterVariant } from '../art/art';
 import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
 import { BOSS_HP_SCALE, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
 import { GameState, addItem } from '../state/game-state';
 import { PartyMember, grantXp, memberToCombatant, monstersToCombatants, syncFromCombatants } from '../state/party';
-import { COLORS, ListMenu, MenuItem, SCREEN_W, drawCursor } from '../ui/widgets';
+import { COLORS, ListMenu, MenuItem, SCREEN_W, drawCursor, drawHint } from '../ui/widgets';
 import { GameContext, requireState } from './context';
 
 export type BattleEnd = Exclude<BattleOutcome, 'ongoing'>;
@@ -200,6 +201,8 @@ export class BattleScene implements Scene {
   private readonly motions = new Map<string, Motion>();
   private readonly dying = new Map<string, number>();
   private readonly gone = new Set<string>();
+  /** Cosmetic look variant per enemy (e.g. slime colour). */
+  private readonly looks = new Map<string, number>();
   private shots: Shot[] = [];
   private floaters: Floater[] = [];
   private sparks: Spark[] = [];
@@ -226,6 +229,10 @@ export class BattleScene implements Scene {
       canRun: !options.boss,
     });
     this.battle.all.forEach((c) => this.shown.set(c.id, { hp: c.hp, mp: c.mp }));
+    this.battle.enemies.forEach((e, i) => {
+      const spriteId = MONSTERS.get(e.sourceId)?.spriteId ?? e.sourceId;
+      this.looks.set(e.id, monsterVariant(spriteId, this.state.steps * 31 + i * 7919));
+    });
     this.layout();
     this.commandMenu = new ListMenu(
       COMMANDS.map((label) => ({ label, enabled: label !== 'RUN' || !options.boss })),
@@ -970,7 +977,7 @@ export class BattleScene implements Scene {
     } else {
       this.shadow(r, spot.x, spot.y, spot.size);
     }
-    r.draw(this.ctx.art.monster(def.spriteId), p.x, p.y - bob, { scale: spot.size / SPRITE_PX, alpha });
+    r.draw(this.ctx.art.monster(def.spriteId, this.looks.get(e.id)), p.x, p.y - bob, { scale: spot.size / SPRITE_PX, alpha });
     if (dying !== undefined) {
       // Dissolve: drifting embers as the sprite fades out.
       const k = 1 - dying / DISSOLVE_TIME;
@@ -1073,6 +1080,12 @@ export class BattleScene implements Scene {
       const subW = SCREEN_W - subX - 4;
       if ((this.phase === 'ability' || this.phase === 'item') && this.subMenu) {
         this.subMenu.render(r, subX, y, subW, true, this.phase === 'ability' ? 'ABILITY' : 'ITEM');
+        const id = this.subIds[this.subMenu.cursor];
+        const hint = this.phase === 'ability' ? this.battle.ability(id).description : ITEMS.get(id)?.description;
+        if (hint) {
+          // Top of the screen (the sky) so the hint never hides the enemy row.
+          drawHint(r, hint, subX, 4, subW);
+        }
         return;
       }
       r.window(subX, y, subW, SCREEN_H_PANEL);

@@ -4,7 +4,7 @@ import { classDef } from '../data/classes';
 import { ITEMS, WEAPONS } from '../data/equipment';
 import { GameState, addItem } from '../state/game-state';
 import { PartyMember, memberAbilities, memberStats, memberToCombatant, weaponDef } from '../state/party';
-import { COLORS, ListMenu, MESSAGE_Y, MenuItem, SCREEN_H, SCREEN_W, drawPartyStatus, say } from '../ui/widgets';
+import { COLORS, ListMenu, MESSAGE_Y, MenuItem, SCREEN_H, SCREEN_W, drawHint, drawPartyStatus, say } from '../ui/widgets';
 import { GameContext, memberStatus, requireState } from './context';
 import { MapScene, questLog } from './map-scene';
 
@@ -84,10 +84,23 @@ export class FieldMenuScene implements Scene {
     if (this.sub) {
       const title = this.mode === 'item' ? 'ITEMS' : this.mode === 'magic' ? 'MAGIC' : 'WHO?';
       this.sub.render(r, 88, 8, 160, true, title);
+      const hint = this.subHint();
+      if (hint) {
+        drawHint(r, hint, 88, 8 + this.sub.height() + 4, 160);
+      }
     }
     // Messages (e.g. spell results) cover the bottom of the screen, so lift the status above them.
     const statusY = this.ctx.stack.top === this ? SCREEN_H - 48 : FIELD_STATUS_Y_WITH_MESSAGE;
     drawPartyStatus(r, this.state.party.map(memberStatus), statusY);
+  }
+
+  /** Description of the highlighted item or spell. */
+  private subHint(): string | undefined {
+    const id = this.subIds[this.sub?.cursor ?? 0];
+    if (this.mode === 'item') {
+      return ITEMS.get(id)?.description;
+    }
+    return this.mode === 'magic' ? ABILITIES.get(id)?.description : undefined;
   }
 
   private openMembers(mode: FieldMode): void {

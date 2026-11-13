@@ -622,7 +622,94 @@ const MONSTER_ROWS: ReadonlyMap<string, readonly string[]> = new Map<string, rea
       '........', '........', '........', '..ooo...', '.oyko...', '.ogggo..', 'ogggggoo', 'oggggggg',
       'ogdggggg', 'odggglll', 'oddgllll', '.oddglll', '.oodggll', 'odgo.odd', 'ooo...oo', '........',
     ]),
-  ],]);
+  ],
+  [
+    'slimeTall',
+    mirrorRows([
+      '........', '........', '.......o', '......og', '......ol', '.....ogl', '.....ogg', '....oggg',
+      '....oglg', '...ogwkg', '...ogkkg', '..oggggg', '..oggggg', '..oddggg', '...odddd', '....oooo',
+    ]),
+  ],
+  [
+    'slimeFlat',
+    mirrorRows([
+      '........', '........', '........', '........', '........', '........', '........', '........',
+      '.....ooo', '...ooggg', '..ogglgg', '.oggwkgg', 'ogggkkgg', 'ogdggggg', 'oddddddd', '.ooooooo',
+    ]),
+  ],
+]);
+
+interface MonsterVariant {
+  /** Palette overrides on top of the monster's base palette. */
+  colors?: ReadonlyArray<[string, string]>;
+  /** Alternate pixel rows (key in `MONSTER_ROWS`). */
+  shape?: string;
+}
+
+/**
+ * Look variants for common monsters (index 0 is the base look). Bosses have none, so they
+ * always look the same. Variants are cosmetic only.
+ */
+const MONSTER_VARIANTS: ReadonlyMap<string, readonly MonsterVariant[]> = new Map<string, readonly MonsterVariant[]>([
+  [
+    'slime',
+    [
+      {},
+      { shape: 'slimeTall', colors: [['o', '#1a4a10'], ['g', '#5ac040'], ['l', '#b8f0a0'], ['d', '#3a8a2a']] },
+      { shape: 'slimeFlat', colors: [['o', '#5a1010'], ['g', '#e04848'], ['l', '#ffa8a8'], ['d', '#a02828']] },
+      { colors: [['o', '#3a1050'], ['g', '#a050e0'], ['l', '#e0b0ff'], ['d', '#6a2a9a']] },
+      { shape: 'slimeTall', colors: [['o', '#5a4010'], ['g', '#e8b830'], ['l', '#fff0a0'], ['d', '#a87a18']] },
+      { shape: 'slimeFlat', colors: [['o', '#0a4048'], ['g', '#30c0c0'], ['l', '#a8f8f0'], ['d', '#1a8088']] },
+    ],
+  ],
+  [
+    'bat',
+    [
+      {},
+      { colors: [['o', '#2a1408'], ['p', '#7a5030'], ['l', '#b08860']] },
+      { colors: [['o', '#2a0810'], ['p', '#9a2a3a'], ['l', '#d06070'], ['r', '#ffe040']] },
+    ],
+  ],
+  [
+    'wolf',
+    [
+      {},
+      { colors: [['g', '#9a6a3a'], ['l', '#d0a070'], ['d', '#6a4020']] },
+      { colors: [['g', '#d8d8e0'], ['l', '#ffffff'], ['d', '#9a9aa8'], ['r', '#40a0ff']] },
+    ],
+  ],
+  [
+    'goblin',
+    [
+      {},
+      { colors: [['g', '#a8b040'], ['d', '#7a8028'], ['b', '#3a5a9a'], ['n', '#203a6a']] },
+      { colors: [['o', '#2a1008'], ['g', '#c86040'], ['d', '#8a3a28'], ['b', '#5a5a5a'], ['n', '#3a3a3a'], ['r', '#ffe040']] },
+    ],
+  ],
+  [
+    'skeleton',
+    [
+      {},
+      { colors: [['w', '#e0d090'], ['l', '#a89860']] },
+      { colors: [['o', '#20202a'], ['w', '#a8b0c0'], ['l', '#707888'], ['r', '#40c0ff']] },
+    ],
+  ],
+]);
+
+/** Number of looks a monster sprite has (1 for bosses). */
+export function monsterVariantCount(spriteId: string): number {
+  return MONSTER_VARIANTS.get(spriteId)?.length ?? 1;
+}
+
+/** Deterministic look for a monster from `seed` (no game RNG, so battles are unaffected). */
+export function monsterVariant(spriteId: string, seed: number): number {
+  const count = monsterVariantCount(spriteId);
+  let h = Math.imul(seed ^ hashSeed(spriteId), 2654435761);
+  h ^= h >>> 15;
+  h = Math.imul(h, 2246822519);
+  h ^= h >>> 13;
+  return (h >>> 0) % count;
+}
 
 /** Recoloured monsters that reuse another monster's pixel rows. */
 const MONSTER_SHAPE: ReadonlyMap<string, string> = new Map([
@@ -735,11 +822,15 @@ export class Art {
     });
   }
 
-  public monster(spriteId: string): HTMLCanvasElement {
-    return this.cached(`mon:${spriteId}`, () => {
-      const shape = MONSTER_SHAPE.get(spriteId) ?? spriteId;
+  /** Monster sprite; `variant` (see {@link monsterVariant}) picks an alternate colour/shape. */
+  public monster(spriteId: string, variant = 0): HTMLCanvasElement {
+    const v = variant % monsterVariantCount(spriteId);
+    return this.cached(`mon:${spriteId}:${v}`, () => {
+      const look = MONSTER_VARIANTS.get(spriteId)?.[v] ?? {};
+      const shape = look.shape ?? MONSTER_SHAPE.get(spriteId) ?? spriteId;
       const rows = (MONSTER_ROWS.get(shape) ?? MONSTER_ROWS.get('slime') ?? []).map((r) => r.padEnd(16, '.').slice(0, 16));
-      return hiResSprite(pixelArtToCanvas(rows, MONSTER_PALETTES.get(spriteId) ?? new Map()));
+      const colors = new Map([...(MONSTER_PALETTES.get(spriteId) ?? new Map<string, string>()), ...(look.colors ?? [])]);
+      return hiResSprite(pixelArtToCanvas(rows, colors));
     });
   }
 
