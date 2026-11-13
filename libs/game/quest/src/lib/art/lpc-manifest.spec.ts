@@ -4,6 +4,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { Art } from './art';
+import { ART_SCALE } from './hd-paint';
 import { LPC_CELL, LPC_SHEETS, LPC_SHEET_SIZE, LPC_TILES, LpcSheetId, groundVariant, lpcGroundCell, lpcSheetUrl } from './lpc-manifest';
 import { ImageLoader, loadLpcSheets } from './sheet-loader';
 
@@ -92,10 +93,10 @@ describe('Art style', () => {
     expect(art.style).toBe('classic');
   });
 
-  it('draws sheet tiles at double density and caches per ground cell', () => {
+  it('draws sheet tiles at 4x density (2x upscaled LPC cell) and caches per ground cell', () => {
     const art = new Art(new Map<LpcSheetId, CanvasImageSource>());
     const a = art.tile('grass', 0, 0, 0);
-    expect(a.width).toBe(LPC_CELL);
+    expect(a.width).toBe(LPC_CELL * ART_SCALE);
     expect(art.tile('grass', 0, 0, 0)).toBe(a);
     expect(art.tile('grass', 0, 0, 1)).not.toBe(a);
   });

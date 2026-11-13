@@ -165,14 +165,6 @@ const SOUND_FOR: ReadonlyMap<BattleSound, SoundId> = new Map<BattleSound, SoundI
   ['buff', 'magic'],
 ]);
 
-/** Sky top, sky bottom, far ground, near ground, scenery. */
-const BACKDROP_COLORS: ReadonlyMap<Backdrop, [string, string, string, string, string]> = new Map([
-  ['field', ['#2c5cb0', '#78b0e8', '#4a9a3a', '#3a8a30', '#2e6e28']],
-  ['forest', ['#1e3e70', '#4a7aa8', '#2a6a2a', '#1f5a22', '#123a16']],
-  ['hills', ['#3a64a0', '#90b8d8', '#8a7a48', '#7a6a3a', '#5a4e2c']],
-  ['cave', ['#0a080e', '#1e1822', '#463830', '#3a2e28', '#241c1c']],
-] as Array<[Backdrop, [string, string, string, string, string]]>);
-
 /** Turn-based battle screen driving the engine's `Battle` state machine. */
 export class BattleScene implements Scene {
   public readonly id = 'battle';
@@ -925,26 +917,7 @@ export class BattleScene implements Scene {
   // --- Rendering -----------------------------------------------------------------------------
 
   private renderField(r: Renderer): void {
-    const [skyTop, skyLow, far, near, scenery] = BACKDROP_COLORS.get(this.options.backdrop) ?? [
-      '#000000',
-      '#111111',
-      '#222222',
-      '#222222',
-      '#333333',
-    ];
-    const bands = 6;
-    for (let i = 0; i < bands; i++) {
-      r.fillRect(0, (i * HORIZON_Y) / bands, SCREEN_W, HORIZON_Y / bands + 1, i < bands / 2 ? skyTop : skyLow);
-    }
-    this.renderScenery(r, scenery);
-    r.fillRect(0, HORIZON_Y, SCREEN_W, 14, far);
-    r.fillRect(0, HORIZON_Y + 14, SCREEN_W, FIELD_H - HORIZON_Y - 14, near);
-    for (let i = 0; i < Math.round(SCREEN_W / 16); i++) {
-      // Deterministic ground speckles for texture.
-      const gx = (i * 97) % SCREEN_W;
-      const gy = HORIZON_Y + 18 + ((i * 53) % (FIELD_H - HORIZON_Y - 22));
-      r.fillRect(gx, gy, 3, 1, scenery);
-    }
+    r.draw(this.ctx.art.backdrop(this.options.backdrop, SCREEN_W, FIELD_H, HORIZON_Y), 0, 0);
     r.fillRect(0, FIELD_H, SCREEN_W, 2, '#000000');
 
     const drawList: Array<{ y: number; draw(): void }> = [];
@@ -963,40 +936,6 @@ export class BattleScene implements Scene {
     drawList.sort((a, b) => a.y - b.y).forEach((d) => d.draw());
     this.renderEffects(r);
     this.renderTargetCursor(r);
-  }
-
-  private renderScenery(r: Renderer, color: string): void {
-    switch (this.options.backdrop) {
-      case 'forest':
-        for (let x = -8; x < SCREEN_W; x += 22) {
-          const h = 18 + ((x * 7) % 11);
-          for (let row = 0; row < h; row += 2) {
-            const w = Math.round((row / h) * 14) + 2;
-            r.fillRect(x + 11 - w / 2, HORIZON_Y - h + row, w, 2, color);
-          }
-        }
-        return;
-      case 'hills':
-        for (let x = 0; x < SCREEN_W; x += 2) {
-          const h = 14 + Math.round(Math.sin(x / 34) * 8 + Math.sin(x / 13) * 3);
-          r.fillRect(x, HORIZON_Y - h, 2, h, color);
-        }
-        return;
-      case 'cave':
-        for (let x = 4; x < SCREEN_W; x += 18) {
-          const h = 8 + ((x * 13) % 17);
-          for (let row = 0; row < h; row += 2) {
-            const w = Math.max(1, Math.round((1 - row / h) * 8));
-            r.fillRect(x + 4 - w / 2, row, w, 2, color);
-          }
-        }
-        return;
-      default:
-        for (let x = 0; x < SCREEN_W; x += 2) {
-          const h = 4 + Math.round(Math.sin(x / 50) * 3 + 3);
-          r.fillRect(x, HORIZON_Y - h, 2, h, color);
-        }
-    }
   }
 
   private shadow(r: Renderer, x: number, y: number, size: number): void {

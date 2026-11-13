@@ -24,9 +24,12 @@ import {
 } from '@jouster/game/quest';
 import { PageTitleComponent } from '../../components/page-title/page-title.component';
 
-/** Canvas size in real pixels (480x270 logical layout at 2x density). */
-const CANVAS_W = 960;
-const CANVAS_H = 540;
+/**
+ * Base on-page size of the canvas in CSS pixels (the 480x270 logical layout at 2x). The canvas itself is
+ * 1920x1080 (4x density), so HiDPI screens and 1080p full screen show every art pixel 1:1.
+ */
+const DISPLAY_W = 960;
+const DISPLAY_H = 540;
 /** Held direction buttons repeat like a held key: first repeat after this delay, then every REPEAT_MS. */
 const REPEAT_DELAY_MS = 350;
 const REPEAT_MS = 120;
@@ -44,7 +47,7 @@ export function prefersTouchPad(): boolean {
  * Falls back to fitting (a fractional scale) when even 1x does not fit, e.g. on phones.
  */
 export function integerScale(availW: number, availH: number): number {
-  const fit = Math.min(availW / CANVAS_W, availH / CANVAS_H);
+  const fit = Math.min(availW / DISPLAY_W, availH / DISPLAY_H);
   return fit >= 1 ? Math.floor(fit) : fit;
 }
 
@@ -179,7 +182,7 @@ export class JousterQuestComponent implements AfterViewInit, OnDestroy {
     this.fullscreen = !!document.fullscreenElement && document.fullscreenElement === this.frameRef.nativeElement;
     if (this.fullscreen) {
       const scale = integerScale(window.innerWidth, window.innerHeight);
-      canvas.style.width = `${Math.floor(CANVAS_W * scale)}px`;
+      canvas.style.width = `${Math.floor(DISPLAY_W * scale)}px`;
     } else {
       canvas.style.width = '';
     }

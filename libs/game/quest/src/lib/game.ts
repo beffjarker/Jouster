@@ -86,7 +86,7 @@ export class JousterQuestGame {
       throw new Error('Canvas 2D context is not available');
     }
     context2d.imageSmoothingEnabled = false;
-    this.renderer = new Renderer(context2d, { pixelRatio: 2 });
+    this.renderer = new Renderer(context2d, { pixelRatio: 4 });
     this.input = new InputManager(options.keySource ?? window);
     this.ctx = {
       stack: new SceneStack((scene) => options.onSceneChange?.(scene?.id)),

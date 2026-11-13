@@ -1252,22 +1252,22 @@ upscaled by EPX.
   segment, union / cut / clip), shaded fills with a light direction, sphere shading, rim shade, ordered dither and
   value noise, plus `outline()` (dark, hue-matched selective outline) and `mirror()`. `tone(colour, k)` builds
   hue-shifted ramps: shadows shift cooler, highlights warmer, like hand-made pixel art.
-- **Tiles** (`art/hd-tiles.ts`): every tile is painted natively at 32?32 real pixels (density 2) with
-  3?5 shade ramps, texture noise and per-variant detail; water and lava keep their animation frames.
+- **Tiles** (`art/hd-tiles.ts`): every tile is painted natively at 32×32 real pixels (density 2) with
+  3 to 5 shade ramps, texture noise and per-variant detail; water and lava keep their animation frames.
   Objects (trees, rocks, signs, markers) are separate layers with outlines, so LPC mode can draw them over
   LPC ground (`paintTile(id, frame, variant, false)`).
-- **Characters** (`art/hd-characters.ts`): humanoids are 64?64 real cells (32 logical, feet on the bottom
+- **Characters** (`art/hd-characters.ts`): humanoids are 64×64 real cells (32 logical, feet on the bottom
   edge), the same frame size as LPC, so `tileAnchor` / `fitScale` need no special cases. Faces, hair, helmets,
   robes, armour and weapons are layered; `left` is the mirrored `right` frame. Monsters (slime shapes, bat, wolf,
-  giant toad, skeleton, goblins, Goblin King) use 64?64 cells facing left; variants keep their colours.
-  Shop signs are 32?32 real.
+  giant toad, skeleton, goblins, Goblin King) use 64×64 cells facing left; variants keep their colours.
+  Shop signs are 32×32 real.
 - **Modes:** `?art=classic` uses only the HD procedural art. LPC mode uses LPC sheets plus the HD art for
   object overlays, monsters without LPC art (wolf, alpha wolf, giant toad, bone captain) and shop signs.
 - **Walls vs floors:** town floors must read apart from walls at a glance. Floors are warm (classic sandstone cobble; LPC taupe flagstones instead of the grey cobble), walls stay cool grey brick, and every wall / cave-rock tile (`SHADOW_CASTERS`) drops a soft shadow onto the tile below it. Further options if more contrast is needed: a lit top cap on walls, a 3/4 front face where a wall meets floor, or darker wall tops.
-- **Unchanged:** battle backdrop, UI, colours, variants and animation frame counts. The engine's EPX
+- **Unchanged:** UI, colours, variants and animation frame counts. The engine's EPX
   helpers stay (tested there) but quest no longer uses them.
-- **Tests:** paint primitives (shapes, outline, mirror, tone ramps), every tile id paints at 32?32 with opaque
-  ground, objects-only layers are transparent around the object, every look / facing / frame paints a 64?64
+- **Tests:** paint primitives (shapes, outline, mirror, tone ramps), every tile id paints at 32×32 with opaque
+  ground, objects-only layers are transparent around the object, every look / facing / frame paints a 64×64
   figure standing on the bottom edge, every monster shape and sign paints and is distinct.
 
 ### 16.9 Mouse and touch controls (implemented)
@@ -1310,3 +1310,30 @@ unchanged and everything below is in addition to them.
   name keyboard layout and typing, and the page's pad (key events, repeat, focus) and lists.
 - **Possible follow-ups:** swipe gestures for single steps, a long-press for the field menu, haptics
   (`navigator.vibrate`) on hits, and a saved pad size / position setting.
+
+### 16.10 Much more detailed procedural art (implemented)
+
+Goal: all the generated art should be much more detailed than in 16.8.
+
+- **Supersampling:** `ART_SCALE = 2` in `art/hd-paint.ts`. Painters keep their 2×-density coordinates (32 per
+  tile, 64 per character), but every shape, gradient, texture, dither and outline is evaluated on a grid twice as
+  fine. Procedural art is now stored at 4 real pixels per logical pixel: 64×64 per tile, 128×128 per character.
+- **Detail:** tiles gain finer texture (grass blades, flowers, pebbles, mortar, wood grain, ripples, cracks), and
+  characters, monsters and signs gain finer faces, hair strands, cloth folds, armour rivets, scales and highlights.
+- **Canvas:** the game canvas is 1920×1080 (`pixelRatio` 4) and still shown at 960×540 CSS pixels, so on
+  high-DPI screens and in full screen the extra detail is shown 1:1. The logical screen stays 480×270.
+  LPC character sheets stay at their native 2× density; LPC ground tiles are upscaled to 4× so the
+  procedural object overlays line up.
+- **Battle backdrops** (`art/hd-backdrops.ts`): the flat colour bands are replaced by painted scenes, cached per
+  kind by `Art.backdrop()`:
+  - field: dithered sky with haze and sun glow, clouds and birds, a hazy far ridge, round fruit trees and a
+    striped, textured meadow with grass tufts, flowers and pebbles;
+  - forest: two rows of conifers in front of the ridge, mushrooms on the ground;
+  - hills: snow-capped mountains, a rocky mid ridge and a winding dirt path;
+  - cave: a noisy rock wall, stalactites, stalagmites, glowing crystals and puddles.
+
+  Each backdrop takes about 0.25 to 0.7 s to paint (Node, full size), once per kind, on the first battle there.
+- **Tests:** specs use `ART_SCALE` for sizes; backdrops are checked for size, opacity, determinism, being
+  different per kind and a sky that darkens towards the top.
+- **Possible follow-ups:** pre-paint backdrops while the title screen is idle, time-of-day and weather variants,
+  and dedicated backdrops for towns, swamps or the dragon's lair.

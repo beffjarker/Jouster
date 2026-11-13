@@ -1,6 +1,8 @@
 import { Facing, Palette, createCanvas, imageDensity, palette, setImageDensity } from '@jouster/game/engine';
+import { Backdrop } from '../data/maps';
+import { paintBackdrop } from './hd-backdrops';
 import { HumanoidLook, LOOKS, paintHumanoid, paintMonster, paintSign } from './hd-characters';
-import { Paint, box } from './hd-paint';
+import { ART_SCALE, Paint, box } from './hd-paint';
 import { paintTile, paintWallShadow } from './hd-tiles';
 
 export { SHADOW_CASTERS } from './hd-tiles';
@@ -14,7 +16,7 @@ import {
   LPC_MONSTER_CELL,
 } from './lpc-sprites.generated';
 
-/** Logical tile size. Art is rendered at 2x density (32x32 real pixels per tile). */
+/** Logical tile size. Procedural art is stored at 4x density (64x64 real pixels per tile), LPC sprites at 2x. */
 export const TILE = 16;
 
 /** Anything `Renderer.draw` accepts; sizes are in real pixels (see `imageDensity`). */
@@ -179,7 +181,7 @@ export type ArtSheets = ReadonlyMap<LpcSheetId, CanvasImageSource>;
 
 /** Placeholder for an unknown tile id. */
 function magenta(): Paint {
-  const p = new Paint(TILE * 2, TILE * 2);
+  const p = new Paint(TILE * 2, TILE * 2, ART_SCALE);
   p.flat(box(0, 0, TILE * 2, TILE * 2), '#ff00ff');
   return p;
 }
@@ -297,6 +299,11 @@ export class Art {
     return this.cached('wallShadow', () => paintWallShadow().toCanvas());
   }
 
+  /** Painted battle backdrop `kind` of `width` x `height` logical pixels with the horizon at `horizon`. */
+  public backdrop(kind: Backdrop, width: number, height: number, horizon: number): HTMLCanvasElement {
+    return this.cached(`backdrop:${kind}:${width}x${height}:${horizon}`, () => paintBackdrop(kind, width, height, horizon).toCanvas());
+  }
+
   /** Town sign sprite (transparent background) advertising the service `kind` (see SignKind). */
   public sign(kind: string): HTMLCanvasElement {
     return this.cached(`sign:${kind}`, () => paintSign(kind).toCanvas());
@@ -315,18 +322,21 @@ export class Art {
   }
 
   private sheetTile(sheets: ArtSheets, id: string, sheet: LpcSheetId, col: number, row: number, f: number, v: number): HTMLCanvasElement {
-    const canvas = createCanvas(TILE * 2, TILE * 2);
+    // LPC ground (2x density) is doubled up to the procedural overlay's 4x density so both stay crisp.
+    const density = 2 * ART_SCALE;
+    const size = TILE * density;
+    const canvas = createCanvas(size, size);
     const ctx = canvas.getContext('2d');
     const image = sheets.get(sheet);
     if (ctx && image) {
       ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(image, col * LPC_CELL, row * LPC_CELL, LPC_CELL, LPC_CELL, 0, 0, LPC_CELL, LPC_CELL);
+      ctx.drawImage(image, col * LPC_CELL, row * LPC_CELL, LPC_CELL, LPC_CELL, 0, 0, size, size);
       const overlay = paintTile(id, f, v, false);
       if (overlay) {
         ctx.drawImage(overlay.toCanvas(), 0, 0);
       }
     }
-    return setImageDensity(canvas, 2);
+    return setImageDensity(canvas, density);
   }
 
   private cached(key: string, build: () => HTMLCanvasElement): HTMLCanvasElement {

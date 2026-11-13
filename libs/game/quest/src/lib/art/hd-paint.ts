@@ -1,8 +1,8 @@
 import { Pixels, pixelsToCanvas, setImageDensity } from '@jouster/game/engine';
 
 /**
- * Native-resolution pixel painting for the procedural ("classic") art, drawn directly at the same
- * density as the LPC sheets (2 real pixels per logical pixel) instead of being upscaled.
+ * Native-resolution pixel painting for the procedural ("classic") art, drawn directly at high density
+ * (see {@link ART_SCALE}) instead of being upscaled.
  *
  * Shapes are filled with a hue-shifted colour ramp (warm lights, cool darks), lit from the top-left,
  * with optional sphere shading, texture and a light ordered dither; `outline` adds a selective
@@ -146,9 +146,23 @@ export function ramp(base: Color): Rgb[] {
   return r;
 }
 
+const shades = new Map<string, Rgb>();
+
+/** {@link tone} of `base` at shade `k` (any step, e.g. half shades), cached. */
+export function shadeOf(base: Color, k: number): Rgb {
+  const key = `${typeof base === 'string' ? base : base.join(',')}|${k}`;
+  let c = shades.get(key);
+  if (!c) {
+    c = tone(base, k);
+    shades.set(key, c);
+  }
+  return c;
+}
+
 const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
-function bayer(x: number, y: number): number {
+/** Ordered-dither threshold in [-0.5, 0.5) for pixel (x, y). */
+export function bayer(x: number, y: number): number {
   return (BAYER4[(y & 3) * 4 + (x & 3)] + 0.5) / 16 - 0.5;
 }
 
@@ -167,7 +181,13 @@ export function ell(cx: number, cy: number, rx: number, ry = rx): Shape {
 
 /** Axis-aligned rectangle. */
 export function box(x: number, y: number, w: number, h: number): Shape {
-  return { x0: x, y0: y, x1: x + w, y1: y + h, test: (px, py) => px >= x && px < x + w && py >= y && py < y + h };
+  return {
+    x0: Math.floor(x),
+    y0: Math.floor(y),
+    x1: Math.ceil(x + w),
+    y1: Math.ceil(y + h),
+    test: (px, py) => px + 0.5 >= x && px + 0.5 < x + w && py + 0.5 >= y && py + 0.5 < y + h,
+  };
 }
 
 /** Polygon from flat `[x0, y0, x1, y1, ...]` vertex coordinates (even-odd rule). */
@@ -274,18 +294,43 @@ const LIGHT = ((): [number, number, number] => {
   return [v[0] / m, v[1] / m, v[2] / m];
 })();
 
-/** An RGBA pixel buffer with shape-filling, shading and outlining helpers. */
+/**
+ * Supersampling factor for the procedural art: painters work in a 2x-density coordinate space
+ * (32 per tile, 64 per character) and every shape, gradient, texture, dither and outline is
+ * evaluated on a grid `ART_SCALE` times finer, so art is stored at 4 real pixels per logical pixel.
+ */
+export const ART_SCALE = 2;
+
+/** Shape `s` moved by (dx, dy) (e.g. to repeat details across a seamless tile edge). */
+export function shift(s: Shape, dx: number, dy: number): Shape {
+  return { x0: s.x0 + dx, y0: s.y0 + dy, x1: s.x1 + dx, y1: s.y1 + dy, test: (x, y) => s.test(x - dx, y - dy) };
+}
+
+/**
+ * An RGBA pixel buffer with shape-filling, shading and outlining helpers.
+ *
+ * Coordinates passed to the drawing methods are in "paint units"; the buffer holds `scale` x
+ * `scale` real pixels per unit (`width`/`height` are real pixels). Shapes may use fractional
+ * coordinates, so details finer than one unit are drawn at the full resolution.
+ */
 export class Paint implements Pixels {
   public readonly data: Uint8ClampedArray;
+  /** Real (buffer) width and height. */
+  public readonly width: number;
+  public readonly height: number;
 
   constructor(
-    public readonly width: number,
-    public readonly height: number,
+    width: number,
+    height: number,
+    /** Real pixels per paint unit. */
+    public readonly scale = 1,
   ) {
-    this.data = new Uint8ClampedArray(width * height * 4);
+    this.width = Math.round(width * scale);
+    this.height = Math.round(height * scale);
+    this.data = new Uint8ClampedArray(this.width * this.height * 4);
   }
 
-  /** RGBA at (x, y); transparent outside the buffer. */
+  /** RGBA of the real pixel (x, y); transparent outside the buffer. */
   public get(x: number, y: number): [number, number, number, number] {
     if (x < 0 || y < 0 || x >= this.width || y >= this.height) {
       return [0, 0, 0, 0];
@@ -294,8 +339,8 @@ export class Paint implements Pixels {
     return [this.data[i], this.data[i + 1], this.data[i + 2], this.data[i + 3]];
   }
 
-  /** Blends `color` over (x, y) with opacity `alpha`. */
-  public px(x: number, y: number, color: Color, alpha = 1): void {
+  /** Blends `color` over the real pixel (x, y) with opacity `alpha`. */
+  public fpx(x: number, y: number, color: Color, alpha = 1): void {
     if (x < 0 || y < 0 || x >= this.width || y >= this.height || alpha <= 0) {
       return;
     }
@@ -312,9 +357,39 @@ export class Paint implements Pixels {
     this.data[i + 3] = oa * 255;
   }
 
+  /** Blends `color` over the whole paint unit (x, y) (a `scale` x `scale` block). */
+  public px(x: number, y: number, color: Color, alpha = 1): void {
+    const s = this.scale;
+    const fx = Math.round(x * s);
+    const fy = Math.round(y * s);
+    for (let j = 0; j < s; j++) {
+      for (let i = 0; i < s; i++) {
+        this.fpx(fx + i, fy + j, color, alpha);
+      }
+    }
+  }
+
+  /** Blends `color` over the single real pixel containing the paint-space point (x, y). */
+  public spot(x: number, y: number, color: Color, alpha = 1): void {
+    this.fpx(Math.floor(x * this.scale), Math.floor(y * this.scale), color, alpha);
+  }
+
+  /**
+   * Calls `fn` for every real pixel with its centre in paint units (u, v) (so that `Math.floor(u + 0.5)`
+   * is the paint unit) and its real coordinates (fx, fy).
+   */
+  public pixels(fn: (u: number, v: number, fx: number, fy: number) => void): void {
+    const s = this.scale;
+    for (let fy = 0; fy < this.height; fy++) {
+      for (let fx = 0; fx < this.width; fx++) {
+        fn((fx + 0.5) / s - 0.5, (fy + 0.5) / s - 0.5, fx, fy);
+      }
+    }
+  }
+
   /** Fills `shape` with one flat colour. */
   public flat(shape: Shape, color: Color, alpha = 1): void {
-    this.each(shape, (x, y) => this.px(x, y, color, alpha));
+    this.each(shape, (_u, _v, fx, fy) => this.fpx(fx, fy, color, alpha));
   }
 
   /** Fills `shape` with shades of `base`, lit from the top-left (see {@link FillOptions}). */
@@ -327,13 +402,14 @@ export class Paint implements Pixels {
     const h = Math.max(1, shape.y1 - shape.y0);
     const cx = (shape.x0 + shape.x1) / 2;
     const cy = (shape.y0 + shape.y1) / 2;
-    this.each(shape, (x, y) => {
-      const up = shape.test(x, y - 1);
-      const down = shape.test(x, y + 1);
-      const left = shape.test(x - 1, y);
-      const right = shape.test(x + 1, y);
+    const d = 1 / this.scale;
+    this.each(shape, (x, y, fx, fy) => {
+      const up = shape.test(x, y - d);
+      const down = shape.test(x, y + d);
+      const left = shape.test(x - d, y);
+      const right = shape.test(x + d, y);
       if (o.rim && !(up && down && left && right)) {
-        this.px(x, y, outline);
+        this.fpx(fx, fy, outline);
         return;
       }
       let v = o.shade ?? 0;
@@ -350,7 +426,7 @@ export class Paint implements Pixels {
         v += o.gradX * (1 - (2 * (x + 0.5 - shape.x0)) / w);
       }
       if (o.tex) {
-        v += (hash(x, y, o.seed ?? 0) - 0.5) * 2 * o.tex;
+        v += (hash(fx, fy, o.seed ?? 0) - 0.5) * 2 * o.tex;
       }
       if (bevel) {
         if (!up || !left) {
@@ -359,50 +435,63 @@ export class Paint implements Pixels {
           v -= bevel;
         }
       }
-      const k = Math.max(-DARK_STEPS, Math.min(LIGHT_STEPS, Math.round(v + bayer(x, y) * dither)));
-      this.px(x, y, r[k + DARK_STEPS]);
+      if (this.scale > 1) {
+        // Supersampled art gets half-step shades for smoother, richer shading.
+        const k = Math.max(-DARK_STEPS, Math.min(LIGHT_STEPS, Math.round((v + bayer(fx, fy) * dither * 0.5) * 2) / 2));
+        this.fpx(fx, fy, Number.isInteger(k) ? r[k + DARK_STEPS] : shadeOf(base, k));
+        return;
+      }
+      const k = Math.max(-DARK_STEPS, Math.min(LIGHT_STEPS, Math.round(v + bayer(fx, fy) * dither)));
+      this.fpx(fx, fy, r[k + DARK_STEPS]);
     });
   }
 
-  /** One pixel in shade `k` of `base`. */
+  /** One paint unit in shade `k` of `base`. */
   public dot(x: number, y: number, base: Color, k = 0): void {
     this.px(x, y, tone(base, k));
   }
 
-  /** Draws `src` over this buffer with its top-left at (dx, dy). */
+  /** Draws `src` (same scale) over this buffer with its top-left at paint units (dx, dy). */
   public draw(src: Paint, dx = 0, dy = 0): void {
+    const ox = Math.round(dx * this.scale);
+    const oy = Math.round(dy * this.scale);
     for (let y = 0; y < src.height; y++) {
       for (let x = 0; x < src.width; x++) {
         const [r, g, b, a] = src.get(x, y);
         if (a > 0) {
-          this.px(x + dx, y + dy, [r, g, b], a / 255);
+          this.fpx(x + ox, y + oy, [r, g, b], a / 255);
         }
       }
     }
   }
 
   /**
-   * Selective outline: every transparent pixel touching the silhouette takes a dark, saturated
-   * version of the colour it touches (not plain black), as in hand-made sprites.
+   * Selective outline `thickness` real pixels wide (default one paint unit): every transparent pixel
+   * near the silhouette takes a dark, saturated version of the nearest colour (not plain black), as
+   * in hand-made sprites.
    */
-  public outline(): this {
+  public outline(thickness = this.scale): this {
     const src = new Uint8ClampedArray(this.data);
     const alpha = (x: number, y: number): number =>
       x < 0 || y < 0 || x >= this.width || y >= this.height ? 0 : src[(y * this.width + x) * 4 + 3];
+    const offsets: Array<[number, number]> = [];
+    for (let j = -thickness; j <= thickness; j++) {
+      for (let i = -thickness; i <= thickness; i++) {
+        if ((i || j) && Math.abs(i) + Math.abs(j) <= thickness + (thickness > 1 && i && j ? 1 : 0)) {
+          offsets.push([i, j]);
+        }
+      }
+    }
+    offsets.sort((a, b) => Math.hypot(...a) - Math.hypot(...b));
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         if (alpha(x, y) > 127) {
           continue;
         }
-        const n = [
-          [x, y + 1],
-          [x, y - 1],
-          [x - 1, y],
-          [x + 1, y],
-        ].find(([nx, ny]) => alpha(nx, ny) > 127);
+        const n = offsets.find(([i, j]) => alpha(x + i, y + j) > 127);
         if (n) {
-          const i = (n[1] * this.width + n[0]) * 4;
-          this.px(x, y, outlineOf([src[i], src[i + 1], src[i + 2]]));
+          const i = ((y + n[1]) * this.width + x + n[0]) * 4;
+          this.fpx(x, y, outlineOf([src[i], src[i + 1], src[i + 2]]));
         }
       }
     }
@@ -411,7 +500,7 @@ export class Paint implements Pixels {
 
   /** A horizontally mirrored copy. */
   public mirror(): Paint {
-    const out = new Paint(this.width, this.height);
+    const out = new Paint(this.width / this.scale, this.height / this.scale, this.scale);
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
         const s = (y * this.width + x) * 4;
@@ -432,20 +521,27 @@ export class Paint implements Pixels {
     return true;
   }
 
-  /** A canvas of these pixels marked with `density` real pixels per logical pixel (default 2). */
-  public toCanvas(density = 2): HTMLCanvasElement {
+  /**
+   * A canvas of these pixels marked with `density` real pixels per logical pixel (default `2 * scale`:
+   * paint units are half a logical pixel).
+   */
+  public toCanvas(density = 2 * this.scale): HTMLCanvasElement {
     return setImageDensity(pixelsToCanvas(this), density);
   }
 
-  private each(shape: Shape, fn: (x: number, y: number) => void): void {
-    const x0 = Math.max(0, Math.floor(shape.x0));
-    const y0 = Math.max(0, Math.floor(shape.y0));
-    const x1 = Math.min(this.width, Math.ceil(shape.x1));
-    const y1 = Math.min(this.height, Math.ceil(shape.y1));
-    for (let y = y0; y < y1; y++) {
-      for (let x = x0; x < x1; x++) {
-        if (shape.test(x, y)) {
-          fn(x, y);
+  /** Calls `fn` with paint-space centre (u, v) and real (fx, fy) for every real pixel inside `shape`. */
+  private each(shape: Shape, fn: (u: number, v: number, fx: number, fy: number) => void): void {
+    const s = this.scale;
+    const x0 = Math.max(0, Math.floor(shape.x0 * s));
+    const y0 = Math.max(0, Math.floor(shape.y0 * s));
+    const x1 = Math.min(this.width, Math.ceil(shape.x1 * s));
+    const y1 = Math.min(this.height, Math.ceil(shape.y1 * s));
+    for (let fy = y0; fy < y1; fy++) {
+      const v = (fy + 0.5) / s - 0.5;
+      for (let fx = x0; fx < x1; fx++) {
+        const u = (fx + 0.5) / s - 0.5;
+        if (shape.test(u, v)) {
+          fn(u, v, fx, fy);
         }
       }
     }
