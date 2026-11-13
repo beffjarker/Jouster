@@ -22,7 +22,7 @@ import { Backdrop } from '../data/maps';
 import { BOSS_HP_SCALE, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
 import { GameState, addItem } from '../state/game-state';
 import { PartyMember, grantXp, memberToCombatant, monstersToCombatants, syncFromCombatants } from '../state/party';
-import { COLORS, ListMenu, MenuItem, SCREEN_W, drawCursor, drawHint } from '../ui/widgets';
+import { COLORS, ListMenu, MenuItem, SCREEN_H, SCREEN_W, charsFit, drawCursor, drawHint } from '../ui/widgets';
 import { GameContext, requireState } from './context';
 
 export type BattleEnd = Exclude<BattleOutcome, 'ongoing'>;
@@ -93,30 +93,31 @@ interface Spark {
 const COMMANDS = ['ATTACK', 'ABILITY', 'ITEM', 'DEFEND', 'RUN'];
 const EVENT_DELAY = 0.6;
 const MAX_LOG_LINES = 5;
-const LOG_CHARS = 32;
 /** Holding confirm plays the round faster. */
 const FAST_FORWARD = 2.5;
 
 // Battlefield layout (party on the left facing right, enemies on the right).
-const FIELD_H = 142;
-const HORIZON_Y = 62;
-const PANEL_Y = 144;
+// Everything derives from SCREEN_W/H: the panel hugs the bottom, the ground keeps its depth and the sky grows.
 const SCREEN_H_PANEL = 72;
+const PANEL_Y = SCREEN_H - SCREEN_H_PANEL;
+const FIELD_H = PANEL_Y - 2;
+const HORIZON_Y = FIELD_H - 80;
 const STATUS_X = 4;
 const STATUS_W = 164;
-const RIGHT_X = 172;
+const RIGHT_X = STATUS_X + STATUS_W + 4;
 const RIGHT_W = SCREEN_W - RIGHT_X - 4;
+const LOG_CHARS = charsFit(RIGHT_W - 16);
 const COMMAND_W = 74;
-const PARTY_X = 52;
-const PARTY_Y = 50;
+const PARTY_X = Math.round(SCREEN_W * 0.135);
+const PARTY_Y = HORIZON_Y - 12;
 const PARTY_STEP_X = 10;
 const PARTY_STEP_Y = 30;
 const PARTY_SCALE = 2;
 const ACTIVE_STEP = 14;
-const ENEMY_LEFT = 196;
-const ENEMY_RIGHT = 376;
-const ENEMY_GROUND = 138;
-const ENEMY_BACK_GROUND = 104;
+const ENEMY_LEFT = Math.round(SCREEN_W * 0.51);
+const ENEMY_RIGHT = SCREEN_W - 8;
+const ENEMY_GROUND = FIELD_H - 4;
+const ENEMY_BACK_GROUND = HORIZON_Y + 42;
 const SPRITE_PX = 16;
 const INTRO_SLIDE = 140;
 
@@ -906,7 +907,7 @@ export class BattleScene implements Scene {
     this.renderScenery(r, scenery);
     r.fillRect(0, HORIZON_Y, SCREEN_W, 14, far);
     r.fillRect(0, HORIZON_Y + 14, SCREEN_W, FIELD_H - HORIZON_Y - 14, near);
-    for (let i = 0; i < 24; i++) {
+    for (let i = 0; i < Math.round(SCREEN_W / 16); i++) {
       // Deterministic ground speckles for texture.
       const gx = (i * 97) % SCREEN_W;
       const gy = HORIZON_Y + 18 + ((i * 53) % (FIELD_H - HORIZON_Y - 22));

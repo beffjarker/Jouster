@@ -89,6 +89,18 @@ const FOG = '#07060c';
 const FOG_DIM = 'rgba(7,6,12,0.5)';
 const FOG_EDGE = 'rgba(7,6,12,0.7)';
 
+/**
+ * Camera offset on one axis. A map narrower (or shorter) than the view is centred and stays still, with the
+ * map's outside tile (forest around towns, rock around caves) filling the border; larger maps follow the leader.
+ */
+export function cameraAxis(leaderPx: number, mapTiles: number, viewPx: number): number {
+  const mapPx = mapTiles * TILE;
+  if (mapPx <= viewPx) {
+    return Math.round((mapPx - viewPx) / 2);
+  }
+  return Math.round(leaderPx - (viewPx - TILE) / 2);
+}
+
 interface NpcRuntime extends Walker {
   def: NpcDef;
   moveT: number;
@@ -228,8 +240,8 @@ export class WorldScene implements Scene {
     const leader = this.walkers[0];
     const lx = this.lerp(leader.fromX, leader.x, this.moveT) * TILE;
     const ly = this.lerp(leader.fromY, leader.y, this.moveT) * TILE;
-    const camX = Math.round(lx - (SCREEN_W - TILE) / 2);
-    const camY = Math.round(ly - (SCREEN_H - TILE) / 2);
+    const camX = cameraAxis(lx, this.tiles.width, SCREEN_W);
+    const camY = cameraAxis(ly, this.tiles.height, SCREEN_H);
     const frame = Math.floor(this.time * 2) % 2;
     const startX = Math.floor(camX / TILE);
     const startY = Math.floor(camY / TILE);

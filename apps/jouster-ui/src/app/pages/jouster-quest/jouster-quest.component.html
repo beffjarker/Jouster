@@ -1,18 +1,21 @@
 <div class="page-container">
   <jstr-page-title></jstr-page-title>
 
-  <div class="game-frame">
+  <div #frame class="game-frame" [class.fullscreen]="fullscreen">
     <canvas
       #screen
       class="game-screen"
-      width="768"
-      height="432"
+      width="960"
+      height="540"
       tabindex="0"
       role="application"
       aria-label="Jouster Quest game screen. Use the arrow keys to move, Z or Enter to confirm, X or Escape for the menu."
       data-scene="loading"
       (click)="focusCanvas()"
     ></canvas>
+    <button type="button" class="fullscreen-toggle" (click)="toggleFullscreen()" [attr.aria-pressed]="fullscreen">
+      {{ fullscreen ? 'Exit full screen' : 'Full screen' }} (F)
+    </button>
     <p *ngIf="unsupported" class="unsupported" role="alert">
       Your browser does not support the canvas features this game needs.
     </p>

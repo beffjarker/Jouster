@@ -246,6 +246,7 @@ export class MapScene implements Scene {
 
 const MAP_X = 16;
 const MAP_Y = 22;
-const MAP_AREA_W = 216;
+/** Map area keeps the screen's proportions; the legend gets the rest of the width. */
+const MAP_AREA_W = Math.round(SCREEN_W * 0.5625);
 const MAP_AREA_H = SCREEN_H - 34;
 const LEGEND_X = MAP_X + MAP_AREA_W + 12;

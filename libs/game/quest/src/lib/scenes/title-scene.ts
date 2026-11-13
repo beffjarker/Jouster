@@ -4,7 +4,10 @@ import { CLASS_ORDER, classDef } from '../data/classes';
 import { ABILITIES } from '../data/abilities';
 import { GameState, hasSave, loadGame, newGameState } from '../state/game-state';
 import { createMember, memberStats, weaponDef } from '../state/party';
-import { COLORS, ListMenu, SCREEN_H, SCREEN_W } from '../ui/widgets';
+import { COLORS, ListMenu, SCREEN_H, SCREEN_W, charsFit } from '../ui/widgets';
+
+/** The title and name screens were laid out for a 216-unit-tall screen; centre that block vertically. */
+const OY = Math.floor((SCREEN_H - 216) / 2);
 import { GameContext } from './context';
 import { WorldScene } from './world-scene';
 
@@ -42,22 +45,22 @@ export class TitleScene implements Scene {
     r.clear('#0b0b2a');
     for (let i = 0; i < 40; i++) {
       const x = (i * 97) % SCREEN_W;
-      const y = (i * 53) % 100;
+      const y = (i * 53) % (100 + OY);
       const on = Math.floor(this.time * 2 + i) % 5 !== 0;
       r.fillRect(x, y, 1, 1, on ? '#ffffff' : '#555577');
     }
-    drawMountains(r, 138);
-    r.textCentered('JOUSTER', SCREEN_W / 2 + 1, 41, '#802010');
-    r.textCentered('JOUSTER', SCREEN_W / 2, 40, COLORS.gold);
-    r.textCentered('QUEST', SCREEN_W / 2 + 1, 53, '#802010');
-    r.textCentered('QUEST', SCREEN_W / 2, 52, COLORS.gold);
-    r.textCentered('THE DRAGON SEAL', SCREEN_W / 2, 70, COLORS.text);
+    drawMountains(r, 138 + OY);
+    r.textCentered('JOUSTER', SCREEN_W / 2 + 1, 41 + OY, '#802010');
+    r.textCentered('JOUSTER', SCREEN_W / 2, 40 + OY, COLORS.gold);
+    r.textCentered('QUEST', SCREEN_W / 2 + 1, 53 + OY, '#802010');
+    r.textCentered('QUEST', SCREEN_W / 2, 52 + OY, COLORS.gold);
+    r.textCentered('THE DRAGON SEAL', SCREEN_W / 2, 70 + OY, COLORS.text);
     CLASS_ORDER.forEach((id, i) => {
       const frame = Math.floor(this.time * 3 + i) % 2;
-      r.draw(this.ctx.art.character(id, 'down', frame), SCREEN_W / 2 - CLASS_ORDER.length * 12 + 4 + i * 24, 104);
+      r.draw(this.ctx.art.character(id, 'down', frame), SCREEN_W / 2 - CLASS_ORDER.length * 12 + 4 + i * 24, 104 + OY);
     });
-    this.menu.render(r, SCREEN_W / 2 - 44, 150, 88);
-    r.textCentered('ARROWS/WASD MOVE  Z/ENTER OK  X/ESC BACK  M MAP', SCREEN_W / 2, 200, COLORS.dim);
+    this.menu.render(r, SCREEN_W / 2 - 44, 150 + OY, 88);
+    r.textCentered('ARROWS/WASD MOVE  Z/ENTER OK  X/ESC BACK  M MAP', SCREEN_W / 2, SCREEN_H - 16, COLORS.dim);
   }
 }
 
@@ -103,7 +106,7 @@ export class ClassSelectScene implements Scene {
     const m = createMember('preview', cls.name, id, 1);
     const s = memberStats(m);
     const x = 92;
-    r.window(x, 24, SCREEN_W - x - 8, 184);
+    r.window(x, 24, SCREEN_W - x - 8, SCREEN_H - 32);
     const frame = Math.floor(this.time * 3) % 2;
     r.draw(this.ctx.art.character(id, 'down', frame), x + 8, 32, { scale: 2 });
     r.text(cls.name.toUpperCase(), x + 44, 34, COLORS.gold);
@@ -130,7 +133,7 @@ export class ClassSelectScene implements Scene {
       r.text(`L${String(a.level).padEnd(2)} ${name.toUpperCase()}`, x + 166, 46 + i * 10);
     });
     const desc = cls.passive ? `${cls.description} ${cls.passive.name}: ${cls.passive.description}` : cls.description;
-    wrapLines(desc, 44).slice(0, 5).forEach((line, i) => r.text(line, x + 8, 128 + i * 11, COLORS.text));
+    wrapLines(desc, charsFit(SCREEN_W - x - 24)).slice(0, 8).forEach((line, i) => r.text(line, x + 8, 128 + i * 11, COLORS.text));
   }
 }
 
@@ -192,15 +195,15 @@ export class NameEntryScene implements Scene {
   public render(r: Renderer): void {
     r.clear('#000000');
     const cls = classDef(this.classId);
-    r.textCentered(`NAME YOUR ${cls.name.toUpperCase()}`, SCREEN_W / 2, 60, COLORS.gold);
-    r.draw(this.ctx.art.character(this.classId, 'down', Math.floor(this.time * 3) % 2), SCREEN_W / 2 - TILE, 80, {
+    r.textCentered(`NAME YOUR ${cls.name.toUpperCase()}`, SCREEN_W / 2, 60 + OY, COLORS.gold);
+    r.draw(this.ctx.art.character(this.classId, 'down', Math.floor(this.time * 3) % 2), SCREEN_W / 2 - TILE, 80 + OY, {
       scale: 2,
     });
-    r.window(SCREEN_W / 2 - 40, 124, 80, 22);
+    r.window(SCREEN_W / 2 - 40, 124 + OY, 80, 22);
     const cursor = Math.floor(this.time * 2) % 2 === 0 ? '_' : ' ';
-    r.text(this.name + (this.name.length < MAX_NAME ? cursor : ''), SCREEN_W / 2 - 30, 131);
-    r.textCentered('TYPE A NAME, THEN PRESS ENTER', SCREEN_W / 2, 160, COLORS.dim);
-    r.textCentered('BACKSPACE DELETES  ESC GOES BACK', SCREEN_W / 2, 172, COLORS.dim);
+    r.text(this.name + (this.name.length < MAX_NAME ? cursor : ''), SCREEN_W / 2 - 30, 131 + OY);
+    r.textCentered('TYPE A NAME, THEN PRESS ENTER', SCREEN_W / 2, 160 + OY, COLORS.dim);
+    r.textCentered('BACKSPACE DELETES  ESC GOES BACK', SCREEN_W / 2, 172 + OY, COLORS.dim);
   }
 
   private start(): void {
