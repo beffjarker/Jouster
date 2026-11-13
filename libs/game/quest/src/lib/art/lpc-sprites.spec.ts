@@ -112,14 +112,14 @@ describe('Art sprites', () => {
   it('keeps procedural monsters that have no LPC art yet', () => {
     const art = new Art(fakeSheets());
     expect(LPC_MONSTERS.has('wolf:0')).toBe(false);
-    expect(spriteSize(art.monster('wolf'))).toEqual({ width: TILE, height: TILE });
+    expect(spriteSize(art.monster('wolf'))).toEqual({ width: TILE * 2, height: TILE * 2 });
   });
 
   it('mirrors procedural right-facing art for left, so callers never flip', () => {
     const art = new Art();
     const left = art.character('warrior', 'left');
     expect(left).not.toBe(art.character('warrior', 'right'));
-    expect(spriteSize(left)).toEqual({ width: TILE, height: TILE });
+    expect(spriteSize(left)).toEqual({ width: TILE * 2, height: TILE * 2 });
   });
 });
 
