@@ -9,7 +9,7 @@ import { createMember } from '../state/party';
 import { SUNNY_SIGHT_RADIUS, weatherAt, weatherSeed, weatherSightRadius } from '../state/weather';
 import { InputDriver } from '../testing/input-driver';
 import { GameContext } from './context';
-import { STEP_TIME, WorldScene } from './world-scene';
+import { STEP_TIME, WorldScene, cameraAxis } from './world-scene';
 
 interface Harness {
   ctx: GameContext;
@@ -64,6 +64,18 @@ function grassRun(): { x: number; y: number } {
   }
   throw new Error('no grass');
 }
+
+describe('cameraAxis', () => {
+  it('centres a map smaller than the view and keeps it still', () => {
+    // 22 tiles = 352 units in a 480-unit view: 64 units of border each side.
+    expect(cameraAxis(0, 22, 480)).toBe(-64);
+    expect(cameraAxis(300, 22, 480)).toBe(-64);
+  });
+
+  it('follows the leader on maps larger than the view', () => {
+    expect(cameraAxis(800, 60, 480)).toBe(800 - (480 - 16) / 2);
+  });
+});
 
 describe('WorldScene', () => {
   it('walks one tile per step and blocks on solid tiles', () => {

@@ -28,7 +28,7 @@ game fills a 16:9 widescreen canvas.
 | --- | --- |
 | Language | TypeScript (strict, no `any`) |
 | Rendering | HTML5 Canvas 2D; no game engine dependency |
-| Resolution | **Widescreen 16:9** (revision 3): logical 384×216 layout rendered at 2× pixel density (768×432 backing canvas), integer-scaled with `image-rendering: pixelated`. Revision 2 used 256×240 (512×480). **Revision 5 (planned, 16.6):** 960×540 native canvas (480×270 logical), 30×17 tiles of 32×32 art drawn 1:1 |
+| Resolution | **Widescreen 16:9** (revision 3): logical 384×216 layout rendered at 2× pixel density (768×432 backing canvas), integer-scaled with `image-rendering: pixelated`. Revision 2 used 256×240 (512×480). **Revision 5 (16.6, implemented):** 960×540 native canvas (480×270 logical), 30×17 tiles of 32×32 art drawn 1:1 |
 | Tile size | 16×16 logical grid; tiles, characters and monsters are drawn with 32×32 pixels of detail |
 | Maps | Towns and dungeons are character grids in TypeScript; the overworld is generated from a fixed seed with hand-placed landmarks (Tiled was dropped, see 12) |
 | Save data | One save in `localStorage` (versioned JSON schema, currently version 3, older versions migrated) |
@@ -328,7 +328,7 @@ NPCs with hints and side quests
    back to their home spot and keeps their level.
 5. **Fog of war:** the overworld and dungeons start hidden and are revealed around the party; `M` opens a full
    map showing only explored areas (see 14.1). Towns are always fully visible.
-6. **Screen:** 16:9 widescreen (384×216 logical, 768×432 canvas); moving to 960×540 in revision 5 (16.6).
+6. **Screen:** 16:9 widescreen (384×216 logical, 768×432 canvas); 960×540 since revision 5 (16.6).
 7. **Class balance:** every class, including the Cleric, must be able to win alone (possibly with more effort),
    and every class has a real melee Attack (section 4).
 8. **Battle input:** each round waits for every party member's command, and the result screen waits for OK/Enter
@@ -910,8 +910,8 @@ replacing inns, Herbs or Heal. The Cleric recovers fastest, the Paladin in betwe
 
 ## 16. Revision 5 (planned — not implemented yet)
 
-Three requests after revision 4, plus the art and view follow-ups. Status per subsection: 16.3 and 16.1 are
-implemented; the rest is the agreed plan.
+Three requests after revision 4, plus the art and view follow-ups. Status per subsection: 16.3, 16.1 and 16.6
+are implemented; the rest is the agreed plan.
 
 ### 16.1 Companions start low and level only in the party (implemented)
 
@@ -1118,7 +1118,7 @@ caves, characters and monsters must be checked first.
 top-down LPC tile spike first; then, if wanted, a **one-map isometric
 prototype** (Aldmere only, behind `?view=iso`) so both looks can be compared in the browser before committing.
 
-### 16.6 Modern widescreen view at native resolution (decided 2026-11-13)
+### 16.6 Modern widescreen view at native resolution (implemented)
 
 **Goal:** a larger, modern 16:9 view that shows more of the world, with art drawn at its real resolution (no
 upscaled 16×16 pixels), while keeping crisp pixel art.
@@ -1167,13 +1167,25 @@ centring for maps smaller than the view; town border tiles are not walkable and 
 integer scaling and full screen ~0.5 day. Roughly **3–5 days**. Doing it **before** the LPC character work
 avoids laying out sprites twice.
 
+**As built:**
+
+- `SCREEN_W/H` = 480×270 logical (960×540 canvas); scene layouts (title, class select, menus, shop, map
+  overlay, battle panels and field) are derived from these constants, and text widths use `charsFit(width)`.
+- **Small maps:** instead of adding border tiles to the town and cave maps, the camera (`cameraAxis`) centres
+  and freezes any axis where the map is no bigger than the view; the off-map area already draws the map's
+  outside tile (forest around towns, rock in caves), which reads as a natural border. Map data is unchanged.
+- **Scaling:** the page shows the canvas at 1× (960 px; fit-to-width on narrower screens). Full screen
+  (`F` or the page button, Fullscreen API) scales to the largest integer that fits (2× at 1080p), with black
+  letterboxing. `F` is ignored while typing a name, and is listed in `CONTROLS`.
+- Text kept at its logical size (crisp at 1×); a 2×-density font was not needed.
+
 ### 16.4 Work breakdown
 
 1. Plan update (this section) — done first, before any code.
 2. Controls single source of truth and sync tests (16.3) — smallest, do first. Done.
 3. Companion level 1 / party-only XP, save v4 migration and simulator checks (16.1) — done (join bonus used).
-3b. Widescreen 960×540 (16.6): constants, layout derived from screen size, integer scaling and full screen, town
-   borders and camera centring; screenshots of every scene for review.
+3b. Widescreen 960×540 (16.6): constants, layout derived from screen size, integer scaling and full screen,
+   camera centring for small maps; screenshots of every scene reviewed. Done.
 4. Art spike (16.2): add LPC base / Tile Atlas sheets and `CREDITS.md`; swap tiles behind an `?art=` toggle
    (LPC → Kenney → procedural fallback); owner reviews screenshots before characters (character generator) and
    monsters are converted, and decides on the optional 480×270 viewport.

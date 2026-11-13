@@ -18,7 +18,19 @@ import {
 } from '../state/equipment';
 import { GameState, addItem } from '../state/game-state';
 import { PartyMember, memberAbilities, memberStats, memberToCombatant } from '../state/party';
-import { COLORS, ListMenu, MESSAGE_Y, MenuItem, SCREEN_H, SCREEN_W, ask, drawHint, drawPartyStatus, say } from '../ui/widgets';
+import {
+  COLORS,
+  ListMenu,
+  MESSAGE_Y,
+  MenuItem,
+  SCREEN_H,
+  SCREEN_W,
+  ask,
+  charsFit,
+  drawHint,
+  drawPartyStatus,
+  say,
+} from '../ui/widgets';
 import { GameContext, memberStatus, requireState } from './context';
 import { MapScene, questLog } from './map-scene';
 
@@ -52,6 +64,11 @@ function gearName(id: string | undefined): string {
 
 /** Party status row position while a message window is open over the menu. */
 const FIELD_STATUS_Y_WITH_MESSAGE = MESSAGE_Y - 48;
+/** Field-menu submenu (items, magic, equipment) beside the main menu. */
+const SUB_X = 88;
+const SUB_W = Math.min(220, SCREEN_W - SUB_X - 8);
+/** Characters that fit on one line of the shop's description window. */
+const SHOP_CHARS = charsFit(SCREEN_W - 32);
 
 /** Field menu (X / Esc, or I / E straight to ITEM / EQUIP): status, items, equipment and healing magic. */
 export class FieldMenuScene implements Scene {
@@ -136,10 +153,10 @@ export class FieldMenuScene implements Scene {
     if (this.sub) {
       const titles: Partial<Record<FieldMode, string>> = { item: 'ITEMS', magic: 'MAGIC', equipSlot: 'EQUIP' };
       const title = this.mode === 'equipPick' ? SLOT_LABELS[this.slot] : titles[this.mode] ?? 'WHO?';
-      this.sub.render(r, 88, 8, 160, true, title);
+      this.sub.render(r, SUB_X, 8, SUB_W, true, title);
       const hint = this.subHint();
       if (hint) {
-        drawHint(r, hint, 88, 8 + this.sub.height() + 4, 160);
+        drawHint(r, hint, SUB_X, 8 + this.sub.height() + 4, SUB_W);
       }
     }
     // Messages (e.g. spell results) cover the bottom of the screen, so lift the status above them.
@@ -370,7 +387,7 @@ export class FieldMenuScene implements Scene {
     const s = memberStats(m);
     const cls = classDef(m.classId);
     const x = 88;
-    r.window(x, 8, SCREEN_W - x - 8, 200);
+    r.window(x, 8, SCREEN_W - x - 8, SCREEN_H - 16);
     r.draw(this.ctx.art.character(m.classId, 'down', 0), x + 8, 14, { scale: 2 });
     r.text(m.name.toUpperCase(), x + 44, 16, COLORS.gold);
     r.text(`${cls.name.toUpperCase()} L${m.level}`, x + 44, 28);
@@ -401,7 +418,7 @@ export class FieldMenuScene implements Scene {
     if (cls.passive) {
       r.text(cls.passive.name.toUpperCase(), x + 10, 140, COLORS.mp);
     }
-    r.text('E: EQUIP', x + 10, 190, COLORS.dim);
+    r.text('E: EQUIP', x + 10, SCREEN_H - 26, COLORS.dim);
   }
 }
 
@@ -509,20 +526,20 @@ export class ShopScene implements Scene {
     }
     if (this.kind === 'item') {
       const def = ITEMS.get(id);
-      r.text((def?.description ?? '').toUpperCase().slice(0, 58), 16, y);
+      r.text((def?.description ?? '').toUpperCase().slice(0, SHOP_CHARS), 16, y);
       r.text(`YOU HAVE ${this.state.inventory[id] ?? 0}`, 16, y + 14, COLORS.dim);
       return;
     }
     const w = WEAPONS.get(id);
     const g = GEAR.get(id);
     const description = w?.description ?? g?.description ?? '';
-    r.text(description.toUpperCase().slice(0, 58), 16, y);
+    r.text(description.toUpperCase().slice(0, SHOP_CHARS), 16, y);
     const bonus = w
       ? [`ATK+${w.atk}`, w.mag ? `MAG+${w.mag}` : '', w.def ? `DEF+${w.def}` : ''].filter(Boolean).join(' ')
       : g
       ? `${gearBonusText(g)}  WORN BY: ${gearUsersText(g)}`
       : '';
-    r.text(bonus.slice(0, 58), 16, y + 12, COLORS.dim);
+    r.text(bonus.slice(0, SHOP_CHARS), 16, y + 12, COLORS.dim);
     const users = this.state.party.filter((m) => canEquip(m, id));
     r.text(
       users.length ? `FOR: ${users.map((m) => m.name.toUpperCase()).join(', ')}` : 'NO ONE IN YOUR PARTY CAN USE THIS',

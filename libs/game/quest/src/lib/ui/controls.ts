@@ -27,4 +27,8 @@ export const CONTROLS: readonly ControlEntry[] = [
   { keys: ['E'], codes: ['KeyE'], label: 'equipment (weapons, armor, shields, accessories)' },
   { keys: ['M'], codes: ['KeyM'], label: 'world map (explored areas)' },
   { keys: ['N'], codes: ['KeyN'], label: 'mute sound' },
+  { keys: ['F'], codes: ['KeyF'], label: 'full screen (not while typing a name)', scope: 'page' },
 ];
+
+/** Scene ids where letter keys are typed text, so page shortcuts such as full screen must be ignored. */
+export const TEXT_ENTRY_SCENES: readonly string[] = ['name-entry'];

@@ -11,11 +11,41 @@
   padding: 12px;
   background: #000;
   border-radius: 8px;
+
+  // Full screen: black letterbox around the canvas, which the component sizes to a whole-number scale.
+  &.fullscreen {
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    padding: 0;
+    border-radius: 0;
+
+    .fullscreen-toggle {
+      display: none;
+    }
+  }
+}
+
+.fullscreen-toggle {
+  margin-top: 8px;
+  padding: 4px 12px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background: #111;
+  color: #ddd;
+  cursor: pointer;
+
+  &:hover,
+  &:focus-visible {
+    border-color: #f8d878;
+    color: #fff;
+  }
 }
 
 .game-screen {
-  // 16:9 widescreen: 384x216 logical screen drawn on a 768x432 canvas (2x density), shown up to 1152px wide.
-  width: min(1152px, 100%);
+  // 16:9 widescreen: 480x270 logical screen drawn on a 960x540 canvas (2x density), shown 1:1 (fit on narrow screens).
+  width: min(960px, 100%);
+  max-width: 100%;
   aspect-ratio: 16 / 9;
   image-rendering: pixelated;
   image-rendering: crisp-edges;

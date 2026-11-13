@@ -1,8 +1,8 @@
 import { AudioManager, CELL_WIDTH, InputManager, Renderer, Scene, SceneStack, wrapText } from '@jouster/game/engine';
 
-/** Logical 16:9 screen (rendered at 2x on a 768x432 canvas). */
-export const SCREEN_W = 384;
-export const SCREEN_H = 216;
+/** Logical 16:9 screen (rendered at 2x on a 960x540 canvas). Layout derives from these two values. */
+export const SCREEN_W = 480;
+export const SCREEN_H = 270;
 export const LINE_H = 10;
 
 export const COLORS = {
@@ -128,7 +128,12 @@ export class ListMenu {
   }
 }
 
-export const MESSAGE_CHARS = 58;
+/** Number of pixel-font characters that fit in `width` logical units. */
+export function charsFit(width: number): number {
+  return Math.floor(width / CELL_WIDTH);
+}
+
+export const MESSAGE_CHARS = charsFit(SCREEN_W - 36);
 const MESSAGE_LINES = 4;
 const MESSAGE_H = 68;
 /** Top of the message window (it hugs the bottom of the screen). */
