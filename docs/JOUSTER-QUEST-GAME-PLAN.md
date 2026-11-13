@@ -430,7 +430,7 @@ coordinates, so the save version is bumped and old saves are not offered on the 
 | XP to next level | `floor(8 × L^1.5)` | `floor(11 × L^1.5)` (about 38% more XP per level) |
 | Slime (HP / ATK) | 8 / 7 | 10 / 8 |
 | Giant Bat | 10 / 8 | 12 / 9 |
-| Grey Wolf | 14 / 10 | 16 / 11 |
+| Wolf (was Grey Wolf; renamed in 15.8) | 14 / 10 | 16 / 11 |
 | Goblin | 18 / 11 | 21 / 12 |
 | Skeleton | 20 / 12 | 23 / 13 |
 | Goblin King | — | **unchanged** |
@@ -799,7 +799,31 @@ reads at any scale and needs no translation):
 - **Tests:** a map-data test checks every inn/shop/chapel/tavern NPC has a matching sign within a few tiles and
   that every sign sits on a wall tile; a sprite test checks each sign kind renders.
 
-### 15.8 Work breakdown
+### 15.8 Generic names for monsters with look variants
+
+**Problem:** "Grey Wolf" can appear brown or black because of the cosmetic looks (13.3), so its name contradicts
+what is on screen.
+
+**Decision:** keep the look variants and give every varied monster a **generic name** with no colour, material or
+other look-specific words. Monsters without variants (bosses and mini-bosses) keep their unique names.
+
+| Monster | Variants | Name now | Planned name |
+| --- | --- | --- | --- |
+| Slime | 6 colours, 3 shapes | Slime | Slime (unchanged) |
+| Giant Bat | 3 palettes | Giant Bat | Giant Bat (size, not colour; unchanged) |
+| Wolf | 3 palettes | Grey Wolf | **Wolf** |
+| Goblin | 3 palettes | Goblin | Goblin (unchanged) |
+| Skeleton | 3 palettes | Skeleton | Skeleton (unchanged) |
+| Goblin King, Alpha Wolf, Giant Toad, Bone Captain, Goblin Jailer | none | (unique) | unchanged |
+
+- **Rule for new monsters:** a monster that gets look variants must have a name that fits all of them; a monster
+  that needs a colour in its name (e.g. a future "Red Dragon") gets **no** colour variants, only its own palette.
+- Only the display name changes; the monster id (`wolf`), stats, drops and saves are unaffected. Battle text
+  ("A Wolf appears!", "Wolf A") and the bestiary-style hints use the new name.
+- **Test:** a data test fails if any monster with more than one look has a colour word (grey, gray, red, blue,
+  green, black, white, brown, gold, purple, teal) in its name.
+
+### 15.9 Work breakdown
 
 1. Plan update (this section) — done first, before any code.
 2. World-anchored weather (15.1) and its renderer test.
@@ -810,4 +834,5 @@ reads at any scale and needs no translation):
 7. Equipment slots, EQUIP menu, `I`/`E` shortcuts, armor shops, save v4 and simulator re-check (15.4) —
    the largest item.
 8. Building signs (15.7), including the armor shop sign added with 15.4.
-9. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
+9. Generic monster names and the colour-word test (15.8).
+10. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
