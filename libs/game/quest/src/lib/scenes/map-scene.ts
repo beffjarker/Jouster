@@ -2,7 +2,7 @@ import { InputManager, Renderer, Scene, createCanvas, wrapText } from '@jouster/
 import { COMPANION_SLOTS } from '../data/companions';
 import { MapDef, mapDef } from '../data/maps';
 import { LANDMARKS } from '../data/overworld-gen';
-import { GameState } from '../state/game-state';
+import { GameState, questStage } from '../state/game-state';
 import { isExplored } from '../state/fog';
 import { SEASON_NAMES, WEATHER, currentWeather, seasonAt } from '../state/weather';
 import { COLORS, SCREEN_H, SCREEN_W } from '../ui/widgets';
@@ -64,17 +64,19 @@ export function questLog(state: GameState): string[] {
   ];
   let any = false;
   for (const slot of COMPANION_SLOTS) {
-    const status = state.quests[slot.id];
-    if (!status) {
+    const stage = questStage(state, slot.id);
+    if (stage === 'locked' || state.quests[slot.id] === undefined) {
       continue;
     }
     any = true;
     const who = state.companions[slot.id]?.name ?? '???';
     const q = slot.quest;
-    if (status === 'done') {
+    if (stage === 'done') {
       lines.push(`${q.title.toUpperCase()} (${who}): Complete.`);
-    } else if (f[q.doneFlag]) {
-      lines.push(`${q.title.toUpperCase()} (${who}): Done! Return to ${who}.`);
+    } else if (stage === 'ready') {
+      lines.push(`${q.title.toUpperCase()} (${who}): Done! Return to ${who} in ${slot.home}.`);
+    } else if (stage === 'available') {
+      lines.push(`${q.title.toUpperCase()} (${who}): Not accepted. Talk to ${who} in ${slot.home}.`);
     } else {
       lines.push(`${q.title.toUpperCase()} (${who}): ${q.objective}`);
     }
@@ -87,6 +89,28 @@ export function questLog(state: GameState): string[] {
     );
   }
   return lines;
+}
+
+/**
+ * Quest pins on map `mapId`: the mini-boss spot for accepted quests, and the quest giver once the quest is
+ * ready to turn in (a town giver is pinned at the town's overworld entrance).
+ */
+export function questPins(state: GameState, mapId: string): Array<{ x: number; y: number }> {
+  const landmarks: Readonly<Record<string, { x: number; y: number }>> = LANDMARKS;
+  const pins: Array<{ x: number; y: number }> = [];
+  for (const slot of COMPANION_SLOTS) {
+    const stage = questStage(state, slot.id);
+    if (stage === 'active' && slot.quest.pin.mapId === mapId) {
+      pins.push(slot.quest.pin);
+    } else if (stage === 'ready') {
+      if (slot.mapId === mapId) {
+        pins.push({ x: slot.x, y: slot.y });
+      } else if (mapId === 'overworld' && landmarks[slot.mapId]) {
+        pins.push(landmarks[slot.mapId]);
+      }
+    }
+  }
+  return pins;
 }
 
 /**
@@ -148,11 +172,8 @@ export class MapScene implements Scene {
     this.renderLegend(r, places, pins.length > 0);
   }
 
-  /** Objective locations of active companion quests on this map. */
   private pins(): Array<{ x: number; y: number }> {
-    return COMPANION_SLOTS.filter(
-      (slot) => this.state.quests[slot.id] === 'active' && !this.state.flags[slot.quest.doneFlag] && slot.quest.pin.mapId === this.map.id,
-    ).map((slot) => slot.quest.pin);
+    return questPins(this.state, this.map.id);
   }
 
   private renderLegend(r: Renderer, places: ReadonlyArray<{ name: string }>, hasPins: boolean): void {

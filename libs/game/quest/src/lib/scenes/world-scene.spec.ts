@@ -111,8 +111,13 @@ describe('WorldScene', () => {
     expect(h.state.party).toHaveLength(1);
     expect(h.state.quests['tavern']).toBeUndefined();
 
-    // After the boss they ask a favour first.
+    // After the boss they ask a favour first; declining (cancel = NO) leaves it on offer.
     h.state.flags['bossDefeated'] = true;
+    h.tap('confirm');
+    for (let i = 0; i < 40 && h.ctx.stack.top?.id !== 'world'; i++) {
+      h.tap('cancel');
+    }
+    expect(h.state.quests['tavern']).toBe('available');
     h.tap('confirm');
     h.confirmUntilWorld();
     expect(h.state.party).toHaveLength(1);
@@ -296,6 +301,8 @@ describe('WorldScene', () => {
       throw new Error('no den boss');
     }
     const h = setup({ mapId: 'wolfDen', x: wolf.x, y: wolf.y + 1, facing: 'up' });
+    h.state.flags['bossDefeated'] = true;
+    h.state.quests['tavern'] = 'active';
     h.ctx.rng = createRng(5);
     h.tap('confirm');
     expect(h.ctx.stack.top?.id).toBe('message');
@@ -316,6 +323,7 @@ describe('WorldScene', () => {
     h.confirmUntilWorld();
 
     expect(h.state.flags[wolf.boss.defeatFlag]).toBe(true);
+    expect(h.state.quests['tavern']).toBe('ready');
   });
 
   it('marks the Thornwick ruins when visited', () => {

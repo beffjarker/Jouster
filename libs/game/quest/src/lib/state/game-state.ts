@@ -35,8 +35,14 @@ export interface GameState {
   playSeconds: number;
 }
 
-/** Companion side-quest progress (missing = not offered yet). */
-export type QuestStatus = 'active' | 'done';
+/**
+ * Stored companion side-quest progress (missing = not offered yet). `available` = offered but declined,
+ * `active` = accepted, `ready` = mini-boss beaten (turn in), `done` = rewarded.
+ */
+export type QuestStatus = 'available' | 'active' | 'ready' | 'done';
+
+/** Quest stage as the player sees it (plan 15.6); `locked` = before the Goblin King falls. */
+export type QuestStage = 'locked' | 'available' | 'active' | 'ready' | 'done';
 
 /** Minimal storage shape (window.localStorage or a test double). */
 export interface SaveStorage {
@@ -104,32 +110,60 @@ export function companionAvailable(state: GameState, companionId: string): boole
 }
 
 /**
- * Advances a companion's side quest when the player talks to them. Returns the new stage:
- * `locked` before the first boss, `offered` when the quest was just given, `active` while it is
- * unfinished, `completed` when it was just turned in (reward granted), or `done` afterwards.
+ * The stage of a companion's side quest. A mini-boss beaten before the quest was accepted (only possible in
+ * older saves) counts as `ready`, so the reward is never lost.
  */
-export function advanceCompanionQuest(
-  state: GameState,
-  companionId: string,
-): 'locked' | 'offered' | 'active' | 'completed' | 'done' {
-  if (state.quests[companionId] === 'done') {
+export function questStage(state: GameState, companionId: string): QuestStage {
+  const status = state.quests[companionId];
+  if (status === 'done') {
     return 'done';
   }
-  if (state.flags['bossDefeated'] !== true) {
+  if (state.flags['bossDefeated'] !== true && status === undefined) {
     return 'locked';
   }
-  const quest = companionSlot(companionId).quest;
-  const wasActive = state.quests[companionId] === 'active';
-  if (state.flags[quest.doneFlag] !== true) {
-    state.quests[companionId] = 'active';
-    return wasActive ? 'active' : 'offered';
+  if (status === 'ready' || state.flags[companionSlot(companionId).quest.doneFlag] === true) {
+    return 'ready';
   }
+  return status === 'active' ? 'active' : 'available';
+}
+
+/** True while the companion's quest is accepted and its mini-boss is still out there. */
+export function questActive(state: GameState, companionId: string): boolean {
+  return questStage(state, companionId) === 'active';
+}
+
+/** The player said YES (`accept`) or NO to a companion's request. */
+export function answerCompanionQuest(state: GameState, companionId: string, accept: boolean): void {
+  if (questStage(state, companionId) === 'available') {
+    state.quests[companionId] = accept ? 'active' : 'available';
+  }
+}
+
+/**
+ * Called when a mini-boss falls: moves the matching active quest to `ready`. Returns the companion slot id
+ * so the scene can say who to return to, or null if no quest was waiting on that flag.
+ */
+export function markQuestReady(state: GameState, defeatFlag: string): string | null {
+  const slot = COMPANION_SLOTS.find((c) => c.quest.doneFlag === defeatFlag);
+  if (!slot || state.quests[slot.id] !== 'active') {
+    return null;
+  }
+  state.quests[slot.id] = 'ready';
+  return slot.id;
+}
+
+/** Turns in a `ready` quest: grants the reward once and marks it done. Returns false otherwise. */
+export function completeCompanionQuest(state: GameState, companionId: string): boolean {
+  if (questStage(state, companionId) !== 'ready') {
+    return false;
+  }
+  const quest = companionSlot(companionId).quest;
   state.quests[companionId] = 'done';
   state.gold += quest.reward.gold;
   for (const [itemId, count] of Object.entries(quest.reward.items ?? {})) {
     addItem(state, itemId, count);
   }
-  return 'completed';
+  return true;
 }
 
 /** The companion rolled for a slot in this playthrough (the slot id doubles as the member id). */
