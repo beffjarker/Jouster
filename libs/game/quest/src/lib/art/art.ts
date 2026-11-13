@@ -1,7 +1,9 @@
 import { Facing, Palette, createCanvas, imageDensity, palette, setImageDensity } from '@jouster/game/engine';
 import { HumanoidLook, LOOKS, paintHumanoid, paintMonster, paintSign } from './hd-characters';
 import { Paint, box } from './hd-paint';
-import { paintTile } from './hd-tiles';
+import { paintTile, paintWallShadow } from './hd-tiles';
+
+export { SHADOW_CASTERS } from './hd-tiles';
 import { LPC_CELL, LPC_TILES, LpcSheetId, lpcGroundCell } from './lpc-manifest';
 import {
   LPC_CHARACTER_CELL,
@@ -288,6 +290,11 @@ export class Art {
       const colors = new Map([...(MONSTER_PALETTES.get(spriteId) ?? new Map<string, string>()), ...(look.colors ?? [])]);
       return paintMonster(shape, colors).toCanvas();
     });
+  }
+
+  /** Soft shadow drawn over a tile that sits directly below a wall or rock (see SHADOW_CASTERS). */
+  public wallShadow(): HTMLCanvasElement {
+    return this.cached('wallShadow', () => paintWallShadow().toCanvas());
   }
 
   /** Town sign sprite (transparent background) advertising the service `kind` (see SignKind). */

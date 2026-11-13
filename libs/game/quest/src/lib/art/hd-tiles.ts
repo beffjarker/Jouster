@@ -108,7 +108,7 @@ function masonry(p: Paint, base: string, mortar: string, rowH: number, blockW: n
 }
 
 function cobble(p: Paint): void {
-  masonry(p, '#b0aa98', '#6e6a5e', 8, 8, 7, true);
+  masonry(p, '#bea47e', '#76624a', 8, 8, 7, true);
 }
 
 const WALL = '#8a8a9a';
@@ -622,6 +622,28 @@ export function paintTile(id: string, frame: number, variant: number, withGround
       layer.outline();
     }
     p.draw(layer);
+  }
+  return p;
+}
+
+/** Tall solid tiles (town walls, cave rock) that cast a short shadow onto the tile below them. */
+export const SHADOW_CASTERS: ReadonlySet<string> = new Set(['wall', 'rock', 'torch']);
+
+/** Rows of the soft shadow a {@link SHADOW_CASTERS} tile drops onto the top of the tile below it. */
+export const WALL_SHADOW_ROWS = 10;
+
+/**
+ * Transparent tile with a soft shadow along its top edge, drawn over a floor tile that sits directly below a
+ * wall so the wall's base reads clearly against the floor.
+ */
+export function paintWallShadow(): Paint {
+  const p = new Paint(S, S);
+  for (let y = 0; y < WALL_SHADOW_ROWS; y++) {
+    const fade = 1 - y / WALL_SHADOW_ROWS;
+    for (let x = 0; x < S; x++) {
+      const a = 0.5 * fade * fade + ((x + y) % 2 === 0 ? 0.04 : 0);
+      p.px(x, y, '#140c24', a);
+    }
   }
   return p;
 }
