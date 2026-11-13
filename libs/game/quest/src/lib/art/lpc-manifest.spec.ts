@@ -30,6 +30,14 @@ describe('LPC manifest', () => {
     });
   });
 
+  it('never reuses wall cells for the town floor', () => {
+    const key = (c: { sheet: string; col: number; row: number }): string => `${c.sheet}:${c.col}:${c.row}`;
+    const walls = new Set((LPC_TILES.get('wall')?.ground ?? []).map(key));
+    const floor = LPC_TILES.get('cobble')?.ground ?? [];
+    expect(floor.length).toBeGreaterThan(0);
+    floor.forEach((c) => expect(walls.has(key(c))).toBe(false));
+  });
+
   it('cycles ground cells with the animation frame', () => {
     const water = LPC_TILES.get('water');
     expect(water).toBeDefined();

@@ -45,7 +45,8 @@ const WATER = [t(21, 17), t(22, 17), t(23, 17)];
 const DIRT = [t(16, 3), t(16, 5), t(17, 5)];
 const CAVE_FLOOR = [t(19, 3), t(19, 5), t(20, 5)];
 const CAVE_ROCK = [t(30, 5), t(31, 5), t(19, 11)];
-const COBBLE = [t(30, 17), t(31, 17), t(31, 18)];
+/** Warm taupe flagstones: the town floor must read apart from the cool grey brick walls. */
+const FLAGSTONE = [t(17, 27), t(16, 26), t(18, 26), t(16, 28), t(18, 28)];
 
 /** Tile ids with LPC ground art. Ids not listed keep the procedural look. */
 export const LPC_TILES: ReadonlyMap<string, LpcTile> = new Map<string, LpcTile>([
@@ -62,8 +63,8 @@ export const LPC_TILES: ReadonlyMap<string, LpcTile> = new Map<string, LpcTile>(
   ['water', { ground: WATER }],
   ['bridge', { ground: WATER }],
   ['wall', { ground: [o(4, 13), o(4, 14)] }],
-  ['cobble', { ground: COBBLE }],
-  ['fountain', { ground: COBBLE }],
+  ['cobble', { ground: FLAGSTONE }],
+  ['fountain', { ground: FLAGSTONE }],
   ['wood', { ground: [t(16, 20), t(17, 20)] }],
   ['caveFloor', { ground: CAVE_FLOOR }],
   ['caveExit', { ground: CAVE_FLOOR }],

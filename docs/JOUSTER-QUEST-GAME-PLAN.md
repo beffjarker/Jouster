@@ -1262,6 +1262,7 @@ upscaled by EPX.
   Shop signs are 32?32 real.
 - **Modes:** `?art=classic` uses only the HD procedural art. LPC mode uses LPC sheets plus the HD art for
   object overlays, monsters without LPC art (wolf, alpha wolf, giant toad, bone captain) and shop signs.
+- **Walls vs floors:** town floors must read apart from walls at a glance. Floors are warm (classic sandstone cobble; LPC taupe flagstones instead of the grey cobble), walls stay cool grey brick, and every wall / cave-rock tile (`SHADOW_CASTERS`) drops a soft shadow onto the tile below it. Further options if more contrast is needed: a lit top cap on walls, a 3/4 front face where a wall meets floor, or darker wall tops.
 - **Unchanged:** battle backdrop, UI, colours, variants and animation frame counts. The engine's EPX
   helpers stay (tested there) but quest no longer uses them.
 - **Tests:** paint primitives (shapes, outline, mirror, tone ramps), every tile id paints at 32?32 with opaque

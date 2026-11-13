@@ -9,7 +9,7 @@ import {
   rollEncounter,
   scaledEncounterRate,
 } from '@jouster/game/engine';
-import { TILE, tileAnchor, tileVariant } from '../art/art';
+import { SHADOW_CASTERS, TILE, tileAnchor, tileVariant } from '../art/art';
 import { groundVariant } from '../art/lpc-manifest';
 import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
@@ -247,12 +247,18 @@ export class WorldScene implements Scene {
     const startX = Math.floor(camX / TILE);
     const startY = Math.floor(camY / TILE);
     const outside = this.tileIds.get(this.map.outsideTile) ?? 'grass';
+    const tileId = (tx: number, ty: number): string => {
+      const ch = this.tiles.charAt(tx, ty);
+      return ch === undefined ? outside : this.tileIds.get(ch) ?? outside;
+    };
     for (let ty = startY; ty <= startY + SCREEN_H / TILE + 1; ty++) {
       for (let tx = startX; tx <= startX + SCREEN_W / TILE + 1; tx++) {
-        const ch = this.tiles.charAt(tx, ty);
-        const id = ch === undefined ? outside : this.tileIds.get(ch) ?? outside;
+        const id = tileId(tx, ty);
         const variant = tileVariant(this.map.id, id, tx, ty);
         r.draw(this.ctx.art.tile(id, frame, variant, groundVariant(tx, ty)), tx * TILE - camX, ty * TILE - camY);
+        if (!SHADOW_CASTERS.has(id) && SHADOW_CASTERS.has(tileId(tx, ty - 1))) {
+          r.draw(this.ctx.art.wallShadow(), tx * TILE - camX, ty * TILE - camY);
+        }
       }
     }
     if (this.outdoors) {
