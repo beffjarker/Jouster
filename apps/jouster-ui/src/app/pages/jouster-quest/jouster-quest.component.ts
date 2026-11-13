@@ -11,12 +11,33 @@ import {
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { CONTROLS, ControlEntry, JousterQuestGame, TEXT_ENTRY_SCENES, artStyleFromQuery } from '@jouster/game/quest';
+import {
+  CONTROLS,
+  ControlEntry,
+  JousterQuestGame,
+  POINTER_CONTROLS,
+  PointerControlEntry,
+  TEXT_ENTRY_SCENES,
+  TOUCH_BUTTONS,
+  TouchButton,
+  artStyleFromQuery,
+} from '@jouster/game/quest';
 import { PageTitleComponent } from '../../components/page-title/page-title.component';
 
 /** Canvas size in real pixels (480x270 logical layout at 2x density). */
 const CANVAS_W = 960;
 const CANVAS_H = 540;
+/** Held direction buttons repeat like a held key: first repeat after this delay, then every REPEAT_MS. */
+const REPEAT_DELAY_MS = 350;
+const REPEAT_MS = 120;
+
+/** True on phones and tablets (a coarse pointer and no fine one), where the touch pad is shown by default. */
+export function prefersTouchPad(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
+    return false;
+  }
+  return window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(any-pointer: fine)').matches;
+}
 
 /**
  * Largest whole-number scale of the canvas that fits the available space, so pixels stay square and even.
@@ -43,7 +64,15 @@ export class JousterQuestComponent implements AfterViewInit, OnDestroy {
   public unsupported = false;
   public fullscreen = false;
   public readonly controls: readonly ControlEntry[] = CONTROLS;
+  public readonly pointerControls: readonly PointerControlEntry[] = POINTER_CONTROLS;
+  public readonly dpad: readonly TouchButton[] = TOUCH_BUTTONS.filter((b) => b.repeat);
+  public readonly faceButtons: readonly TouchButton[] = TOUCH_BUTTONS.filter((b) => b.id === 'a' || b.id === 'b');
+  public readonly menuButtons: readonly TouchButton[] = TOUCH_BUTTONS.filter(
+    (b) => !b.repeat && b.id !== 'a' && b.id !== 'b',
+  );
+  public touchPad = prefersTouchPad();
   private game: JousterQuestGame | null = null;
+  private readonly held = new Map<string, ReturnType<typeof setTimeout> | undefined>();
   private readonly zone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly onKeyDown = (e: KeyboardEvent): void => {
@@ -76,6 +105,7 @@ export class JousterQuestComponent implements AfterViewInit, OnDestroy {
   }
 
   public ngOnDestroy(): void {
+    TOUCH_BUTTONS.forEach((b) => this.touchRelease(b));
     this.canvasRef.nativeElement.removeEventListener('keydown', this.onKeyDown);
     this.game?.destroy();
     this.game = null;
@@ -84,6 +114,51 @@ export class JousterQuestComponent implements AfterViewInit, OnDestroy {
   /** Clicking the canvas focuses it (and unlocks audio on the first user gesture). */
   public focusCanvas(): void {
     this.canvasRef.nativeElement.focus();
+  }
+
+  /** Shows or hides the on-screen touch pad. */
+  public toggleTouchPad(): void {
+    this.touchPad = !this.touchPad;
+    this.canvasRef.nativeElement.focus();
+  }
+
+  /**
+   * Touch pad button pressed: send its key to the canvas as a real keydown, so the game handles it exactly like the
+   * keyboard. The default is prevented so the canvas keeps focus (losing it would release every held key).
+   */
+  public touchPress(button: TouchButton, event?: Event): void {
+    event?.preventDefault();
+    if (this.held.has(button.id)) {
+      return;
+    }
+    const canvas = this.canvasRef.nativeElement;
+    if (document.activeElement !== canvas) {
+      canvas.focus();
+    }
+    this.sendKey('keydown', button, false);
+    const repeat = (delay: number): ReturnType<typeof setTimeout> =>
+      setTimeout(() => {
+        this.sendKey('keydown', button, true);
+        this.held.set(button.id, repeat(REPEAT_MS));
+      }, delay);
+    this.held.set(button.id, button.repeat ? repeat(REPEAT_DELAY_MS) : undefined);
+  }
+
+  /** Touch pad button released (or the finger slid off it). */
+  public touchRelease(button: TouchButton, event?: Event): void {
+    event?.preventDefault();
+    if (!this.held.has(button.id)) {
+      return;
+    }
+    clearTimeout(this.held.get(button.id));
+    this.held.delete(button.id);
+    this.sendKey('keyup', button, false);
+  }
+
+  private sendKey(type: 'keydown' | 'keyup', button: TouchButton, repeat: boolean): void {
+    this.canvasRef.nativeElement.dispatchEvent(
+      new KeyboardEvent(type, { code: button.code, key: button.key, repeat, bubbles: true, cancelable: true }),
+    );
   }
 
   /** F key / button: show the game frame full screen (Fullscreen API), or leave full screen. */

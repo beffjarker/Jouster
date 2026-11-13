@@ -9,13 +9,53 @@
       height="540"
       tabindex="0"
       role="application"
-      aria-label="Jouster Quest game screen. Use the arrow keys to move, Z or Enter to confirm, X or Escape for the menu."
+      aria-label="Jouster Quest game screen. Use the arrow keys to move, Z or Enter to confirm, X or Escape for the menu. You can also click or tap to walk, talk and choose."
       data-scene="loading"
       (click)="focusCanvas()"
     ></canvas>
-    <button type="button" class="fullscreen-toggle" (click)="toggleFullscreen()" [attr.aria-pressed]="fullscreen">
-      {{ fullscreen ? 'Exit full screen' : 'Full screen' }} (F)
-    </button>
+    @if (touchPad) {
+      <div class="touch-pad" aria-label="Touch controls" role="group">
+        <div class="dpad">
+          @for (button of dpad; track button.id) {
+            <ng-container *ngTemplateOutlet="touchKey; context: { $implicit: button }"></ng-container>
+          }
+        </div>
+        <div class="menu-keys">
+          @for (button of menuButtons; track button.id) {
+            <ng-container *ngTemplateOutlet="touchKey; context: { $implicit: button }"></ng-container>
+          }
+        </div>
+        <div class="face-keys">
+          @for (button of faceButtons; track button.id) {
+            <ng-container *ngTemplateOutlet="touchKey; context: { $implicit: button }"></ng-container>
+          }
+        </div>
+      </div>
+    }
+    <ng-template #touchKey let-button>
+      <button
+        type="button"
+        [class]="'touch-key touch-' + button.id"
+        [attr.aria-label]="button.name"
+        tabindex="-1"
+        (pointerdown)="touchPress(button, $event)"
+        (pointerup)="touchRelease(button, $event)"
+        (pointercancel)="touchRelease(button, $event)"
+        (pointerleave)="touchRelease(button, $event)"
+        (mousedown)="$event.preventDefault()"
+        (contextmenu)="$event.preventDefault()"
+      >
+        {{ button.label }}
+      </button>
+    </ng-template>
+    <div class="frame-buttons">
+      <button type="button" class="fullscreen-toggle" (click)="toggleFullscreen()" [attr.aria-pressed]="fullscreen">
+        {{ fullscreen ? 'Exit full screen' : 'Full screen' }} (F)
+      </button>
+      <button type="button" class="touch-toggle" (click)="toggleTouchPad()" [attr.aria-pressed]="touchPad">
+        {{ touchPad ? 'Hide' : 'Show' }} touch buttons
+      </button>
+    </div>
     <p *ngIf="unsupported" class="unsupported" role="alert">
       Your browser does not support the canvas features this game needs.
     </p>
@@ -23,7 +63,7 @@
 
   <section class="controls" aria-labelledby="quest-controls-heading">
     <h2 id="quest-controls-heading">Controls</h2>
-    <ul>
+    <ul class="key-controls">
       @for (control of controls; track control.label) {
         <li>
           @for (key of control.keys; track key; let last = $last) {
@@ -33,9 +73,17 @@
         </li>
       }
     </ul>
+    <h3>Mouse and touch</h3>
+    <ul class="pointer-controls">
+      @for (control of pointerControls; track control.input) {
+        <li>
+          <strong>{{ control.input }}</strong> {{ control.label }}
+        </li>
+      }
+    </ul>
     <p class="hint">
-      Click the game screen to give it keyboard focus. Save at the inn or the chapel in Aldmere.
-      A keyboard is required; touch controls are not supported yet.
+      Click the game screen to give it keyboard focus. Save at the inn or the chapel in Aldmere. On a phone or tablet,
+      tap the screen to walk and choose, and use the touch buttons (shown automatically; toggle them under the game).
     </p>
   </section>
 </div>

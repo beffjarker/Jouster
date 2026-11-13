@@ -1,4 +1,13 @@
-import { AudioManager, CELL_WIDTH, InputManager, Renderer, Scene, SceneStack, wrapText } from '@jouster/game/engine';
+import {
+  AudioManager,
+  CELL_WIDTH,
+  InputManager,
+  PointerPoint,
+  Renderer,
+  Scene,
+  SceneStack,
+  wrapText,
+} from '@jouster/game/engine';
 
 /** Logical 16:9 screen (rendered at 2x on a 960x540 canvas). Layout derives from these two values. */
 export const SCREEN_W = 480;
@@ -51,10 +60,20 @@ export interface MenuCancel {
 
 export type MenuResult = MenuSelect | MenuCancel | null;
 
-/** Vertical list menu with a wrapping cursor that scrolls when longer than `visible`. */
+/** True when a logical point lies inside a rectangle. */
+export function inRect(p: PointerPoint | null, x: number, y: number, w: number, h: number): p is PointerPoint {
+  return !!p && p.x >= x && p.x < x + w && p.y >= y && p.y < y + h;
+}
+
+/**
+ * Vertical list menu with a wrapping cursor that scrolls when longer than `visible`. Mouse / touch: hovering
+ * or dragging over a row moves the cursor, tapping a row picks it, and tapping the `^` / `~` edges scrolls.
+ */
 export class ListMenu {
   public cursor = 0;
   private scroll = 0;
+  /** Where the menu was last drawn, for pointer hit-tests (null until the first render). */
+  private area: { x: number; y: number; w: number } | null = null;
 
   constructor(
     public items: MenuItem[],
@@ -67,10 +86,47 @@ export class ListMenu {
     this.cursor = Math.max(0, Math.min(this.cursor, items.length - 1));
   }
 
+  /**
+   * Item index under a logical point, or -1 outside the menu. Points on the window's top or bottom edge map
+   * to the item just out of view while the list is scrolled, so tapping the scroll marks pages through it.
+   */
+  public itemAt(p: PointerPoint | null): number {
+    const a = this.area;
+    if (!a || !inRect(p, a.x, a.y, a.w, this.height()) || this.items.length === 0) {
+      return -1;
+    }
+    const end = Math.min(this.items.length, this.scroll + this.visible);
+    const row = Math.floor((p.y - a.y - 5) / LINE_H);
+    if (row < 0) {
+      return this.scroll > 0 ? this.scroll - 1 : this.scroll;
+    }
+    return Math.min(this.scroll + row, end < this.items.length ? end : end - 1);
+  }
+
+  private visibleIndex(i: number): boolean {
+    return i >= this.scroll && i < Math.min(this.items.length, this.scroll + this.visible);
+  }
+
   public update(input: InputManager): MenuResult {
     const n = this.items.length;
     let result: MenuResult = null;
-    if (n > 0 && input.wasPressed('down')) {
+    const tapped = this.itemAt(input.tap);
+    const hovered = input.pointerMovedThisFrame && !input.tap ? this.itemAt(input.pointer) : -1;
+    if (tapped >= 0 && !this.visibleIndex(tapped)) {
+      this.cursor = tapped;
+      this.audio?.play('cursor');
+    } else if (tapped >= 0) {
+      this.cursor = tapped;
+      if (this.items[tapped].enabled === false) {
+        this.audio?.play('cancel');
+      } else {
+        this.audio?.play('confirm');
+        result = { kind: 'select', index: tapped };
+      }
+    } else if (hovered >= 0 && hovered !== this.cursor && this.visibleIndex(hovered)) {
+      this.cursor = hovered;
+      this.audio?.play('cursor');
+    } else if (n > 0 && input.wasPressed('down')) {
       this.cursor = (this.cursor + 1) % n;
       this.audio?.play('cursor');
     } else if (n > 0 && input.wasPressed('up')) {
@@ -101,6 +157,7 @@ export class ListMenu {
 
   /** Draws the menu inside its own window. */
   public render(r: Renderer, x: number, y: number, w: number, active = true, title?: string): void {
+    this.area = { x, y, w };
     r.window(x, y, w, this.height());
     if (title) {
       r.fillRect(x + 8, y - 1, title.length * 6 + 4, 3, '#000000');
@@ -194,7 +251,7 @@ export class MessageScene implements Scene {
     const total = this.pageLength;
     if (this.shown < total) {
       this.shown = Math.min(total, this.shown + dt * CHARS_PER_SECOND);
-      if (input.wasPressed('confirm') || input.wasPressed('cancel')) {
+      if (input.wasPressed('confirm') || input.wasPressed('cancel') || input.tap) {
         this.shown = total;
       }
       return;
@@ -208,7 +265,7 @@ export class MessageScene implements Scene {
       }
       return;
     }
-    if (input.wasPressed('confirm') || input.wasPressed('cancel')) {
+    if (input.wasPressed('confirm') || input.wasPressed('cancel') || input.tap) {
       if (this.lastPage) {
         this.close(-1);
       } else {

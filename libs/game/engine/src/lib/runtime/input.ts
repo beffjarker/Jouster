@@ -30,6 +30,17 @@ export interface KeyEventSource {
   removeEventListener(type: string, listener: (event: Event) => void): void;
 }
 
+/** A point on the logical screen (game units, not CSS or canvas pixels). */
+export interface PointerPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Latest mouse / touch position; `down` while a button or finger is pressed. */
+export interface PointerState extends PointerPoint {
+  readonly down: boolean;
+}
+
 /**
  * Keyboard input mapped to game actions.
  *
@@ -37,11 +48,17 @@ export interface KeyEventSource {
  * - `wasPressed` = pressed since the last `endFrame` (menus). Auto-repeat counts as a press for
  *   direction keys so menu cursors can scroll.
  * - `typed` = printable characters and `Backspace`/`Enter`/`Escape` codes for text entry.
+ * - `tap` / `pointer` = mouse and touch, fed by the host through `pointerDown`/`pointerMove`/`pointerUp` in
+ *   logical screen coordinates; `press`/`release` let on-screen buttons drive actions directly.
  */
 export class InputManager {
   private readonly down = new Set<InputAction>();
   private readonly pressed = new Set<InputAction>();
   private readonly typedKeys: string[] = [];
+  private pointerState: PointerState | null = null;
+  private tapPoint: PointerPoint | null = null;
+  private pointerMoved = false;
+  private presses = 0;
   private attached = false;
 
   private readonly onKeyDown = (event: Event): void => this.handleKeyDown(event as KeyboardEvent);
@@ -81,14 +98,68 @@ export class InputManager {
     return this.typedKeys;
   }
 
+  /** Where the pointer went down since the last frame (a click or tap), or null. */
+  public get tap(): PointerPoint | null {
+    return this.tapPoint;
+  }
+
+  /** Latest pointer position and button state, or null before any mouse / touch input. */
+  public get pointer(): PointerState | null {
+    return this.pointerState;
+  }
+
+  /** Counts pointer presses, so a scene can tell whether the button held now is the one it saw go down. */
+  public get pointerPresses(): number {
+    return this.presses;
+  }
+
+  /** True when the pointer moved (hover or drag) since the last frame. */
+  public get pointerMovedThisFrame(): boolean {
+    return this.pointerMoved;
+  }
+
+  /** Mouse button / finger down at a logical screen point; it counts as a tap for this frame. */
+  public pointerDown(x: number, y: number): void {
+    this.pointerState = { x, y, down: true };
+    this.presses++;
+    this.tapPoint = this.tapPoint ?? { x, y };
+    this.pointerMoved = true;
+  }
+
+  public pointerMove(x: number, y: number): void {
+    this.pointerState = { x, y, down: this.pointerState?.down ?? false };
+    this.pointerMoved = true;
+  }
+
+  /** Button / finger released (or the pointer was cancelled). */
+  public pointerUp(x?: number, y?: number): void {
+    const prev = this.pointerState;
+    this.pointerState = prev || x !== undefined ? { x: x ?? prev?.x ?? 0, y: y ?? prev?.y ?? 0, down: false } : null;
+  }
+
+  /** Presses an action as if its key went down (on-screen buttons, mouse wheel, right click). */
+  public press(action: InputAction): void {
+    this.pressed.add(action);
+    this.down.add(action);
+  }
+
+  public release(action: InputAction): void {
+    this.down.delete(action);
+  }
+
   /** Clears per-frame state; call once at the end of every update. */
   public endFrame(): void {
     this.pressed.clear();
     this.typedKeys.length = 0;
+    this.tapPoint = null;
+    this.pointerMoved = false;
   }
 
   public reset(): void {
     this.down.clear();
+    if (this.pointerState) {
+      this.pointerState = { ...this.pointerState, down: false };
+    }
     this.endFrame();
   }
 

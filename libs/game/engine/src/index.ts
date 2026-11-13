@@ -5,6 +5,7 @@ export * from './lib/rules/combat';
 export * from './lib/rules/battle';
 export * from './lib/rules/encounter';
 export * from './lib/world/tilemap';
+export * from './lib/world/pathfind';
 export * from './lib/runtime/input';
 export * from './lib/runtime/game-loop';
 export * from './lib/runtime/pixel-font';

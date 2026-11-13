@@ -17,6 +17,8 @@ interface Harness {
   world: WorldScene;
   run(seconds: number): void;
   tap(action: InputAction): void;
+  /** Clicks / taps the centre of a map tile. */
+  tapTile(x: number, y: number): void;
   hold(action: InputAction, seconds: number): void;
   /** Taps confirm until the world is the active scene again. */
   confirmUntilWorld(max?: number): void;
@@ -48,6 +50,10 @@ function setup(place: Partial<GameState>, alwaysEncounter = false): Harness {
     world,
     run: (s) => driver.run(s),
     tap: (a) => driver.tap(a),
+    tapTile: (x, y) => {
+      const p = world.tileToScreen(x, y);
+      driver.tapAt(p.x, p.y);
+    },
     hold: (a, s) => driver.hold(a, s),
     confirmUntilWorld,
   };
@@ -414,6 +420,47 @@ describe('WorldScene', () => {
     h.hold('right', STEP_TIME + 0.02);
     h.run(0.2);
     expect(h.state.flags['sawRuins']).toBe(true);
+    expect(h.ctx.stack.top?.id).toBe('message');
+  });
+});
+
+describe('WorldScene mouse and touch', () => {
+  it('maps screen points to tiles and back', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    const p = h.world.tileToScreen(6, 3);
+    expect(h.world.tileAtScreen(p.x, p.y)).toEqual({ x: 6, y: 3 });
+  });
+
+  it('walks to a tapped floor tile, then clears the goal', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    h.tapTile(4, 3);
+    expect(h.world.goal).toMatchObject({ x: 4, y: 3, mode: 'stand', talk: false });
+    h.run(1);
+    expect({ x: h.state.x, y: h.state.y }).toEqual({ x: 4, y: 3 });
+    expect(h.world.goal).toBeNull();
+  });
+
+  it('walks up to a tapped NPC and talks to them', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'down' });
+    // The king stands at (4,2).
+    h.tapTile(4, 2);
+    expect(h.world.goal).toMatchObject({ x: 4, y: 2, mode: 'face', talk: true });
+    h.run(1.5);
+    expect({ x: h.state.x, y: h.state.y }).toEqual({ x: 4, y: 3 });
+    expect(h.state.facing).toBe('up');
+    expect(h.ctx.stack.top?.id).toBe('message');
+  });
+
+  it('drops the tap goal when a direction key is pressed', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    h.tapTile(4, 3);
+    h.tap('down');
+    expect(h.world.goal).toBeNull();
+  });
+
+  it('tapping the hero checks the tile in front, like confirm', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 3, facing: 'up' });
+    h.tapTile(4, 3);
     expect(h.ctx.stack.top?.id).toBe('message');
   });
 });

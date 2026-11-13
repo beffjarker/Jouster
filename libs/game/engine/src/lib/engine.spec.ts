@@ -10,6 +10,7 @@ import {
   scaledEncounterRate,
 } from './rules/encounter';
 import { TileMap } from './world/tilemap';
+import { firstStepToward } from './world/pathfind';
 import { cappedRestore } from './rules/combat';
 import { wrapText } from './runtime/pixel-font';
 import { InputManager, KeyEventSource } from './runtime/input';
@@ -202,6 +203,54 @@ describe('InputManager', () => {
     expect(input.isDown('confirm')).toBe(false);
     input.detach();
     expect(keys.count('keydown')).toBe(0);
+  });
+
+  it('records pointer taps for one frame and tracks the held pointer', () => {
+    const input = new InputManager(new FakeKeys());
+    expect(input.pointer).toBeNull();
+    input.pointerDown(10, 20);
+    input.pointerMove(12, 22);
+    expect(input.tap).toEqual({ x: 10, y: 20 });
+    expect(input.pointer).toEqual({ x: 12, y: 22, down: true });
+    expect(input.pointerMovedThisFrame).toBe(true);
+    input.endFrame();
+    expect(input.tap).toBeNull();
+    expect(input.pointerMovedThisFrame).toBe(false);
+    expect(input.pointer?.down).toBe(true);
+    input.pointerUp();
+    expect(input.pointer).toEqual({ x: 12, y: 22, down: false });
+  });
+
+  it('lets on-screen buttons press and release actions', () => {
+    const input = new InputManager(new FakeKeys());
+    input.press('left');
+    expect(input.wasPressed('left')).toBe(true);
+    expect(input.isDown('left')).toBe(true);
+    input.endFrame();
+    expect(input.isDown('left')).toBe(true);
+    input.release('left');
+    expect(input.isDown('left')).toBe(false);
+    input.pointerDown(1, 1);
+    input.reset();
+    expect(input.pointer?.down).toBe(false);
+  });
+});
+
+describe('firstStepToward', () => {
+  // S = start, G = goal, # = wall: the only way round is down the left column.
+  const rows = ['S.#G', '..#.', '....'];
+  const passable = (x: number, y: number): boolean => rows[y]?.[x] !== undefined && rows[y][x] !== '#';
+  const goal = (x: number, y: number): boolean => rows[y]?.[x] === 'G';
+
+  it('steps along a shortest path around walls', () => {
+    expect(firstStepToward({ x: 0, y: 0 }, goal, passable)).toBe('down');
+    expect(firstStepToward({ x: 1, y: 2 }, goal, passable)).toBe('right');
+    expect(firstStepToward({ x: 3, y: 1 }, goal, passable)).toBe('up');
+  });
+
+  it('returns null when already there or unreachable', () => {
+    expect(firstStepToward({ x: 3, y: 0 }, goal, passable)).toBeNull();
+    expect(firstStepToward({ x: 0, y: 0 }, goal, (x, y) => passable(x, y) && y < 1)).toBeNull();
   });
 });
 

@@ -1,10 +1,10 @@
-import { InputManager, Renderer, Scene } from '@jouster/game/engine';
+import { InputManager, PointerPoint, Renderer, Scene } from '@jouster/game/engine';
 import { TILE, fitScale, spriteSize, tileAnchor } from '../art/art';
 import { CLASS_ORDER, classDef } from '../data/classes';
 import { ABILITIES } from '../data/abilities';
 import { GameState, hasSave, loadGame, newGameState } from '../state/game-state';
 import { createMember, memberStats, weaponDef } from '../state/party';
-import { COLORS, ListMenu, SCREEN_H, SCREEN_W, charsFit } from '../ui/widgets';
+import { COLORS, ListMenu, SCREEN_H, SCREEN_W, charsFit, inRect } from '../ui/widgets';
 
 /** The title and name screens were laid out for a 216-unit-tall screen; centre that block vertically. */
 const OY = Math.floor((SCREEN_H - 216) / 2);
@@ -161,11 +161,48 @@ function wrapLines(text: string, width: number): string[] {
 const MAX_NAME = 7;
 const NAME_CHARS = /^[a-zA-Z0-9 '-]$/;
 
+/** One key of the on-screen keyboard used to name the hero by mouse or touch. */
+export interface NameKey {
+  /** Character typed, or a command. */
+  readonly value: string | 'DEL' | 'BACK' | 'OK';
+  readonly label: string;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+const KEY_W = 20;
+const KEY_H = 13;
+const GRID_COLS = 10;
+const GRID_X = SCREEN_W / 2 - (GRID_COLS * KEY_W) / 2;
+const GRID_Y = 182 + OY - 27;
+
+/** A-Z, '-', apostrophe, space and delete on a 10-wide grid, with BACK and OK below. */
+export const NAME_KEYS: readonly NameKey[] = [
+  ...[...'ABCDEFGHIJKLMNOPQRSTUVWXYZ', '-', "'", ' ', 'DEL'].map((value, i) => ({
+    value,
+    label: value === ' ' ? 'SP' : value === 'DEL' ? 'DL' : value,
+    x: GRID_X + (i % GRID_COLS) * KEY_W,
+    y: GRID_Y + Math.floor(i / GRID_COLS) * KEY_H,
+    w: KEY_W,
+    h: KEY_H,
+  })),
+  { value: 'BACK', label: 'BACK', x: GRID_X, y: GRID_Y + 3 * KEY_H + 4, w: KEY_W * 3, h: KEY_H },
+  { value: 'OK', label: 'OK', x: GRID_X + KEY_W * 7, y: GRID_Y + 3 * KEY_H + 4, w: KEY_W * 3, h: KEY_H },
+];
+
+/** On-screen key under a logical point, if any. */
+export function nameKeyAt(p: PointerPoint | null): NameKey | undefined {
+  return NAME_KEYS.find((k) => inRect(p, k.x, k.y, k.w, k.h));
+}
+
 /** Type the hero's name (keyboard), Enter to start. */
 export class NameEntryScene implements Scene {
   public readonly id = 'name-entry';
   private name: string;
   private time = 0;
+  private hover: NameKey | undefined;
 
   constructor(
     private readonly ctx: GameContext,
@@ -176,7 +213,9 @@ export class NameEntryScene implements Scene {
 
   public update(dt: number, input: InputManager): void {
     this.time += dt;
-    for (const key of input.typed) {
+    const tapped = nameKeyAt(input.tap)?.value;
+    const tappedKey = tapped === 'OK' ? 'Enter' : tapped === 'BACK' ? 'Escape' : tapped === 'DEL' ? 'Backspace' : tapped;
+    for (const key of tappedKey ? [...input.typed, tappedKey] : input.typed) {
       if (key === 'Enter') {
         this.start();
         return;
@@ -194,6 +233,12 @@ export class NameEntryScene implements Scene {
         this.ctx.audio.play('cursor');
       }
     }
+    this.hover = nameKeyAt(input.pointer);
+  }
+
+  /** The hero's name as typed so far (for tests). */
+  public get typedName(): string {
+    return this.name;
   }
 
   public render(r: Renderer): void {
@@ -205,8 +250,16 @@ export class NameEntryScene implements Scene {
     r.window(SCREEN_W / 2 - 40, 124 + OY, 80, 22);
     const cursor = Math.floor(this.time * 2) % 2 === 0 ? '_' : ' ';
     r.text(this.name + (this.name.length < MAX_NAME ? cursor : ''), SCREEN_W / 2 - 30, 131 + OY);
-    r.textCentered('TYPE A NAME, THEN PRESS ENTER', SCREEN_W / 2, 160 + OY, COLORS.dim);
-    r.textCentered('BACKSPACE DELETES  ESC GOES BACK', SCREEN_W / 2, 172 + OY, COLORS.dim);
+    NAME_KEYS.forEach((k) => {
+      const lit = this.hover === k;
+      const command = k.value === 'BACK' || k.value === 'OK';
+      if (command) {
+        r.window(k.x, k.y, k.w, k.h, lit ? COLORS.gold : COLORS.text);
+      }
+      const special = k.value === ' ' || k.value === 'DEL';
+      r.textCentered(k.label, k.x + k.w / 2, k.y + 3, lit ? COLORS.gold : special ? COLORS.dim : COLORS.text);
+    });
+    r.textCentered('TYPE OR TAP A NAME  ENTER / OK STARTS  BACKSPACE DELETES  ESC GOES BACK', SCREEN_W / 2, SCREEN_H - 14, COLORS.dim);
   }
 
   private start(): void {

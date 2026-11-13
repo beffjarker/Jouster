@@ -3,7 +3,8 @@
 > **Status:** Act I vertical slice, play-test revision 2 and revision 3 are implemented and in play-testing
 > (see [Implementation status](#12-implementation-status-act-i-slice),
 > [Revision 2](#13-revision-2-play-test-feedback) and
-> [Revision 3](#14-revision-3-exploration-pacing-widescreen-and-battle-presentation)). Acts II–Finale are not
+> [Revision 3](#14-revision-3-exploration-pacing-widescreen-and-battle-presentation)). Mouse and touch controls
+> are implemented (see [16.9](#169-mouse-and-touch-controls-implemented)). Acts II–Finale are not
 > started.
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
@@ -1268,3 +1269,44 @@ upscaled by EPX.
 - **Tests:** paint primitives (shapes, outline, mirror, tone ramps), every tile id paints at 32?32 with opaque
   ground, objects-only layers are transparent around the object, every look / facing / frame paints a 64?64
   figure standing on the bottom edge, every monster shape and sign paints and is distinct.
+
+### 16.9 Mouse and touch controls (implemented)
+
+Goal: the game is fully playable with a mouse, or on a phone or tablet with no keyboard. Keyboard controls are
+unchanged and everything below is in addition to them.
+
+- **Engine:** `InputManager` has a pointer API (`pointerDown` / `pointerMove` / `pointerUp`, read through
+  `tap`, `pointer`, `pointerMovedThisFrame` and `pointerPresses`) and virtual presses (`press` / `release`) for
+  buttons that are not keys. A tap fires when the pointer goes down (more responsive than waiting for release)
+  and lasts one frame, so a tap that opens a scene is not also seen by the new scene. `firstStepToward()` is a
+  small breadth-first path search that returns the next step towards a goal.
+- **Canvas:** the game maps pointer events from page pixels to the 480x270 logical screen
+  (`clientToLogical`, which follows the canvas's displayed size, including full screen). Left button / touch is
+  the pointer, right-click is cancel (menu / back), the wheel scrolls lists. The canvas has
+  `touch-action: none` so drags do not scroll or zoom the page.
+- **World:** clicking or tapping a tile walks the party there along the shortest explored, unblocked path
+  (warps are only entered if they are the target). Tapping a person, sign or shop counter walks up to it, turns
+  to face it and talks or reads; tapping the hero checks the tile in front, like confirm. Holding and dragging
+  steers. Gold corner marks show the target. Any direction key, a warp, an event or a battle cancels the walk.
+- **Menus:** tapping a row picks it; mouse hover moves the cursor; tapping the top or bottom edge of a scrolled
+  list scrolls it. Tapping a message shows the rest of the page, then goes on. In the field menu, tapping the
+  main list while a sub-list is open jumps to the tapped entry. Status pages and the world map close on a tap.
+- **Battle:** tap a command; tap a monster sprite or an ally's status row to target it. Tapping skips the intro
+  and speeds up messages; holding the button fast-forwards like holding confirm. A tap on the result screen
+  continues.
+- **Name entry:** an on-screen keyboard (A-Z, `-`, `'`, space, delete, BACK and OK) below the name box. Typing
+  still works; direction keys do not drive the grid because WASD types letters there.
+- **Touch pad (page):** on phones and tablets (coarse pointer and no fine pointer) the page shows a D-pad, A
+  (confirm), B (menu / back) and ITEMS, EQUIP, MAP and MUTE buttons; a button under the game shows or hides them
+  on any device. Each button sends the matching key to the canvas as a real keyboard event, so the game needs no
+  special case; direction buttons repeat while held. Shortcut buttons send `key: 'Unidentified'` so they never
+  type letters on the name screen. Buttons prevent the default pointer action so the canvas keeps focus (losing
+  focus releases every held key). In full screen the pad floats over the bottom of the screen.
+- **Controls list:** `POINTER_CONTROLS` (gestures) and `TOUCH_BUTTONS` (pad buttons) in `ui/controls.ts` are the
+  single source of truth for the page's "Mouse and touch" list and pad; tests check that every touch button
+  sends a bound key and that together they cover every game action.
+- **Tests:** pointer taps and virtual presses, the path search, page-to-screen mapping, menu tap / hover /
+  scroll, message taps, tap-to-walk, walking up to an NPC to talk, keys cancelling a walk, tapping the hero, the
+  name keyboard layout and typing, and the page's pad (key events, repeat, focus) and lists.
+- **Possible follow-ups:** swipe gestures for single steps, a long-press for the field menu, haptics
+  (`navigator.vibrate`) on hits, and a saved pad size / position setting.
