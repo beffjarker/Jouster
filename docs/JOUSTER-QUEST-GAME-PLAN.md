@@ -178,6 +178,7 @@ instead of changing the engine.
   random class. No companion has the same class as the hero, and no two companions share a class. The roll is
   stored in the save, so the roster stays the same for that playthrough.
 - **Tavern:** in the capital, the player can swap recruited companions in and out of the active party.
+- **Companion levels (planned, 16.1):** companions join at level 1 and only gain XP while in the party.
 - Party members follow the leader on the overworld in a snake-style trail.
 
 ---
@@ -255,7 +256,7 @@ NPCs with hints and side quests
 - **Tools:** all art is currently drawn in code (`Art` class); Aseprite or LibreSprite if hand-made sprites are added.
 - **Assets:** the first release uses only original procedural pixel art. CC0 sprite sheets (for example from
   OpenGameArt or Kenney) may replace it later through the `Art` class; any added files must be listed in
-  `CREDITS.md`.
+  `CREDITS.md`. Swapping in third-party art is examined in 16.2.
 - **Audio:** procedural chiptune SFX with Web Audio; optional looping tracks per region and battle.
 
 ---
@@ -900,3 +901,107 @@ replacing inns, Herbs or Heal. The Cleric recovers fastest, the Paladin in betwe
   need a bump; older saves load with empty slots and quests derived from flags.
 - **Field regen (15.9/15.10):** the balance simulator does not simulate walking regen between fights, so its win
   rates are slightly pessimistic.
+
+---
+
+## 16. Revision 5 (planned — not implemented yet)
+
+Three requests after revision 4. Nothing here is built yet; it is the agreed plan.
+
+### 16.1 Companions start at level 1 and level only in the party
+
+**Now:** `createCompanion` makes a new companion at the **hero's level** (or their stored level, if higher).
+XP is already given only to party members who survive a battle, so benched companions never gain XP.
+
+**Plan:**
+
+- A companion joins at **level 1** the first time. When they leave (tavern swap), their level and XP are stored
+  (`companionLevels` becomes `companionProgress: { level, xp }`); when they rejoin they come back exactly as they
+  left, never raised to the hero's level.
+- Only the hero and companions **in the active party** gain XP (unchanged rule, now covered by a test). Benched
+  companions stay frozen.
+- **Catch-up stays natural:** battle XP is split equally between survivors and the XP curve is steep, so a level-1
+  companion with a level-6 hero gains several levels in the first few fights without any extra rule. Victory text
+  shows each level-up as today.
+- **Keeping a low-level ally alive:** level-1 companions joining after the Goblin King would be one-shot by later
+  monsters. To avoid that:
+  - their side quest reward includes a starter kit (2 Herbs) and the companion's class starting weapon;
+  - the party-wide encounter scaling (section 3) still uses the **highest** level, so areas don't get easier;
+  - balance check: hero level 6 + one level-1 companion must still beat Forest/Hills encounters at ≥ 90%, and
+    the companion must reach level 4 within ~10 fights. If not, give companions a small **join bonus** of
+    "half the hero's level" (rounded down, minimum 1) instead of level 1 — decided by the simulator, not guessed.
+- **Saves:** old saves keep their companions' current levels (no downgrade); `companionLevels` entries migrate
+  to `{ level, xp: totalXpForLevel(level) }`. Save version bumps to 4 because the field changes shape.
+- **Docs:** section 4.7 and the balance targets for "hero + companion at level 5" are updated to the new rule.
+- **Tests:** a new companion is level 1 regardless of hero level; benched companions gain no XP from battles;
+  a companion swapped out and back keeps level and XP; an old save with `companionLevels` loads correctly;
+  simulator checks above.
+
+### 16.2 Using third-party art (CraftPix or other free assets)
+
+**Today:** every tile, character, monster, sign and weather sprite is drawn in code by the `Art` class (16×16
+logical, rendered at 2× detail). Scenes only call `art.tile(id, frame, variant)`, `art.character(...)`,
+`art.monster(...)` and `art.sign(...)`, which return canvases. That narrow interface is what makes a swap
+practical: only `Art` needs to change.
+
+**Licensing (the deciding factor):**
+
+| Source | License | Can the files live in this repo? | Notes |
+| --- | --- | --- | --- |
+| **Kenney** (Tiny Town, Tiny Dungeon, Roguelike RPG) | CC0 (public domain) | **Yes** | 16×16 tiles, matches our grid; no attribution required (credit anyway) |
+| **OpenGameArt** | Varies (CC0, CC-BY, CC-BY-SA, GPL) | Only CC0/CC-BY packs | CC-BY needs credits; avoid -SA/GPL to keep the code license clean |
+| **CraftPix freebies / premium** | CraftPix license: use in games OK, no attribution needed | **No** | Redistributing the source PNGs is forbidden, and this repository is **public**, so committing them would make the files downloadable by anyone |
+| **itch.io packs** | Per pack | Depends | Read each license; many forbid redistribution like CraftPix |
+
+**Recommendation:** use **CC0 packs (Kenney first)** for anything committed to the repo. CraftPix art is possible
+only if the PNGs are kept **out of git**: stored privately (e.g. a private S3 bucket) and copied into the build by
+CI at deploy time, with the procedural art as the fallback for local and CI test runs. That adds pipeline work and
+makes the game look different for contributors, so it is not the first choice.
+
+**What the swap takes:**
+
+1. **Asset pipeline:** PNG sheets under `apps/jouster-ui/public/game-assets/` (already served by the `public`
+   assets glob), plus a typed manifest in `@jouster/game/quest` mapping our ids (`grass`, `wall` variants,
+   `warrior` facing/frame, `slime` variants, sign kinds) to sheet + cell.
+2. **Loading:** a small async loader (Image → canvas) and a **loading screen** before the title, because the
+   current `Art` is synchronous. The loader resolves to an `Art` that reads from sheets.
+3. **Hybrid `Art`:** each lookup tries the sheet first and falls back to the procedural drawer, so the switch can
+   be done one category at a time (tiles → characters → monsters → UI) and node tests keep working without
+   images.
+4. **Fit to our rules:** packs must cover ≥ 3 variants for solid landscape tiles (seamless walls), 4-direction ×
+   2-frame walk cycles for 6 classes plus NPCs, and recolourable monsters for look variants. Gaps (side-view
+   battle poses, signs, weather) stay procedural or are hand-edited in Aseprite/LibreSprite.
+5. **Style check:** packs mixed from different artists clash; pick one family per category and do a screenshot
+   review before committing.
+6. **Credits and tests:** add `CREDITS.md` (pack, author, license, URL); tests that every manifest entry points
+   inside its sheet and every tile/monster/class id has art (sheet or procedural).
+
+**Effort estimate:** loader, manifest and hybrid `Art` ~1–2 days; tiles ~1 day; characters/NPCs ~1–2 days;
+monsters with variants ~2 days; polish and screenshots ~1 day. Roughly **1–1.5 weeks**, done incrementally.
+
+**First step (proposed):** a spike that swaps only the overworld and town tiles to Kenney Tiny Town behind a
+`?art=classic|pack` toggle, so both looks can be compared in the browser before committing to the rest.
+
+### 16.3 Keep the jouster-ui control list in sync
+
+**Problem:** the controls list on the `/jouster-quest` page is hand-written HTML, so new keys can be forgotten
+(today `Backspace` = back is bound but not listed).
+
+**Plan:**
+
+- Export a `CONTROLS` list from the game libs (`{ keys: ['I'], action: 'items', label: 'items' }`) next to
+  `KEY_BINDINGS`, and render the page's list from it with `@for`, so there is one source of truth.
+- Add `Backspace` to the "go back" row.
+- **Tests:** every bound `InputAction` appears in `CONTROLS`, every key in `CONTROLS` is actually bound, and the
+  page renders one row per entry. A new key without a list entry fails CI.
+- **Process:** any revision that adds or changes a key updates `CONTROLS` and section 3 "Input" in the same
+  commit (added to the work breakdown checklist below).
+
+### 16.4 Work breakdown
+
+1. Plan update (this section) — done first, before any code.
+2. Controls single source of truth and sync tests (16.3) — smallest, do first.
+3. Companion level 1 / party-only XP, save v4 migration and simulator checks (16.1).
+4. Art spike: Kenney tiles behind an `?art=` toggle with procedural fallback (16.2); review screenshots with the
+   user before converting characters and monsters.
+5. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
