@@ -19,7 +19,8 @@ export interface GearDef {
 const HEAVY: readonly ClassId[] = ['warrior', 'paladin'];
 
 /**
- * Enemy damage was tuned without armor, so DEF stays modest (tier 1 up to +2, tier 2 up to +4).
+ * Enemy damage was tuned without armor, so DEF stays modest (tier 1 up to +2, tier 2 up to +4,
+ * tier 3 - sold in Sandhollow - up to +6).
  */
 const GEAR_LIST: GearDef[] = [
   { id: 'clothRobe', name: 'Cloth Robe', slot: 'armor', tier: 1, bonus: { def: 1 }, price: 30, description: 'Padded cloth. Anyone can wear it.' },
@@ -77,12 +78,66 @@ const GEAR_LIST: GearDef[] = [
   { id: 'vigorRing', name: 'Ring of Vigor', slot: 'accessory', tier: 1, bonus: { hp: 8 }, price: 90, description: 'A warm red stone.' },
   { id: 'swiftBoots', name: 'Swift Boots', slot: 'accessory', tier: 1, bonus: { agi: 2 }, price: 90, description: 'Soft boots that never slip.' },
   { id: 'sageCharm', name: 'Sage Charm', slot: 'accessory', tier: 2, bonus: { mag: 2 }, price: 100, description: 'An owl feather on a cord.' },
+  // --- Tier 3: Sandhollow (Act II) -------------------------------------------------------------
+  {
+    id: 'mirageRobe',
+    name: 'Mirage Robe',
+    slot: 'armor',
+    tier: 3,
+    bonus: { def: 3, mag: 3 },
+    classes: ['wizard', 'cleric'],
+    price: 260,
+    description: 'Silk that bends the light. Wizards and clerics.',
+  },
+  {
+    id: 'shadowLeather',
+    name: 'Shadow Leather',
+    slot: 'armor',
+    tier: 3,
+    bonus: { def: 4, agi: 2 },
+    classes: ['rogue', 'ranger'],
+    price: 280,
+    description: 'Dyed black, stitched silent. Rogues and rangers.',
+  },
+  {
+    id: 'scaleMail',
+    name: 'Scale Mail',
+    slot: 'armor',
+    tier: 3,
+    bonus: { def: 5 },
+    classes: ['warrior', 'paladin', 'cleric', 'ranger'],
+    price: 300,
+    description: 'Overlapping sunsteel scales.',
+  },
+  {
+    id: 'sunPlate',
+    name: 'Sun Plate',
+    slot: 'armor',
+    tier: 3,
+    bonus: { def: 6, hp: 8 },
+    classes: HEAVY,
+    price: 420,
+    description: 'Gilded plate. Warriors and paladins.',
+  },
+  {
+    id: 'towerShield',
+    name: 'Tower Shield',
+    slot: 'shield',
+    tier: 3,
+    bonus: { def: 3 },
+    classes: HEAVY,
+    price: 240,
+    description: 'A wall of oak and bronze.',
+  },
+  { id: 'scarabAmulet', name: 'Scarab Amulet', slot: 'accessory', tier: 3, bonus: { def: 2, hp: 8 }, price: 220, description: 'A blue beetle in gold.' },
 ];
 
 export const GEAR: ReadonlyMap<string, GearDef> = new Map(GEAR_LIST.map((g) => [g.id, g]));
 
 /** Gear ids sold by Aldmere's armorer. */
-export const ARMOR_SHOP_STOCK: readonly string[] = GEAR_LIST.map((g) => g.id);
+export const ARMOR_SHOP_STOCK: readonly string[] = GEAR_LIST.filter((g) => g.tier <= 2).map((g) => g.id);
+/** Tier-3 gear ids sold by Sandhollow's armorer (Act II). */
+export const SOUTH_ARMOR_STOCK: readonly string[] = GEAR_LIST.filter((g) => g.tier === 3).map((g) => g.id);
 
 export function gearDef(id: string): GearDef {
   const g = GEAR.get(id);

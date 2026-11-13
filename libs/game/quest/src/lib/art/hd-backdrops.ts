@@ -15,6 +15,8 @@ export const BACKDROP_COLORS: ReadonlyMap<Backdrop, BackdropColors> = new Map<Ba
   ['forest', ['#1e3e70', '#4a7aa8', '#2a6a2a', '#1f5a22', '#123a16']],
   ['hills', ['#3a64a0', '#90b8d8', '#8a7a48', '#7a6a3a', '#5a4e2c']],
   ['cave', ['#0a080e', '#1e1822', '#463830', '#3a2e28', '#241c1c']],
+  ['desert', ['#3a6ab8', '#f0d8a8', '#e0c07a', '#d0a860', '#a8603a']],
+  ['marsh', ['#3a4a5a', '#a8b8a0', '#4a5a30', '#3a4a26', '#2a3a20']],
 ]);
 
 /** Paint units per logical pixel (matching the tiles' and sprites' 2x paint space). */
@@ -149,7 +151,8 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
   const ridgeTop: number[] = [];
   for (let fx = 0; fx <= p.width; fx++) {
     const u = (fx + 0.5) / s - 0.5;
-    ridgeTop.push(HZ - (kind === 'hills' ? 70 : 42) - ridge(u, 1.7, kind === 'hills' ? 34 : 20));
+    const tall = kind === 'hills' ? 70 : kind === 'desert' ? 34 : kind === 'marsh' ? 26 : 42;
+    ridgeTop.push(HZ - tall - ridge(u, 1.7, kind === 'hills' ? 34 : kind === 'marsh' ? 10 : 20));
   }
   const data = p.data;
   const lerp = (x: Rgb, y: Rgb, t: number): Rgb => [x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t];
@@ -194,7 +197,8 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
         c = lerp(cFar, cNear, Math.min(1, tg * 2.5));
         const n = valueNoise(u, v * (2.2 - tg), 34, 11, NO_WRAP) * 0.6 + valueNoise(u, v, 6, 13, NO_WRAP) * 0.4;
         const grain = (hash(fx, fy, 17) - 0.5) * 0.1;
-        c = scaled(c, (0.82 + n * 0.32 + valueNoise(u, v, 2, 15, NO_WRAP) * 0.08 + grain + d * 0.04) * stripe);
+        const ripple = kind === 'desert' && Math.sin(v / (1.5 + tg * 3) + Math.sin(u / 23) * 2.4) > 0.75 ? 1.07 : 1;
+        c = scaled(c, (0.82 + n * 0.32 + valueNoise(u, v, 2, 15, NO_WRAP) * 0.08 + grain + d * 0.04) * stripe * ripple);
         if (kind === 'hills' && Math.abs(u - pathCentre) < 4 + tg * 36) {
           c = lerp(c, dirt, 0.75);
         }
@@ -247,7 +251,40 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
   }
 
   // Middle distance.
-  if (kind === 'forest') {
+  if (kind === 'desert') {
+    // Flat-topped mesas and a line of dunes.
+    for (let i = 0; i < 4; i++) {
+      const x = (i + 0.2 + hash(i, 1, 45) * 0.6) * (W / 4);
+      const w = 22 + hash(i, 2, 45) * 30;
+      const h = 22 + hash(i, 3, 45) * 26;
+      const mesa = poly([x - w, HZ + 2, x - w * 0.7, HZ - h, x + w * 0.65, HZ - h - 2, x + w, HZ + 2]);
+      p.fill(mesa, mix(scenery, skyLow, 0.25), { gradX: 1.6, tex: 0.6, seed: i + 70, rim: true, rimShade: -1.5 });
+      for (let b = 1; b < 4; b++) {
+        p.flat(box(x - w * (0.7 + b * 0.08), HZ - h + b * h * 0.24, w * (1.35 + b * 0.16), 0.6), tone(scenery, -1.5), 0.45);
+      }
+    }
+    const dune = (x: number): number => HZ - 4 - ridge(x, 6.1, 8);
+    const pts: number[] = [-2, HZ + 2];
+    for (let x = -2; x <= W + 2; x += 4) {
+      pts.push(x, dune(x));
+    }
+    pts.push(W + 2, HZ + 2);
+    p.fill(poly(pts), mix(far, skyLow, 0.2), { grad: 0.8, tex: 0.4, seed: 9, rim: true, rimShade: -1 });
+  } else if (kind === 'marsh') {
+    // Mist-shrouded dead trees.
+    const back = mix(scenery, skyLow, 0.5);
+    for (let i = 0; i < 9; i++) {
+      const x = (i + hash(i, 1, 46)) * (W / 9);
+      const h = 30 + hash(i, 2, 46) * 30;
+      p.flat(seg(x, HZ + 2, x + (hash(i, 3, 46) - 0.5) * 4, HZ - h, 1.4), back);
+      for (let b = 0; b < 3; b++) {
+        const by = HZ - h * (0.45 + b * 0.18);
+        const dir = b % 2 ? 1 : -1;
+        p.flat(seg(x, by, x + dir * (6 + hash(i, b, 47) * 8), by - 6 - b * 2, 0.7), back);
+      }
+      p.flat(ell(x, HZ - h * 0.5, 14, 5), '#c8d0c0', 0.12);
+    }
+  } else if (kind === 'forest') {
     const back = mix(scenery, skyLow, 0.35);
     for (let x = -10; x < W + 20; x += 15) {
       conifer(p, x + hash(x, 1, 41) * 8, HZ + 3, 38 + hash(x, 2, 41) * 26, back, x);
@@ -292,8 +329,16 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
       } else {
         p.flat(seg(x, y, x + (r - 0.75) * 30 * sc, y + 2 * sc, 0.25), tone(near, -2.5), 0.8);
       }
+    } else if (kind === 'desert' && r < 0.55) {
+      p.flat(seg(x - 3 * sc, y, x + 3 * sc, y - 0.5 * sc, 0.2), tone(near, -2), 0.5);
+      p.flat(seg(x - 3 * sc, y - 0.6 * sc, x + 3 * sc, y - 1.1 * sc, 0.15), tone(near, 2), 0.5);
+    } else if (kind === 'desert' && r < 0.62) {
+      const h = 4 * sc;
+      p.fill(box(x - 0.6 * sc, y - h, 1.2 * sc, h), '#4a7a3a', { gradX: 1.4, rim: true, bevel: 0 });
+      p.fill(box(x + 0.6 * sc, y - h * 0.65, 1.2 * sc, 0.6 * sc), '#4a7a3a', { bevel: 0 });
+      p.fill(box(x + 1.2 * sc, y - h * 0.95, 0.7 * sc, h * 0.35), '#4a7a3a', { gradX: 1.4, bevel: 0 });
     } else if (r < 0.72) {
-      grassTuft(p, x, y, sc, kind === 'hills' ? '#7a8a3a' : near, i);
+      grassTuft(p, x, y, kind === 'marsh' ? sc * 1.5 : sc, kind === 'hills' ? '#7a8a3a' : kind === 'desert' ? '#a89a5a' : near, i);
     } else if (r < 0.86 && kind === 'field') {
       const petals = ['#f0e040', '#f07090', '#ffffff', '#a080f0'][i % 4];
       p.flat(seg(x, y, x, y - 2.5 * sc, 0.15), tone(near, -1));
@@ -304,7 +349,20 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
       p.fill(ell(x, y - 2.2 * sc, 1.6 * sc, 1 * sc), '#c83a2a', { sphere: true, bevel: 0 });
       p.spot(x - 0.5 * sc, y - 2.6 * sc, '#ffffff');
     } else {
-      rock(p, x, y, 1.2 + sc * (kind === 'hills' ? 3.5 : 2), '#8a8478', i);
+      rock(p, x, y, 1.2 + sc * (kind === 'hills' ? 3.5 : 2), kind === 'desert' ? '#b07850' : '#8a8478', i);
+    }
+  }
+  if (kind === 'marsh') {
+    // Murky pools with lily pads among the reeds.
+    for (let i = 0; i < 4; i++) {
+      const x = (i + 0.15 + hash(i, 1, 62) * 0.7) * (W / 4);
+      const y = HZ + ground * (0.3 + hash(i, 2, 62) * 0.55);
+      const rx = 16 + hash(i, 3, 62) * 26;
+      p.fill(ell(x, y, rx, rx * 0.2), '#2a3a2a', { bevel: 0, grad: -0.8, rim: true, rimShade: -2 });
+      p.flat(seg(x - rx * 0.6, y - 1, x - rx * 0.1, y - 1, 0.2), '#a8c0a0', 0.5);
+      for (let j = 0; j < 3; j++) {
+        p.fill(ell(x + (hash(i, j, 63) - 0.5) * rx * 1.2, y + (hash(j, i, 64) - 0.5) * rx * 0.2, 2.2, 1), '#5a8a3a', { bevel: 0, rim: true });
+      }
     }
   }
   if (cave) {

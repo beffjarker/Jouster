@@ -5,7 +5,11 @@ import { ART_SCALE, Paint } from './hd-paint';
 const W = 60;
 const H = 40;
 const HORIZON = 24;
-const KINDS: Backdrop[] = ['field', 'forest', 'hills', 'cave'];
+const KINDS: Backdrop[] = ['field', 'forest', 'hills', 'cave', 'desert', 'marsh'];
+
+/** Byte-wise pixel equality (toEqual on million-entry arrays exhausts Jest's heap). */
+const samePixels = (a: Paint, b: Paint | undefined): boolean =>
+  !!b && a.data.length === b.data.length && a.data.every((v, i) => v === b.data[i]);
 
 /** Darkest pixel of row y (clouds and the sun only ever brighten the sky). */
 const darkest = (p: Paint, y: number): number => {
@@ -35,11 +39,11 @@ describe('paintBackdrop', () => {
   });
 
   it('is deterministic', () => {
-    expect(paintBackdrop('hills', W, H, HORIZON).data).toEqual(painted.get('hills')?.data);
+    expect(samePixels(paintBackdrop('hills', W, H, HORIZON), painted.get('hills'))).toBe(true);
   });
 
   it('differs per backdrop', () => {
-    const data = KINDS.map((k) => (painted.get(k) as Paint).data.join(','));
+    const data = KINDS.map((k) => Buffer.from((painted.get(k) as Paint).data.buffer).toString('base64'));
     expect(new Set(data).size).toBe(KINDS.length);
   });
 
@@ -62,7 +66,7 @@ describe('paintTitleBackdrop', () => {
   });
 
   it('is deterministic', () => {
-    expect(paintTitleBackdrop(160, 90, 55).data).toEqual(p.data);
+    expect(samePixels(paintTitleBackdrop(160, 90, 55), p)).toBe(true);
   });
 
   it('is a night scene with warm lit castle windows', () => {

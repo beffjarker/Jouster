@@ -62,6 +62,12 @@ const MONSTER_PALETTES: ReadonlyMap<string, Palette> = new Map([
   ['boneCaptain', palette([['o', '#3a2010'], ['w', '#e8dca0'], ['l', '#b09a60'], ['k', '#401010'], ['r', '#ff2020']])],
   ['goblinChief', palette([['o', '#102010'], ['g', '#7a9a3a'], ['d', '#4a6a2a'], ['r', '#ffa020'], ['b', '#6a4a2a'], ['n', '#8a2a1a'], ['w', '#ffffff'], ['y', '#b8b8c8']])],
   ['giantToad', palette([['o', '#102a18'], ['g', '#4a8a3a'], ['d', '#2a5a2a'], ['l', '#d8d890'], ['y', '#f0c020'], ['k', '#101010']])],
+  ['scorpion', palette([['g', '#b07a3a'], ['d', '#6a4220'], ['l', '#e0b070'], ['r', '#ff3030']])],
+  ['sandWorm', palette([['g', '#c89a6a'], ['d', '#8a5a3a'], ['l', '#f0d0a8'], ['r', '#8a2030'], ['w', '#f0e8d0'], ['s', '#e0c47a']])],
+  ['sandWyrm', palette([['g', '#a8784a'], ['d', '#4a2a14'], ['l', '#f0e0b0'], ['r', '#c84010'], ['w', '#fff4c0'], ['s', '#d8b468']])],
+  ['lizardman', palette([['g', '#5a8a3a'], ['d', '#2e5a26'], ['b', '#8a6a3a'], ['n', '#5a4020'], ['r', '#f0d020']])],
+  ['wraith', palette([['g', '#4a5a7a'], ['d', '#1e2438'], ['l', '#a8b8d8'], ['r', '#60f0ff']])],
+  ['marshWitch', palette([['g', '#8aa860'], ['d', '#1e1e1e'], ['b', '#3a4a2a'], ['n', '#22281a'], ['y', '#2a3a20'], ['r', '#e0ff40']])],
 ]);
 
 interface MonsterVariant {
@@ -119,6 +125,24 @@ const MONSTER_VARIANTS: ReadonlyMap<string, readonly MonsterVariant[]> = new Map
       { colors: [['o', '#20202a'], ['w', '#a8b0c0'], ['l', '#707888'], ['r', '#40c0ff']] },
     ],
   ],
+  [
+    'scorpion',
+    [
+      {},
+      { colors: [['g', '#3a3a44'], ['d', '#1a1a22'], ['l', '#6a6a7a'], ['r', '#40ff60']] },
+      { colors: [['g', '#c04a2a'], ['d', '#7a2414'], ['l', '#f08a5a']] },
+    ],
+  ],
+  ['sandWorm', [{}, { colors: [['g', '#a07aa0'], ['d', '#5a3a5a'], ['l', '#e0c0e0']] }]],
+  [
+    'lizardman',
+    [
+      {},
+      { colors: [['g', '#3a7a7a'], ['d', '#1e4a4a'], ['b', '#6a4a3a']] },
+      { colors: [['g', '#8a7a3a'], ['d', '#5a4a1a'], ['r', '#ff6020']] },
+    ],
+  ],
+  ['wraith', [{}, { colors: [['g', '#5a4a6a'], ['d', '#24182e'], ['l', '#c8a8d8'], ['r', '#ff60c0']] }]],
 ]);
 
 /** Number of looks a monster sprite has (1 for bosses). */
@@ -141,6 +165,7 @@ const MONSTER_SHAPE: ReadonlyMap<string, string> = new Map([
   ['alphaWolf', 'wolf'],
   ['boneCaptain', 'skeleton'],
   ['goblinChief', 'goblinKing'],
+  ['sandWyrm', 'sandWorm'],
 ]);
 
 /** Number of art variants for tiles that have more than one look (all solid landscape tiles). */
@@ -152,6 +177,17 @@ export const TILE_VARIANT_COUNTS: ReadonlyMap<string, number> = new Map<string, 
   ['rock', 3],
   ['water', 3],
   ['caveWater', 3],
+  ['sand', 3],
+  ['cactus', 3],
+  ['mesa', 3],
+  ['mireRock', 3],
+  ['marsh', 3],
+  ['mireTree', 3],
+  ['bog', 3],
+  ['sunWall', 3],
+  ['sunFloor', 2],
+  ['mireWall', 3],
+  ['mireFloor', 2],
 ]);
 
 /**
@@ -177,7 +213,7 @@ function hashSeed(id: string): number {
   return h;
 }
 
-const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWater', 'fountain', 'torch']);
+const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWater', 'fountain', 'torch', 'bog']);
 
 /** Loaded art sheets (LPC atlases) by id; see `loadLpcSheets`. */
 export type ArtSheets = ReadonlyMap<LpcSheetId, CanvasImageSource>;

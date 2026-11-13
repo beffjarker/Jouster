@@ -152,10 +152,99 @@ const LIST: MonsterDef[] = [
     drops: [{ itemId: 'herb', chance: 1 }],
     spriteId: 'goblinChief',
   },
+  // --- Act II: the Southlands ---------------------------------------------------------------
+  {
+    id: 'scorpion',
+    name: 'Scorpion',
+    stats: { hp: 46, mp: 0, atk: 19, def: 12, agi: 7, mag: 0 },
+    xp: 18,
+    gold: 14,
+    weaknesses: ['ice'],
+    resistances: [],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'herb', chance: 0.2 }],
+    spriteId: 'scorpion',
+  },
+  {
+    id: 'sandWorm',
+    name: 'Sand Worm',
+    stats: { hp: 58, mp: 0, atk: 20, def: 10, agi: 4, mag: 0 },
+    xp: 22,
+    gold: 16,
+    weaknesses: ['ice'],
+    resistances: ['fire'],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'potion', chance: 0.1 }],
+    spriteId: 'sandWorm',
+  },
+  {
+    id: 'lizardman',
+    name: 'Lizardman',
+    stats: { hp: 52, mp: 0, atk: 20, def: 11, agi: 8, mag: 0 },
+    xp: 22,
+    gold: 18,
+    weaknesses: ['lightning'],
+    resistances: [],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'potion', chance: 0.1 }],
+    spriteId: 'lizardman',
+  },
+  {
+    id: 'wraith',
+    name: 'Wraith',
+    stats: { hp: 48, mp: 0, atk: 19, def: 10, agi: 9, mag: 0 },
+    xp: 20,
+    gold: 15,
+    undead: true,
+    weaknesses: ['holy', 'fire'],
+    resistances: ['ice', 'dark'],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'tonic', chance: 0.15 }],
+    spriteId: 'wraith',
+  },
+  {
+    id: 'sandWyrm',
+    name: 'Sand Wyrm',
+    stats: { hp: 330, mp: 0, atk: 30, def: 16, agi: 6, mag: 0 },
+    xp: 160,
+    gold: 150,
+    boss: true,
+    weaknesses: ['ice'],
+    resistances: ['fire'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 2 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'phoenixFeather', chance: 1 }],
+    critChance: 1 / 32,
+    spriteId: 'sandWyrm',
+  },
+  {
+    id: 'marshWitch',
+    name: 'Marsh Witch',
+    stats: { hp: 280, mp: 0, atk: 27, def: 14, agi: 10, mag: 0 },
+    xp: 160,
+    gold: 150,
+    boss: true,
+    weaknesses: ['fire'],
+    resistances: ['ice', 'dark'],
+    actions: [
+      { action: 'attack', weight: 5 },
+      { action: 'cleave', weight: 2 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'phoenixFeather', chance: 1 }],
+    critChance: 1 / 32,
+    spriteId: 'marshWitch',
+  },
 ];
 
 /** Side-quest mini-bosses (fought after the Goblin King, usually solo or as a pair). */
 export const MINI_BOSS_IDS: readonly string[] = ['alphaWolf', 'giantToad', 'boneCaptain', 'goblinChief'];
+
+/** Act II shrine bosses (one per Southlands shrine). */
+export const ACT_TWO_BOSS_IDS: readonly string[] = ['sandWyrm', 'marshWitch'];
 
 export const MONSTERS: ReadonlyMap<string, MonsterDef> = new Map(LIST.map((m) => [m.id, m]));
 
@@ -224,6 +313,43 @@ const TABLE_LIST: EncounterTable[] = [
       { monsterIds: ['wolf', 'wolf'], weight: 3 },
       { monsterIds: ['giantBat', 'wolf'], weight: 2 },
       { monsterIds: ['wolf', 'wolf', 'giantBat'], weight: 1 },
+    ],
+  },
+  // --- Act II -------------------------------------------------------------------------------
+  {
+    id: 'desert',
+    rate: 1 / 14,
+    level: 9,
+    groups: [
+      { monsterIds: ['scorpion'], weight: 4 },
+      { monsterIds: ['sandWorm'], weight: 3 },
+      { monsterIds: ['scorpion', 'scorpion'], weight: 2 },
+      { monsterIds: ['sandWorm', 'scorpion'], weight: 2 },
+      { monsterIds: ['scorpion', 'scorpion', 'sandWorm'], weight: 1 },
+    ],
+  },
+  {
+    id: 'marsh',
+    rate: 1 / 12,
+    level: 10,
+    groups: [
+      { monsterIds: ['lizardman'], weight: 4 },
+      { monsterIds: ['wraith'], weight: 3 },
+      { monsterIds: ['lizardman', 'wraith'], weight: 2 },
+      { monsterIds: ['lizardman', 'lizardman'], weight: 2 },
+      { monsterIds: ['lizardman', 'wraith', 'wraith'], weight: 1 },
+    ],
+  },
+  {
+    id: 'shrine',
+    rate: 1 / 12,
+    level: 11,
+    groups: [
+      { monsterIds: ['wraith'], weight: 3 },
+      { monsterIds: ['scorpion', 'lizardman'], weight: 3 },
+      { monsterIds: ['wraith', 'wraith'], weight: 2 },
+      { monsterIds: ['sandWorm', 'wraith'], weight: 2 },
+      { monsterIds: ['lizardman', 'wraith', 'scorpion'], weight: 1 },
     ],
   },
 ];

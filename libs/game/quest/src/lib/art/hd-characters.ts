@@ -879,6 +879,194 @@ function skeleton(p: Paint, c: Colors): void {
   p.flat(poly([31, 23.8, 33, 23.8, 32, 21.6]), k);
 }
 
+function scorpion(p: Paint, c: Colors): void {
+  const g = col(c, 'g');
+  const d = col(c, 'd', g);
+  const l = col(c, 'l', g);
+  p.flat(ell(34, 58, 24, 2.5), '#000000', 0.25);
+  // Four pairs of jointed legs.
+  for (let i = 0; i < 4; i++) {
+    const x = 26 + i * 6;
+    const knee = 42 - (i % 2);
+    p.fill(seg(x, 47, x - 3, knee, 1), d, { rim: true, bevel: 0 });
+    p.fill(seg(x - 3, knee, x - 5, 57, 0.8), d, { rim: true, bevel: 0 });
+    p.fill(seg(x + 2, 48, x + 6, knee + 2, 1), d, { rim: true, bevel: 0 });
+    p.fill(seg(x + 6, knee + 2, x + 7, 57, 0.8), d, { rim: true, bevel: 0 });
+  }
+  // Segmented tail arching over the back to a stinger.
+  const tail: ReadonlyArray<[number, number, number]> = [
+    [46, 46, 4.2], [52, 42, 3.8], [56, 35, 3.5], [56, 27, 3.2], [52, 20, 3], [46, 16, 2.8],
+  ];
+  tail.forEach(([x, y, r], i) => {
+    p.fill(ell(x, y, r, r * 0.95), i % 2 ? g : tone(g, 0.5), { sphere: true, rim: true, tex: 0.3, seed: i });
+    p.flat(cut(ell(x, y, r, r * 0.95), ell(x - 0.6, y - 0.6, r - 0.7, r * 0.95 - 0.7)), tone(d, -1), 0.5);
+  });
+  p.fill(ell(41, 16, 3, 2.6), l, { sphere: true, rim: true });
+  p.fill(poly([39, 15, 33, 20, 39.5, 18]), '#2a1a10', { bevel: 0, gradX: 1 });
+  p.spot(34.5, 19.2, '#f0e8d0');
+  // Armoured body plates.
+  const body = union(ell(34, 46, 15, 6.5), ell(20, 45, 7, 5.5));
+  p.fill(body, g, { sphere: true, rim: true, tex: 0.4, seed: 7 });
+  for (let x = 24; x < 48; x += 4.5) {
+    p.flat(clip(seg(x, 40, x + 0.6, 52, 0.3), body), tone(d, -1.5), 0.8);
+    p.flat(clip(seg(x + 0.8, 40, x + 1.2, 52, 0.2), body), tone(l, 1), 0.5);
+  }
+  // Pincers reaching forward.
+  const claw = (y: number, open: number): void => {
+    p.fill(seg(20, y + 2, 12, y, 1.6), g, { rim: true, bevel: 0 });
+    p.fill(ell(8, y, 4.5, 2.8), g, { sphere: true, rim: true });
+    p.fill(poly([5, y - 1.5, 0.5, y - 3 - open, 4, y - 0.2]), l, { gradX: 1, rim: true, bevel: 0 });
+    p.fill(poly([5, y + 1.5, 1, y + 2.5 + open, 4.5, y + 0.4]), d, { gradX: 1, rim: true, bevel: 0 });
+  };
+  claw(40, 1.2);
+  claw(50, 0.5);
+  // Eyes.
+  [[16, 42.5], [18.5, 42]].forEach(([x, y]) => {
+    p.fill(ell(x, y, 1, 0.9), col(c, 'r', '#ff3030'), { sphere: true, bevel: 0 });
+    p.spot(x - 0.3, y - 0.3, '#ffffff');
+  });
+}
+
+function sandWorm(p: Paint, c: Colors): void {
+  const g = col(c, 'g');
+  const d = col(c, 'd', g);
+  const l = col(c, 'l', g);
+  const sand = col(c, 's', '#e0c47a');
+  p.flat(ell(36, 59, 24, 3), '#000000', 0.25);
+  // Body rising from a burst of sand and curling forward.
+  const rings: Array<[number, number, number]> = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = i / 12;
+    rings.push([44 - Math.sin(t * Math.PI * 0.9) * 10 - t * 16, 56 - t * 40, 9 - t * 2.5]);
+  }
+  rings.forEach(([x, y, r], i) => {
+    p.fill(ell(x, y, r, r * 0.8), g, { sphere: true, rim: true, tex: 0.4, seed: i });
+    p.flat(clip(cut(ell(x, y, r, r * 0.8), ell(x, y - 1, r, r * 0.8)), ell(x, y, r, r * 0.8)), tone(d, -1), 0.7);
+    p.flat(clip(ell(x - r * 0.4, y, r * 0.4, r * 0.7), ell(x, y, r, r * 0.8)), l, 0.45);
+  });
+  // Spined ridge down the back.
+  rings.slice(2).forEach(([x, y, r], i) => {
+    p.fill(poly([x + r * 0.6, y - 1, x + r * 1.25, y - 2.5, x + r * 0.7, y + 1]), d, { bevel: 0, rim: true, shade: i % 2 ? 0.3 : -0.3 });
+  });
+  // Round maw full of teeth.
+  const [hx, hy, hr] = rings[rings.length - 1];
+  const maw = ell(hx - 3, hy + 1, hr * 0.85, hr * 0.95);
+  p.fill(maw, col(c, 'r', '#8a2030'), { grad: -1, bevel: 0 });
+  p.flat(ell(hx - 3, hy + 1.5, hr * 0.4, hr * 0.5), '#1a0808');
+  for (let a = 0; a < 10; a++) {
+    const t = (a / 10) * Math.PI * 2;
+    const ox = hx - 3 + Math.cos(t) * hr * 0.8;
+    const oy = hy + 1 + Math.sin(t) * hr * 0.9;
+    const ix = hx - 3 + Math.cos(t) * hr * 0.45;
+    const iy = hy + 1 + Math.sin(t) * hr * 0.5;
+    p.fill(poly([ox + Math.sin(t) * 0.8, oy - Math.cos(t) * 0.8, ix, iy, ox - Math.sin(t) * 0.8, oy + Math.cos(t) * 0.8]), col(c, 'w', '#f0e8d0'), {
+      bevel: 0,
+      dither: 0,
+    });
+  }
+  // Sand spray around the base.
+  const mound = clip(ell(40, 59, 20, 6), box(0, 0, 64, 60));
+  p.fill(mound, sand, { sphere: true, rim: true, tex: 0.6, seed: 9 });
+  for (let i = 0; i < 14; i++) {
+    p.fill(ell(22 + hash(i, 1, 71) * 36, 44 + hash(i, 2, 71) * 12, 0.6 + hash(i, 3, 71)), sand, { sphere: true, bevel: 0, dither: 0 });
+  }
+}
+
+function wraith(p: Paint, c: Colors): void {
+  const g = col(c, 'g');
+  const d = col(c, 'd', g);
+  const l = col(c, 'l', g);
+  const glow = col(c, 'r', '#60f0ff');
+  p.flat(ell(33, 60, 12, 1.8), '#000000', 0.18);
+  p.flat(ell(32, 32, 24, 26), l, 0.08);
+  // Tattered shroud tapering to wisps.
+  const pts = [32, 6, 42, 12, 46, 26, 48, 42];
+  for (let i = 0; i <= 6; i++) {
+    const x = 48 - i * 5;
+    pts.push(x, 54 + (i % 2 ? -4 : 3) + hash(i, 1, 81) * 3);
+  }
+  pts.push(16, 40, 19, 24, 23, 12);
+  const shroud = poly(pts);
+  p.fill(shroud, g, { gradX: 1.4, grad: 0.8, tex: 0.6, seed: 81, rim: true });
+  for (let i = 0; i < 7; i++) {
+    const x = 21 + i * 4;
+    p.flat(clip(seg(x, 22, x + (i - 3) * 0.8, 58, 0.3), shroud), tone(d, -1), 0.6);
+  }
+  p.flat(clip(ell(32, 60, 20, 10), shroud), l, 0.3);
+  // Hood and a void face.
+  const hood = union(ell(31, 17, 9, 10), poly([22, 20, 40, 20, 38, 28, 24, 28]));
+  p.fill(hood, tone(g, 0.5), { sphere: true, rim: true, tex: 0.4, seed: 82 });
+  p.fill(ell(29, 19, 5.5, 6.5), '#08060c', { bevel: 0 });
+  [[27, 18.5], [31.5, 18.5]].forEach(([x, y]) => {
+    p.flat(ell(x, y, 2.4, 1.8), glow, 0.3);
+    p.fill(ell(x, y, 1, 0.8), glow, { bevel: 0, sphere: true });
+    p.spot(x - 0.3, y - 0.3, '#ffffff');
+  });
+  // Bony reaching hands.
+  [[18, 34, 9, 30], [42, 36, 50, 32]].forEach(([ax, ay, bx, by]) => {
+    p.fill(seg(ax, ay, bx, by, 2.2), g, { rim: true, gradX: 1 });
+    for (let k = -1; k <= 1; k++) {
+      p.fill(seg(bx, by, bx + (bx < ax ? -3 : 3), by + k * 1.6 - 1, 0.35), '#d8d8c8', { bevel: 0 });
+    }
+  });
+}
+
+function lizardLook(c: Colors): HumanoidLook {
+  return {
+    skin: col(c, 'g'),
+    hair: col(c, 'd'),
+    body: col(c, 'b'),
+    trim: col(c, 'n'),
+    legs: col(c, 'n'),
+    eyes: col(c, 'r'),
+    bald: true,
+    weapon: 'sword',
+  };
+}
+
+function lizardman(p: Paint, c: Colors): void {
+  const g = col(c, 'g');
+  // Thick tail behind the figure.
+  const tail = union(seg(38, 52, 50, 56, 3), seg(50, 56, 58, 52, 2));
+  p.fill(tail, g, { rim: true, tex: 0.4, seed: 91 });
+  for (let x = 40; x < 56; x += 2.5) {
+    p.flat(clip(seg(x, 50, x + 1, 58, 0.2), tail), tone(g, -2), 0.6);
+  }
+  p.draw(paintHumanoid(lizardLook(c), 'down', 0));
+  // Scaly crest on the head.
+  [26, 29, 32, 35, 38].forEach((x, i) =>
+    p.fill(poly([x - 1.2, 15 + Math.abs(i - 2) * 0.6, x, 11 + Math.abs(i - 2), x + 1.2, 15 + Math.abs(i - 2) * 0.6]), col(c, 'd', g), {
+      bevel: 0,
+      rim: true,
+    }),
+  );
+}
+
+function witchLook(c: Colors): HumanoidLook {
+  return {
+    skin: col(c, 'g'),
+    hair: col(c, 'd'),
+    body: col(c, 'b'),
+    trim: col(c, 'n'),
+    legs: col(c, 'n'),
+    eyes: col(c, 'r'),
+    robe: true,
+    hat: 'wizard',
+    hatColor: col(c, 'y'),
+    cape: col(c, 'n'),
+    weapon: 'staff',
+  };
+}
+
+function marshWitch(p: Paint, c: Colors): void {
+  // Will-o'-wisps circling her.
+  [[10, 20], [52, 14], [54, 40]].forEach(([x, y]) => {
+    p.flat(ell(x, y, 4, 4), '#c8ff60', 0.2);
+    p.fill(ell(x, y, 1.6, 1.6), '#e8ff90', { sphere: true, bevel: 0 });
+  });
+  p.draw(paintHumanoid(witchLook(c), 'down', 0));
+}
+
 /** Goblins are drawn as small humanoids with long ears, using the monster's palette. */
 function goblinLook(c: Colors, king: boolean): HumanoidLook {
   return {
@@ -906,7 +1094,15 @@ const MONSTER_PAINTERS: ReadonlyMap<string, (p: Paint, c: Colors) => void> = new
   ['skeleton', skeleton],
   ['goblin', (p, c) => p.draw(paintHumanoid(goblinLook(c, false), 'down', 0))],
   ['goblinKing', (p, c) => p.draw(paintHumanoid(goblinLook(c, true), 'down', 0))],
+  ['scorpion', scorpion],
+  ['sandWorm', sandWorm],
+  ['wraith', wraith],
+  ['lizardman', lizardman],
+  ['marshWitch', marshWitch],
 ]);
+
+/** Shapes drawn as (already outlined) humanoids. */
+const HUMANOID_SHAPES: ReadonlySet<string> = new Set(['goblin', 'goblinKing', 'lizardman', 'marshWitch']);
 
 /** Shapes that {@link paintMonster} can draw. */
 export const HD_MONSTER_SHAPES: readonly string[] = [...MONSTER_PAINTERS.keys()];
@@ -915,7 +1111,7 @@ export const HD_MONSTER_SHAPES: readonly string[] = [...MONSTER_PAINTERS.keys()]
 export function paintMonster(shape: string, colors: Palette | Colors): Paint {
   const p = new Paint(HD_SPRITE, HD_SPRITE, F);
   (MONSTER_PAINTERS.get(shape) ?? MONSTER_PAINTERS.get('slime'))?.(p, colors as Colors);
-  return shape.startsWith('goblin') ? p : p.outline();
+  return HUMANOID_SHAPES.has(shape) ? p : p.outline();
 }
 
 // --- Town signs (32x32) ---------------------------------------------------------------------------

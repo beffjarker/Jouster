@@ -919,6 +919,304 @@ function caveFloor(p: Paint): void {
   pebbles(p, '#8a7a68', 6, 0.012);
 }
 
+// --- Southlands (Act II) ------------------------------------------------------------------------
+
+const SAND = '#e0c47a';
+const MARSH = '#4e6a32';
+const MESA_ROCK = '#b0683e';
+
+/** Wind ripples: wavy bands of lit and shaded sand, seamless across tiles. */
+function ripples(p: Paint, base: string, seed: number, period: number, amount: number): void {
+  const r = ramp(base);
+  fine(p, (x, y, fx, fy) => {
+    const w = Math.sin(((y + Math.sin((x / S) * Math.PI * 2 + seed) * 1.6) / period) * Math.PI * 2);
+    if (w > 0.82) {
+      p.fpx(fx, fy, r[4], amount);
+    } else if (w < -0.9) {
+      p.fpx(fx, fy, r[2], amount * 0.8);
+    }
+  });
+}
+
+function sand(p: Paint, _f = 0, variant = 0): void {
+  ground(p, SAND, 21, 0.6, 0.3);
+  ripples(p, SAND, 1, 8, 0.5);
+  if (variant === 1) {
+    pebbles(p, '#a8885a', 21, 0.01);
+  } else if (variant === 2) {
+    // A bleached bone half-buried in the sand.
+    p.flat(seg(9, 21.6, 19, 18.6, 0.9), '#0a0806', 0.2);
+    p.fill(seg(9, 21, 19, 18, 0.8), '#f0e8d8', { bevel: 0 });
+    [[9, 21], [19, 18]].forEach(([x, y]) => {
+      p.fill(ell(x - 0.6, y - 0.7, 1.2), '#f4ecdc', { sphere: true, bevel: 0, dither: 0 });
+      p.fill(ell(x + 0.6, y + 0.7, 1.2), '#e0d4bc', { sphere: true, bevel: 0, dither: 0 });
+    });
+  }
+}
+
+function dunes(p: Paint): void {
+  ground(p, SAND, 22, 0.7, 0.25);
+  // A dune crest: lit windward slope above a shaded lee slope.
+  fine(p, (x, y, fx, fy) => {
+    const c = 15 + Math.sin((x / S) * Math.PI * 2) * 5;
+    const d = y - c;
+    if (d > 0 && d < 7) {
+      p.fpx(fx, fy, tone(SAND, -1.5), 0.55 * (1 - d / 7) + 0.1);
+    } else if (d <= 0 && d > -5) {
+      p.fpx(fx, fy, tone(SAND, 1.5), 0.35 * (1 + d / 5));
+    }
+  });
+  ripples(p, SAND, 2, 5, 0.35);
+}
+
+function sandRoad(p: Paint): void {
+  ground(p, '#c89a5a', 23, 0.6, 0.35);
+  pebbles(p, '#9a7a52', 23, 0.016);
+  crack(p, [4, 10, 7, 11, 9, 10.4], tone('#c89a5a', -2), tone('#c89a5a', 1), 0.2);
+}
+
+function cactus(p: Paint, _f: number, variant: number): void {
+  const green = '#4a8a3a';
+  const arm = (x0: number, y0: number, x1: number, top: number): void => {
+    p.fill(union(box(Math.min(x0, x1), y0 - 1.3, Math.abs(x1 - x0), 2.6), ell(x1, y0, 1.3)), green, { gradX: 1, bevel: 0 });
+    p.fill(union(box(x1 - 1.3, top, 2.6, y0 - top), ell(x1, top, 1.3)), green, { gradX: 1.4, rim: true });
+  };
+  shadow(p, 17, 28.5, 8, 2);
+  if (variant === 1) {
+    // A squat barrel cactus with a flower.
+    const body = ell(16, 22, 6.5, 6.5);
+    p.fill(body, green, { sphere: true, tex: 0.3 });
+    for (let i = -2; i <= 2; i++) {
+      p.flat(clip(seg(16 + i * 2.4, 15.5, 16 + i * 3.2, 28.5, 0.22), body), tone(green, -2), 0.7);
+    }
+    p.fill(ell(16, 15.6, 2, 1.3), '#f05a7a', { sphere: true, bevel: 0 });
+    p.spot(16, 15.4, '#ffe070');
+  } else {
+    const trunkShape = union(box(13.8, 6, 4.4, 23), ell(16, 6, 2.2));
+    arm(14, 18, 8.5, 11 + variant);
+    arm(18, 14, 23.5, 8);
+    p.fill(trunkShape, green, { gradX: 1.4, tex: 0.3, rim: true });
+    [15, 17].forEach((x) => p.flat(clip(seg(x, 5, x, 29, 0.2), trunkShape), tone(green, -2), 0.7));
+  }
+  // Spines.
+  for (let i = 0; i < 22; i++) {
+    const x = 7 + hash(i, 1, 31) * 18;
+    const y = 6 + hash(i, 2, 31) * 22;
+    p.fpx(Math.floor(x * F), Math.floor(y * F), '#f4f0d0', 0.85);
+  }
+}
+
+function mesa(p: Paint, _f: number, variant: number): void {
+  shadow(p, 16, 29, 15, 2.5);
+  if (variant === 1) {
+    peak(p, 21, 4, 11, 29, MESA_ROCK, 0);
+    peak(p, 9, 10, 9, 30, '#c07a4a', 0);
+  } else if (variant === 2) {
+    const rock = '#a86a44';
+    p.fill(ell(10, 24, 7, 5.5), rock, { sphere: true, tex: 0.4 });
+    p.fill(ell(22, 21, 8, 7.5), MESA_ROCK, { sphere: true, tex: 0.4, seed: 3 });
+    crack(p, [19, 16, 21, 19, 20.4, 23], tone(MESA_ROCK, -2.5), tone(MESA_ROCK, 1), 0.22);
+  } else {
+    // A flat-topped butte with sandstone strata.
+    const butte = poly([4, 30, 6, 8, 9, 5, 23, 4.5, 26, 8, 28, 30]);
+    p.fill(butte, MESA_ROCK, { gradX: 1.2, tex: 0.5, seed: 5, bevel: 1 });
+    p.fill(clip(butte, box(18, 0, 14, S)), MESA_ROCK, { shade: -1.2, tex: 0.5, seed: 6, bevel: 0 });
+    p.fill(clip(butte, box(0, 0, S, 7.5)), '#d08a5a', { bevel: 0, tex: 0.3 });
+    for (let y = 11; y < 30; y += 4) {
+      p.flat(clip(seg(3, y + 0.8, 29, y - 0.5, 0.3), butte), tone(MESA_ROCK, -2), 0.6);
+      p.flat(clip(seg(3, y + 1.6, 29, y + 0.3, 0.2), butte), tone(MESA_ROCK, 1), 0.4);
+    }
+    crack(p, [11, 9, 12, 14, 11, 19, 12.5, 25], tone(MESA_ROCK, -3), tone(MESA_ROCK, 1));
+  }
+}
+
+function marsh(p: Paint, _f = 0, variant = 0): void {
+  ground(p, MARSH, 24, 0.9, 0.35);
+  // Muddy puddles and reed clumps.
+  fine(p, (x, y, fx, fy) => {
+    const n = valueNoise(x, y, 8, 25);
+    if (n < 0.26) {
+      p.fpx(fx, fy, n < 0.2 ? '#2e3a22' : '#3a4628', 0.85);
+    }
+  });
+  blades(p, '#5e7a3a', 24, 0.02);
+  if (variant === 1) {
+    const reed = (x: number): void => {
+      p.flat(seg(x, 26, x + 0.6, 14, 0.25), '#6a7a3a');
+      p.fill(ell(x + 0.6, 14, 0.75, 2), '#6a4a2a', { sphere: true, bevel: 0 });
+    };
+    [9, 10.6, 12, 21, 22.4].forEach(reed);
+  } else if (variant === 2) {
+    p.fill(ell(17, 18, 4, 1.8), '#3a4a2a', { bevel: 0, grad: -0.8 });
+    p.fill(ell(16, 17.6, 1.6, 0.9), '#6a9a4a', { bevel: 0, rim: true });
+  }
+}
+
+function boardwalk(p: Paint): void {
+  marsh(p);
+  const wood = '#8a6a44';
+  [3, 25].forEach((y) => p.fill(box(0, y, S, 2), tone(wood, -2), { bevel: 0 }));
+  for (let x = 0; x < S; x += 4) {
+    const board = box(x + 0.2, 4, 3.6, 22);
+    p.fill(board, wood, { tex: 0.6, seed: x + 50, shade: (hash(x, 1, 51) - 0.5) * 0.9, grad: 0.4 });
+    p.flat(clip(seg(x + 1.4, 4, x + 1.6, 26, 0.18), board), tone(wood, -1.5), 0.5);
+    p.spot(x + 2, 6, '#3a3a40');
+    p.spot(x + 2, 24, '#3a3a40');
+  }
+  p.flat(box(0, 26, S, 1), '#0a1206', 0.35);
+}
+
+function mireTree(p: Paint, _f: number, variant: number): void {
+  const bark = '#4a3a24';
+  shadow(p, 16, 28.5, 10, 2.5);
+  const lean = variant === 1 ? 2 : 0;
+  const trunkShape = union(poly([12, 29, 20, 29, 18 + lean, 9, 15 + lean, 9]), ell(16 + lean, 29, 4, 1));
+  p.fill(trunkShape, bark, { gradX: 1.2, tex: 0.6, seed: 61 });
+  [14.5, 16.5].forEach((x) => p.flat(clip(seg(x, 28, x + lean + 0.6, 10, 0.2), trunkShape), tone(bark, -2), 0.7));
+  const branch = (x0: number, y0: number, x1: number, y1: number): void => p.fill(seg(x0, y0, x1, y1, 0.8), bark, { bevel: 0, gradX: 1 });
+  branch(16 + lean, 12, 7, 6);
+  branch(17 + lean, 10, 26, 4);
+  branch(16.5 + lean, 16, 24, 13);
+  if (variant !== 2) {
+    // Sparse drooping canopy and hanging moss.
+    const canopy = union(ell(9, 6, 5, 3), ell(16 + lean, 5, 6, 3.5), ell(24, 5, 5, 3));
+    p.fill(canopy, '#3a5a2a', { sphere: true, tex: 0.6, seed: 62, bevel: 0 });
+    leaves(p, canopy, '#3a5a2a', 50, 63);
+  }
+  [[8, 8, 6], [12, 7, 4], [22, 7, 7], [25, 6, 4]].forEach(([x, y, l]) => {
+    p.flat(seg(x, y, x + 0.3, y + l, 0.3), '#7a8a5a', 0.85);
+    p.flat(seg(x + 0.8, y, x + 0.9, y + l * 0.7, 0.22), '#6a7a4a', 0.75);
+  });
+}
+
+function bog(p: Paint, frame: number, variant: number): void {
+  water(p, frame, '#3e4a26', variant * 4);
+  if (variant === 1) {
+    p.fill(ell(10, 12, 3, 1.4), '#5a8a3a', { bevel: 0, rim: true });
+    p.fill(ell(22, 22, 2.4, 1.1), '#5a8a3a', { bevel: 0, rim: true });
+  } else if (variant === 2) {
+    // Rising swamp gas.
+    const r = 1 + frame * 0.6;
+    p.flat(cut(ell(17, 18, r + 0.5), ell(17, 18, r)), '#9ab06a', 0.7);
+    p.fill(ell(12, 22, 0.9), '#7a8a4a', { sphere: true, bevel: 0, dither: 0 });
+  }
+}
+
+/** Mossy grey boulders that wall in the Mire Shrine. */
+function mireRock(p: Paint, _f: number, variant: number): void {
+  const stone = '#6a7064';
+  shadow(p, 16, 29, 14, 2.5);
+  const rocks =
+    variant === 1
+      ? union(ell(11, 22, 8, 7), ell(22, 24, 6.5, 5.5))
+      : variant === 2
+        ? union(ell(16, 20, 11, 9), ell(8, 26, 5, 3.5))
+        : union(ell(16, 17, 9, 12), ell(24, 25, 5, 4.5));
+  p.fill(rocks, stone, { sphere: true, tex: 0.6, seed: 80 + variant, rim: true });
+  crack(p, [14, 10, 15.5, 15, 14.5, 21], tone(stone, -3), tone(stone, 1));
+  // Moss creeping over the tops.
+  fine(p, (x, y, fx, fy) => {
+    if (rocks.test(x, y) && rocks.test(x, y + 3) && !rocks.test(x, y - 1.5) && valueNoise(x, y, 3, 81) > 0.3) {
+      p.fpx(fx, fy, valueNoise(x, y, 2, 82) > 0.5 ? '#5a7a34' : '#4a6a2c', 0.9);
+    }
+  });
+}
+
+function shrineEntrance(p: Paint): void {
+  shrineFront(p, '#c8a878', '#f0c040');
+}
+
+/** The Mire Shrine: the same temple front, in sunken mossy stone with a green lamp. */
+function mireEntrance(p: Paint): void {
+  shrineFront(p, '#6e7468', '#8ae070');
+  fine(p, (x, y, fx, fy) => {
+    if (y > 9 && y < 29 && (x < 11 || x > 21) && valueNoise(x, y, 3, 83) > 0.62) {
+      p.fpx(fx, fy, '#4a6a2c', 0.85);
+    }
+  });
+}
+
+function shrineFront(p: Paint, stone: string, lamp: string): void {
+  shadow(p, 16, 29, 15, 2.5);
+  const front = box(4, 10, 24, 19);
+  p.fill(front, stone, { gradX: 0.8, tex: 0.4, seed: 71 });
+  for (let y = 13; y < 29; y += 3) {
+    p.flat(clip(box(4, y, 24, 0.4), front), tone(stone, -2), 0.6);
+  }
+  p.fill(poly([2, 11, 16, 2, 30, 11]), tone(stone, -0.5), { grad: 0.8, bevel: 1, tex: 0.3 });
+  p.fill(ell(16, 7.5, 2, 2), lamp, { sphere: true, bevel: 0 });
+  [5, 23].forEach((x) => {
+    p.fill(box(x, 11, 4, 18), tone(stone, 0.5), { gradX: 1.2, tex: 0.3, seed: x });
+    p.fill(box(x - 0.5, 27.5, 5, 1.5), tone(stone, -1), { bevel: 0 });
+  });
+  const door = union(ell(16, 18, 4.5, 4.5), box(11.5, 18, 9, 11));
+  p.fill(door, '#2a1e18', { grad: 1.4, bevel: 0 });
+  p.flat(clip(door, box(0, 22, S, 8)), '#08060a', 0.6);
+}
+
+function pass(p: Paint): void {
+  // Cliffs either side of a narrow gap.
+  shadow(p, 4, 29, 6, 2);
+  shadow(p, 28, 29, 6, 2);
+  peak(p, 3, 2, 8, 30, ROCK_GREY, 0.25);
+  peak(p, 29, 4, 8, 30, '#958e80', 0.2);
+}
+
+const SUN_STONE = '#c8a46a';
+const MIRE_STONE = '#5a6a52';
+
+function sunWall(p: Paint, _f: number, variant: number): void {
+  masonry(p, SUN_STONE, '#6a4a2a', 8, 16, 41);
+  if (variant === 1) {
+    // A carved sun glyph.
+    p.fill(ell(16, 12, 3, 3), '#e8b840', { sphere: true, bevel: 0 });
+    for (let a = 0; a < 8; a++) {
+      const t = (a / 8) * Math.PI * 2;
+      p.flat(seg(16 + Math.cos(t) * 3.8, 12 + Math.sin(t) * 3.8, 16 + Math.cos(t) * 5.5, 12 + Math.sin(t) * 5.5, 0.3), '#c89830');
+    }
+  } else if (variant === 2) {
+    crack(p, [6, 17.5, 8, 19, 8.6, 21, 10.5, 22], tone(SUN_STONE, -3), tone(SUN_STONE, 1));
+  }
+}
+
+function sunFloor(p: Paint, _f = 0, variant = 0): void {
+  masonry(p, '#d8be8a', '#8a6a42', 16, 16, 42);
+  fine(p, (x, y, fx, fy) => {
+    if (valueNoise(x, y, 6, 43) > 0.72) {
+      p.fpx(fx, fy, SAND, 0.6);
+    }
+  });
+  if (variant === 1) {
+    p.flat(cut(ell(16, 16, 5, 5), ell(16, 16, 4.2, 4.2)), '#a87a3a', 0.6);
+  }
+}
+
+function mireWall(p: Paint, _f: number, variant: number): void {
+  masonry(p, MIRE_STONE, '#2a3226', 8, 12, 44);
+  const moss = '#4a7a2a';
+  for (let i = 0; i < 10 + variant * 6; i++) {
+    const x = hash(i, 1, 45 + variant) * S;
+    const y = hash(i, 2, 45 + variant) * S;
+    p.fill(ell(x, y, 1.1, 0.8), moss, { sphere: true, bevel: 0, dither: 0, shade: hash(i, 3, 45) - 0.5 });
+  }
+  if (variant === 2) {
+    [6, 11, 24].forEach((x, i) => p.flat(seg(x, 8, x + 0.3, 14 + i * 2, 0.25), tone(moss, -1)));
+  }
+}
+
+function mireFloor(p: Paint, _f = 0, variant = 0): void {
+  masonry(p, '#6a7258', '#323a2a', 16, 16, 46, true);
+  fine(p, (x, y, fx, fy) => {
+    const n = valueNoise(x, y, 8, 47);
+    if (n < 0.24) {
+      p.fpx(fx, fy, '#2e3a22', 0.7);
+    }
+  });
+  if (variant === 1) {
+    pebbles(p, '#5a5a4a', 46, 0.01);
+  }
+}
+
 /** Every procedural tile at native resolution (see {@link paintTile}). */
 export const HD_TILES: ReadonlyMap<string, HdTile> = new Map<string, HdTile>([
   ['grass', { ground: grass }],
@@ -961,6 +1259,23 @@ export const HD_TILES: ReadonlyMap<string, HdTile> = new Map<string, HdTile>([
   ['caveFloor', { ground: caveFloor }],
   ['caveWater', { ground: caveWaterTile }],
   ['caveExit', { ground: caveFloor, object: caveExitGlow, outline: false }],
+  ['sand', { ground: sand }],
+  ['dunes', { ground: dunes }],
+  ['sandRoad', { ground: sandRoad }],
+  ['cactus', { ground: sand, object: cactus }],
+  ['mesa', { ground: sand, object: mesa }],
+  ['marsh', { ground: marsh }],
+  ['boardwalk', { ground: boardwalk }],
+  ['mireTree', { ground: marsh, object: mireTree }],
+  ['bog', { ground: bog }],
+  ['shrineEntrance', { ground: sand, object: shrineEntrance }],
+  ['mireEntrance', { ground: marsh, object: mireEntrance }],
+  ['mireRock', { ground: marsh, object: mireRock }],
+  ['pass', { ground: (p) => ground(p, '#c8a165', 4, 0.8, 0.3), object: pass }],
+  ['sunWall', { ground: sunWall }],
+  ['sunFloor', { ground: sunFloor }],
+  ['mireWall', { ground: mireWall }],
+  ['mireFloor', { ground: mireFloor }],
 ]);
 
 /**
@@ -989,7 +1304,7 @@ export function paintTile(id: string, frame: number, variant: number, withGround
 }
 
 /** Tall solid tiles (town walls, cave rock) that cast a short shadow onto the tile below them. */
-export const SHADOW_CASTERS: ReadonlySet<string> = new Set(['wall', 'rock', 'torch']);
+export const SHADOW_CASTERS: ReadonlySet<string> = new Set(['wall', 'rock', 'torch', 'sunWall', 'mireWall']);
 
 /** Paint-unit rows of the soft shadow a {@link SHADOW_CASTERS} tile drops onto the top of the tile below it. */
 export const WALL_SHADOW_ROWS = 10;
