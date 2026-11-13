@@ -1,4 +1,4 @@
-﻿import { MAPS } from '../data/maps';
+import { MAPS } from '../data/maps';
 import {
   SEASON_WEATHER,
   STEPS_PER_SEASON,

@@ -169,6 +169,7 @@ const TABLE_LIST: EncounterTable[] = [
   {
     id: 'greenwood',
     rate: 1 / 18,
+    level: 2,
     groups: [
       { monsterIds: ['slime'], weight: 4 },
       { monsterIds: ['slime', 'slime'], weight: 3 },
@@ -181,6 +182,7 @@ const TABLE_LIST: EncounterTable[] = [
   {
     id: 'forest',
     rate: 1 / 12,
+    level: 4,
     groups: [
       { monsterIds: ['wolf'], weight: 4 },
       { monsterIds: ['giantBat', 'giantBat'], weight: 2 },
@@ -192,6 +194,7 @@ const TABLE_LIST: EncounterTable[] = [
   {
     id: 'hills',
     rate: 1 / 14,
+    level: 5,
     groups: [
       { monsterIds: ['goblin'], weight: 4 },
       { monsterIds: ['wolf', 'wolf'], weight: 2 },
@@ -203,6 +206,7 @@ const TABLE_LIST: EncounterTable[] = [
   {
     id: 'cave',
     rate: 1 / 12,
+    level: 6,
     groups: [
       { monsterIds: ['goblin'], weight: 3 },
       { monsterIds: ['skeleton'], weight: 3 },
@@ -214,6 +218,7 @@ const TABLE_LIST: EncounterTable[] = [
   {
     id: 'den',
     rate: 1 / 12,
+    level: 6,
     groups: [
       { monsterIds: ['wolf'], weight: 3 },
       { monsterIds: ['wolf', 'wolf'], weight: 3 },

@@ -1,6 +1,14 @@
 import { createRng } from './core/rng';
 import { MAX_LEVEL, levelForXp, totalXpForLevel, xpToNext } from './rules/progression';
-import { ENCOUNTER_GRACE_STEPS, EncounterTable, pickEncounter, rollEncounter } from './rules/encounter';
+import {
+  ENCOUNTER_GRACE_STEPS,
+  EncounterTable,
+  OUTLEVEL_MARGIN,
+  OUTLEVEL_MIN_FACTOR,
+  pickEncounter,
+  rollEncounter,
+  scaledEncounterRate,
+} from './rules/encounter';
 import { TileMap } from './world/tilemap';
 import { wrapText } from './runtime/pixel-font';
 import { InputManager, KeyEventSource } from './runtime/input';
@@ -109,6 +117,15 @@ describe('encounters', () => {
       expect(rollEncounter(1, s, rng)).toBe(false);
     }
     expect(rollEncounter(1, ENCOUNTER_GRACE_STEPS + 10, rng)).toBe(true);
+  });
+
+  it('keeps the rate until the party out-levels the area, then cuts it sharply', () => {
+    expect(scaledEncounterRate(0.1, 20)).toBe(0.1);
+    expect(scaledEncounterRate(0.1, 2, 4)).toBe(0.1);
+    expect(scaledEncounterRate(0.1, 4 + OUTLEVEL_MARGIN, 4)).toBe(0.1);
+    expect(scaledEncounterRate(0.1, 5 + OUTLEVEL_MARGIN, 4)).toBeCloseTo(0.025);
+    expect(scaledEncounterRate(0.1, 6 + OUTLEVEL_MARGIN, 4)).toBeCloseTo(0.0125);
+    expect(scaledEncounterRate(0.1, 99, 4)).toBeCloseTo(0.1 * OUTLEVEL_MIN_FACTOR);
   });
 
   it('respects the enemy cap', () => {

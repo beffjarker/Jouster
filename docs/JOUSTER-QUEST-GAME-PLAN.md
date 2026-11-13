@@ -65,7 +65,7 @@ apps/
 | **Movement** | 4-direction, grid-locked, smooth movement between tiles, 2-frame walk cycle |
 | **Camera** | Follows the player and clamps to map bounds |
 | **Dialogue** | Typewriter text box, portraits (optional), yes/no prompts, sets and reads story flags |
-| **Encounters** | Step counter in danger tiles; per-region rate (default ~1/16 per step); towns are safe |
+| **Encounters** | Step counter in danger tiles; per-region rate (default ~1/16 per step); towns are safe. Each area has a level (Greenwood 2, Forest 4, Hills 5, Cave 6, Den 6); when the highest party level is more than 3 above it, the rate drops to ¼ and halves for each further level (floor 1/32 of the base) |
 | **Battle** | Turn-based combat (section 5) |
 | **Inventory/Equipment** | Weapon, armor, shield, and accessory slots; consumables; key items; gold |
 | **Progression** | XP curve, level-ups, per-class stat growth, spells learned by level |
@@ -415,6 +415,12 @@ coordinates, so the save version is bumped and old saves are not offered on the 
   bond and colours on every variant (plain, darker brick + crack, darker brick + moss fleck) so walls join
   seamlessly. Cave rock: plain, boulder, crystal vein. Water: plain, lily pad, rock (cave water: stalagmite). The game RNG is not used, so battle and encounter rolls are unchanged.
 - **UI:** windows get a dark-blue vertical gradient fill; text stays the chunky bitmap font for readability.
+- **Monster looks:** common monsters have several cosmetic looks (palette swaps, and for slimes also tall and
+  flat body shapes): slime 6 (blue, green, red, purple, gold, teal), bat, wolf, goblin and skeleton 3 each.
+  Bosses keep one look. The look is picked per battle slot by a hash, not the game RNG, and never changes stats.
+- **Descriptions:** the highlighted item or field spell shows a short description box in the field menu; in
+  battle the ITEM and ABILITY lists show it at the top of the screen so enemies stay visible. Shops already
+  showed item descriptions.
 - Everything is still original, procedurally drawn pixel art (no third-party files).
 
 ### 13.4 Difficulty and progression
@@ -489,6 +495,10 @@ battle RNG. Weather does not affect encounters or battles.
 - A banner announces each change ("Summer has come.", "It starts to rain."). The field HUD and the `M` map
   legend show `SEASON - WEATHER` (or `UNDERGROUND` in caves).
 - The Goblin Cave has wall torches (solid, animated tiles); the Wolf Den is unlit.
+- Clouds and fog banks are lumpy, rounded pixel shapes (overlapping circles with a dithered, soft edge), varied
+  in size, speed and opacity. Rain drops vary in length, speed and shade, sway with the wind and splash on the
+  ground; snow falls in depth layers with per-flake sway (blizzards add gust streaks); lightning is a jagged,
+  branching bolt with a screen flash.
 
 **World map (`M` key)**
 

@@ -1,4 +1,4 @@
-import { AudioManager, InputManager, Renderer, Scene, SceneStack, wrapText } from '@jouster/game/engine';
+import { AudioManager, CELL_WIDTH, InputManager, Renderer, Scene, SceneStack, wrapText } from '@jouster/game/engine';
 
 /** Logical 16:9 screen (rendered at 2x on a 768x432 canvas). */
 export const SCREEN_W = 384;
@@ -20,6 +20,18 @@ export function drawCursor(r: Renderer, x: number, y: number, color = COLORS.tex
   for (let i = 0; i < 4; i++) {
     r.fillRect(x + i, y + i, 1, 7 - i * 2, color);
   }
+}
+
+/**
+ * Small window with a short wrapped description (up to 3 lines), e.g. what the highlighted
+ * item does. With `anchor: 'above'` the window's bottom edge sits at `y`.
+ */
+export function drawHint(r: Renderer, text: string, x: number, y: number, w: number, anchor: 'above' | 'below' = 'below'): void {
+  const lines = wrapText(text.toUpperCase(), Math.floor((w - 16) / CELL_WIDTH)).slice(0, 3);
+  const h = lines.length * LINE_H + 10;
+  const top = anchor === 'above' ? y - h : y;
+  r.window(x, top, w, h);
+  lines.forEach((line, i) => r.text(line, x + 8, top + 6 + i * LINE_H));
 }
 
 export interface MenuItem {
