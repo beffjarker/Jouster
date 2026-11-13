@@ -1,5 +1,5 @@
 import { InputManager, Renderer, Scene } from '@jouster/game/engine';
-import { TILE } from '../art/art';
+import { TILE, fitScale, spriteSize, tileAnchor } from '../art/art';
 import { CLASS_ORDER, classDef } from '../data/classes';
 import { ABILITIES } from '../data/abilities';
 import { GameState, hasSave, loadGame, newGameState } from '../state/game-state';
@@ -57,7 +57,10 @@ export class TitleScene implements Scene {
     r.textCentered('THE DRAGON SEAL', SCREEN_W / 2, 70 + OY, COLORS.text);
     CLASS_ORDER.forEach((id, i) => {
       const frame = Math.floor(this.time * 3 + i) % 2;
-      r.draw(this.ctx.art.character(id, 'down', frame), SCREEN_W / 2 - CLASS_ORDER.length * 12 + 4 + i * 24, 104 + OY);
+      const sprite = this.ctx.art.character(id, 'down', frame);
+      const gap = Math.max(24, spriteSize(sprite).width);
+      const a = tileAnchor(sprite);
+      r.draw(sprite, SCREEN_W / 2 - (CLASS_ORDER.length * gap) / 2 + (gap - TILE) / 2 + i * gap - a.x, 104 + OY - a.y);
     });
     this.menu.render(r, SCREEN_W / 2 - 44, 150 + OY, 88);
     r.textCentered('ARROWS/WASD MOVE  Z/ENTER OK  X/ESC BACK  M MAP', SCREEN_W / 2, SCREEN_H - 16, COLORS.dim);
@@ -108,7 +111,8 @@ export class ClassSelectScene implements Scene {
     const x = 92;
     r.window(x, 24, SCREEN_W - x - 8, SCREEN_H - 32);
     const frame = Math.floor(this.time * 3) % 2;
-    r.draw(this.ctx.art.character(id, 'down', frame), x + 8, 32, { scale: 2 });
+    const portrait = this.ctx.art.character(id, 'down', frame);
+    r.draw(portrait, x + 8, 32, { scale: fitScale(portrait, TILE * 2) });
     r.text(cls.name.toUpperCase(), x + 44, 34, COLORS.gold);
     r.text(cls.role.toUpperCase(), x + 44, 46, COLORS.dim);
     const stats: Array<[string, number]> = [
@@ -196,9 +200,8 @@ export class NameEntryScene implements Scene {
     r.clear('#000000');
     const cls = classDef(this.classId);
     r.textCentered(`NAME YOUR ${cls.name.toUpperCase()}`, SCREEN_W / 2, 60 + OY, COLORS.gold);
-    r.draw(this.ctx.art.character(this.classId, 'down', Math.floor(this.time * 3) % 2), SCREEN_W / 2 - TILE, 80 + OY, {
-      scale: 2,
-    });
+    const portrait = this.ctx.art.character(this.classId, 'down', Math.floor(this.time * 3) % 2);
+    r.draw(portrait, SCREEN_W / 2 - TILE, 80 + OY, { scale: fitScale(portrait, TILE * 2) });
     r.window(SCREEN_W / 2 - 40, 124 + OY, 80, 22);
     const cursor = Math.floor(this.time * 2) % 2 === 0 ? '_' : ' ';
     r.text(this.name + (this.name.length < MAX_NAME ? cursor : ''), SCREEN_W / 2 - 30, 131 + OY);

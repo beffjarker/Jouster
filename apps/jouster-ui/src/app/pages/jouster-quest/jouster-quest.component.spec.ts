@@ -17,7 +17,7 @@ jest.mock('@jouster/game/quest', () => ({
   ],
   // eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the exported constant name
   TEXT_ENTRY_SCENES: ['name-entry'],
-  artStyleFromQuery: (search: string) => (search.includes('art=lpc') ? 'lpc' : 'classic'),
+  artStyleFromQuery: (search: string) => (search.includes('art=classic') ? 'classic' : 'lpc'),
   // eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the exported class name
   JousterQuestGame: jest.fn().mockImplementation((_canvas: HTMLCanvasElement, options: typeof mockLastOptions) => {
     if (mockShouldThrow) {
@@ -49,7 +49,7 @@ describe('JousterQuestComponent', () => {
     expect(canvas?.width).toBe(960);
     expect(canvas?.height).toBe(540);
     expect(mockLastOptions?.keySource).toBe(canvas);
-    expect(mockLastOptions?.art).toBe('classic');
+    expect(mockLastOptions?.art).toBe('lpc');
     expect(mockStart).toHaveBeenCalledTimes(1);
     spectator.fixture.destroy();
     expect(mockDestroy).toHaveBeenCalledTimes(1);
