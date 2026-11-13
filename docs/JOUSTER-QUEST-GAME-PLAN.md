@@ -162,6 +162,7 @@ The Cleric is the hardest class to start with, so it sets the minimum viable pow
 | Any hero + any two companions (all classes different) at level 5 against the Goblin King | ≥ 70% (regression check only, as above) |
 | Solo hero at level 6 with shop gear against the Goblin King, every class (revision 3: the real path) | ≥ 60%, aim 65–80% |
 | Solo hero at level 7 with tier-2 gear against each side-quest mini-boss fight, every class (revision 3) | ≥ 60% |
+| Level-6 hero + a newly joined companion (join level 3) in Forest/Hills (16.1) | ≥ 90% wins; ally reaches level 4 in ≤ 15 fights on average |
 
 If a class misses a target, tune its numbers in `game-quest` data files (growth curve, weapon stats, skill costs)
 instead of changing the engine.
@@ -178,7 +179,9 @@ instead of changing the engine.
   random class. No companion has the same class as the hero, and no two companions share a class. The roll is
   stored in the save, so the roster stays the same for that playthrough.
 - **Tavern:** in the capital, the player can swap recruited companions in and out of the active party.
-- **Companion levels (planned, 16.1):** companions join at level 1 and only gain XP while in the party.
+- **Companion levels (16.1, done):** a companion's first join is at half the hero's level (rounded down,
+  minimum 1), never at the hero's level. Only party members gain XP; benched companions keep exactly the level and
+  XP they left with (`companionProgress`).
 - Party members follow the leader on the overworld in a snake-style trail.
 
 ---
@@ -907,9 +910,18 @@ replacing inns, Herbs or Heal. The Cleric recovers fastest, the Paladin in betwe
 
 ## 16. Revision 5 (planned — not implemented yet)
 
-Three requests after revision 4. Nothing here is built yet; it is the agreed plan.
+Three requests after revision 4, plus the art and view follow-ups. Status per subsection: 16.3 and 16.1 are
+implemented; the rest is the agreed plan.
 
-### 16.1 Companions start at level 1 and level only in the party
+### 16.1 Companions start low and level only in the party (implemented)
+
+**Implemented:** `companionProgress: { level, xp }` replaces `companionLevels`; save version 4 migrates v2 and v3
+saves (`{ level, xp: totalXpForLevel(level) }`, no downgrade). Every side-quest reward now includes at least 2
+Herbs (companions already bring their class starting weapon). **Simulator result:** with a level-6 hero, a
+level-1 companion needed about **21 fights** to reach level 4 (target ~10), a level-2 one about 19, and a level-3
+one about **12**; win rate was ~100% in every case. So the fallback below was used: first-time companions join
+at `companionJoinLevel(hero) = max(1, floor(hero / 2))`. Early in the game (hero level 1–3) that is level 1.
+`simulateFight` now also returns which members survived, so the balance test grants XP like the battle scene.
 
 **Now:** `createCompanion` makes a new companion at the **hero's level** (or their stored level, if higher).
 XP is already given only to party members who survive a battle, so benched companions never gain XP.
@@ -1158,8 +1170,8 @@ avoids laying out sprites twice.
 ### 16.4 Work breakdown
 
 1. Plan update (this section) — done first, before any code.
-2. Controls single source of truth and sync tests (16.3) — smallest, do first.
-3. Companion level 1 / party-only XP, save v4 migration and simulator checks (16.1).
+2. Controls single source of truth and sync tests (16.3) — smallest, do first. Done.
+3. Companion level 1 / party-only XP, save v4 migration and simulator checks (16.1) — done (join bonus used).
 3b. Widescreen 960×540 (16.6): constants, layout derived from screen size, integer scaling and full screen, town
    borders and camera centring; screenshots of every scene for review.
 4. Art spike (16.2): add LPC base / Tile Atlas sheets and `CREDITS.md`; swap tiles behind an `?art=` toggle

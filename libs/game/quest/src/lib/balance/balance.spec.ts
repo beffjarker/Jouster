@@ -3,8 +3,8 @@ import { CLASS_ORDER, classDef } from '../data/classes';
 import { ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
 import { ITEMS, WEAPONS } from '../data/equipment';
 import { pickEncounter } from '@jouster/game/engine';
-import { DEFAULT_GOLD_CHANCE, PartyMember, createMember, memberToCombatant } from '../state/party';
-import { STARTING_GOLD } from '../state/game-state';
+import { DEFAULT_GOLD_CHANCE, PartyMember, createMember, grantXp, memberToCombatant } from '../state/party';
+import { STARTING_GOLD, companionJoinLevel } from '../state/game-state';
 import { ABILITIES } from '../data/abilities';
 import { expectedDamage, runMany, simulateFight } from './simulator';
 import { MONSTERS } from '../data/monsters';
@@ -180,6 +180,37 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
       simulateFight(party, ['goblinKing'], { herb: 3 }, createRng(12000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
+  });
+
+  // Plan 16.1: a new companion joins below the hero (companionJoinLevel) and catches up through shared XP.
+  // Fights start at full HP (the simulator does not carry damage between fights).
+  const catchUp = CLASS_ORDER.map((hero, i) => [hero, CLASS_ORDER[(i + 1) % CLASS_ORDER.length]] as const);
+  it.each(catchUp)('a level-6 %s with a new %s companion wins Forest/Hills and the ally catches up', (hero, ally) => {
+    const runs = 10;
+    let wins = 0;
+    let fightsToFour = 0;
+    for (let run = 0; run < runs; run++) {
+      const party = [tier2(createMember('h', 'H', hero, 6)), createMember('c', 'C', ally, companionJoinLevel(6))];
+      const rng = createRng(21000 + run);
+      let reached = 0;
+      for (let fight = 0; fight < 20; fight++) {
+        const ids = pickEncounter(ENCOUNTER_TABLES.get(fight % 2 ? 'hills' : 'forest') ?? fail(), rng);
+        const result = simulateFight(party, ids, { herb: 3 }, rng);
+        if (result.outcome !== 'victory') {
+          continue;
+        }
+        wins++;
+        const xp = ids.reduce((sum, id) => sum + (MONSTERS.get(id)?.xp ?? 0), 0);
+        const survivors = party.filter((_, k) => result.alive[k]);
+        survivors.forEach((m) => grantXp(m, Math.ceil(xp / survivors.length)));
+        if (!reached && party[1].level >= 4) {
+          reached = fight + 1;
+        }
+      }
+      fightsToFour += reached || 99;
+    }
+    expect(wins / (runs * 20)).toBeGreaterThanOrEqual(0.9);
+    expect(fightsToFour / runs).toBeLessThanOrEqual(15);
   });
 });
 function fail(): never {

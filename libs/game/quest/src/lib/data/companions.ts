@@ -41,6 +41,7 @@ export interface CompanionQuest {
   thanks: string[];
   /** Said before the thanks when the mini-boss was already beaten before the quest was accepted. */
   already: string[];
+  /** Includes a starter kit of at least 2 Herbs for the companion who joins (plan 16.1). */
   reward: { gold: number; items?: Record<string, number> };
 }
 
@@ -73,7 +74,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
       reminder: ['{name}: The Alpha Wolf still hunts from its den in the eastern hills.'],
       thanks: ['{name}: The alpha is dead? The farmers will sleep tonight. Here - the bounty is yours.'],
       already: ['{name}: Wait - you already slew the alpha? Then I owe you twice.'],
-      reward: { gold: 60 },
+      reward: { gold: 60, items: { herb: 2 } },
     },
   },
   {
@@ -98,7 +99,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
       reminder: ['{name}: The Bone Captain rises at night. Rest at an inn, then come back.'],
       thanks: ['{name}: Thornwick can finally rest. Take this - I found it in the ashes.'],
       already: ['{name}: The Bone Captain is already dust? You work fast.'],
-      reward: { gold: 40, items: { tonic: 2 } },
+      reward: { gold: 40, items: { herb: 2, tonic: 2 } },
     },
   },
   {
@@ -120,7 +121,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
       reminder: ['{name}: The Giant Toad still squats on the west shore of the lake.'],
       thanks: ['{name}: Ha! The lake is ours again. The fishers sent these for you.'],
       already: ['{name}: You already chased off the toad? Then I owe you twice.'],
-      reward: { gold: 30, items: { herb: 4 } },
+      reward: { gold: 30, items: { herb: 6 } },
     },
   },
   {
@@ -146,7 +147,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
       reminder: ['{name}: The Jailer is in the eastern chamber. Please hurry!'],
       thanks: ['{name}: The key! Free at last. The goblins hoarded some gold - take it.'],
       already: ['{name}: You already have the key? Bless you!'],
-      reward: { gold: 80 },
+      reward: { gold: 80, items: { herb: 2 } },
     },
   },
 ];

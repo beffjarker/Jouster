@@ -6,9 +6,9 @@ import { GEAR } from '../data/gear';
 import { returnGear } from './equipment';
 import { PartyMember, createMember } from './party';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 /** Older save versions that loadGame can migrate. */
-const MIGRATABLE_VERSIONS: readonly number[] = [2];
+const MIGRATABLE_VERSIONS: readonly number[] = [2, 3];
 export const SAVE_KEY = 'jouster-quest-save-v1';
 export const MAX_PARTY = 3;
 export const STARTING_GOLD = 50;
@@ -20,8 +20,8 @@ export interface GameState {
   gold: number;
   inventory: Record<string, number>;
   flags: Record<string, boolean>;
-  /** Levels of companions who left the party (so they rejoin at least at that level). */
-  companionLevels: Record<string, number>;
+  /** Level and XP of companions who left the party (they rejoin exactly as they left, plan 16.1). */
+  companionProgress: Record<string, CompanionProgress>;
   /** Companion rolled for each companion slot at the start of this playthrough. */
   companions: Record<string, CompanionInfo>;
   /** Explored tiles per fogged map, as a bitset of 32-bit words (row-major, see `state/fog.ts`). */
@@ -35,6 +35,18 @@ export interface GameState {
   steps: number;
   stepsSinceBattle: number;
   playSeconds: number;
+}
+
+/** A benched companion's saved level and total XP. */
+export interface CompanionProgress {
+  level: number;
+  xp: number;
+}
+
+/** Save fields that older versions used and later versions dropped. */
+interface LegacySave extends Partial<GameState> {
+  /** v2/v3: companion levels only (replaced by `companionProgress` in v4). */
+  companionLevels?: Record<string, number>;
 }
 
 /**
@@ -71,7 +83,7 @@ export function newGameState(heroName: string, classId: ClassId, rng: Rng = crea
     gold: STARTING_GOLD,
     inventory: { herb: STARTING_HERBS + classDef(classId).bonusHerbs },
     flags: {},
-    companionLevels: {},
+    companionProgress: {},
     companions: rollCompanions(classId, rng),
     explored: {},
     quests: {},
@@ -178,14 +190,23 @@ export function companionInfo(state: GameState, companionId: string): CompanionI
 }
 
 /**
- * Creates a fixed-class companion at the hero's level. Companions who left the party and
- * rejoin keep their own level (stored in `companionLevels`) if it is higher.
+ * Level a companion has the first time they join: half the hero's level, rounded down, minimum 1
+ * (plan 16.1; the simulator showed a level-1 ally took ~21 fights to reach level 4 beside a level-6 hero).
+ */
+export function companionJoinLevel(heroLevel: number): number {
+  return Math.max(1, Math.floor(heroLevel / 2));
+}
+
+/**
+ * Creates a fixed-class companion. First-time recruits start at `companionJoinLevel`; companions who left
+ * the party rejoin with exactly the level and XP they left with (stored in `companionProgress`).
  */
 export function createCompanion(state: GameState, companionId: string): PartyMember {
   const info = companionInfo(state, companionId);
-  const level = Math.max(state.party[0]?.level ?? 1, state.companionLevels[companionId] ?? 1);
+  const stored = state.companionProgress[companionId];
+  const level = stored?.level ?? companionJoinLevel(state.party[0]?.level ?? 1);
   const member = createMember(companionId, info.name, info.classId, level);
-  member.xp = totalXpForLevel(level);
+  member.xp = stored?.xp ?? totalXpForLevel(level);
   return member;
 }
 
@@ -200,7 +221,7 @@ export function recruitCompanion(state: GameState, companionId: string, replaceI
       return false;
     }
     const leaving = state.party[idx];
-    state.companionLevels[leaving.id] = leaving.level;
+    state.companionProgress[leaving.id] = { level: leaving.level, xp: leaving.xp };
     returnGear(state, leaving);
     state.party.splice(idx, 1);
   }
@@ -244,18 +265,35 @@ export function hasSave(storage: SaveStorage): boolean {
   return loadGame(storage) !== null;
 }
 
-/** Upgrades older saves: v2 had no fog or quests (companions already met keep their place). */
-function migrate(s: Partial<GameState>): Partial<GameState> {
+/**
+ * Upgrades older saves. v2 had no fog or quests (companions already met keep their place); v2 and v3 stored
+ * benched companions' levels only, which become `{ level, xp }` at the start of that level (no downgrade).
+ */
+function migrate(s: LegacySave): Partial<GameState> {
   if (typeof s?.version !== 'number' || !MIGRATABLE_VERSIONS.includes(s.version)) {
     return s;
   }
+  const { companionLevels, ...rest } = s;
+  const levels = typeof companionLevels === 'object' && companionLevels !== null ? companionLevels : {};
   const quests: Record<string, QuestStatus> = {};
-  for (const id of [...(s.party ?? []).map((m) => m.id), ...Object.keys(s.companionLevels ?? {})]) {
+  for (const id of [...(s.party ?? []).map((m) => m.id), ...Object.keys(levels)]) {
     if (id !== 'hero') {
       quests[id] = 'done';
     }
   }
-  return { ...s, version: SAVE_VERSION, explored: s.explored ?? {}, quests: s.quests ?? quests };
+  const companionProgress: Record<string, CompanionProgress> = {};
+  for (const [id, level] of Object.entries(levels)) {
+    if (Number.isFinite(level)) {
+      companionProgress[id] = { level, xp: totalXpForLevel(level) };
+    }
+  }
+  return {
+    ...rest,
+    version: SAVE_VERSION,
+    explored: s.explored ?? {},
+    quests: s.quests ?? quests,
+    companionProgress: s.companionProgress ?? companionProgress,
+  };
 }
 
 function isValidState(s: Partial<GameState>): s is GameState {
@@ -282,13 +320,21 @@ function isValidState(s: Partial<GameState>): s is GameState {
     s.inventory !== null &&
     typeof s.flags === 'object' &&
     s.flags !== null &&
-    typeof s.companionLevels === 'object' &&
-    s.companionLevels !== null &&
+    validProgress(s.companionProgress) &&
     typeof s.explored === 'object' &&
     s.explored !== null &&
     typeof s.quests === 'object' &&
     s.quests !== null &&
     validRoster(s.companions)
+  );
+}
+
+function validProgress(progress: unknown): boolean {
+  if (typeof progress !== 'object' || progress === null) {
+    return false;
+  }
+  return Object.values(progress as Record<string, CompanionProgress | undefined>).every(
+    (p) => Number.isFinite(p?.level) && Number.isFinite(p?.xp),
   );
 }
 
