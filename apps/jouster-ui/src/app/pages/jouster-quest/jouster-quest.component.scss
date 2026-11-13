@@ -61,7 +61,8 @@
 }
 
 .game-screen {
-  // 16:9 widescreen: 480x270 logical screen drawn on a 960x540 canvas (2x density), shown 1:1 (fit on narrow screens).
+  // 16:9 widescreen: 480x270 logical screen drawn on a 1920x1080 canvas (4x density), shown at
+  // 960x540 CSS pixels (1:1 on HiDPI screens; fit on narrow screens).
   width: min(960px, 100%);
   max-width: 100%;
   aspect-ratio: 16 / 9;

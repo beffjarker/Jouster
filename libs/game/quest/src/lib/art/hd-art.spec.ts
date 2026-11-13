@@ -1,8 +1,13 @@
 import { MAPS } from '../data/maps';
 import { CHARACTER_LOOK_IDS, TILE_VARIANT_COUNTS } from './art';
 import { HD_MONSTER_SHAPES, HD_SPRITE, LOOKS, paintHumanoid, paintMonster } from './hd-characters';
-import { Paint } from './hd-paint';
+import { ART_SCALE, Paint } from './hd-paint';
 import { HD_TILE, HD_TILES, SHADOW_CASTERS, WALL_SHADOW_ROWS, paintTile, paintWallShadow } from './hd-tiles';
+
+/** Real (stored) pixels per tile and per sprite edge. */
+const T = HD_TILE * ART_SCALE;
+const S = HD_SPRITE * ART_SCALE;
+const R = WALL_SHADOW_ROWS * ART_SCALE;
 
 function opaque(p: Paint): number {
   let n = 0;
@@ -13,15 +18,15 @@ function opaque(p: Paint): number {
 }
 
 describe('HD tiles', () => {
-  it('paints every map tile at 32x32 real pixels, fully opaque', () => {
+  it('paints every map tile at 32x32 paint units (supersampled), fully opaque', () => {
     const ids = new Set<string>();
     MAPS.forEach((m) => m.legend.forEach((t) => ids.add(t.id)));
     ids.forEach((id) => {
       for (let v = 0; v < (TILE_VARIANT_COUNTS.get(id) ?? 1); v++) {
         const p = paintTile(id, 0, v);
         expect(p).not.toBeNull();
-        expect([p?.width, p?.height]).toEqual([HD_TILE, HD_TILE]);
-        expect(p && opaque(p)).toBe(HD_TILE * HD_TILE);
+        expect([p?.width, p?.height]).toEqual([T, T]);
+        expect(p && opaque(p)).toBe(T * T);
       }
     });
   });
@@ -42,7 +47,7 @@ describe('HD tiles', () => {
         expect(p).not.toBeNull();
         const n = p ? opaque(p) : 0;
         expect(n).toBeGreaterThan(0);
-        expect(n).toBeLessThan(HD_TILE * HD_TILE);
+        expect(n).toBeLessThan(T * T);
       });
     expect(paintTile('grass', 0, 0, false)).toBeNull();
     expect(paintTile('nope', 0, 0)).toBeNull();
@@ -69,11 +74,11 @@ describe('HD tiles', () => {
     expect(SHADOW_CASTERS.has('wall')).toBe(true);
     expect(SHADOW_CASTERS.has('cobble')).toBe(false);
     const p = paintWallShadow();
-    expect([p.width, p.height]).toEqual([HD_TILE, HD_TILE]);
-    expect(p.get(5, 0)[3]).toBeGreaterThan(p.get(5, WALL_SHADOW_ROWS - 2)[3]);
-    expect(p.get(5, WALL_SHADOW_ROWS - 2)[3]).toBeGreaterThan(0);
-    expect(p.get(5, WALL_SHADOW_ROWS)[3]).toBe(0);
-    expect(p.get(31, 31)[3]).toBe(0);
+    expect([p.width, p.height]).toEqual([T, T]);
+    expect(p.get(10, 0)[3]).toBeGreaterThan(p.get(10, R - 4)[3]);
+    expect(p.get(10, R - 4)[3]).toBeGreaterThan(0);
+    expect(p.get(10, R)[3]).toBe(0);
+    expect(p.get(T - 1, T - 1)[3]).toBe(0);
   });
 });
 
@@ -83,20 +88,20 @@ describe('HD characters and monsters', () => {
     LOOKS.forEach((look) => {
       (['down', 'up', 'right', 'left'] as const).forEach((facing) => {
         const p = paintHumanoid(look, facing, 0);
-        expect([p.width, p.height]).toEqual([HD_SPRITE, HD_SPRITE]);
+        expect([p.width, p.height]).toEqual([S, S]);
         let bottom = 0;
-        for (let y = 0; y < HD_SPRITE; y++) {
-          for (let x = 0; x < HD_SPRITE; x++) {
+        for (let y = 0; y < S; y++) {
+          for (let x = 0; x < S; x++) {
             if (p.get(x, y)[3] === 255) {
               bottom = y;
             }
           }
         }
-        expect(bottom).toBeGreaterThanOrEqual(60);
+        expect(bottom).toBeGreaterThanOrEqual(60 * ART_SCALE);
         // Nothing wraps around the left/right edges.
-        for (let y = 0; y < HD_SPRITE; y++) {
+        for (let y = 0; y < S; y++) {
           expect(p.get(0, y)[3]).toBe(0);
-          expect(p.get(HD_SPRITE - 1, y)[3]).toBe(0);
+          expect(p.get(S - 1, y)[3]).toBe(0);
         }
       });
     });
@@ -114,8 +119,8 @@ describe('HD characters and monsters', () => {
   it('paints every monster shape at 64x64 and recolours from the palette', () => {
     HD_MONSTER_SHAPES.forEach((shape) => {
       const p = paintMonster(shape, new Map([['g', '#3a8ae8'], ['p', '#6a3a9a'], ['w', '#f0f0e0']]));
-      expect([p.width, p.height]).toEqual([HD_SPRITE, HD_SPRITE]);
-      expect(opaque(p)).toBeGreaterThan(200);
+      expect([p.width, p.height]).toEqual([S, S]);
+      expect(opaque(p)).toBeGreaterThan(200 * ART_SCALE * ART_SCALE);
     });
     const blue = Array.from(paintMonster('slime', new Map([['g', '#3a8ae8']])).data).join();
     const red = Array.from(paintMonster('slime', new Map([['g', '#e04848']])).data).join();

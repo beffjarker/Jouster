@@ -2,6 +2,7 @@ import { MAPS, SIGN_TEXT } from '../data/maps';
 import { MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
 import { TILE_VARIANT_COUNTS, monsterVariant, monsterVariantCount, tileVariant } from './art';
 import { HD_SIGN, paintSign } from './hd-characters';
+import { ART_SCALE } from './hd-paint';
 
 describe('tile variants', () => {
   it('gives every solid landscape tile at least 3 variants', () => {
@@ -69,8 +70,9 @@ describe('town sign art', () => {
     expect(new Set(looks).size).toBe(kinds.length);
     kinds.forEach((k) => {
       const p = paintSign(k);
-      expect([p.width, p.height]).toEqual([HD_SIGN, HD_SIGN]);
-      expect([p.get(0, HD_SIGN - 1)[3], p.get(HD_SIGN - 1, HD_SIGN - 1)[3], p.get(HD_SIGN - 1, 0)[3]]).toEqual([0, 0, 0]);
+      const n = HD_SIGN * ART_SCALE;
+      expect([p.width, p.height]).toEqual([n, n]);
+      expect([p.get(0, n - 1)[3], p.get(n - 1, n - 1)[3], p.get(n - 1, 0)[3]]).toEqual([0, 0, 0]);
     });
   });
 });
