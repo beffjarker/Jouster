@@ -75,6 +75,20 @@ export class InputDriver {
     this.keys.up(action);
   }
 
+  /** Clicks or taps a logical screen point (480x270), then lets the game settle briefly. */
+  public tapAt(x: number, y: number): void {
+    this.input.pointerDown(x, y);
+    this.frame();
+    this.input.pointerUp(x, y);
+    this.run(0.05);
+  }
+
+  /** Moves the mouse (no button) to a logical screen point and runs one frame. */
+  public hover(x: number, y: number): void {
+    this.input.pointerMove(x, y);
+    this.frame();
+  }
+
   /** Types a character or a named key (`Enter`, `Backspace`, `Escape`). */
   public type(key: string): void {
     const code = key.length === 1 ? `Key${key.toUpperCase()}` : key;

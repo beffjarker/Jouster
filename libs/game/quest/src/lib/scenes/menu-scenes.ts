@@ -112,6 +112,11 @@ export class FieldMenuScene implements Scene {
       this.ctx.stack.pop();
       return;
     }
+    // Clicking the main menu while a sub-list is open jumps straight to the clicked entry.
+    if (this.mode !== 'main' && this.main.itemAt(input.tap) >= 0) {
+      this.mode = 'main';
+      this.sub = null;
+    }
     if (this.mode === 'main') {
       const res = this.main.update(input);
       const entry = res?.kind === 'select' ? MAIN_MENU[res.index] : undefined;
@@ -137,7 +142,7 @@ export class FieldMenuScene implements Scene {
       if (input.wasPressed('equip') && this.member) {
         this.ctx.audio.play('confirm');
         this.openSlots(this.member);
-      } else if (input.wasPressed('confirm') || input.wasPressed('cancel')) {
+      } else if (input.wasPressed('confirm') || input.wasPressed('cancel') || input.tap) {
         this.ctx.audio.play('cancel');
         this.openMembers('statusWho');
       }

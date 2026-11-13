@@ -15,12 +15,15 @@ import { loadLpcSheets } from './art/sheet-loader';
 import { GameContext } from './scenes/context';
 import { TitleScene } from './scenes/title-scene';
 import { SaveStorage, memoryStorage } from './state/game-state';
+import { SCREEN_H, SCREEN_W } from './ui/widgets';
 
 export interface JousterQuestOptions {
   /** Where saves go; defaults to `window.localStorage` (or an in-memory store if unavailable). */
   storage?: SaveStorage;
   /** Keyboard event source; defaults to `window`. Pass the canvas to only react while it has focus. */
   keySource?: KeyEventSource;
+  /** Set false to ignore mouse and touch on the canvas (keyboard only). Defaults to true. */
+  pointer?: boolean;
   /** Notified with the active scene id whenever the scene stack changes. */
   onSceneChange?(sceneId: string | undefined): void;
   scheduler?: FrameScheduler;
@@ -40,6 +43,24 @@ export function artStyleFromQuery(search: string): ArtStyle {
   return new URLSearchParams(search).get('art') === 'classic' ? 'classic' : 'lpc';
 }
 
+/** Size and position of the canvas on the page, as returned by `getBoundingClientRect`. */
+export interface ScreenRect {
+  readonly left: number;
+  readonly top: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+/**
+ * Maps a mouse / touch position (client pixels) to the 480x270 logical screen, whatever size the canvas is
+ * shown at (fit to a phone, 1:1, or scaled up in full screen).
+ */
+export function clientToLogical(clientX: number, clientY: number, rect: ScreenRect): { x: number; y: number } {
+  const x = ((clientX - rect.left) / Math.max(1, rect.width)) * SCREEN_W;
+  const y = ((clientY - rect.top) / Math.max(1, rect.height)) * SCREEN_H;
+  return { x: Math.max(0, Math.min(SCREEN_W - 1, x)), y: Math.max(0, Math.min(SCREEN_H - 1, y)) };
+}
+
 /** Scenes that consume raw typing, where the mute hotkey must not fire. */
 const TEXT_ENTRY_SCENES = new Set(['name-entry']);
 
@@ -57,6 +78,7 @@ export class JousterQuestGame {
   private readonly input: InputManager;
   private readonly ctx: GameContext;
   private readonly loop: GameLoop;
+  private readonly pointerCleanup: Array<() => void> = [];
 
   constructor(canvas: HTMLCanvasElement, options: JousterQuestOptions = {}) {
     const context2d = canvas.getContext('2d');
@@ -79,6 +101,9 @@ export class JousterQuestGame {
       () => this.render(),
       options.scheduler ?? animationFrameScheduler,
     );
+    if (options.pointer !== false) {
+      this.wirePointer(canvas);
+    }
     if (options.art === 'lpc') {
       loadLpcSheets(options.lpcAssetBase)
         .then((sheets) => this.ctx.art.useSheets(sheets))
@@ -99,8 +124,65 @@ export class JousterQuestGame {
   public destroy(): void {
     this.loop.stop();
     this.input.detach();
+    this.pointerCleanup.splice(0).forEach((off) => off());
     this.ctx.stack.clear();
     this.ctx.audio.dispose();
+  }
+
+  /**
+   * Mouse and touch on the canvas: left button / finger = tap and drag (`input.tap` / `input.pointer`),
+   * right click = back (cancel), mouse wheel = up / down in menus.
+   */
+  private wirePointer(canvas: HTMLCanvasElement): void {
+    const at = (e: PointerEvent): { x: number; y: number } => clientToLogical(e.clientX, e.clientY, canvas.getBoundingClientRect());
+    const listen = <K extends keyof HTMLElementEventMap>(
+      type: K,
+      handler: (e: HTMLElementEventMap[K]) => void,
+      opts?: AddEventListenerOptions,
+    ): void => {
+      canvas.addEventListener(type, handler, opts);
+      this.pointerCleanup.push(() => canvas.removeEventListener(type, handler, opts));
+    };
+    listen('pointerdown', (e) => {
+      if (e.button === 2) {
+        this.input.press('cancel');
+        return;
+      }
+      if (e.button !== 0) {
+        return;
+      }
+      const p = at(e);
+      this.input.pointerDown(p.x, p.y);
+      canvas.setPointerCapture?.(e.pointerId);
+    });
+    listen('pointermove', (e) => {
+      const p = at(e);
+      this.input.pointerMove(p.x, p.y);
+    });
+    const up = (e: PointerEvent): void => {
+      if (e.button === 2) {
+        this.input.release('cancel');
+        return;
+      }
+      const p = at(e);
+      this.input.pointerUp(p.x, p.y);
+    };
+    listen('pointerup', up);
+    listen('pointercancel', up);
+    listen('contextmenu', (e) => e.preventDefault());
+    listen(
+      'wheel',
+      (e) => {
+        if (e.deltaY === 0) {
+          return;
+        }
+        e.preventDefault();
+        const dir = e.deltaY > 0 ? 'down' : 'up';
+        this.input.press(dir);
+        this.input.release(dir);
+      },
+      { passive: false },
+    );
   }
 
   private update(dt: number): void {

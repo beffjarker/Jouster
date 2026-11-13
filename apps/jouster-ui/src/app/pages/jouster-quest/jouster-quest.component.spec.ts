@@ -17,6 +17,18 @@ jest.mock('@jouster/game/quest', () => ({
   ],
   // eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the exported constant name
   TEXT_ENTRY_SCENES: ['name-entry'],
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the exported constant name
+  POINTER_CONTROLS: [
+    { input: 'Click / tap the map', label: 'walk there' },
+    { input: 'Right-click', label: 'open the menu and go back' },
+  ],
+  // eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the exported constant name
+  TOUCH_BUTTONS: [
+    { id: 'up', label: 'U', name: 'Up', code: 'ArrowUp', key: 'ArrowUp', repeat: true },
+    { id: 'a', label: 'A', name: 'A: confirm', code: 'Enter', key: 'Enter' },
+    { id: 'b', label: 'B', name: 'B: menu and back', code: 'Escape', key: 'Escape' },
+    { id: 'map', label: 'MAP', name: 'World map', code: 'KeyM', key: 'Unidentified' },
+  ],
   artStyleFromQuery: (search: string) => (search.includes('art=classic') ? 'classic' : 'lpc'),
   // eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the exported class name
   JousterQuestGame: jest.fn().mockImplementation((_canvas: HTMLCanvasElement, options: typeof mockLastOptions) => {
@@ -71,11 +83,95 @@ describe('JousterQuestComponent', () => {
   it('renders one controls row per CONTROLS entry, with every key label', () => {
     spectator = createComponent();
     expect(spectator.query('.controls')).toHaveText('Controls');
-    const rows = spectator.queryAll('.controls li');
+    const rows = spectator.queryAll('.key-controls li');
     expect(rows.length).toBe(2);
     expect(rows[1].querySelectorAll('kbd').length).toBe(3);
     expect(rows[1]).toHaveText('Backspace');
     expect(rows[1]).toHaveText('open the menu and go back');
+  });
+
+  it('lists the mouse and touch controls', () => {
+    spectator = createComponent();
+    const rows = spectator.queryAll('.pointer-controls li');
+    expect(rows.length).toBe(2);
+    expect(rows[1]).toHaveText('Right-click');
+    expect(spectator.query('.hint')).not.toHaveText('not supported');
+  });
+
+  describe('touch pad', () => {
+    const keys: Array<{ type: string; code: string; key: string; repeat: boolean }> = [];
+    const listen = (canvas: HTMLCanvasElement): void => {
+      const record = (e: Event): void => {
+        const k = e as KeyboardEvent;
+        keys.push({ type: k.type, code: k.code, key: k.key, repeat: k.repeat });
+      };
+      canvas.addEventListener('keydown', record);
+      canvas.addEventListener('keyup', record);
+    };
+    const pointer = (el: Element, type: string): void => {
+      el.dispatchEvent(new Event(type, { bubbles: true, cancelable: true }));
+    };
+
+    beforeEach(() => {
+      keys.length = 0;
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    const showPad = (): HTMLCanvasElement => {
+      spectator = createComponent();
+      expect(spectator.query('.touch-pad')).toBeNull();
+      spectator.click('.touch-toggle');
+      spectator.detectChanges();
+      const canvas = spectator.query<HTMLCanvasElement>('canvas') as HTMLCanvasElement;
+      listen(canvas);
+      return canvas;
+    };
+
+    it('is hidden on mouse devices until toggled on', () => {
+      showPad();
+      expect(spectator.queryAll('.touch-key').length).toBe(4);
+      expect(spectator.query('.touch-toggle')).toHaveText('Hide touch buttons');
+    });
+
+    it('sends the button key to the game as keydown, then keyup on release', () => {
+      showPad();
+      const a = spectator.query('.touch-a') as HTMLElement;
+      pointer(a, 'pointerdown');
+      pointer(a, 'pointerup');
+      expect(keys).toEqual([
+        { type: 'keydown', code: 'Enter', key: 'Enter', repeat: false },
+        { type: 'keyup', code: 'Enter', key: 'Enter', repeat: false },
+      ]);
+    });
+
+    it('sends shortcut keys without typing letters', () => {
+      showPad();
+      pointer(spectator.query('.touch-map') as HTMLElement, 'pointerdown');
+      expect(keys[0]).toEqual({ type: 'keydown', code: 'KeyM', key: 'Unidentified', repeat: false });
+    });
+
+    it('repeats a held direction like a held key and stops on release', () => {
+      showPad();
+      const up = spectator.query('.touch-up') as HTMLElement;
+      pointer(up, 'pointerdown');
+      jest.advanceTimersByTime(350 + 120 * 2);
+      pointer(up, 'pointerleave');
+      jest.advanceTimersByTime(1000);
+      expect(keys.map((k) => `${k.type}${k.repeat ? '*' : ''}`)).toEqual(['keydown', 'keydown*', 'keydown*', 'keydown*', 'keyup']);
+    });
+
+    it('keeps the canvas focused when a button is pressed', () => {
+      const canvas = showPad();
+      canvas.focus();
+      const down = new Event('pointerdown', { bubbles: true, cancelable: true });
+      (spectator.query('.touch-b') as HTMLElement).dispatchEvent(down);
+      expect(down.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(canvas);
+    });
   });
 
   describe('full screen', () => {

@@ -5,6 +5,7 @@
 }
 
 .game-frame {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -20,13 +21,30 @@
     padding: 0;
     border-radius: 0;
 
-    .fullscreen-toggle {
+    .frame-buttons {
       display: none;
+    }
+
+    .touch-pad {
+      position: absolute;
+      inset: auto 0 12px;
+      pointer-events: none;
+
+      .touch-key {
+        pointer-events: auto;
+        opacity: 0.6;
+      }
     }
   }
 }
 
-.fullscreen-toggle {
+.frame-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.fullscreen-toggle,
+.touch-toggle {
   margin-top: 8px;
   padding: 4px 12px;
   border: 1px solid #555;
@@ -51,6 +69,11 @@
   image-rendering: crisp-edges;
   background: #000;
   outline: none;
+  // The game handles taps and drags itself; stop the browser from scrolling or zooming the page.
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 
   &:focus-visible {
     box-shadow: 0 0 0 3px #f8d878;
@@ -85,7 +108,99 @@
     font-family: monospace;
   }
 
+  h3 {
+    font-size: 1.1rem;
+    margin: 0.75rem 0 0.25rem;
+  }
+
   .hint {
     font-size: 0.95rem;
+  }
+}
+
+// On-screen pad for touch screens: D-pad on the left, A/B on the right, shortcut keys between.
+.touch-pad {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: min(960px, 100%);
+  margin-top: 10px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.touch-key {
+  border: 2px solid #8a7a4a;
+  border-radius: 8px;
+  background: #1c1c24;
+  color: #f8d878;
+  font: bold 14px monospace;
+  touch-action: none;
+  cursor: pointer;
+
+  &:active {
+    background: #3a3420;
+  }
+}
+
+.dpad {
+  display: grid;
+  grid-template-areas:
+    '. up .'
+    'left . right'
+    '. down .';
+  grid-template-columns: repeat(3, 52px);
+  grid-template-rows: repeat(3, 52px);
+
+  .touch-key {
+    font-size: 18px;
+  }
+
+  .touch-up {
+    grid-area: up;
+  }
+
+  .touch-left {
+    grid-area: left;
+  }
+
+  .touch-right {
+    grid-area: right;
+  }
+
+  .touch-down {
+    grid-area: down;
+  }
+}
+
+.menu-keys {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(64px, auto));
+  gap: 8px;
+
+  .touch-key {
+    padding: 8px 6px;
+    font-size: 12px;
+  }
+}
+
+.face-keys {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 14px;
+
+  .touch-key {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    font-size: 22px;
+  }
+
+  .touch-b {
+    margin-top: 40px;
   }
 }

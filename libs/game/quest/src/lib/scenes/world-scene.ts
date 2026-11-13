@@ -5,6 +5,7 @@ import {
   Renderer,
   Scene,
   TileMap,
+  firstStepToward,
   pickEncounter,
   rollEncounter,
   scaledEncounterRate,
@@ -102,6 +103,17 @@ export function cameraAxis(leaderPx: number, mapTiles: number, viewPx: number): 
   return Math.round(leaderPx - (viewPx - TILE) / 2);
 }
 
+/**
+ * Where a click / tap sent the party. `stand` walks onto the tile; `face` walks next to it (an NPC, sign,
+ * wall or counter) and turns to it, then talks when `talk` is set.
+ */
+export interface WalkGoal {
+  x: number;
+  y: number;
+  mode: 'stand' | 'face';
+  talk: boolean;
+}
+
 interface NpcRuntime extends Walker {
   def: NpcDef;
   moveT: number;
@@ -127,6 +139,9 @@ export class WorldScene implements Scene {
   private readonly torches: ReadonlyArray<{ x: number; y: number }>;
   private toast = '';
   private toastTimer = 0;
+  private walkGoal: WalkGoal | null = null;
+  /** Pointer press that started the current walk; dragging while it is held steers the party. */
+  private steerPress = -1;
 
   constructor(private readonly ctx: GameContext) {
     this.state = requireState(ctx);
@@ -198,6 +213,11 @@ export class WorldScene implements Scene {
       return;
     }
     this.updateNpcs(dt);
+    this.updatePointer(input);
+    if (this.walkGoal && DIRECTIONS.some((d) => input.isDown(d))) {
+      // Any direction key takes over from a click / tap walk, even mid-step.
+      this.walkGoal = null;
+    }
     if (this.moving) {
       this.moveT = Math.min(1, this.moveT + dt / STEP_TIME);
       if (this.moveT >= 1) {
@@ -231,18 +251,134 @@ export class WorldScene implements Scene {
     const dir = DIRECTIONS.find((d) => input.isDown(d));
     if (dir) {
       this.idle = 0;
+      this.walkGoal = null;
       this.tryMove(dir);
+    } else if (this.walkGoal) {
+      this.idle = 0;
+      this.followGoal();
     } else {
       this.idle += dt;
     }
   }
 
-  public render(r: Renderer): void {
+  /** The party's current tap-to-walk destination, if any (for tests). */
+  public get goal(): Readonly<WalkGoal> | null {
+    return this.walkGoal;
+  }
+
+  /** Camera offset in logical units (top-left of the view in map space). */
+  private camera(): { x: number; y: number } {
     const leader = this.walkers[0];
     const lx = this.lerp(leader.fromX, leader.x, this.moveT) * TILE;
     const ly = this.lerp(leader.fromY, leader.y, this.moveT) * TILE;
-    const camX = cameraAxis(lx, this.tiles.width, SCREEN_W);
-    const camY = cameraAxis(ly, this.tiles.height, SCREEN_H);
+    return { x: cameraAxis(lx, this.tiles.width, SCREEN_W), y: cameraAxis(ly, this.tiles.height, SCREEN_H) };
+  }
+
+  /** Map tile under a logical screen point. */
+  public tileAtScreen(sx: number, sy: number): { x: number; y: number } {
+    const cam = this.camera();
+    return { x: Math.floor((sx + cam.x) / TILE), y: Math.floor((sy + cam.y) / TILE) };
+  }
+
+  /** Logical screen point at the centre of a map tile (inverse of `tileAtScreen`). */
+  public tileToScreen(x: number, y: number): { x: number; y: number } {
+    const cam = this.camera();
+    return { x: x * TILE - cam.x + TILE / 2, y: y * TILE - cam.y + TILE / 2 };
+  }
+
+  /** Click / tap: walk to the tile, or up to an NPC or sign to talk; drag while held to steer. */
+  private updatePointer(input: InputManager): void {
+    const tap = input.tap;
+    if (tap) {
+      this.idle = 0;
+      this.steerPress = input.pointerPresses;
+      const t = this.tileAtScreen(tap.x, tap.y);
+      const leader = this.walkers[0];
+      if (t.x === leader.x && t.y === leader.y && !this.moving) {
+        this.walkGoal = null;
+        this.interact();
+        return;
+      }
+      this.setGoal(t.x, t.y);
+      return;
+    }
+    const p = input.pointer;
+    if (p?.down && this.steerPress === input.pointerPresses && input.pointerMovedThisFrame) {
+      const t = this.tileAtScreen(p.x, p.y);
+      if (!this.walkGoal || this.walkGoal.x !== t.x || this.walkGoal.y !== t.y) {
+        this.setGoal(t.x, t.y);
+      }
+    }
+  }
+
+  private setGoal(x: number, y: number): void {
+    const sign = this.map.signs?.some((s) => s.x === x && s.y === y) ?? false;
+    const npc = this.npcAt(x, y) !== undefined;
+    const blocked = !this.tiles.inBounds(x, y) || this.tiles.isSolid(x, y);
+    this.walkGoal = { x, y, mode: npc || sign || blocked ? 'face' : 'stand', talk: npc || sign };
+  }
+
+  /** Direction from which `interact()` reaches the goal tile (next to it, or across a shop counter). */
+  private facingToGoal(x: number, y: number, goal: WalkGoal): Facing | null {
+    for (const dir of DIRECTIONS) {
+      const d = FACING_DELTA[dir];
+      if (x + d.x === goal.x && y + d.y === goal.y) {
+        return dir;
+      }
+      const counter = this.tiles.tileAt(x + d.x, y + d.y)?.id === 'counter';
+      if (goal.talk && counter && x + d.x * 2 === goal.x && y + d.y * 2 === goal.y) {
+        return dir;
+      }
+    }
+    return null;
+  }
+
+  /** Takes one step along a shortest path to the walk goal; talks or stops on arrival. */
+  private followGoal(): void {
+    const goal = this.walkGoal;
+    const leader = this.walkers[0];
+    if (!goal) {
+      return;
+    }
+    if (goal.mode === 'stand' && leader.x === goal.x && leader.y === goal.y) {
+      this.walkGoal = null;
+      return;
+    }
+    if (goal.mode === 'face') {
+      const face = this.facingToGoal(leader.x, leader.y, goal);
+      if (face) {
+        this.walkGoal = null;
+        leader.facing = face;
+        this.state.facing = face;
+        if (goal.talk) {
+          this.interact();
+        }
+        return;
+      }
+    }
+    const free = (x: number, y: number): boolean =>
+      this.tiles.inBounds(x, y) && !this.tiles.isSolid(x, y) && !this.npcAt(x, y) && this.explored(x, y);
+    const isWarp = (x: number, y: number): boolean => this.map.warps.some((w) => w.x === x && w.y === y);
+    const isGoal =
+      goal.mode === 'stand'
+        ? (x: number, y: number): boolean => x === goal.x && y === goal.y
+        : (x: number, y: number): boolean => free(x, y) && !isWarp(x, y) && this.facingToGoal(x, y, goal) !== null;
+    // Doors and stairs are only walked through when they are the destination.
+    const step = firstStepToward(leader, isGoal, (x, y) => free(x, y) && !isWarp(x, y));
+    const d = step ? FACING_DELTA[step] : null;
+    if (!step || !d || this.tiles.isSolid(leader.x + d.x, leader.y + d.y) || this.npcAt(leader.x + d.x, leader.y + d.y)) {
+      this.walkGoal = null;
+      if (step) {
+        leader.facing = step;
+        this.state.facing = step;
+      }
+      return;
+    }
+    this.tryMove(step);
+  }
+
+  public render(r: Renderer): void {
+    const { x: camX, y: camY } = this.camera();
     const frame = Math.floor(this.time * 2) % 2;
     const startX = Math.floor(camX / TILE);
     const startY = Math.floor(camY / TILE);
@@ -302,6 +438,7 @@ export class WorldScene implements Scene {
         draw: () => r.draw(sprite, px - a.x, py - a.y, { alpha: member.hp > 0 ? 1 : 0.45 }),
       });
     });
+    this.renderGoal(r, camX, camY);
     sprites.sort((a, b) => a.y - b.y).forEach((s) => s.draw());
     if (this.outdoors) {
       drawWeather(r, this.weather, this.time, { x: camX, y: camY });
@@ -310,6 +447,26 @@ export class WorldScene implements Scene {
       this.renderFog(r, startX, startY, camX, camY);
     }
     this.renderHud(r);
+  }
+
+  /** Blinking corner marks on the tap-to-walk destination. */
+  private renderGoal(r: Renderer, camX: number, camY: number): void {
+    const g = this.walkGoal;
+    if (!g || Math.floor(this.time * 4) % 2 === 1) {
+      return;
+    }
+    const x = g.x * TILE - camX;
+    const y = g.y * TILE - camY;
+    const c = COLORS.gold;
+    const k = 5;
+    r.fillRect(x, y, k, 1, c);
+    r.fillRect(x, y, 1, k, c);
+    r.fillRect(x + TILE - k, y, k, 1, c);
+    r.fillRect(x + TILE - 1, y, 1, k, c);
+    r.fillRect(x, y + TILE - 1, k, 1, c);
+    r.fillRect(x, y + TILE - k, 1, k, c);
+    r.fillRect(x + TILE - k, y + TILE - 1, k, 1, c);
+    r.fillRect(x + TILE - 1, y + TILE - k, 1, k, c);
   }
 
   /** Unexplored tiles are black (dithered at the edge); explored tiles out of sight are dimmed. */
@@ -402,11 +559,13 @@ export class WorldScene implements Scene {
     s.party.forEach((m) => applyFieldRegen(m, s.steps, mapHasEncounters(this.map)));
     const warp = this.map.warps.find((w) => w.x === s.x && w.y === s.y);
     if (warp) {
+      this.walkGoal = null;
       this.warpTo(warp);
       return;
     }
     const event = this.map.events.find((e) => e.x === s.x && e.y === s.y);
     if (event) {
+      this.walkGoal = null;
       this.handleEvent(event.id);
     }
     const tableId = this.tiles.tileAt(s.x, s.y)?.encounterTableId;
@@ -416,6 +575,7 @@ export class WorldScene implements Scene {
     const rate = table ? scaledEncounterRate(table.rate, partyLevel, table.level) : 0;
     if (table && rollEncounter(rate, s.stepsSinceBattle, this.ctx.rng)) {
       const max = s.party.length === 1 ? SOLO_MAX_ENEMIES : MAX_PARTY;
+      this.walkGoal = null;
       this.startBattle(pickEncounter(table, this.ctx.rng, max));
     }
   }

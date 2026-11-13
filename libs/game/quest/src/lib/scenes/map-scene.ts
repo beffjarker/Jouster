@@ -138,7 +138,7 @@ export class MapScene implements Scene {
 
   public update(dt: number, input: InputManager): void {
     this.time += dt;
-    if (input.wasPressed('map') || input.wasPressed('cancel') || input.wasPressed('confirm')) {
+    if (input.wasPressed('map') || input.wasPressed('cancel') || input.wasPressed('confirm') || input.tap) {
       this.ctx.audio.play('cancel');
       this.ctx.stack.pop();
     }

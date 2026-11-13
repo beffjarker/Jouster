@@ -9,6 +9,7 @@ import {
   Combatant,
   Element,
   InputManager,
+  PointerPoint,
   Renderer,
   Scene,
   SoundId,
@@ -22,7 +23,7 @@ import { Backdrop } from '../data/maps';
 import { BOSS_HP_SCALE, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
 import { GameState, addItem } from '../state/game-state';
 import { PartyMember, grantXp, memberToCombatant, monstersToCombatants, syncFromCombatants } from '../state/party';
-import { COLORS, ListMenu, MenuItem, SCREEN_H, SCREEN_W, charsFit, drawCursor, drawHint } from '../ui/widgets';
+import { COLORS, ListMenu, MenuItem, SCREEN_H, SCREEN_W, charsFit, drawCursor, drawHint, inRect } from '../ui/widgets';
 import { GameContext, requireState } from './context';
 
 export type BattleEnd = Exclude<BattleOutcome, 'ongoing'>;
@@ -254,7 +255,8 @@ export class BattleScene implements Scene {
 
   public update(dt: number, input: InputManager): void {
     this.time += dt;
-    this.speed = this.phase === 'events' && input.isDown('confirm') ? FAST_FORWARD : 1;
+    const held = input.isDown('confirm') || input.pointer?.down === true;
+    this.speed = this.phase === 'events' && held ? FAST_FORWARD : 1;
     this.animate(dt * this.speed);
     if (this.inputGuard > 0) {
       this.inputGuard = Math.max(0, this.inputGuard - dt);
@@ -265,7 +267,7 @@ export class BattleScene implements Scene {
     switch (this.phase) {
       case 'intro':
         this.timer += dt;
-        if (this.timer > 1.2 || input.wasPressed('confirm')) {
+        if (this.timer > 1.2 || input.wasPressed('confirm') || input.tap) {
           this.startCommands();
         }
         return;
@@ -440,15 +442,45 @@ export class BattleScene implements Scene {
     this.phase = 'target';
   }
 
+  /**
+   * Combatant under a logical point among the current targets: enemy and ally sprites on the field, or a
+   * party member's row in the status window.
+   */
+  private targetAt(p: PointerPoint | null): number {
+    if (!p) {
+      return -1;
+    }
+    return this.targets.findIndex((c) => {
+      const spot = this.spots.get(c.id);
+      if (spot) {
+        const at = this.pose(c);
+        if (inRect(p, at.x, at.y, spot.size, spot.size)) {
+          return true;
+        }
+      }
+      const row = c.side === 'party' ? this.battle.party.indexOf(c) : -1;
+      return row >= 0 && inRect(p, STATUS_X, PANEL_Y + 4 + row * 21, STATUS_W, 21);
+    });
+  }
+
   private updateTarget(input: InputManager): void {
     const n = this.targets.length;
-    if (input.wasPressed('right') || input.wasPressed('down')) {
+    const tapped = this.targetAt(input.tap);
+    const hovered = input.pointerMovedThisFrame && !input.tap ? this.targetAt(input.pointer) : -1;
+    if (tapped >= 0) {
+      this.targetCursor = tapped;
+    } else if (hovered >= 0 && hovered !== this.targetCursor) {
+      this.targetCursor = hovered;
+      this.ctx.audio.play('cursor');
+      return;
+    }
+    if (tapped < 0 && (input.wasPressed('right') || input.wasPressed('down'))) {
       this.targetCursor = (this.targetCursor + 1) % n;
       this.ctx.audio.play('cursor');
     } else if (input.wasPressed('left') || input.wasPressed('up')) {
       this.targetCursor = (this.targetCursor - 1 + n) % n;
       this.ctx.audio.play('cursor');
-    } else if (input.wasPressed('confirm')) {
+    } else if (tapped >= 0 || input.wasPressed('confirm')) {
       const target = this.targets[this.targetCursor];
       if (this.isFull(target, this.targetRestore)) {
         this.ctx.audio.play('cancel');
@@ -508,7 +540,7 @@ export class BattleScene implements Scene {
 
   private updateEvents(dt: number, input: InputManager): void {
     this.timer -= dt * this.speed;
-    if (input.wasPressed('confirm')) {
+    if (input.wasPressed('confirm') || input.tap) {
       this.timer = Math.min(this.timer, 0.05);
     }
     while (this.timer <= 0 && this.queue.length > 0) {
@@ -862,7 +894,7 @@ export class BattleScene implements Scene {
    */
   private updateEnd(dt: number, input: InputManager): void {
     this.timer -= dt;
-    const pressed = input.wasPressed('confirm') || input.wasPressed('cancel');
+    const pressed = input.wasPressed('confirm') || input.wasPressed('cancel') || input.tap !== null;
     if (this.awaitingOk) {
       if (!pressed || this.timer > -END_INPUT_GUARD) {
         return;
