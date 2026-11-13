@@ -1333,7 +1333,17 @@ Goal: all the generated art should be much more detailed than in 16.8.
   - cave: a noisy rock wall, stalactites, stalagmites, glowing crystals and puddles.
 
   Each backdrop takes about 0.25 to 0.7 s to paint (Node, full size), once per kind, on the first battle there.
+- **Title backdrop** (`paintTitleBackdrop`, cached by `Art.titleBackdrop()`): the flat sky, 1 px stars and
+  column mountains are replaced by a painted night scene: a dithered sky with the Milky Way, hundreds of
+  coloured stars with glints, a cratered moon with a halo, a dragon crossing the sky, moonlit snow-capped
+  mountains, a castle with lit windows and a flag on a misty hill, a road winding to it through a grassy field
+  with fireflies, and dark pines framing the edges. Blinking glints are drawn over it each frame. It takes
+  about 0.6 s to paint (Node, full size), once.
+- **Class and name screens:** draw the same night scene dimmed behind their windows instead of plain black.
+- **Battle shadows:** the hard translucent bar under each combatant is replaced by a soft painted ellipse
+  (`Art.shadow()`) that follows the combatant as it steps forward.
 - **Tests:** specs use `ART_SCALE` for sizes; backdrops are checked for size, opacity, determinism, being
-  different per kind and a sky that darkens towards the top.
+  different per kind and a sky that darkens towards the top; the title backdrop for size, opacity, determinism,
+  a dark sky and lit windows; the shadow for a dark centre fading to transparent corners.
 - **Possible follow-ups:** pre-paint backdrops while the title screen is idle, time-of-day and weather variants,
   and dedicated backdrops for towns, swamps or the dragon's lair.

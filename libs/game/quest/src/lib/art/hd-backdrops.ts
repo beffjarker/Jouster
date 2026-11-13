@@ -320,3 +320,274 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
   }
   return p;
 }
+
+/** A dark pine silhouette. */
+function nightPine(p: Paint, x: number, base: number, h: number, seed: number): void {
+  const w = h * 0.36;
+  const tiers: Shape[] = [box(x - h * 0.03, base - h * 0.12, h * 0.06, h * 0.12)];
+  const n = 6;
+  for (let i = 0; i < n; i++) {
+    const t = i / n;
+    const ty = base - h * 0.1 - t * h * 0.85;
+    const tw = w * (1 - t * 0.8) * (0.9 + hash(i, seed, 3) * 0.2);
+    tiers.push(poly([x - tw, ty, x - tw * 0.2, ty - h * 0.24, x, ty - h * 0.3, x + tw * 0.2, ty - h * 0.24, x + tw, ty]));
+  }
+  p.flat(union(...tiers), '#040a07');
+}
+
+/** Moon centre and radius on the title backdrop, as fractions of the width and the horizon height. */
+const MOON = { x: 0.15, y: 0.3, r: 0.085 };
+
+function castle(p: Paint, x: number, base: number, sc: number): void {
+  const wall = '#151832';
+  const lit = '#ffcf5a';
+  const parts: Shape[] = [box(x - 34 * sc, base - 26 * sc, 68 * sc, 26 * sc)];
+  const towers: Array<[number, number, number]> = [
+    [-38, 44, 9],
+    [38, 40, 9],
+    [-12, 58, 8],
+    [14, 66, 10],
+  ];
+  towers.forEach(([dx, h, w]) => parts.push(box(x + (dx - w / 2) * sc, base - h * sc, w * sc, h * sc)));
+  for (let i = 0; i < 9; i++) {
+    parts.push(box(x + (-34 + i * 8) * sc, base - 30 * sc, 4 * sc, 4 * sc));
+  }
+  const body = union(...parts);
+  p.fill(body, wall, { gradX: 0.8, tex: 0.12, seed: 77, rim: true, rimShade: -2 });
+  towers.forEach(([dx, h, w], i) => {
+    const tx = x + dx * sc;
+    const top = base - h * sc;
+    p.fill(poly([tx - (w / 2 + 2) * sc, top, tx, top - (12 + i * 2) * sc, tx + (w / 2 + 2) * sc, top]), '#2a1e3a', {
+      gradX: 1.6,
+      rim: true,
+      rimShade: -2,
+    });
+    // Moonlight on the left edge of each tower and roof.
+    p.flat(seg(tx - (w / 2) * sc, top, tx - (w / 2) * sc, base - 2, 0.35), '#5a66a8', 0.6);
+    p.flat(seg(tx - (w / 2 + 2) * sc, top, tx, top - (12 + i * 2) * sc, 0.35), '#7a86c8', 0.6);
+    for (let k = 0; k < 2; k++) {
+      const wy = top + (8 + k * 14) * sc;
+      p.flat(ell(tx, wy, 3.5 * sc, 3.5 * sc), lit, 0.08);
+      p.flat(ell(tx, wy, 2.2 * sc, 2.2 * sc), lit, 0.12);
+      p.flat(box(tx - 1 * sc, wy - 2 * sc, 2 * sc, 4 * sc), lit);
+    }
+  });
+  // Flag on the keep.
+  const fx = x + 14 * sc;
+  const ft = base - (66 + 18) * sc - 8 * sc;
+  p.flat(seg(fx, ft, fx, ft + 10 * sc, 0.3), '#8a8aa0');
+  p.fill(poly([fx, ft, fx + 9 * sc, ft + 2 * sc, fx, ft + 4.5 * sc]), '#c02838', { bevel: 0, gradX: 1 });
+  // Gate with a warm glow.
+  p.flat(ell(x, base - 6 * sc, 12 * sc, 9 * sc), lit, 0.12);
+  p.flat(union(box(x - 5 * sc, base - 10 * sc, 10 * sc, 10 * sc), ell(x, base - 10 * sc, 5 * sc)), '#e8a040');
+  p.flat(box(x - 0.3, base - 14 * sc, 0.6, 14 * sc), '#151832', 0.5);
+}
+
+function dragon(p: Paint, x: number, y: number, s: number): void {
+  const c = '#0a0a1a';
+  const wing = (dir: number): Shape =>
+    poly([x, y, x + dir * s * 0.3, y - s * 0.55, x + dir * s * 0.75, y - s * 0.7, x + dir * s * 0.62, y - s * 0.32,
+      x + dir * s * 0.5, y - s * 0.15, x + dir * s * 0.35, y - s * 0.05]);
+  const body = union(
+    ell(x, y, s * 0.28, s * 0.09),
+    seg(x + s * 0.22, y - s * 0.02, x + s * 0.42, y - s * 0.14, s * 0.045),
+    poly([x + s * 0.4, y - s * 0.18, x + s * 0.56, y - s * 0.13, x + s * 0.42, y - s * 0.09]),
+    seg(x - s * 0.24, y, x - s * 0.5, y + s * 0.08, s * 0.04),
+    seg(x - s * 0.5, y + s * 0.08, x - s * 0.68, y + s * 0.02, s * 0.025),
+    poly([x - s * 0.68, y - s * 0.03, x - s * 0.76, y + s * 0.03, x - s * 0.66, y + s * 0.06]),
+    wing(1),
+    wing(-1),
+  );
+  p.flat(body, c);
+  // Wing membranes catch a little moonlight.
+  p.flat(seg(x, y, x - s * 0.62, y - s * 0.32, 0.3), '#2a2c52');
+  p.flat(seg(x, y, x + s * 0.62, y - s * 0.32, 0.3), '#2a2c52');
+  p.spot(x + s * 0.5, y - s * 0.15, '#ff5030');
+}
+
+/** Pseudo-random twinkling star positions in logical pixels (above `horizon`) for the title scene. */
+export function titleTwinkles(width: number, horizon: number, count = 18): Array<{ x: number; y: number }> {
+  const out: Array<{ x: number; y: number }> = [];
+  for (let i = 0; i < count; i++) {
+    out.push({ x: Math.floor(hash(i, 1, 91) * width), y: Math.floor(hash(i, 2, 91) * horizon * 0.62) });
+  }
+  return out;
+}
+
+/**
+ * The title screen's painted night scene, `width` x `height` logical pixels with the horizon at `horizon`:
+ * a moonlit sky with the Milky Way, a dragon crossing the moon, snowy mountains, a castle with lit windows
+ * on a hill and a road leading to it, framed by dark pines.
+ */
+export function paintTitleBackdrop(width: number, height: number, horizon: number): Paint {
+  const W = width * U;
+  const H = height * U;
+  const HZ = horizon * U;
+  const p = new Paint(W, H, ART_SCALE);
+  const s = p.scale;
+  const mx = W * MOON.x;
+  const my = HZ * MOON.y;
+  const mr = HZ * MOON.r;
+  const top = rgb('#04061a');
+  const low = rgb('#1e1f4c');
+  const dusk = rgb('#4a3268');
+  const band = rgb('#7a70b8');
+  const halo = rgb('#b8c4ff');
+  const farC = rgb('#1c1f46');
+  const snow = rgb('#c8d4ff');
+  const midC = rgb('#141c34');
+  const mist = rgb('#3c3c70');
+  const grass = rgb('#13261a');
+  const grassNear = rgb('#08120c');
+  const road = rgb('#2e2c2a');
+  const lerp = (x: Rgb, y: Rgb, t: number): Rgb => [x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t];
+  const farTop: number[] = [];
+  const midTop: number[] = [];
+  for (let fx = 0; fx <= p.width; fx++) {
+    const u = (fx + 0.5) / s - 0.5;
+    farTop.push(HZ - 70 - ridge(u * 0.8, 3.1, 46));
+    midTop.push(HZ - 24 - ridge(u, 5.3, 16) - Math.max(0, 1 - Math.abs(u - W * 0.8) / (W * 0.14)) * 30);
+  }
+  // The Milky Way runs diagonally from top left to the right horizon.
+  const bx0 = 0;
+  const by0 = HZ * 0.05;
+  const bdx = W;
+  const bdy = HZ * 0.75;
+  const blen = Math.hypot(bdx, bdy);
+  const data = p.data;
+  for (let fy = 0; fy < p.height; fy++) {
+    const v = (fy + 0.5) / s - 0.5;
+    const tg = (v - HZ) / Math.max(1, H - HZ);
+    for (let fx = 0; fx < p.width; fx++) {
+      const u = (fx + 0.5) / s - 0.5;
+      const d = bayer(fx, fy);
+      let c: Rgb;
+      if (v < HZ) {
+        const t = Math.max(0, Math.min(1, v / HZ + d * 0.04));
+        c = lerp(top, low, t);
+        c = lerp(c, dusk, Math.max(0, t - 0.6) * 0.9);
+        const dist = Math.abs((u - bx0) * bdy - (v - by0) * bdx) / blen;
+        const b = Math.exp(-((dist / 70) ** 2));
+        if (b > 0.01) {
+          const n = valueNoise(u, v, 30, 4, NO_WRAP) * 0.6 + valueNoise(u, v, 9, 6, NO_WRAP) * 0.4;
+          const dust = 1 - Math.max(0, valueNoise(u + v * 0.3, v, 22, 8, NO_WRAP) - 0.5) * 1.2;
+          c = lerp(c, band, b * (0.25 + n * 0.75) * 0.34 * dust);
+        }
+        const dm = Math.hypot(u - mx, v - my);
+        if (dm < mr * 6) {
+          c = lerp(c, halo, (1 - dm / (mr * 6)) ** 2.2 * 0.4 + d * 0.02);
+        }
+        const fTop = farTop[fx];
+        if (v >= fTop) {
+          const slope = (farTop[Math.min(p.width, fx + 24)] - farTop[Math.max(0, fx - 24)]) * (s / 48);
+          // Lit from the moon on the left: slopes rising to the right face it.
+          const rock = valueNoise(u, v * 2, 10, 21, NO_WRAP);
+          c = scaled(farC, 0.9 + Math.max(-0.25, Math.min(0.3, -slope * 0.5)) + rock * 0.2 + d * 0.05);
+          if (v < fTop + 12 && fTop < HZ - 92) {
+            c = lerp(c, snow, (slope < 0 ? 0.75 : 0.35) * (1 - (v - fTop) / 12));
+          }
+        }
+        const mTop = midTop[fx];
+        if (v >= mTop) {
+          const n = valueNoise(u, v, 8, 12, NO_WRAP);
+          c = scaled(midC, 0.85 + n * 0.3 + d * 0.05);
+          if (v < mTop + 1.5) {
+            c = lerp(c, rgb('#4a5890'), 0.6);
+          }
+        }
+        c = lerp(c, mist, Math.max(0, 1 - (HZ - v) / 34) * 0.45);
+      } else {
+        c = lerp(grass, grassNear, Math.min(1, tg * 1.6));
+        const n = valueNoise(u, v * (2 - tg), 26, 11, NO_WRAP) * 0.6 + valueNoise(u, v, 4, 13, NO_WRAP) * 0.4;
+        c = scaled(c, 0.8 + n * 0.4 + (hash(fx, fy, 17) - 0.5) * 0.12 + d * 0.04);
+        const roadX = W * 0.8 - (W * 0.32) * Math.pow(tg, 0.8) + Math.sin(tg * 7) * W * 0.04;
+        const rw = 2 + tg * 46;
+        const off = Math.abs(u - roadX);
+        if (off < rw) {
+          c = lerp(c, scaled(road, 0.85 + n * 0.3), 0.85 * Math.min(1, (rw - off) / 3));
+        }
+        c = lerp(c, mist, Math.max(0, 0.12 - tg) * 3);
+      }
+      const i = (fy * p.width + fx) * 4;
+      data[i] = c[0];
+      data[i + 1] = c[1];
+      data[i + 2] = c[2];
+      data[i + 3] = 255;
+    }
+  }
+
+  // Stars (only where the sky shows: before the mountains would cover them, so test against the ridge).
+  const starColors = ['#ffffff', '#cfe0ff', '#fff2c8', '#ffd8d0', '#b8c8ff'];
+  for (let i = 0; i < 520; i++) {
+    const x = hash(i, 1, 71) * W;
+    const y = Math.pow(hash(i, 2, 71), 1.3) * HZ;
+    const fx = Math.min(p.width, Math.max(0, Math.floor(x * s)));
+    if (y > farTop[fx] - 2 || Math.hypot(x - mx, y - my) < mr * 1.4) {
+      continue;
+    }
+    const m = hash(i, 3, 71);
+    const color = starColors[i % starColors.length];
+    if (m > 0.97) {
+      p.flat(ell(x, y, 2.2, 2.2), color, 0.12);
+      p.flat(seg(x - 3, y, x + 3, y, 0.15), color, 0.6);
+      p.flat(seg(x, y - 3, x, y + 3, 0.15), color, 0.6);
+      p.flat(ell(x, y, 0.6, 0.6), '#ffffff');
+    } else if (m > 0.8) {
+      p.flat(ell(x, y, 0.45, 0.45), color, 0.9);
+    } else {
+      p.flat(ell(x, y, 0.28, 0.28), color, 0.35 + m * 0.6);
+    }
+  }
+
+  // The moon, with craters and a soft terminator.
+  const moon = ell(mx, my, mr, mr);
+  p.fill(moon, '#eef0ff', { sphere: true, sphereAmount: 0.45, tex: 0.5, seed: 5, rim: true, rimShade: -1 });
+  for (let i = 0; i < 7; i++) {
+    const a = hash(i, 1, 81) * Math.PI * 2;
+    const dd = hash(i, 2, 81) * mr * 0.7;
+    const cr = mr * (0.08 + hash(i, 3, 81) * 0.14);
+    p.flat(ell(mx + Math.cos(a) * dd, my + Math.sin(a) * dd, cr, cr), '#b8bcd8', 0.6);
+    p.flat(ell(mx + Math.cos(a) * dd - cr * 0.25, my + Math.sin(a) * dd - cr * 0.25, cr * 0.6, cr * 0.6), '#d8dcf0', 0.5);
+  }
+  p.flat(cut(moon, ell(mx - mr * 0.45, my - mr * 0.2, mr * 1.05, mr * 1.05)), '#6a70a0', 0.35);
+
+  dragon(p, mx + mr * 2.6, my + mr * 0.9, 58);
+
+  // Castle on its hill; framing pines go on last, over the grass.
+  castle(p, W * 0.8, Math.min(...midTop.slice(Math.floor(W * 0.78 * s), Math.floor(W * 0.82 * s))) + 6, 1.35);
+  // Moonlit grass in the foreground.
+  for (let i = 0; i < 260; i++) {
+    const t = Math.pow(hash(i, 1, 111), 0.7);
+    const x = hash(i, 2, 111) * W;
+    const y = HZ + 4 + t * (H - HZ - 6);
+    grassTuft(p, x, y, 0.5 + t * 1.5, '#1c3426', i);
+  }
+  // Fireflies.
+  for (let i = 0; i < 24; i++) {
+    const x = hash(i, 1, 121) * W;
+    const y = HZ + 6 + hash(i, 2, 121) * (H - HZ - 10);
+    p.flat(ell(x, y, 2.4, 2.4), '#e8ff80', 0.12);
+    p.flat(ell(x, y, 0.5, 0.5), '#f4ffb0');
+  }
+  const pines: Array<[number, number, number, number]> = [];
+  for (let i = 0; i < 7; i++) {
+    pines.push([-6 + i * 13 + hash(i, 1, 101) * 6, H * (0.8 + hash(i, 2, 101) * 0.25), 120 + hash(i, 3, 101) * 80, i + 300]);
+    pines.push([W + 6 - i * 13 - hash(i, 4, 101) * 6, H * (0.8 + hash(i, 5, 101) * 0.25), 120 + hash(i, 6, 101) * 80, i + 400]);
+  }
+  pines.sort((a, b) => a[1] - b[1]).forEach(([x, base, h, seed]) => nightPine(p, x, base, h, seed));
+  return p;
+}
+
+/** Soft elliptical ground shadow, `width` logical pixels wide, fading out towards its rim. */
+export function paintShadow(width: number): Paint {
+  const W = width * U;
+  const H = Math.max(2, width * 0.28) * U;
+  const p = new Paint(W, H, ART_SCALE);
+  p.pixels((u, v, fx, fy) => {
+    const d = Math.hypot((u + 0.5 - W / 2) / (W / 2), (v + 0.5 - H / 2) / (H / 2));
+    if (d < 1) {
+      p.fpx(fx, fy, '#000000', 0.42 * (1 - d * d));
+    }
+  });
+  return p;
+}
