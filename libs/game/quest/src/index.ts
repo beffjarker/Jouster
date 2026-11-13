@@ -8,3 +8,4 @@ export * from './lib/data/monsters';
 export * from './lib/data/companions';
 export * from './lib/data/maps';
 export * from './lib/balance/simulator';
+export * from './lib/ui/controls';

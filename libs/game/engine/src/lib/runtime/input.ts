@@ -1,6 +1,7 @@
 export type InputAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'cancel' | 'map' | 'mute' | 'items' | 'equip';
 
-const KEY_BINDINGS: ReadonlyArray<[string, InputAction]> = [
+/** Keyboard `code` → game action. The page's controls list is checked against this (see `CONTROLS`). */
+export const KEY_BINDINGS: ReadonlyArray<readonly [string, InputAction]> = [
   ['ArrowUp', 'up'],
   ['KeyW', 'up'],
   ['ArrowDown', 'down'],

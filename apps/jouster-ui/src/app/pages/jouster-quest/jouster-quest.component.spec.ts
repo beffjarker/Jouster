@@ -10,6 +10,10 @@ let mockLastOptions:
   | undefined;
 
 jest.mock('@jouster/game/quest', () => ({
+  CONTROLS: [
+    { keys: ['Arrows', 'WASD'], codes: ['ArrowUp'], label: 'move and choose' },
+    { keys: ['X', 'Esc', 'Backspace'], codes: ['KeyX'], label: 'open the menu and go back' },
+  ],
   // eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the exported class name
   JousterQuestGame: jest.fn().mockImplementation((_canvas: HTMLCanvasElement, options: typeof mockLastOptions) => {
     if (mockShouldThrow) {
@@ -59,9 +63,13 @@ describe('JousterQuestComponent', () => {
     expect(spectator.query('.unsupported')).toHaveText('does not support');
   });
 
-  it('lists the keyboard controls', () => {
+  it('renders one controls row per CONTROLS entry, with every key label', () => {
     spectator = createComponent();
     expect(spectator.query('.controls')).toHaveText('Controls');
-    expect(spectator.queryAll('.controls li').length).toBe(6);
+    const rows = spectator.queryAll('.controls li');
+    expect(rows.length).toBe(2);
+    expect(rows[1].querySelectorAll('kbd').length).toBe(3);
+    expect(rows[1]).toHaveText('Backspace');
+    expect(rows[1]).toHaveText('open the menu and go back');
   });
 });

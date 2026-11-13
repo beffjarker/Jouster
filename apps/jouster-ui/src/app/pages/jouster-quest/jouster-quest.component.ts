@@ -10,7 +10,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { JousterQuestGame } from '@jouster/game/quest';
+import { CONTROLS, ControlEntry, JousterQuestGame } from '@jouster/game/quest';
 import { PageTitleComponent } from '../../components/page-title/page-title.component';
 
 /** Hosts the Jouster Quest canvas game. The game loop runs outside Angular's zone. */
@@ -26,6 +26,7 @@ export class JousterQuestComponent implements AfterViewInit, OnDestroy {
   @ViewChild('screen', { static: true }) public canvasRef!: ElementRef<HTMLCanvasElement>;
 
   public unsupported = false;
+  public readonly controls: readonly ControlEntry[] = CONTROLS;
   private game: JousterQuestGame | null = null;
   private readonly zone = inject(NgZone);
   private readonly cdr = inject(ChangeDetectorRef);
