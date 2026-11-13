@@ -1059,7 +1059,8 @@ caves, characters and monsters must be checked first.
 
 **Effort:** ~2–3 weeks (vs ~1–1.5 for the top-down Kenney swap), mostly in rendering, depth sorting and art.
 
-**Decision:** not started. Do the top-down Kenney tile spike first; then, if wanted, a **one-map isometric
+**Decision (2026-11-13):** stay top-down for now (faster to build); isometric may be revisited later. Do the
+top-down Kenney tile spike first; then, if wanted, a **one-map isometric
 prototype** (Aldmere only, behind `?view=iso`) so both looks can be compared in the browser before committing.
 
 ### 16.4 Work breakdown
