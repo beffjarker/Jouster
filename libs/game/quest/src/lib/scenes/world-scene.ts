@@ -14,7 +14,7 @@ import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { ARMOR_SHOP_STOCK } from '../data/gear';
-import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, Warp, mapDef, mapHasEncounters } from '../data/maps';
+import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, SIGN_TEXT, Warp, mapDef, mapHasEncounters } from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
 import {
   CAVE_FOG_RADIUS,
@@ -245,6 +245,11 @@ export class WorldScene implements Scene {
     if (this.outdoors) {
       drawSeasonTint(r, seasonAt(this.state.steps));
     }
+    const windy = this.outdoors && (this.weather === 'storm' || this.weather === 'blizzard');
+    (this.map.signs ?? []).forEach((s, i) => {
+      const sway = windy ? Math.round(Math.sin(this.time * 6 + i)) : 0;
+      r.draw(this.ctx.art.sign(s.kind), s.x * TILE - camX + sway, s.y * TILE - camY);
+    });
     const sprites: Array<{ y: number; draw(): void }> = [];
     this.npcs
       .filter((n) => this.npcVisible(n) && this.explored(n.x, n.y))
@@ -519,6 +524,12 @@ export class WorldScene implements Scene {
       npc = this.npcAt(leader.x + d.x * 2, leader.y + d.y * 2);
     }
     if (!npc) {
+      const sign = this.map.signs?.find((s) => s.x === leader.x + d.x && s.y === leader.y + d.y);
+      if (sign) {
+        const text = SIGN_TEXT[sign.kind];
+        this.ctx.audio.play('confirm');
+        say(this.ctx.stack, this.ctx.audio, [`${this.map.name.toUpperCase()} ${text.name.toUpperCase()} - ${text.blurb}`]);
+      }
       return;
     }
     if (npc.moveT >= 1) {

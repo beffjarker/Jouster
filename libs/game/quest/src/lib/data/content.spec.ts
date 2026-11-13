@@ -2,7 +2,7 @@ import { FACING_DELTA, TileMap } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { CLASSES } from '../data/classes';
 import { ITEMS, WEAPONS, WEAPON_SHOP_STOCK } from '../data/equipment';
-import { INN_RESPAWN, MAPS, MapDef } from '../data/maps';
+import { INN_RESPAWN, MAPS, MapDef, SIGN_TEXT, SignKind } from '../data/maps';
 import { COMPANION_SLOTS } from '../data/companions';
 import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
 import { OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
@@ -134,5 +134,45 @@ describe('monster names', () => {
     const varied = [...MONSTERS.values()].filter((m) => monsterVariantCount(m.spriteId) > 1);
     expect(varied.length).toBeGreaterThan(0);
     varied.forEach((m) => expect({ id: m.id, name: m.name, colour: COLOUR_WORDS.test(m.name) }).toEqual({ id: m.id, name: m.name, colour: false }));
+  });
+});
+
+describe('town signs', () => {
+  const ROLE_SIGN: Readonly<Record<string, SignKind>> = {
+    inn: 'inn',
+    itemShop: 'item',
+    weaponShop: 'weapon',
+    armorShop: 'armor',
+    church: 'chapel',
+    king: 'castle',
+  };
+  const near = (a: { x: number; y: number }, b: { x: number; y: number }): boolean =>
+    Math.max(Math.abs(a.x - b.x), Math.abs(a.y - b.y)) <= 4;
+
+  it('hangs every sign on a wall with a walkable tile beside it to read from', () => {
+    [...MAPS.values()].filter((m) => m.signs).forEach((m) => {
+      const map = tileMap(m);
+      (m.signs ?? []).forEach((s) => {
+        expect({ map: m.id, s, tile: map.tileAt(s.x, s.y)?.id }).toEqual({ map: m.id, s, tile: 'wall' });
+        const readable = Object.values(FACING_DELTA).some((d) => !map.isSolid(s.x + d.x, s.y + d.y));
+        expect({ map: m.id, s, readable }).toEqual({ map: m.id, s, readable: true });
+        expect(SIGN_TEXT[s.kind].name.length).toBeGreaterThan(0);
+      });
+    });
+  });
+
+  it('marks every service NPC and the tavern with a matching nearby sign', () => {
+    MAPS.forEach((m) => {
+      m.npcs
+        .filter((n) => n.role && ROLE_SIGN[n.role])
+        .forEach((n) => {
+          const kind = ROLE_SIGN[n.role as string];
+          const ok = (m.signs ?? []).some((s) => s.kind === kind && near(s, n));
+          expect({ map: m.id, npc: n.id, kind, ok }).toEqual({ map: m.id, npc: n.id, kind, ok: true });
+        });
+    });
+    const tavern = COMPANION_SLOTS.find((s) => s.id === 'tavern');
+    const aldmere = MAPS.get(tavern?.mapId ?? '');
+    expect(tavern && (aldmere?.signs ?? []).some((s) => s.kind === 'tavern' && near(s, tavern))).toBe(true);
   });
 });

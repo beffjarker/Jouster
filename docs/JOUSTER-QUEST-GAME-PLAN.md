@@ -57,7 +57,7 @@ apps/
 | --- | --- |
 | **Game loop** | Fixed-timestep update (60 Hz) and `requestAnimationFrame` render |
 | **Scene manager** | Stack of scenes with fades: Title, ClassSelect, NameEntry, World (overworld, towns, dungeons), Battle, field Menu, Shop, Dialogue, World Map, GameOver |
-| **Input** | Arrows/WASD move; Z/Enter/Space confirm; X/Esc cancel and open the field menu; M world map; N sound on/off. Planned (15.4): I opens Items, E opens Equip. Read only while the canvas has focus. Gamepad and touch are deferred |
+| **Input** | Arrows/WASD move; Z/Enter/Space confirm; X/Esc cancel and open the field menu; M world map; N sound on/off; I opens Items, E opens Equip (15.4). Read only while the canvas has focus. Gamepad and touch are deferred |
 | **Tilemap** | Ground tiles with collision, encounter terrain, warps and NPC spawns |
 | **Fog of war** | Hidden overworld and dungeon tiles revealed within a radius of the party; explored tiles saved per map (14.1) |
 | **World map** | `M` overlay of the current map's explored tiles, discovered places and quest hints (14.1) |
@@ -67,7 +67,7 @@ apps/
 | **Dialogue** | Typewriter text box, portraits (optional), yes/no prompts, sets and reads story flags |
 | **Encounters** | Step counter in danger tiles; per-region rate (default ~1/16 per step); towns are safe. Each area has a level (Greenwood 2, Forest 4, Hills 5, Cave 6, Den 6); when the highest party level is more than 3 above it, the rate drops to ¼ and halves for each further level (floor 1/32 of the base) |
 | **Battle** | Turn-based combat (section 5) |
-| **Inventory/Equipment** | Weapon slot today (equipped by buying it); armor, shield and accessory slots with an EQUIP menu planned (15.4); consumables; key items; gold |
+| **Inventory/Equipment** | Weapon, armor, shield and accessory slots with an EQUIP menu (15.4); consumables; key items; gold |
 | **Progression** | XP curve, level-ups, per-class stat growth, spells learned by level |
 | **Save/Load** | Save at the inn or chapel; one save slot (more slots deferred); schema version for migrations |
 | **Audio** | SFX (step, hit, spell, level-up) and per-scene music |
@@ -268,7 +268,7 @@ NPCs with hints and side quests
 | **2. Overworld** | Exploration | Map loader, grid movement, camera, warps, a town, NPC dialogue | Done |
 | **3. Characters** | Class select | Class data, title screen, class-select screen, stats model | Done |
 | **4. Battle** | Core combat | Encounter rolls, battle scene, turn system, enemy AI, XP and level-ups, defeat handling | Done |
-| **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done for weapons (equipped by buying them); armor, shield and accessory slots, an EQUIP menu and `I`/`E` shortcuts are planned in 15.4 |
+| **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Not started |
 | **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, battle animations) |
@@ -367,7 +367,7 @@ NPCs with hints and side quests
 - Field menu opens with X/Esc (not Space); Space is an extra confirm key. `M` opens the world map, `N` toggles sound.
 - Keyboard input is only read while the game canvas has focus.
 - Full parties may beat the trio balance targets slightly; solo and duo targets are enforced by the simulator.
-- Armor/shield/accessory slots (now planned in 15.4), status-curing at the chapel, and music loops are deferred.
+- Armor/shield/accessory slots (built in 15.4); status-curing at the chapel, and music loops are deferred.
 
 ---
 
@@ -627,9 +627,9 @@ These shipped on PR #184 after the first revision 3 pass, in response to play-te
 
 ---
 
-## 15. Revision 4 (play-test feedback, planned — not implemented yet)
+## 15. Revision 4 (play-test feedback — implemented)
 
-Feedback from the fourth play-test. Nothing in this section is built yet; it is the agreed plan.
+Feedback from the fourth play-test. All items below are built; see 15.12 for where the build differs from the plan.
 
 ### 15.1 Weather stays with the land
 
@@ -799,7 +799,7 @@ reads at any scale and needs no translation):
   new towns only add entries. They block movement like the wall they hang on.
 - **Art:** 32×32 tile drawn by the same procedural sprite code: a wooden board on an iron bracket with the icon;
   a slight sway (1px, slow) when weather is windy or stormy (14.1.1). Signs never use the random wall variants.
-- **Interaction:** facing a sign and pressing confirm shows its name ("Aldmere Inn — rest and save"). Optional
+- **Interaction:** facing a sign and pressing confirm shows its name ("ALDMERE INN - rest and recover"). Optional
   later: the world map (`M`) shows the same icons for discovered towns' services.
 - **Tests:** a map-data test checks every inn/shop/chapel/tavern NPC has a matching sign within a few tiles and
   that every sign sits on a wall tile; a sprite test checks each sign kind renders.
@@ -887,3 +887,16 @@ replacing inns, Herbs or Heal. The Cleric recovers fastest, the Paladin in betwe
 10. Slower Cleric MP regen, town exclusion and simulator re-check (15.9).
 11. Field HP regen for all classes (Cleric > Paladin > others) with the same rules (15.10).
 12. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
+
+### 15.12 Implementation notes
+
+- **Signs (15.7):** signs are a transparent sprite drawn over the wall tile they hang on (the wall keeps its
+  normal look), between the tiles and the characters. Aldmere has castle, chapel, item, smithy, tavern, inn and
+  armorer signs; Brookhollow has inn and item signs.
+- **Armorer (15.4):** a stall east of the Aldmere fountain sells all armor, shields and accessories. Bought gear
+  goes to the bag and can be equipped on the spot (the replaced piece is traded in for half its price) or later
+  with `E`.
+- **Saves:** the side-quest stages (15.6) and gear slots (15.4) are optional fields, so the save version did not
+  need a bump; older saves load with empty slots and quests derived from flags.
+- **Field regen (15.9/15.10):** the balance simulator does not simulate walking regen between fights, so its win
+  rates are slightly pessimistic.

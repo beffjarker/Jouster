@@ -1,6 +1,6 @@
-import { MAPS } from '../data/maps';
+import { MAPS, SIGN_TEXT } from '../data/maps';
 import { MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
-import { TILE_VARIANT_COUNTS, monsterVariant, monsterVariantCount, tileVariant } from './art';
+import { TILE_VARIANT_COUNTS, drawSign, monsterVariant, monsterVariantCount, tileVariant } from './art';
 
 describe('tile variants', () => {
   it('gives every solid landscape tile at least 3 variants', () => {
@@ -59,5 +59,33 @@ describe('monster variants', () => {
       seen.add(v);
     }
     expect(seen.size).toBe(monsterVariantCount('slime'));
+  });
+});
+describe('town sign art', () => {
+  /** Paints into a 16x16 colour grid so each sign's pixels can be compared. */
+  function paint(kind: string): string[] {
+    const px: string[] = new Array(16 * 16).fill('');
+    const ctx = {
+      fillStyle: '',
+      fillRect(x: number, y: number, w: number, h: number): void {
+        for (let j = y; j < y + h; j++) {
+          for (let i = x; i < x + w; i++) {
+            px[j * 16 + i] = this.fillStyle;
+          }
+        }
+      },
+    };
+    drawSign(ctx as unknown as CanvasRenderingContext2D, kind);
+    return px;
+  }
+
+  it('draws a distinct icon for every sign kind and leaves the corners transparent', () => {
+    const kinds = Object.keys(SIGN_TEXT);
+    const looks = kinds.map((k) => paint(k).join(','));
+    expect(new Set(looks).size).toBe(kinds.length);
+    kinds.forEach((k) => {
+      const px = paint(k);
+      expect([px[15 * 16], px[15 * 16 + 15], px[15]]).toEqual(['', '', '']);
+    });
   });
 });
