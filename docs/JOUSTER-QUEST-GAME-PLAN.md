@@ -773,7 +773,33 @@ review.
 - **Tests:** scene tests check that the wolf/toad are absent before the quest, appear once accepted, that winning
   moves the quest to `ready`, and that turning in rewards once; a save-migration test covers early kills.
 
-### 15.7 Work breakdown
+### 15.7 Building signs in towns
+
+**Problem:** town buildings look alike, so the player has to walk in and talk to find the inn or a shop.
+
+**Plan:** each service building gets a hanging sign above its door, drawn as a pixel-art icon (no text, so it
+reads at any scale and needs no translation):
+
+| Building | Towns | Sign icon |
+| --- | --- | --- |
+| Inn | Aldmere, Brookhollow | Bed |
+| Tavern / bar | Aldmere | Mug of ale |
+| Item shop | Aldmere, Brookhollow | Potion bottle |
+| Weapon shop | Aldmere | Crossed swords |
+| Armor shop (with 15.4) | Aldmere, later towns | Shield |
+| Chapel | Aldmere | Holy symbol |
+| Castle | Aldmere | Crown banner |
+
+- **Data:** signs are listed per town map as `signs: [{ x, y, kind }]` placed on the wall tile above each door, so
+  new towns only add entries. They block movement like the wall they hang on.
+- **Art:** 32×32 tile drawn by the same procedural sprite code: a wooden board on an iron bracket with the icon;
+  a slight sway (1px, slow) when weather is windy or stormy (14.1.1). Signs never use the random wall variants.
+- **Interaction:** facing a sign and pressing confirm shows its name ("Aldmere Inn — rest and save"). Optional
+  later: the world map (`M`) shows the same icons for discovered towns' services.
+- **Tests:** a map-data test checks every inn/shop/chapel/tavern NPC has a matching sign within a few tiles and
+  that every sign sits on a wall tile; a sprite test checks each sign kind renders.
+
+### 15.8 Work breakdown
 
 1. Plan update (this section) — done first, before any code.
 2. World-anchored weather (15.1) and its renderer test.
@@ -782,5 +808,6 @@ review.
 5. Heal helper, battle target greying, heal property test (15.5).
 6. Side-quest stages, dormant mini-bosses, accept/decline, victory messages, save migration (15.6).
 7. Equipment slots, EQUIP menu, `I`/`E` shortcuts, armor shops, save v4 and simulator re-check (15.4) —
-   the largest item, done last.
-8. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
+   the largest item.
+8. Building signs (15.7), including the armor shop sign added with 15.4.
+9. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
