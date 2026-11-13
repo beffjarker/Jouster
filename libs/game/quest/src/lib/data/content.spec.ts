@@ -7,6 +7,7 @@ import { COMPANION_SLOTS } from '../data/companions';
 import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
 import { OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
 import { newGameState } from '../state/game-state';
+import { monsterVariantCount } from '../art/art';
 
 function tileMap(def: MapDef): TileMap {
   return new TileMap(def.rows, def.legend);
@@ -123,5 +124,15 @@ describe('Jouster Quest content', () => {
         }
       }),
     );
+  });
+});
+
+describe('monster names', () => {
+  const COLOUR_WORDS = /\b(grey|gray|red|blue|green|black|white|brown|gold|golden|purple|teal)\b/i;
+
+  it('monsters with more than one look have names without colour words', () => {
+    const varied = [...MONSTERS.values()].filter((m) => monsterVariantCount(m.spriteId) > 1);
+    expect(varied.length).toBeGreaterThan(0);
+    varied.forEach((m) => expect({ id: m.id, name: m.name, colour: COLOUR_WORDS.test(m.name) }).toEqual({ id: m.id, name: m.name, colour: false }));
   });
 });

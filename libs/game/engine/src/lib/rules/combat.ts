@@ -50,6 +50,8 @@ export interface Combatant {
   /** Rewards (enemies only). */
   xp: number;
   gold: number;
+  /** Chance (0–1) that this enemy drops gold at all; default 1. The amount then varies ±25%. */
+  goldChance?: number;
   drops: { itemId: string; chance: number }[];
   stolen: boolean;
 }
@@ -138,6 +140,14 @@ export function magicalHit(
 /** Healing: `power + MAG * magScale + rand(-2..2)`. */
 export function healAmount(caster: Combatant, rng: Rng, power: number, magScale = 2): number {
   return Math.max(1, Math.floor(power + caster.mag * magScale + rng.int(-2, 2)));
+}
+
+/**
+ * Amount a restore can actually add: never pushes `current` above `max` and never negative.
+ * Every heal path (spells, items, regen) must go through this so overheal is impossible.
+ */
+export function cappedRestore(current: number, max: number, amount: number): number {
+  return Math.max(0, Math.min(max - current, Math.floor(amount)));
 }
 
 /**

@@ -194,6 +194,7 @@ export class BattleScene implements Scene {
   private pendingId = '';
   private targets: Combatant[] = [];
   private targetCursor = 0;
+  private targetRestore: 'hp' | 'mp' | undefined;
   private endLines: string[] = [];
   private outcomeSound: SoundId | null = null;
   private speed = 1;
@@ -400,23 +401,41 @@ export class BattleScene implements Scene {
       if (def.target === 'self' || def.target === 'allEnemies') {
         this.pushAction({ kind: 'ability', actorId: this.actor.id, abilityId: id });
       } else {
-        this.beginTarget(this.battle.targetsFor(this.actor, def.target));
+        this.beginTarget(this.battle.targetsFor(this.actor, def.target), def.effect === 'heal' ? 'hp' : undefined);
       }
       return;
     }
     this.pendingKind = 'item';
     const item = ITEMS.get(id);
     const revive = item?.effect === 'revive';
-    this.beginTarget(this.battle.party.filter((c) => (revive ? !isAlive(c) : isAlive(c))));
+    const restore = item?.effect === 'healHp' ? 'hp' : item?.effect === 'healMp' ? 'mp' : undefined;
+    this.beginTarget(
+      this.battle.party.filter((c) => (revive ? !isAlive(c) : isAlive(c))),
+      restore,
+    );
   }
 
-  private beginTarget(targets: Combatant[]): void {
+  /** True when a heal of this kind would do nothing for the target (full HP or MP). */
+  private isFull(c: Combatant, restore: 'hp' | 'mp' | undefined): boolean {
+    if (restore === 'hp') {
+      return c.hp >= c.maxHp;
+    }
+    return restore === 'mp' ? c.mp >= c.maxMp : false;
+  }
+
+  private beginTarget(targets: Combatant[], restore?: 'hp' | 'mp'): void {
     if (targets.length === 0) {
       this.ctx.audio.play('cancel');
       return;
     }
+    this.targetRestore = restore;
+    if (targets.every((c) => this.isFull(c, restore))) {
+      this.ctx.audio.play('cancel');
+      this.log = [restore === 'mp' ? 'Everyone has full MP.' : 'Everyone has full HP.'];
+      return;
+    }
     this.targets = targets;
-    this.targetCursor = 0;
+    this.targetCursor = Math.max(0, targets.findIndex((c) => !this.isFull(c, restore)));
     this.phase = 'target';
   }
 
@@ -429,8 +448,13 @@ export class BattleScene implements Scene {
       this.targetCursor = (this.targetCursor - 1 + n) % n;
       this.ctx.audio.play('cursor');
     } else if (input.wasPressed('confirm')) {
+      const target = this.targets[this.targetCursor];
+      if (this.isFull(target, this.targetRestore)) {
+        this.ctx.audio.play('cancel');
+        return;
+      }
       this.ctx.audio.play('confirm');
-      this.confirmTarget(this.targets[this.targetCursor]);
+      this.confirmTarget(target);
     } else if (input.wasPressed('cancel')) {
       this.ctx.audio.play('cancel');
       this.phase = this.pendingKind === 'attack' ? 'command' : this.pendingKind;
@@ -793,7 +817,8 @@ export class BattleScene implements Scene {
       const survivors = this.members.filter((m) => m.hp > 0);
       const share = Math.ceil(rewards.xp / Math.max(1, survivors.length));
       this.state.gold += rewards.gold;
-      lines.push('Victory!', `Each survivor gains ${share} XP. Found ${rewards.gold} gold.`);
+      const goldText = rewards.gold > 0 ? `Found ${rewards.gold} gold.` : 'No gold found.';
+      lines.push('Victory!', `Each survivor gains ${share} XP. ${goldText}`);
       rewards.items.forEach((id) => {
         addItem(this.state, id);
         lines.push(`Found a ${ITEMS.get(id)?.name ?? id}!`);
@@ -1059,7 +1084,8 @@ export class BattleScene implements Scene {
       const x = STATUS_X + 8;
       const dead = v.hp <= 0;
       const hpColor = dead ? COLORS.hpLow : v.hp <= c.maxHp / 4 ? COLORS.warn : COLORS.text;
-      const nameColor = dead ? COLORS.hpLow : i === highlight ? COLORS.gold : COLORS.text;
+      const full = this.phase === 'target' && this.targets.includes(c) && this.isFull(c, this.targetRestore);
+      const nameColor = dead ? COLORS.hpLow : full ? COLORS.dim : i === highlight ? COLORS.gold : COLORS.text;
       if (i === highlight) {
         drawCursor(r, x - 6, y, COLORS.gold);
       }
@@ -1093,9 +1119,12 @@ export class BattleScene implements Scene {
       if (target) {
         const v = this.shown.get(target.id) ?? { hp: target.hp, mp: target.mp };
         r.text('TARGET', subX + 8, y + 8, COLORS.dim);
-        r.text(target.name.toUpperCase().slice(0, 20), subX + 8, y + 20, COLORS.gold);
+        r.text(target.name.toUpperCase().slice(0, 20), subX + 8, y + 20, this.isFull(target, this.targetRestore) ? COLORS.dim : COLORS.gold);
         if (target.side === 'party') {
           r.text(`HP ${v.hp}/${target.maxHp}`, subX + 8, y + 32);
+        }
+        if (this.isFull(target, this.targetRestore)) {
+          r.text(this.targetRestore === 'mp' ? 'MP FULL' : 'HP FULL', subX + 8, y + 44, COLORS.warn);
         }
         r.text('ARROWS: CHOOSE', subX + 8, y + 56, COLORS.dim);
         return;

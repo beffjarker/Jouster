@@ -6,11 +6,12 @@ import {
   Stats,
   WeaponDef,
   abilitiesAtLevel,
+  cappedRestore,
   levelForXp,
   statsAtLevel,
   totalXpForLevel,
 } from '@jouster/game/engine';
-import { classDef } from '../data/classes';
+import { classDef, fieldHpStepInterval } from '../data/classes';
 import { WEAPONS } from '../data/equipment';
 
 export interface PartyMember {
@@ -70,6 +71,25 @@ export function restoreMember(m: PartyMember): void {
   m.mp = s.mp;
 }
 
+/**
+ * Walking regen for one step (plan 15.9/15.10): +1 HP every `fieldHpStepInterval` steps for every class and
+ * +1 MP every `fieldMpStepInterval` steps for classes with that passive. Only on maps with encounters, never for
+ * KO'd members and never above max.
+ */
+export function applyFieldRegen(m: PartyMember, steps: number, encounterMap: boolean): void {
+  if (!encounterMap || m.hp <= 0) {
+    return;
+  }
+  const s = memberStats(m);
+  if (steps % fieldHpStepInterval(m.classId) === 0) {
+    m.hp += cappedRestore(m.hp, s.hp, 1);
+  }
+  const mpInterval = classDef(m.classId).passive?.fieldMpStepInterval;
+  if (mpInterval && steps % mpInterval === 0) {
+    m.mp += cappedRestore(m.mp, s.mp, 1);
+  }
+}
+
 export function memberToCombatant(m: PartyMember): Combatant {
   const cls = classDef(m.classId);
   const s = memberStats(m);
@@ -109,6 +129,9 @@ export function memberToCombatant(m: PartyMember): Combatant {
     stolen: false,
   };
 }
+
+/** Chance that a common (non-boss) monster drops gold when defeated. */
+export const DEFAULT_GOLD_CHANCE = 0.55;
 
 /** Builds enemy combatants, naming duplicates "Slime A", "Slime B"... */
 export function monstersToCombatants(defs: MonsterDef[], hpScale = 1): Combatant[] {
@@ -151,6 +174,7 @@ export function monstersToCombatants(defs: MonsterDef[], hpScale = 1): Combatant
       sourceId: d.id,
       xp: d.xp,
       gold: d.gold,
+      goldChance: d.goldChance ?? (d.boss ? 1 : DEFAULT_GOLD_CHANCE),
       drops: d.drops.map((x) => ({ ...x })),
       stolen: false,
     };

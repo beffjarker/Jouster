@@ -10,6 +10,7 @@ import {
   scaledEncounterRate,
 } from './rules/encounter';
 import { TileMap } from './world/tilemap';
+import { cappedRestore } from './rules/combat';
 import { wrapText } from './runtime/pixel-font';
 import { InputManager, KeyEventSource } from './runtime/input';
 import { FrameScheduler, GameLoop } from './runtime/game-loop';
@@ -133,6 +134,23 @@ describe('encounters', () => {
     for (let i = 0; i < 50; i++) {
       expect(pickEncounter(table, rng, 2).length).toBeLessThanOrEqual(2);
     }
+  });
+});
+
+describe('cappedRestore', () => {
+  it('never takes a value above its maximum or below where it started', () => {
+    const rng = createRng(11);
+    for (let i = 0; i < 2000; i++) {
+      const max = rng.int(1, 300);
+      const current = rng.int(0, max);
+      const amount = rng.int(0, 400);
+      const gained = cappedRestore(current, max, amount);
+      expect(gained).toBeGreaterThanOrEqual(0);
+      expect(current + gained).toBeLessThanOrEqual(max);
+      expect(gained).toBeLessThanOrEqual(amount);
+    }
+    expect(cappedRestore(10, 10, 50)).toBe(0);
+    expect(cappedRestore(5, 10, 3)).toBe(3);
   });
 });
 
