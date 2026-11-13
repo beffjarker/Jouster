@@ -10,7 +10,8 @@ import {
   createRng,
   timeSeed,
 } from '@jouster/game/engine';
-import { Art } from './art/art';
+import { Art, ArtStyle } from './art/art';
+import { loadLpcSheets } from './art/sheet-loader';
 import { GameContext } from './scenes/context';
 import { TitleScene } from './scenes/title-scene';
 import { SaveStorage, memoryStorage } from './state/game-state';
@@ -24,6 +25,19 @@ export interface JousterQuestOptions {
   onSceneChange?(sceneId: string | undefined): void;
   scheduler?: FrameScheduler;
   seed?: number;
+  /**
+   * Art style (plan 16.2 spike): `classic` (procedural, default) or `lpc`, which loads the LPC tile
+   * sheets in the background and switches tiles over once they arrive (procedural art until then, or
+   * if loading fails).
+   */
+  art?: ArtStyle;
+  /** Folder URL of the LPC sheets; defaults to `game-assets/lpc/`. */
+  lpcAssetBase?: string;
+}
+
+/** Reads the art style from a URL query such as `?art=lpc`; anything else is `classic`. */
+export function artStyleFromQuery(search: string): ArtStyle {
+  return new URLSearchParams(search).get('art') === 'lpc' ? 'lpc' : 'classic';
 }
 
 /** Scenes that consume raw typing, where the mute hotkey must not fire. */
@@ -65,6 +79,11 @@ export class JousterQuestGame {
       () => this.render(),
       options.scheduler ?? animationFrameScheduler,
     );
+    if (options.art === 'lpc') {
+      loadLpcSheets(options.lpcAssetBase)
+        .then((sheets) => this.ctx.art.useSheets(sheets))
+        .catch(() => undefined);
+    }
   }
 
   public get context(): GameContext {

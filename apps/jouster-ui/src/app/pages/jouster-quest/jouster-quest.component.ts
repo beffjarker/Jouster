@@ -11,7 +11,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { CONTROLS, ControlEntry, JousterQuestGame, TEXT_ENTRY_SCENES } from '@jouster/game/quest';
+import { CONTROLS, ControlEntry, JousterQuestGame, TEXT_ENTRY_SCENES, artStyleFromQuery } from '@jouster/game/quest';
 import { PageTitleComponent } from '../../components/page-title/page-title.component';
 
 /** Canvas size in real pixels (480x270 logical layout at 2x density). */
@@ -61,6 +61,7 @@ export class JousterQuestComponent implements AfterViewInit, OnDestroy {
       this.zone.runOutsideAngular(() => {
         this.game = new JousterQuestGame(canvas, {
           keySource: canvas,
+          art: artStyleFromQuery(window.location.search),
           onSceneChange: (id) => {
             canvas.dataset['scene'] = id ?? '';
           },
