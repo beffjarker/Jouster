@@ -254,9 +254,10 @@ NPCs with hints and side quests
 - **Sprites:** 32×32-pixel overworld characters (4 directions × 2 frames); 32×32-pixel monsters shown 2–4× in
   battle; tiles have 32×32 pixels of detail on a 16×16 logical grid. The bitmap font stays chunky for readability.
 - **Tools:** all art is currently drawn in code (`Art` class); Aseprite or LibreSprite if hand-made sprites are added.
-- **Assets:** the first release uses only original procedural pixel art. CC0 sprite sheets from Kenney
-  (decided 2026-11-13) may replace it through the `Art` class; any added files must be listed in `CREDITS.md`.
-  CraftPix is deferred; see 16.2 for the licensing notes.
+- **Assets:** the first release uses only original procedural pixel art. **Liberated Pixel Cup (LPC)** 32×32
+  sheets (CC-BY-SA 3.0, decided 2026-11-13) are the primary replacement through the `Art` class, with Kenney CC0
+  as a secondary source and the procedural art as the fallback; every added file must be credited in
+  `CREDITS.md`. CraftPix is deferred; see 16.2 for the licensing notes.
 - **Audio:** procedural chiptune SFX with Web Audio; optional looping tracks per region and battle.
 
 ---
@@ -937,16 +938,19 @@ XP is already given only to party members who survive a battle, so benched compa
   a companion swapped out and back keeps level and XP; an old save with `companionLevels` loads correctly;
   simulator checks above.
 
-### 16.2 Using third-party art (decision: Kenney CC0)
+### 16.2 Using third-party art (decision: LPC 32×32 primary, Kenney secondary)
 
 **Today:** every tile, character, monster, sign and weather sprite is drawn in code by the `Art` class (16×16
 logical, rendered at 2× detail). Scenes only call `art.tile(id, frame, variant)`, `art.character(...)`,
 `art.monster(...)` and `art.sign(...)`, which return canvases. That narrow interface is what makes a swap
 practical: only `Art` needs to change.
 
-**Decision (2026-11-13):** use **Kenney CC0 packs** for now. They need no license bookkeeping, can be committed
-and shared freely (even if the repo goes public again), and can be shown to AI tools while building the manifest.
-CraftPix stays a possible later upgrade; the licensing review below is kept for that.
+**Decision (2026-11-13, updated):** use **Liberated Pixel Cup (LPC)** art as the **primary** source, at native
+32×32. It is top-down 3/4-view fantasy pixel art (SNES-era look, full colour), covers towns, dungeons, characters
+with full animation and many monsters, and its license allows committing, sharing and showing the files to AI
+tools. **Kenney CC0** packs are the **secondary** source for gaps (scaled 2× from 16×16), and the procedural
+`Art` drawers remain the last fallback. The world view stays **top-down** (see 16.5). CraftPix stays a possible
+later upgrade; the licensing review below is kept for that.
 
 **Licensing (re-examined after the repository was made private, 2026-11-13):**
 
@@ -954,7 +958,8 @@ CraftPix stays a possible later upgrade; the licensing review below is kept for 
 | --- | --- | --- | --- |
 | **CraftPix freebies** | CraftPix license §2: personal and commercial games, edits allowed, no attribution required | **Yes, while the repo stays private** | No reselling or redistributing the files or near-copies; no AI use (see below) |
 | **CraftPix premium** | CraftPix license §1: same, bought per pack or by subscription; downloads stay usable after the subscription ends | **Yes, while private** | Same restrictions; non-transferable, licensed to the buyer only |
-| **Kenney** | CC0 (public domain) | Yes, always | 16×16; fallback for gaps CraftPix doesn't cover |
+| **LPC (primary)** | CC-BY-SA 3.0 or GPL 3 (dual; we use CC-BY-SA 3.0); some layers CC-BY / OGA-BY / CC0 | Yes, always | 32×32 tiles, 64×64 character frames; credit every author; edited files stay CC-BY-SA |
+| **Kenney (secondary)** | CC0 (public domain) | Yes, always | 16×16, scaled 2×; fills gaps LPC doesn't cover |
 | **OpenGameArt / itch.io** | Per pack | Depends | Use only CC0/CC-BY (credit it) or licenses at least as permissive as CraftPix's |
 
 **What the CraftPix license allows and forbids for this project:**
@@ -978,7 +983,45 @@ CraftPix stays a possible later upgrade; the licensing review below is kept for 
 them from git history before the repo is ever made public; keep them out of AI tools; and credit them in
 `CREDITS.md`. Its 32×32 packs match our real pixel density with no scaling.
 
-**Kenney packs to use:**
+**LPC: what the license requires (CC-BY-SA 3.0):**
+
+- **Attribution:** credit every author of every file used (LPC files often have several authors). `CREDITS.md`
+  lists file, authors, license and source URL; the in-game title screen links to it. Sources that ship credit
+  files (the character generator's credits export, OpenGameArt `CREDITS` text) are copied as-is.
+- **Share-alike:** any edited or recoloured PNG we commit is also CC-BY-SA 3.0 and is marked so in `CREDITS.md`.
+  This applies to the art only; the game code keeps its own license (the art is used as separate files, not
+  merged into code).
+- **No other limits:** no AI clause, no login, no redistribution ban, so downloads can be scripted and the repo can
+  go public again without purging history.
+
+**LPC sources to use (coverage to confirm in the spike):**
+
+| Source | Use |
+| --- | --- |
+| **LPC base assets** (original 2012 contest set) and **LPC Tile Atlas / Tile Atlas 2** (OpenGameArt compilations with credits) | Grass, dirt, water, trees, rocks, mountains/cliffs, houses, castle walls, fences, dungeon/cave floors and walls, torches |
+| **Universal LPC Spritesheet Character Generator** (layered bodies, armour, weapons; exports a credits list) | The 6 hero classes, 3 companions and town NPCs |
+| **LPC monster sets** on OpenGameArt (slime, bat, snake, bee, ghost, eyeball, worms, plant, and others) | Field and cave monsters; wolves, goblins, skeletons and dragons to be found or kept procedural |
+
+**LPC fit:**
+
+- **Pixel density:** our logical grid is 16 units per tile drawn at 2× (32 real pixels), so LPC 32×32 tiles map
+  **1:1 with no scaling**. Colour depth is no constraint: the canvas is full 24-bit colour.
+- **Characters:** 64×64 frames with 4-direction walk cycles (9 frames) plus slash, thrust, spellcast, shoot and
+  hurt animations. The body is about 1 tile wide and 1.5 tiles tall, drawn bottom-aligned so it overlaps the tile
+  above (the y-sorted sprite pass already supports this). The battle scene uses the left-facing attack and cast
+  rows as real attack poses instead of our 2-frame placeholders.
+- **Monsters:** sheet sprites, drawn at 2× in battle; look variants come from palette swaps at load time
+  (share-alike applies only if recoloured PNGs are committed).
+- **Rules to keep:** ≥ 3 variants for solid landscape tiles (seamless walls), signs and weather stay procedural or
+  are hand-made, and sign/NPC placement still reads clearly against the busier LPC art (screenshot review).
+
+**Option: larger viewport (decide after the spike).** Today the screen is 384×216 logical (768×432 canvas) =
+24×13.5 tiles. LPC art at native size keeps that view as-is. If the owner wants to see more of the world, move to
+**480×270 logical (960×540 canvas) = 30×17 tiles**: page frame and CSS scale, HUD, menu and message box layout,
+camera clamping on small maps, and a check that sight radius (sunny 8) still feels right. Roughly 1–2 days,
+independent of the art swap.
+
+**Kenney packs (secondary, for gaps):**
 
 | Pack | Use | Size |
 | --- | --- | --- |
@@ -987,19 +1030,20 @@ them from git history before the repo is ever made public; keep them out of AI t
 | **Roguelike RPG / Roguelike Characters** | Extra terrain variants and NPC outfits if Tiny packs fall short | 16×16 |
 
 **Kenney fit:** all packs are 16×16, our logical grid; they are scaled 2× (nearest-neighbour) to our real pixel
-density, keeping the chunky look. The Tiny series shares one style, so tiles, characters and monsters match.
+density, which looks chunkier than LPC, so Kenney is used only where its tiles don't sit next to LPC art in the
+same scene. The Tiny series shares one style, so tiles, characters and monsters match.
 Tiny packs have single-frame, mostly front-facing characters, so walk cycles (4 directions × 2 frames) are made by
 flipping plus a 1px bob, or the procedural characters are kept; monster look variants come from palette swaps of
 the sheet sprite at load time.
 
 **What the swap takes:**
 
-1. **Asset pipeline:** PNG sheets under `apps/jouster-ui/public/game-assets/kenney/` (already served by the
-   `public` assets glob), plus a typed manifest in `@jouster/game/quest` mapping our ids (`grass`, `wall` variants,
+1. **Asset pipeline:** PNG sheets under `apps/jouster-ui/public/game-assets/lpc/` (and `.../kenney/` for gaps;
+   already served by the `public` assets glob), plus a typed manifest in `@jouster/game/quest` mapping our ids (`grass`, `wall` variants,
    `warrior` facing/frame, `slime` variants, sign kinds) to sheet + cell.
 2. **Loading:** a small async loader (Image → canvas) and a **loading screen** before the title, because the
    current `Art` is synchronous. The loader resolves to an `Art` that reads from sheets.
-3. **Hybrid `Art`:** each lookup tries the sheet first and falls back to the procedural drawer, so the switch can
+3. **Hybrid `Art`:** each lookup tries LPC, then Kenney, then the procedural drawer, so the switch can
    be done one category at a time (tiles → characters → monsters → UI) and node tests keep working without
    images.
 4. **Fit to our rules:** packs must cover ≥ 3 variants for solid landscape tiles (seamless walls), 4-direction ×
@@ -1007,15 +1051,18 @@ the sheet sprite at load time.
    battle poses, signs, weather) stay procedural or are hand-edited in Aseprite/LibreSprite.
 5. **Style check:** packs mixed from different artists clash; pick one family per category and do a screenshot
    review before committing.
-6. **Credits and tests:** add `CREDITS.md` (pack, author Kenney, CC0, URL; credit given although not
-   required); tests that every manifest entry points inside its sheet and every tile/monster/class id has art (sheet or procedural).
+6. **Credits and tests:** add `CREDITS.md` (per file: authors, license, URL; LPC credits are required, Kenney's
+   are given although not required); a test that every committed asset file has a `CREDITS.md` entry; tests that every manifest entry points inside its sheet and every tile/monster/class id has art (sheet or procedural).
 
-**Effort estimate:** loader, manifest and hybrid `Art` ~1–2 days; tiles ~1 day; characters/NPCs ~1–2 days;
-monsters with variants ~2 days; polish and screenshots ~1 day. Roughly **1–1.5 weeks**, done incrementally.
+**Effort estimate:** loader, manifest and hybrid `Art` ~1–2 days; tiles ~1–2 days; characters/NPCs with the
+generator ~2 days (taller 64×64 sprites need draw-offset and battle-pose work); monsters with variants ~2 days;
+credits and screenshots ~1 day. Roughly **1.5–2 weeks**, done incrementally; the optional larger viewport adds
+1–2 days.
 
-**First step (proposed):** download Kenney Tiny Town and Tiny Dungeon (no login needed, so this can be scripted),
-then a spike swaps only the overworld and town tiles behind a `?art=classic|pack` toggle, so both looks can be
-compared in the browser before committing to the rest.
+**First step (proposed):** download the LPC base assets / Tile Atlas (no login needed, so this can be scripted)
+and record their credits, then a spike swaps only the overworld and town tiles behind an
+`?art=classic|lpc|kenney` toggle, so the looks can be compared in the browser before converting characters and
+monsters.
 
 ### 16.3 Keep the jouster-ui control list in sync
 
@@ -1057,10 +1104,10 @@ moves away from the 16–32-bit Dragon Warrior / Zelda look in section 1 and tow
 Pixel-art CC0 isometric sets exist (e.g. Screaming Brain Studios on OpenGameArt) but their coverage of towns,
 caves, characters and monsters must be checked first.
 
-**Effort:** ~2–3 weeks (vs ~1–1.5 for the top-down Kenney swap), mostly in rendering, depth sorting and art.
+**Effort:** ~2–3 weeks (vs ~1.5–2 for the top-down LPC swap), mostly in rendering, depth sorting and art.
 
 **Decision (2026-11-13):** stay top-down for now (faster to build); isometric may be revisited later. Do the
-top-down Kenney tile spike first; then, if wanted, a **one-map isometric
+top-down LPC tile spike first; then, if wanted, a **one-map isometric
 prototype** (Aldmere only, behind `?view=iso`) so both looks can be compared in the browser before committing.
 
 ### 16.4 Work breakdown
@@ -1068,8 +1115,9 @@ prototype** (Aldmere only, behind `?view=iso`) so both looks can be compared in 
 1. Plan update (this section) — done first, before any code.
 2. Controls single source of truth and sync tests (16.3) — smallest, do first.
 3. Companion level 1 / party-only XP, save v4 migration and simulator checks (16.1).
-4. Art spike (16.2): add Kenney Tiny Town / Tiny Dungeon sheets and `CREDITS.md`; swap tiles behind an `?art=`
-   toggle with procedural fallback; owner reviews screenshots before characters and monsters are converted.
-5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the Kenney
+4. Art spike (16.2): add LPC base / Tile Atlas sheets and `CREDITS.md`; swap tiles behind an `?art=` toggle
+   (LPC → Kenney → procedural fallback); owner reviews screenshots before characters (character generator) and
+   monsters are converted, and decides on the optional 480×270 viewport.
+5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the LPC
    spike review.
 6. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
