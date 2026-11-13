@@ -221,6 +221,31 @@ describe('WorldScene', () => {
     expect(h.ctx.stack.top?.id).toBe('field-menu');
   });
 
+  it('closes the menu with the key that opened it, even from a submenu', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    h.tap('items');
+    h.tap('confirm'); // herb -> who?
+    h.tap('items');
+    expect(h.ctx.stack.top?.id).toBe('world');
+    h.tap('equip');
+    h.tap('confirm'); // hero -> slots
+    h.tap('equip');
+    expect(h.ctx.stack.top?.id).toBe('world');
+  });
+
+  it('only closes on the opening key (other menu keys keep it open)', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    h.tap('items');
+    h.tap('equip');
+    expect(h.ctx.stack.top?.id).toBe('field-menu');
+    h.tap('cancel'); // item list -> main menu
+    h.tap('cancel'); // main menu closes
+    expect(h.ctx.stack.top?.id).toBe('world');
+    h.tap('cancel');
+    h.tap('items');
+    expect(h.ctx.stack.top?.id).toBe('field-menu');
+  });
+
   it('buys armor from the Aldmere armorer and equips it now', () => {
     const h = setup({ mapId: 'aldmere', x: 19, y: 9, facing: 'right', gold: 500 });
     const tapUntil = (id: string): void => {

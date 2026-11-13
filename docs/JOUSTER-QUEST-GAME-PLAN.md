@@ -1099,6 +1099,9 @@ monsters.
   page renders one row per entry. A new key without a list entry fails CI.
 - **Process:** any revision that adds or changes a key updates `CONTROLS` and section 3 "Input" in the same
   commit (added to the work breakdown checklist below).
+- **Toggle keys (implemented):** the key that opens a screen closes it again: `I` (items) and `E` (equipment)
+  close the field menu from any submenu, `M` closes the map. `X` / `Esc` open the menu and still step back one
+  level at a time (closing it from the main menu). On a status page `E` keeps its meaning (equip that member).
 
 ### 16.5 Option: isometric view (evaluated, not committed to)
 

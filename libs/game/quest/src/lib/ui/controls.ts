@@ -23,9 +23,9 @@ export const CONTROLS: readonly ControlEntry[] = [
     codes: ['KeyX', 'Escape', 'Backspace'],
     label: 'open the menu and go back',
   },
-  { keys: ['I'], codes: ['KeyI'], label: 'items' },
-  { keys: ['E'], codes: ['KeyE'], label: 'equipment (weapons, armor, shields, accessories)' },
-  { keys: ['M'], codes: ['KeyM'], label: 'world map (explored areas)' },
+  { keys: ['I'], codes: ['KeyI'], label: 'items (press again to close)' },
+  { keys: ['E'], codes: ['KeyE'], label: 'equipment: weapons, armor, shields, accessories (press again to close)' },
+  { keys: ['M'], codes: ['KeyM'], label: 'world map of explored areas (press again to close)' },
   { keys: ['N'], codes: ['KeyN'], label: 'mute sound' },
   { keys: ['F'], codes: ['KeyF'], label: 'full screen (not while typing a name)', scope: 'page' },
 ];
