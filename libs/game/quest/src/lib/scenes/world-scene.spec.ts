@@ -3,6 +3,7 @@ import { Art } from '../art/art';
 import { INN_RESPAWN, mapDef } from '../data/maps';
 import { ENCOUNTER_TABLES } from '../data/monsters';
 import { LANDMARKS } from '../data/overworld-gen';
+import { SOUTH_LANDMARKS } from '../data/southlands-gen';
 import { CAVE_FOG_RADIUS, isExplored } from '../state/fog';
 import { GameState, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
 import { createMember } from '../state/party';
@@ -170,6 +171,51 @@ describe('WorldScene', () => {
     expect(h.state.mapId).toBe('aldmere');
     expect(h.ctx.stack.top).not.toBe(h.world);
     expect(h.ctx.stack.top?.id).toBe('world');
+  });
+
+  it('bars the southern pass until Act I is complete (plan 17)', () => {
+    const at = { mapId: 'overworld', x: LANDMARKS.southPass.x, y: LANDMARKS.southPass.y - 1, facing: 'down' as const };
+    const locked = setup(at);
+    locked.hold('down', STEP_TIME + 0.02);
+    locked.run(1);
+    expect(locked.state.mapId).toBe('overworld');
+    expect(locked.ctx.stack.top?.id).toBe('message');
+    const pages = (locked.ctx.stack.top as unknown as { pages: string[][] }).pages.flat().join(' ');
+    expect(pages).toContain('southern pass is barred');
+
+    const open = setup(at);
+    open.state.flags['actOneComplete'] = true;
+    open.hold('down', STEP_TIME + 0.02);
+    open.run(1);
+    expect(open.state.mapId).toBe('southlands');
+  });
+
+  it('ends Act II with a reward once both shrine bosses are slain (plan 17)', () => {
+    const h = setup({ mapId: 'aldmere', x: 4, y: 3, facing: 'up' });
+    Object.assign(h.state.flags, { metKing: true, bossDefeated: true, actOneComplete: true, sandWyrmDefeated: true });
+    h.tap('confirm');
+    h.confirmUntilWorld();
+    expect(h.state.flags['actTwoComplete']).toBeUndefined();
+    h.state.flags['marshWitchDefeated'] = true;
+    const gold = h.state.gold;
+    h.tap('confirm');
+    const pages = (h.ctx.stack.top as unknown as { pages: string[][] }).pages.flat().join(' ');
+    expect(pages).toContain('END OF ACT II');
+    expect(h.state.flags['actTwoComplete']).toBe(true);
+    expect(h.state.gold).toBe(gold + 500);
+  });
+
+  it('fights on desert sand outdoors but in the cave inside the shrines (plan 17)', () => {
+    const backdropAfterStep = (place: Partial<GameState>, dir: InputAction): string | undefined => {
+      const h = setup({ ...place, stepsSinceBattle: 50 }, true);
+      h.hold(dir, STEP_TIME + 0.02);
+      h.run(1);
+      expect(h.ctx.stack.top?.id).toBe('battle');
+      return (h.ctx.stack.top as unknown as { options: { backdrop: string } }).options.backdrop;
+    };
+    const { pass } = SOUTH_LANDMARKS;
+    expect(backdropAfterStep({ mapId: 'southlands', x: pass.x, y: pass.y + 2, facing: 'down' }, 'down')).toBe('desert');
+    expect(backdropAfterStep({ mapId: 'sunShrine', x: 9, y: 12, facing: 'right' }, 'right')).toBe('cave');
   });
 
   it('starts a random battle on encounter tiles', () => {

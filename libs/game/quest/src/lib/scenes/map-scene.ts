@@ -2,6 +2,7 @@ import { InputManager, Renderer, Scene, createCanvas, wrapText } from '@jouster/
 import { COMPANION_SLOTS } from '../data/companions';
 import { MapDef, mapDef } from '../data/maps';
 import { LANDMARKS } from '../data/overworld-gen';
+import { SOUTH_LANDMARKS } from '../data/southlands-gen';
 import { GameState, questStage } from '../state/game-state';
 import { isExplored } from '../state/fog';
 import { SEASON_NAMES, WEATHER, currentWeather, seasonAt } from '../state/weather';
@@ -33,19 +34,45 @@ const TILE_COLORS: Readonly<Record<string, string>> = {
   caveFloor: '#8a7a6a',
   caveWater: '#2a4a8a',
   caveExit: '#e0c040',
+  pass: '#c0a070',
+  sand: '#e0c47a',
+  dunes: '#d0ac5c',
+  cactus: '#4a8a3a',
+  mesa: '#a8603a',
+  sandRoad: '#c89858',
+  marsh: '#4a6a3a',
+  mireTree: '#2a4a2a',
+  bog: '#3a4a2a',
+  boardwalk: '#8a6a3a',
+  shrineEntrance: '#202020',
+  mireEntrance: '#202020',
+  mireRock: '#5a6050',
+  sunWall: '#c08a4a',
+  sunFloor: '#e0c080',
+  mireWall: '#4a5a4a',
+  mireFloor: '#6a7a5a',
 };
 const FOG_COLOR = '#14100c';
 const PARCHMENT = '#3a2c1c';
 
-/** Named places that appear on the overworld map once discovered. */
-export const PLACES: ReadonlyArray<{ name: string; x: number; y: number }> = [
-  { name: 'Aldmere', ...LANDMARKS.aldmere },
-  { name: 'Brookhollow', ...LANDMARKS.brookhollow },
-  { name: 'Thornwick Ruins', ...LANDMARKS.thornwick },
-  { name: 'Goblin Cave', ...LANDMARKS.goblinCave },
-  { name: 'Wolf Den', ...LANDMARKS.wolfDen },
-  { name: 'West Lakeshore', ...LANDMARKS.lakeshore },
-];
+/** Named places that appear on each outdoor map once discovered. */
+export const PLACES: Readonly<Record<string, ReadonlyArray<{ name: string; x: number; y: number }>>> = {
+  overworld: [
+    { name: 'Aldmere', ...LANDMARKS.aldmere },
+    { name: 'Brookhollow', ...LANDMARKS.brookhollow },
+    { name: 'Thornwick Ruins', ...LANDMARKS.thornwick },
+    { name: 'Goblin Cave', ...LANDMARKS.goblinCave },
+    { name: 'Wolf Den', ...LANDMARKS.wolfDen },
+    { name: 'West Lakeshore', ...LANDMARKS.lakeshore },
+    { name: 'Southern Pass', ...LANDMARKS.southPass },
+  ],
+  southlands: [
+    { name: 'Northern Pass', ...SOUTH_LANDMARKS.pass },
+    { name: 'Sandhollow', ...SOUTH_LANDMARKS.sandhollow },
+    { name: 'Sun Shrine', ...SOUTH_LANDMARKS.sunShrine },
+    { name: 'Mire Shrine', ...SOUTH_LANDMARKS.mireShrine },
+  ],
+};
 
 /** True when tile (x, y) of `map` should be drawn (towns are never fogged). */
 export function tileKnown(state: GameState, map: MapDef, x: number, y: number): boolean {
@@ -60,7 +87,16 @@ export function questLog(state: GameState): string[] {
       ? 'MAIN: Defeat the Goblin King in his cave in the north-eastern hills.'
       : !f['actOneComplete']
         ? 'MAIN: Report your victory to King Aldric in Aldmere.'
-        : 'MAIN: Act I complete. Grow strong and gather allies.',
+        : !(f['sandWyrmDefeated'] && f['marshWitchDefeated'])
+          ? `MAIN: Cleanse the ${[
+              f['sandWyrmDefeated'] ? '' : 'Sun Shrine (western desert)',
+              f['marshWitchDefeated'] ? '' : 'Mire Shrine (eastern marsh)',
+            ]
+              .filter(Boolean)
+              .join(' and ')} beyond the southern pass.`
+          : !f['actTwoComplete']
+            ? 'MAIN: Report to King Aldric that the south is free.'
+            : 'MAIN: Act II complete. The dragon Vyrmorth stirs in the north.',
   ];
   let any = false;
   for (const slot of COMPANION_SLOTS) {
@@ -157,7 +193,7 @@ export class MapScene implements Scene {
     const px = (x: number): number => ox + x * this.scale;
     const py = (y: number): number => oy + y * this.scale;
     const known = (x: number, y: number): boolean => tileKnown(this.state, this.map, x, y);
-    const places = this.map.id === 'overworld' ? PLACES.filter((p) => known(p.x, p.y)) : [];
+    const places = (PLACES[this.map.id] ?? []).filter((p) => known(p.x, p.y));
     places.forEach((p) => r.strokeRect(px(p.x) - 2, py(p.y) - 2, this.scale + 4, this.scale + 4, '#ffffff'));
     const pins = this.pins().filter((p) => known(p.x, p.y));
     if (Math.floor(this.time * 3) % 2 === 0) {
@@ -191,7 +227,7 @@ export class MapScene implements Scene {
       r.text('QUEST', x + 20, y);
       y += 10;
     }
-    if (this.map.id === 'overworld') {
+    if (PLACES[this.map.id]) {
       y += 4;
       r.text('PLACES', x + 8, y, COLORS.gold);
       y += 12;

@@ -64,6 +64,9 @@ const INN_PRICE_PER_MEMBER = 6;
 const REVIVE_PRICE_PER_LEVEL = 5;
 const KING_GIFT = 50;
 const ACT_ONE_REWARD = 200;
+const ACT_TWO_REWARD = 500;
+const DESERT_TILES = new Set(['sand', 'dunes', 'sandRoad', 'cactus']);
+const MARSH_TILES = new Set(['marsh', 'mireTree', 'boardwalk', 'bog']);
 const COMPANION_READY = 'I owe you. Shall I come along?';
 
 function rewardText(reward: { gold: number; items?: Record<string, number> }): string {
@@ -560,6 +563,10 @@ export class WorldScene implements Scene {
     const warp = this.map.warps.find((w) => w.x === s.x && w.y === s.y);
     if (warp) {
       this.walkGoal = null;
+      if (warp.requires && !s.flags[warp.requires]) {
+        this.queueMessage([...(warp.lockedLines ?? ['The way is barred.'])]);
+        return;
+      }
       this.warpTo(warp);
       return;
     }
@@ -653,6 +660,12 @@ export class WorldScene implements Scene {
     if (id === 'forest' || id === 'hills') {
       return id;
     }
+    if (id && DESERT_TILES.has(id)) {
+      return 'desert';
+    }
+    if (id && MARSH_TILES.has(id)) {
+      return 'marsh';
+    }
     return this.map.backdrop;
   }
 
@@ -734,17 +747,17 @@ export class WorldScene implements Scene {
         return;
       case 'itemShop':
         say(stack, audio, ['MERCHANT: Welcome! Herbs, tonics, feathers - take a look.'], () =>
-          stack.push(new ShopScene(this.ctx, 'item', ITEM_SHOP_STOCK)),
+          stack.push(new ShopScene(this.ctx, 'item', def.stock ?? ITEM_SHOP_STOCK)),
         );
         return;
       case 'weaponShop':
         say(stack, audio, ["SMITH: Finest steel in the vale. I'll take your old gear in trade."], () =>
-          stack.push(new ShopScene(this.ctx, 'weapon', WEAPON_SHOP_STOCK)),
+          stack.push(new ShopScene(this.ctx, 'weapon', def.stock ?? WEAPON_SHOP_STOCK)),
         );
         return;
       case 'armorShop':
         say(stack, audio, ['ARMORER: Mail, shields and charms. Buy now, wear it later if you like.'], () =>
-          stack.push(new ShopScene(this.ctx, 'armor', ARMOR_SHOP_STOCK)),
+          stack.push(new ShopScene(this.ctx, 'armor', def.stock ?? ARMOR_SHOP_STOCK)),
         );
         return;
       case 'church':
@@ -782,8 +795,20 @@ export class WorldScene implements Scene {
         `KING ALDRIC: The Goblin King is slain! ${hero}, Aldmere is in your debt.`,
         `Take these ${ACT_ONE_REWARD} gold pieces with my thanks.`,
         'Yet the goblins served a greater master. Vyrmorth, the dragon beneath the northern peaks, is waking.',
-        'Grow strong, and gather allies. When the seal breaks, we will need you.',
-        '- END OF ACT I - Thank you for playing! The world remains open to explore.',
+        'Grow strong, and gather allies. The guard at the southern pass beyond Thornwick will now let you through.',
+        '- END OF ACT I - The Southlands await.',
+      ]);
+      return;
+    }
+    if (s.flags['sandWyrmDefeated'] && s.flags['marshWitchDefeated'] && !s.flags['actTwoComplete']) {
+      s.flags['actTwoComplete'] = true;
+      s.gold += ACT_TWO_REWARD;
+      audio.play('victory');
+      say(stack, audio, [
+        `KING ALDRIC: The Sand Wyrm and the Marsh Witch, both fallen! ${hero}, the south is free.`,
+        `Take these ${ACT_TWO_REWARD} gold pieces, and the thanks of every road from Aldmere to Sandhollow.`,
+        'The witch spoke of Vyrmorth before she fell. The dragon gathers its strength in the north.',
+        '- END OF ACT II - Thank you for playing! The world remains open to explore.',
       ]);
       return;
     }

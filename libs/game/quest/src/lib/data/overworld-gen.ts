@@ -27,6 +27,8 @@ export const LANDMARKS = {
   wolfDen: { x: 88, y: 32 },
   /** West shore of the southern lake (Giant Toad side quest). */
   lakeshore: { x: 38, y: 62 },
+  /** Mountain pass on the southern rim, gated until Act I is complete (leads to the Southlands). */
+  southPass: { x: 60, y: 69 },
 } as const satisfies Record<string, Point>;
 
 const GRASS = '.';
@@ -37,13 +39,13 @@ const MOUNTAIN = '^';
 const WATER = '~';
 const BRIDGE = '=';
 
-type Grid = string[][];
+export type Grid = string[][];
 
-/** Smooth 2D value noise in [0, 1) built from a coarse random lattice. */
-function valueNoise(seed: number, cell: number): (x: number, y: number) => number {
+/** Smooth 2D value noise in [0, 1) over a `width` x `height` area, built from a coarse random lattice. */
+export function valueNoise(seed: number, cell: number, width = OVERWORLD_W, height = OVERWORLD_H): (x: number, y: number) => number {
   const rng = createRng(seed);
-  const cols = Math.ceil(OVERWORLD_W / cell) + 2;
-  const rows = Math.ceil(OVERWORLD_H / cell) + 2;
+  const cols = Math.ceil(width / cell) + 2;
+  const rows = Math.ceil(height / cell) + 2;
   const lattice = Array.from({ length: rows }, () => Array.from({ length: cols }, () => rng.next()));
   const smooth = (t: number): number => t * t * (3 - 2 * t);
   return (x, y) => {
@@ -59,14 +61,15 @@ function valueNoise(seed: number, cell: number): (x: number, y: number) => numbe
   };
 }
 
-function inside(x: number, y: number): boolean {
-  return x >= 0 && y >= 0 && x < OVERWORLD_W && y < OVERWORLD_H;
+function inside(g: Grid, x: number, y: number): boolean {
+  return x >= 0 && y >= 0 && y < g.length && x < g[0].length;
 }
 
-function fill(g: Grid, cx: number, cy: number, radius: number, ch: string): void {
+/** Sets every tile within `radius` of (cx, cy) to `ch`. */
+export function fill(g: Grid, cx: number, cy: number, radius: number, ch: string): void {
   for (let y = cy - radius; y <= cy + radius; y++) {
     for (let x = cx - radius; x <= cx + radius; x++) {
-      if (inside(x, y) && (x - cx) ** 2 + (y - cy) ** 2 <= radius * radius + 1) {
+      if (inside(g, x, y) && (x - cx) ** 2 + (y - cy) ** 2 <= radius * radius + 1) {
         g[y][x] = ch;
       }
     }
@@ -156,6 +159,20 @@ function placeLandmarks(g: Grid): void {
   g[thornwick.y][thornwick.x] = 'V';
   g[brookhollow.y][brookhollow.x] = 'B';
   g[wolfDen.y][wolfDen.x] = 'W';
+  placePass(g);
+}
+
+/** A notch in the southern mountains with a grass landing (and room for its guard) in front of it. */
+function placePass(g: Grid): void {
+  const { southPass: pass } = LANDMARKS;
+  for (let y = pass.y - 3; y < pass.y; y++) {
+    for (let x = pass.x - 1; x <= pass.x + 1; x++) {
+      g[y][x] = GRASS;
+    }
+  }
+  g[pass.y][pass.x - 1] = MOUNTAIN;
+  g[pass.y][pass.x + 1] = MOUNTAIN;
+  g[pass.y][pass.x] = 'P';
 }
 
 function stepCost(ch: string): number {
@@ -177,9 +194,14 @@ function stepCost(ch: string): number {
   }
 }
 
-/** Cheapest path (Dijkstra with a binary heap) between two tiles. */
-function cheapestPath(g: Grid, from: Point, to: Point): Point[] {
-  const n = OVERWORLD_W * OVERWORLD_H;
+/**
+ * Cheapest path (Dijkstra with a binary heap) between two tiles of `g`, never using the outermost ring.
+ * `cost` prices stepping onto a tile character.
+ */
+export function cheapestPath(g: Grid, from: Point, to: Point, cost: (ch: string) => number = stepCost): Point[] {
+  const W = g[0].length;
+  const H = g.length;
+  const n = W * H;
   const dist = new Float64Array(n).fill(Infinity);
   const prev = new Int32Array(n).fill(-1);
   const heap: [number, number][] = [];
@@ -214,8 +236,8 @@ function cheapestPath(g: Grid, from: Point, to: Point): Point[] {
     }
     return top;
   };
-  const start = from.y * OVERWORLD_W + from.x;
-  const goal = to.y * OVERWORLD_W + to.x;
+  const start = from.y * W + from.x;
+  const goal = to.y * W + to.x;
   dist[start] = 0;
   push([0, start]);
   while (heap.length) {
@@ -226,8 +248,8 @@ function cheapestPath(g: Grid, from: Point, to: Point): Point[] {
     if (d > dist[idx]) {
       continue;
     }
-    const x = idx % OVERWORLD_W;
-    const y = (idx - x) / OVERWORLD_W;
+    const x = idx % W;
+    const y = (idx - x) / W;
     for (const [dx, dy] of [
       [1, 0],
       [-1, 0],
@@ -237,11 +259,11 @@ function cheapestPath(g: Grid, from: Point, to: Point): Point[] {
       const nx = x + dx;
       const ny = y + dy;
       // Keep roads off the outermost ring so the border stays closed.
-      if (nx < 1 || ny < 1 || nx >= OVERWORLD_W - 1 || ny >= OVERWORLD_H - 1) {
+      if (nx < 1 || ny < 1 || nx >= W - 1 || ny >= H - 1) {
         continue;
       }
-      const ni = ny * OVERWORLD_W + nx;
-      const nd = d + stepCost(g[ny][nx]);
+      const ni = ny * W + nx;
+      const nd = d + cost(g[ny][nx]);
       if (nd < dist[ni]) {
         dist[ni] = nd;
         prev[ni] = idx;
@@ -251,7 +273,7 @@ function cheapestPath(g: Grid, from: Point, to: Point): Point[] {
   }
   const path: Point[] = [];
   for (let i = goal; i !== -1; i = prev[i]) {
-    path.push({ x: i % OVERWORLD_W, y: Math.floor(i / OVERWORLD_W) });
+    path.push({ x: i % W, y: Math.floor(i / W) });
   }
   return path.reverse();
 }
@@ -272,12 +294,15 @@ export function generateOverworld(): string[] {
   const g = terrain();
   carveRiver(g);
   placeLandmarks(g);
-  const { aldmere, goblinCave, thornwick, brookhollow, wolfDen, lakeshore } = LANDMARKS;
+  const { aldmere, goblinCave, thornwick, brookhollow, wolfDen, lakeshore, southPass } = LANDMARKS;
   const below = (p: Point): Point => ({ x: p.x, y: p.y + 1 });
   carveRoad(g, below(aldmere), below(goblinCave));
   carveRoad(g, below(aldmere), below(thornwick));
   carveRoad(g, below(aldmere), below(brookhollow));
   carveRoad(g, below(thornwick), below(wolfDen));
   carveRoad(g, below(brookhollow), { x: lakeshore.x - 1, y: lakeshore.y });
+  carveRoad(g, below(thornwick), { x: southPass.x, y: southPass.y - 3 });
+  g[southPass.y - 2][southPass.x] = ROAD;
+  g[southPass.y - 1][southPass.x] = ROAD;
   return g.map((row) => row.join(''));
 }

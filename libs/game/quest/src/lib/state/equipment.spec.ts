@@ -1,5 +1,5 @@
 import { createRng } from '@jouster/game/engine';
-import { ARMOR_SHOP_STOCK, GEAR, gearDef } from '../data/gear';
+import { ARMOR_SHOP_STOCK, GEAR, SOUTH_ARMOR_STOCK, gearDef } from '../data/gear';
 import {
   canEquip,
   equipChoices,
@@ -115,7 +115,7 @@ describe('equipment (plan 15.4)', () => {
   });
 
   it('has a sane catalogue sold by the armorer', () => {
-    expect(ARMOR_SHOP_STOCK.length).toBe(GEAR.size);
+    expect(ARMOR_SHOP_STOCK.length + SOUTH_ARMOR_STOCK.length).toBe(GEAR.size);
     for (const g of GEAR.values()) {
       expect(g.price).toBeGreaterThan(0);
       expect(g.description.length).toBeGreaterThan(0);

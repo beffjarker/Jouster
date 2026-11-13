@@ -276,7 +276,7 @@ NPCs with hints and side quests
 | **4. Battle** | Core combat | Encounter rolls, battle scene, turn system, enemy AI, XP and level-ups, defeat handling | Done |
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
-| **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Not started |
+| **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II done (§17): the Southlands, Sandhollow and two shrines. Act III and the finale are not started |
 | **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, battle animations) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
@@ -1349,3 +1349,71 @@ Goal: all the generated art should be much more detailed than in 16.8.
   a dark sky and lit windows; the shadow for a dark centre fading to transparent corners.
 - **Possible follow-ups:** pre-paint backdrops while the title screen is idle, time-of-day and weather variants,
   and dedicated backdrops for towns, swamps or the dragon's lair.
+
+---
+
+## 17. Act II: the Southlands (implemented)
+
+Goal: the second act of the story (§6), playable after Act I, with the same balance rules (§4.6) and art density
+(§16.10).
+
+### 17.1 Getting there
+
+- A **southern pass** (`P`, a gap between cliffs) south of Thornwick leads off the Greenwood Vale map. The warp uses the
+  new `Warp.requires` flag: until `actOneComplete` is set (by the king, after the Goblin King) it shows
+  `Warp.lockedLines` instead. A pass guard NPC explains the rule.
+- King Aldric's Act I speech now names the pass, and he gets an Act II line once the act is complete.
+
+### 17.2 Maps
+
+| Map | Size | Notes |
+| --- | --- | --- |
+| The Southlands | 64×48 | Generated from a fixed seed (`data/southlands-gen.ts`): desert (sand, dunes, cacti, mesas) in the west, marsh (reeds, mire trees, bog, water) in the east. Roads in the desert, boardwalks over the marsh, all carved by the same cheapest-path search as the overworld so every landmark is reachable. |
+| Sandhollow | 27×15 | Desert town: inn, item shop (adds `potion`, 70 HP), smith (tier-3 weapons), armorer (tier-3 armor), three townsfolk with hints. Shops read their stock from `NpcDef.stock`. |
+| Sun Shrine | 22×16 | Sandstone dungeon in the south-west desert; boss: **Sand Wyrm**. |
+| Mire Shrine | 22×16 | Sunken mossy-stone dungeon in the south-east marsh, walled in by mossy boulders; boss: **Marsh Witch**. |
+
+Both shrines show on the world map (M) and the quest log tracks them.
+
+### 17.3 Monsters and encounters
+
+| Monster | Where | Notes |
+| --- | --- | --- |
+| Scorpion | desert | 3 colour looks |
+| Sand Worm | desert | 2 looks |
+| Lizardman | marsh | 3 looks |
+| Wraith | marsh, shrines | 2 looks; undead (maces deal 1.5×) |
+| Sand Wyrm | Sun Shrine boss | 330 HP before boss scaling |
+| Marsh Witch | Mire Shrine boss | 280 HP before boss scaling |
+
+New encounter tables: `desert`, `marsh` and `shrine`. Battles on desert tiles use a new **desert** backdrop (sky,
+mesas, dunes, rippled sand, cacti); marsh tiles use a **marsh** backdrop (grey-green sky, misty dead trees, reeds,
+murky pools). Fights inside the shrines use the cave backdrop.
+
+### 17.4 Gear
+
+Tier 3 (sold in Sandhollow): one weapon per family (Sunsteel Sword, Aegis Blade, Mirage Staff, Sun Mace, Fang
+Daggers, Dune Knife) and armor, shields and accessories up to +6 DEF.
+
+### 17.5 Balance (checked in `balance.spec.ts`)
+
+- Every class wins at least 90% of solo desert, marsh and shrine fights at level 10 with tier-3 gear.
+- Every class beats each shrine boss solo at least 60% of the time at level 12 with tier-3 gear.
+- Every three-class party beats each shrine boss at least 70% of the time at level 10.
+- Desert fights from level 8 to 11 earn enough gold for the most expensive tier-3 weapon.
+
+### 17.6 Ending Act II
+
+When both shrine bosses are beaten, King Aldric sets `actTwoComplete`, gives 500 gold and shows
+"END OF ACT II". The world stays open to explore.
+
+### 17.7 Art
+
+Every Act II tile, monster and backdrop is procedural, at the §16.10 density: sand (3 variants), dunes, sand road,
+cactus (3), mesa (3), marsh (3), boardwalk, mire tree (3), animated bog (3), shrine entrances (sandstone and mossy),
+mossy boulders (3), the pass, and sun and mire shrine walls and floors. Shrine walls cast shadows.
+
+### 17.8 Next
+
+- Act III: Frost Peaks (§6), the third seal and Dragonbane.
+- The finale: Vyrmorth's lair.

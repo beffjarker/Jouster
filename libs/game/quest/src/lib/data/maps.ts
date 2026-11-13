@@ -1,7 +1,10 @@
 import { Facing, TileDef } from '@jouster/game/engine';
 import { GameState, companionPresent } from '../state/game-state';
 import { COMPANION_SLOTS } from './companions';
+import { SOUTH_WEAPON_STOCK } from './equipment';
+import { SOUTH_ARMOR_STOCK } from './gear';
 import { LANDMARKS, generateOverworld } from './overworld-gen';
+import { SOUTH_LANDMARKS, generateSouthlands } from './southlands-gen';
 
 export type NpcRole = 'talk' | 'king' | 'inn' | 'itemShop' | 'weaponShop' | 'armorShop' | 'church' | 'boss' | 'companion';
 
@@ -23,6 +26,8 @@ export interface NpcDef {
   companionId?: string;
   /** For `boss` NPCs: who you fight and the story flag set on victory. */
   boss?: BossDef;
+  /** For shop NPCs: what they sell (defaults to Aldmere's stock). */
+  stock?: readonly string[];
 }
 
 export interface BossDef {
@@ -54,6 +59,9 @@ export interface Warp {
   toX: number;
   toY: number;
   facing: Facing;
+  /** Story flag needed to use the warp; without it the player is stopped with `lockedLines`. */
+  requires?: string;
+  lockedLines?: readonly string[];
 }
 
 /** Service a town sign advertises (plan 15.7). */
@@ -83,7 +91,7 @@ export interface MapEvent {
   id: string;
 }
 
-export type Backdrop = 'field' | 'forest' | 'hills' | 'cave';
+export type Backdrop = 'field' | 'forest' | 'hills' | 'cave' | 'desert' | 'marsh';
 
 export interface MapDef {
   id: string;
@@ -119,6 +127,7 @@ const OVERWORLD_LEGEND: TileDef[] = [
   { char: 'O', id: 'caveEntrance', solid: false },
   { char: 'W', id: 'caveEntrance', solid: false },
   { char: 'V', id: 'ruins', solid: false },
+  { char: 'P', id: 'pass', solid: false },
 ];
 
 // --- Aldmere (24x18) -----------------------------------------------------------------------
@@ -235,9 +244,119 @@ const CAVE_LEGEND: TileDef[] = [
   { char: 'E', id: 'caveExit', solid: false },
 ];
 
+// --- Southlands (64x48, generated from a fixed seed) - Act II ------------------------------
+
+const SOUTHLANDS_LEGEND: TileDef[] = [
+  { char: 's', id: 'sand', solid: false, encounterTableId: 'desert' },
+  { char: 'd', id: 'dunes', solid: false, encounterTableId: 'desert' },
+  { char: 'c', id: 'cactus', solid: true },
+  { char: '^', id: 'mesa', solid: true },
+  { char: ':', id: 'sandRoad', solid: false, encounterTableId: 'desert' },
+  { char: 'm', id: 'marsh', solid: false, encounterTableId: 'marsh' },
+  { char: 'x', id: 'mireTree', solid: false, encounterTableId: 'marsh' },
+  { char: 'b', id: 'bog', solid: true },
+  { char: '~', id: 'water', solid: true },
+  { char: ';', id: 'boardwalk', solid: false, encounterTableId: 'marsh' },
+  { char: 'S', id: 'town', solid: false },
+  { char: 'U', id: 'shrineEntrance', solid: false },
+  { char: 'M', id: 'mireEntrance', solid: false },
+  { char: 'r', id: 'mireRock', solid: true },
+  { char: 'N', id: 'pass', solid: false },
+];
+
+// --- Sandhollow (27x15) --------------------------------------------------------------------
+
+const SANDHOLLOW_ROWS = [
+  'TTTTTTTTTTTTTTTTTTTTTTTTTTT',
+  'TgggggggggggggggggggggggggT',
+  'Tg#####g#####g#####g#####gT',
+  'Tg#www#g#www#g#www#g#www#gT',
+  'Tg#ccc#g#ccc#g#ccc#g#ccc#gT',
+  'Tg_______________________gT',
+  'Tggggg_______________gggggT',
+  'Tggg________~~~________gggT',
+  'Tggg________~~~________gggT',
+  'Tgggg_________________ggggT',
+  'Tg####gggg_______gggg####gT',
+  'Tg####gggg_______gggg####gT',
+  'TTgggggggg_______ggggggggTT',
+  'TTTTTTTTTTTTEETTTTTTTTTTTTT',
+  'TTTTTTTTTTTTTTTTTTTTTTTTTTT',
+];
+
+/** Desert town: sandstone cliffs instead of trees, sand instead of grass. */
+const DESERT_TOWN_LEGEND: TileDef[] = TOWN_LEGEND.map((t) =>
+  t.char === 'T' ? { ...t, id: 'mesa' } : t.char === 'g' ? { ...t, id: 'sand' } : t,
+);
+
+// --- Shrines (22x16) -----------------------------------------------------------------------
+
+const SUN_SHRINE_ROWS = [
+  '######################',
+  '########______########',
+  '#######t______t#######',
+  '########______########',
+  '##########__##########',
+  '###_______________~~##',
+  '###_#########_####__##',
+  '###_#t####~~#_####_###',
+  '###_#####_____####_###',
+  '###______#########_###',
+  '########_#######___###',
+  '###t####_#######_#####',
+  '###______________#####',
+  '#########_############',
+  '#########E############',
+  '######################',
+];
+
+const MIRE_SHRINE_ROWS = [
+  '######################',
+  '#######______#########',
+  '######t______t########',
+  '#######______#########',
+  '#########__###########',
+  '##___~~___________~~_#',
+  '##_######_#######__#_#',
+  '##_#t####_#~~~#t##_#_#',
+  '##_######_______##_#_#',
+  '##__~~~######_####___#',
+  '###___________########',
+  '#####_###########__###',
+  '#####___________~___##',
+  '############_#########',
+  '############E#########',
+  '######################',
+];
+
+function shrineLegend(wall: string, floor: string): TileDef[] {
+  return [
+    { char: '#', id: wall, solid: true },
+    { char: 't', id: 'torch', solid: true },
+    { char: '_', id: floor, solid: false, encounterTableId: 'shrine' },
+    { char: '~', id: 'caveWater', solid: true },
+    { char: 'E', id: 'caveExit', solid: false },
+  ];
+}
+
+/** Items sold in Sandhollow (Act II). */
+export const SANDHOLLOW_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'phoenixFeather'];
+
 const kingLines = (s: GameState): string[] => {
+  if (s.flags['actTwoComplete']) {
+    return ['KING ALDRIC: The south is at peace. Rest, hero - the dragon Vyrmorth will not sleep forever.'];
+  }
   if (s.flags['actOneComplete']) {
-    return ['KING ALDRIC: Rest well, hero. When the dragon stirs again, Aldmere will call on you.'];
+    const left = [
+      s.flags['sandWyrmDefeated'] ? '' : 'the Sun Shrine in the western desert',
+      s.flags['marshWitchDefeated'] ? '' : 'the Mire Shrine in the eastern marsh',
+    ].filter(Boolean);
+    return left.length
+      ? [
+          'KING ALDRIC: The southern pass beyond Thornwick is open to you now.',
+          `Sandhollow's scouts speak of evil stirring in ${left.join(' and ')}.`,
+        ]
+      : [];
   }
   if (s.flags['bossDefeated']) {
     return [];
@@ -259,7 +378,10 @@ const {
   brookhollow: BROOK_AT,
   wolfDen: DEN_AT,
   lakeshore: LAKE_AT,
+  southPass: PASS_AT,
 } = LANDMARKS;
+
+const { pass: SOUTH_PASS_AT, sandhollow: SANDHOLLOW_AT, sunShrine: SUN_AT, mireShrine: MIRE_AT } = SOUTH_LANDMARKS;
 
 const BASE_MAPS: MapDef[] = [
   {
@@ -272,8 +394,30 @@ const BASE_MAPS: MapDef[] = [
         { x: CAVE_AT.x, y: CAVE_AT.y, toMap: 'goblinCave', toX: 2, toY: 17, facing: 'up' },
         { x: BROOK_AT.x, y: BROOK_AT.y, toMap: 'brookhollow', toX: 10, toY: 12, facing: 'up' },
         { x: DEN_AT.x, y: DEN_AT.y, toMap: 'wolfDen', toX: 8, toY: 11, facing: 'up' },
+        {
+          x: PASS_AT.x,
+          y: PASS_AT.y,
+          toMap: 'southlands',
+          toX: SOUTH_PASS_AT.x,
+          toY: SOUTH_PASS_AT.y + 1,
+          facing: 'down',
+          requires: 'actOneComplete',
+          lockedLines: ['The southern pass is barred by order of King Aldric.', 'Only the hero of Aldmere may pass.'],
+        },
       ],
       npcs: [
+        {
+          id: 'passGuard',
+          x: PASS_AT.x + 1,
+          y: PASS_AT.y - 1,
+          spriteId: 'guard',
+          facing: 'left',
+          role: 'talk',
+          lines: (s) =>
+            s.flags['actOneComplete']
+              ? ['GUARD: The king says you may pass. The Southlands lie beyond - sand to the west, marsh to the east.']
+              : ['GUARD: None may cross the southern pass without the king\'s leave.', 'Deal with the goblins first, then speak to King Aldric.'],
+        },
         bossNpc(
           'giantToad',
           LAKE_AT.x + 1,
@@ -520,6 +664,125 @@ const BASE_MAPS: MapDef[] = [
       events: [],
       outsideTile: 'T',
       backdrop: 'field',
+    },
+  {
+      id: 'southlands',
+      name: 'The Southlands',
+      rows: generateSouthlands(),
+      legend: SOUTHLANDS_LEGEND,
+      warps: [
+        { x: SOUTH_PASS_AT.x, y: SOUTH_PASS_AT.y, toMap: 'overworld', toX: PASS_AT.x, toY: PASS_AT.y - 1, facing: 'up' },
+        { x: SANDHOLLOW_AT.x, y: SANDHOLLOW_AT.y, toMap: 'sandhollow', toX: 12, toY: 12, facing: 'up' },
+        { x: SUN_AT.x, y: SUN_AT.y, toMap: 'sunShrine', toX: 9, toY: 13, facing: 'up' },
+        { x: MIRE_AT.x, y: MIRE_AT.y, toMap: 'mireShrine', toX: 12, toY: 13, facing: 'up' },
+      ],
+      npcs: [],
+      events: [],
+      outsideTile: '^',
+      backdrop: 'desert',
+      fog: true,
+    },
+  {
+      id: 'sandhollow',
+      name: 'Sandhollow',
+      rows: SANDHOLLOW_ROWS,
+      legend: DESERT_TOWN_LEGEND,
+      warps: [
+        { x: 12, y: 13, toMap: 'southlands', toX: SANDHOLLOW_AT.x, toY: SANDHOLLOW_AT.y + 1, facing: 'down' },
+        { x: 13, y: 13, toMap: 'southlands', toX: SANDHOLLOW_AT.x, toY: SANDHOLLOW_AT.y + 1, facing: 'down' },
+      ],
+      npcs: [
+        { id: 'sandInn', x: 4, y: 3, spriteId: 'innkeeper', facing: 'down', role: 'inn' },
+        { id: 'sandItems', x: 10, y: 3, spriteId: 'merchant', facing: 'down', role: 'itemShop', stock: SANDHOLLOW_ITEM_STOCK },
+        { id: 'sandSmith', x: 16, y: 3, spriteId: 'smith', facing: 'down', role: 'weaponShop', stock: SOUTH_WEAPON_STOCK },
+        { id: 'sandArmorer', x: 22, y: 3, spriteId: 'guard', facing: 'down', role: 'armorShop', stock: SOUTH_ARMOR_STOCK },
+        {
+          id: 'nomadElder',
+          x: 6,
+          y: 8,
+          spriteId: 'elder',
+          facing: 'down',
+          role: 'talk',
+          wander: true,
+          lines: (s) =>
+            s.flags['sandWyrmDefeated'] && s.flags['marshWitchDefeated']
+              ? ['ELDER: The wells run sweet again and the marsh lights have gone out. Carry the news north, hero.']
+              : [
+                  'ELDER: Two shrines guard the old seals of the south. Both have been defiled.',
+                  'A great Sand Wyrm coils in the Sun Shrine, south-west across the dunes.',
+                  'And a witch has taken the Mire Shrine in the eastern marsh. Follow the boardwalk.',
+                ],
+        },
+        {
+          id: 'scout',
+          x: 18,
+          y: 11,
+          spriteId: 'villager',
+          facing: 'left',
+          role: 'talk',
+          lines: () => [
+            'SCOUT: Scorpions hide in the dunes and lizardmen lurk in the reeds.',
+            'Our smith forges finer steel than anything in Aldmere. Worth every coin out here.',
+          ],
+        },
+        {
+          id: 'sandChild',
+          x: 20,
+          y: 8,
+          spriteId: 'child',
+          facing: 'down',
+          role: 'talk',
+          wander: true,
+          lines: () => ['Wraiths hate holy light! Grandpa says so.'],
+        },
+      ],
+      signs: [
+        { x: 2, y: 4, kind: 'inn' },
+        { x: 8, y: 4, kind: 'item' },
+        { x: 14, y: 4, kind: 'weapon' },
+        { x: 20, y: 4, kind: 'armor' },
+      ],
+      events: [],
+      outsideTile: 'T',
+      backdrop: 'desert',
+    },
+  {
+      id: 'sunShrine',
+      name: 'Sun Shrine',
+      rows: SUN_SHRINE_ROWS,
+      legend: shrineLegend('sunWall', 'sunFloor'),
+      warps: [{ x: 9, y: 14, toMap: 'southlands', toX: SUN_AT.x, toY: SUN_AT.y + 1, facing: 'down' }],
+      npcs: [
+        bossNpc('sandWyrm', 11, 2, 'sandWyrm', {
+          monsterIds: ['sandWyrm'],
+          defeatFlag: 'sandWyrmDefeated',
+          lines: ['The floor heaves. A great wyrm of sand and bone bursts from the altar!'],
+          victory: ['The Sand Wyrm crumbles into the dunes. Sunlight floods the shrine once more.'],
+        }),
+      ],
+      events: [],
+      outsideTile: '#',
+      backdrop: 'cave',
+      fog: true,
+    },
+  {
+      id: 'mireShrine',
+      name: 'Mire Shrine',
+      rows: MIRE_SHRINE_ROWS,
+      legend: shrineLegend('mireWall', 'mireFloor'),
+      warps: [{ x: 12, y: 14, toMap: 'southlands', toX: MIRE_AT.x, toY: MIRE_AT.y + 1, facing: 'down' }],
+      npcs: [
+        bossNpc('marshWitch', 9, 2, 'marshWitch', {
+          monsterIds: ['marshWitch', 'lizardman'],
+          defeatFlag: 'marshWitchDefeated',
+          lines: ['MARSH WITCH: Another fool from the north? The mire will have your bones, little hero!'],
+          victory: ['The Marsh Witch shrieks and dissolves into black water. The shrine falls silent.'],
+        }),
+      ],
+      events: [],
+      outsideTile: '#',
+      backdrop: 'cave',
+      fog: true,
     },
 ];
 

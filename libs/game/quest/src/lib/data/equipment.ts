@@ -87,6 +87,50 @@ const WEAPON_LIST: WeaponDef[] = [
   },
   { id: 'huntKnife', name: 'Hunting Knife', family: 'knife', tier: 1, atk: 4, price: 0, description: 'Bow on the back, knife in hand.' },
   { id: 'longKnife', name: 'Long Knife', family: 'knife', tier: 2, atk: 8, price: 110, description: 'A woodsman\'s seax.' },
+  // --- Tier 3: forged in Sandhollow (Act II) ---------------------------------------------------
+  { id: 'sunSteelSword', name: 'Sunsteel Sword', family: 'sword', tier: 3, atk: 15, price: 280, description: 'Desert steel, gold-bright.' },
+  {
+    id: 'aegisBlade',
+    name: 'Aegis Blade',
+    family: 'swordShield',
+    tier: 3,
+    atk: 11,
+    def: 6,
+    price: 290,
+    description: 'Sunsteel sword and sun shield.',
+  },
+  {
+    id: 'mirageStaff',
+    name: 'Mirage Staff',
+    family: 'staff',
+    tier: 3,
+    atk: 8,
+    mag: 9,
+    price: 260,
+    description: 'Glass-topped. Shimmers like heat.',
+  },
+  {
+    id: 'sunMace',
+    name: 'Sun Mace',
+    family: 'mace',
+    tier: 3,
+    atk: 12,
+    undeadMultiplier: 1.5,
+    price: 260,
+    description: 'Sunsteel flanges. 1.5x vs undead.',
+  },
+  {
+    id: 'fangDaggers',
+    name: 'Fang Daggers',
+    family: 'daggers',
+    tier: 3,
+    atk: 9,
+    hits: 2,
+    hitMultiplier: 0.6,
+    price: 280,
+    description: 'Curved like scorpion stings. Strikes twice.',
+  },
+  { id: 'duneKnife', name: 'Dune Knife', family: 'knife', tier: 3, atk: 12, price: 260, description: 'A nomad\'s broad blade.' },
 ];
 
 export const WEAPONS: ReadonlyMap<string, WeaponDef> = new Map(WEAPON_LIST.map((w) => [w.id, w]));
@@ -113,6 +157,16 @@ const ITEM_LIST: ItemDef[] = [
     usableInField: true,
   },
   {
+    id: 'potion',
+    name: 'Potion',
+    description: 'Restores 70 HP.',
+    effect: 'healHp',
+    amount: 70,
+    price: 30,
+    usableInBattle: true,
+    usableInField: true,
+  },
+  {
     id: 'phoenixFeather',
     name: 'Phoenix Feather',
     description: 'Revives an ally with 50% HP.',
@@ -128,5 +182,7 @@ export const ITEMS: ReadonlyMap<string, ItemDef> = new Map(ITEM_LIST.map((i) => 
 
 /** Weapon ids sold in Aldmere's weapon shop. */
 export const WEAPON_SHOP_STOCK: readonly string[] = WEAPON_LIST.filter((w) => w.tier === 2).map((w) => w.id);
+/** Tier-3 weapon ids sold by Sandhollow's smith (Act II). */
+export const SOUTH_WEAPON_STOCK: readonly string[] = WEAPON_LIST.filter((w) => w.tier === 3).map((w) => w.id);
 /** Item ids sold in Aldmere's item shop. */
 export const ITEM_SHOP_STOCK: readonly string[] = ['herb', 'tonic', 'phoenixFeather'];

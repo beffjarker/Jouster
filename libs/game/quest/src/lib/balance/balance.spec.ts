@@ -1,6 +1,6 @@
 import { ClassId, createRng, statBudget, totalXpForLevel } from '@jouster/game/engine';
 import { CLASS_ORDER, classDef } from '../data/classes';
-import { ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
+import { ACT_TWO_BOSS_IDS, ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
 import { ITEMS, WEAPONS } from '../data/equipment';
 import { pickEncounter } from '@jouster/game/engine';
 import { DEFAULT_GOLD_CHANCE, PartyMember, createMember, grantXp, memberToCombatant } from '../state/party';
@@ -18,19 +18,23 @@ function startKit(classId: ClassId): Record<string, number> {
   return { herb: 3 + classDef(classId).bonusHerbs };
 }
 
-function tier2(m: PartyMember): PartyMember {
+function armed(m: PartyMember, tier: number): PartyMember {
   const family = classDef(m.classId).weaponFamily;
-  const w = [...WEAPONS.values()].find((x) => x.family === family && x.tier === 2);
+  const w = [...WEAPONS.values()].find((x) => x.family === family && x.tier === tier);
   return { ...m, weaponId: w?.id ?? m.weaponId };
 }
 
-/** Tier-2 weapon plus the best armor, shield and accessory of up to `tier` this class can wear (plan 15.4). */
+function tier2(m: PartyMember): PartyMember {
+  return armed(m, 2);
+}
+
+/** Weapon of `tier` plus the best armor, shield and accessory of up to `tier` this class can wear (plan 15.4). */
 function geared(m: PartyMember, tier = 2): PartyMember {
   const best = (slot: string): string | undefined =>
     [...GEAR.values()]
       .filter((g) => g.slot === slot && g.tier <= tier && gearUsableBy(g, m.classId))
       .sort((x, y) => y.price - x.price)[0]?.id;
-  return { ...tier2(m), armorId: best('armor'), shieldId: best('shield'), accessoryId: best('accessory') };
+  return { ...armed(m, tier), armorId: best('armor'), shieldId: best('shield'), accessoryId: best('accessory') };
 }
 
 function killRounds(classId: ClassId, level: number, monsterId: string): number {
@@ -211,6 +215,59 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     }
     expect(wins / (runs * 20)).toBeGreaterThanOrEqual(0.9);
     expect(fightsToFour / runs).toBeLessThanOrEqual(15);
+  });
+
+  // --- Act II: the Southlands (plan 17) --------------------------------------------------------
+  const actTwoKit = { herb: 8, tonic: 2 };
+
+  it('places both shrine bosses in their shrines', () => {
+    const bosses = ['sunShrine', 'mireShrine'].flatMap((id) => mapDef(id).npcs).flatMap((n) => (n.boss ? [n.boss.monsterIds[0]] : []));
+    expect(bosses.sort()).toEqual([...ACT_TWO_BOSS_IDS].sort());
+  });
+
+  const southCases = CLASS_ORDER.flatMap((id) => ['desert', 'marsh', 'shrine'].map((t) => [id, t] as const));
+  it.each(southCases)('%s wins >= 90%% of solo %s fights at level 10 with tier-3 gear', (id, tableId) => {
+    const table = ENCOUNTER_TABLES.get(tableId) ?? fail();
+    const hero = geared(createMember('h', 'Hero', id, 10), 3);
+    const stats = runMany(N, (i) => simulateFight([hero], pickEncounter(table, createRng(31000 + i), SOLO_MAX_ENEMIES), actTwoKit, createRng(32000 + i)));
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.9);
+  });
+
+  const shrineFights = ['sunShrine', 'mireShrine'].flatMap((id) => mapDef(id).npcs).flatMap((n) => (n.boss ? [n.boss.monsterIds] : []));
+  const shrineSolo = CLASS_ORDER.flatMap((id) => shrineFights.map((fight) => [id, fight.join('+'), fight] as const));
+  it.each(shrineSolo)('%s solo beats %s >= 60%% at level 12 with tier-3 gear', (id, _name, fight) => {
+    const hero = geared(createMember('h', 'Hero', id, 12), 3);
+    const stats = runMany(N, (i) =>
+      simulateFight([hero], [...fight], actTwoKit, createRng(33000 + i), { bossHpScale: BOSS_HP_SCALE[0] }),
+    );
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.6);
+  });
+
+  const shrineTrios = trios.flatMap((t) => shrineFights.map((fight) => [...t, fight.join('+'), fight] as const));
+  it.each(shrineTrios)('a %s + %s + %s party at level 10 beats %s >= 70%%', (a, b, c, _name, fight) => {
+    const party = [a, b, c].map((cls, i) => geared(createMember(`m${i}`, `M${i}`, cls, 10), 3));
+    const stats = runMany(N, (i) =>
+      simulateFight(party, [...fight], { herb: 4 }, createRng(34000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
+    );
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it('desert fights from level 8 to 11 pay for a tier-3 weapon (plan 17)', () => {
+    const table = ENCOUNTER_TABLES.get('desert') ?? fail();
+    const rng = createRng(78);
+    let xp = 0;
+    let gold = 0;
+    const fights = 2000;
+    for (let i = 0; i < fights; i++) {
+      pickEncounter(table, rng, SOLO_MAX_ENEMIES).forEach((id) => {
+        const m = MONSTERS.get(id) ?? fail();
+        xp += m.xp;
+        gold += m.gold * (m.goldChance ?? DEFAULT_GOLD_CHANCE);
+      });
+    }
+    const fightsNeeded = (totalXpForLevel(11) - totalXpForLevel(8)) / (xp / fights);
+    const tier3Price = Math.max(...[...WEAPONS.values()].filter((w) => w.tier === 3).map((w) => w.price));
+    expect(fightsNeeded * (gold / fights)).toBeGreaterThanOrEqual(tier3Price);
   });
 });
 function fail(): never {
