@@ -13,6 +13,7 @@ import { TILE, tileVariant } from '../art/art';
 import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
+import { ARMOR_SHOP_STOCK } from '../data/gear';
 import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, Warp, mapDef, mapHasEncounters } from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
 import {
@@ -200,6 +201,12 @@ export class WorldScene implements Scene {
     if (input.wasPressed('cancel')) {
       this.idle = 0;
       this.ctx.stack.push(new FieldMenuScene(this.ctx));
+      return;
+    }
+    if (input.wasPressed('items') || input.wasPressed('equip')) {
+      this.idle = 0;
+      this.ctx.audio.play('confirm');
+      this.ctx.stack.push(new FieldMenuScene(this.ctx, input.wasPressed('items') ? 'item' : 'equip'));
       return;
     }
     if (input.wasPressed('map')) {
@@ -541,6 +548,11 @@ export class WorldScene implements Scene {
       case 'weaponShop':
         say(stack, audio, ["SMITH: Finest steel in the vale. I'll take your old gear in trade."], () =>
           stack.push(new ShopScene(this.ctx, 'weapon', WEAPON_SHOP_STOCK)),
+        );
+        return;
+      case 'armorShop':
+        say(stack, audio, ['ARMORER: Mail, shields and charms. Buy now, wear it later if you like.'], () =>
+          stack.push(new ShopScene(this.ctx, 'armor', ARMOR_SHOP_STOCK)),
         );
         return;
       case 'church':

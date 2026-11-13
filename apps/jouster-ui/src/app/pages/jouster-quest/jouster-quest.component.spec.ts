@@ -62,6 +62,6 @@ describe('JousterQuestComponent', () => {
   it('lists the keyboard controls', () => {
     spectator = createComponent();
     expect(spectator.query('.controls')).toHaveText('Controls');
-    expect(spectator.queryAll('.controls li').length).toBe(5);
+    expect(spectator.queryAll('.controls li').length).toBe(6);
   });
 });

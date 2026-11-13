@@ -2,6 +2,8 @@ import { ClassId, Facing, Rng, createRng, timeSeed, totalXpForLevel } from '@jou
 import { CLASS_ORDER, classDef } from '../data/classes';
 import { COMPANION_SLOTS, CompanionInfo, companionSlot, rollCompanions } from '../data/companions';
 import { WEAPONS } from '../data/equipment';
+import { GEAR } from '../data/gear';
+import { returnGear } from './equipment';
 import { PartyMember, createMember } from './party';
 
 export const SAVE_VERSION = 3;
@@ -199,6 +201,7 @@ export function recruitCompanion(state: GameState, companionId: string, replaceI
     }
     const leaving = state.party[idx];
     state.companionLevels[leaving.id] = leaving.level;
+    returnGear(state, leaving);
     state.party.splice(idx, 1);
   }
   state.party.push(createCompanion(state, companionId));
@@ -264,6 +267,7 @@ function isValidState(s: Partial<GameState>): s is GameState {
       typeof m?.name === 'string' &&
       CLASS_ORDER.includes(m.classId) &&
       WEAPONS.has(m.weaponId) &&
+      [m.armorId, m.shieldId, m.accessoryId].every((id) => id === undefined || GEAR.has(id)) &&
       Number.isFinite(m.level) &&
       Number.isFinite(m.hp) &&
       Number.isFinite(m.mp),
