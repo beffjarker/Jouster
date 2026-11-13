@@ -634,8 +634,11 @@ export class BattleScene implements Scene {
     return { x: s.x + s.size / 2, y: s.y + s.size / 2 };
   }
 
-  /** Current sprite top-left including motion offsets. */
-  private pose(c: Combatant): Point {
+  /**
+   * Current sprite top-left including motion offsets. With `airborne` false, jumps (hops and victory
+   * bounces) are left out, giving the point on the ground under the sprite for its shadow.
+   */
+  private pose(c: Combatant, airborne = true): Point {
     const home = this.spots.get(c.id) ?? { x: 0, y: 0, size: 0 };
     let x = home.x;
     let y = home.y;
@@ -647,7 +650,7 @@ export class BattleScene implements Scene {
       const off = (1 - ease) * (1 - ease) * INTRO_SLIDE;
       x += c.side === 'party' ? -off : off;
     }
-    if (this.phase === 'end' && this.battle.outcome === 'victory' && c.side === 'party' && c.hp > 0) {
+    if (airborne && this.phase === 'end' && this.battle.outcome === 'victory' && c.side === 'party' && c.hp > 0) {
       y -= Math.floor(this.time * 4) % 2 === 0 ? 2 : 0;
     }
     const m = this.motions.get(c.id);
@@ -662,7 +665,7 @@ export class BattleScene implements Scene {
           }
           break;
         case 'hop':
-          y -= bump * 6;
+          y -= airborne ? bump * 6 : 0;
           break;
         case 'shake':
           x += Math.sin(m.t * 70) * 3 * (1 - p);
@@ -948,7 +951,8 @@ export class BattleScene implements Scene {
     const p = this.pose(c);
     const v = this.shown.get(c.id);
     const down = (v?.hp ?? c.hp) <= 0;
-    this.shadow(r, p.x, spot.y, spot.size);
+    const g = this.pose(c, false);
+    this.shadow(r, g.x, g.y, spot.size);
     const fleeing = this.motions.get(c.id)?.kind === 'flee';
     const walking = this.motions.has(c.id) || this.phase === 'intro' || this.isActing(c);
     const frame = walking ? Math.floor(this.time * 6) % 2 : 0;
@@ -975,7 +979,8 @@ export class BattleScene implements Scene {
     if (dying !== undefined) {
       alpha = Math.max(0, dying / DISSOLVE_TIME);
     } else {
-      this.shadow(r, p.x, spot.y, spot.size);
+      const g = this.pose(e, false);
+      this.shadow(r, g.x, g.y, spot.size);
     }
     const sprite = this.ctx.art.monster(def.spriteId, this.looks.get(e.id));
     r.draw(sprite, p.x, p.y - bob, { scale: fitScale(sprite, spot.size), alpha });

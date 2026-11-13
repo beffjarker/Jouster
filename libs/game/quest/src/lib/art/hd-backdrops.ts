@@ -443,10 +443,15 @@ export function paintTitleBackdrop(width: number, height: number, horizon: numbe
   const lerp = (x: Rgb, y: Rgb, t: number): Rgb => [x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t];
   const farTop: number[] = [];
   const midTop: number[] = [];
+  // The castle hill: a flat top wide enough for the whole castle, sloping down into the mid range.
+  const cx = W * 0.8;
+  const plateau = HZ - 62;
+  const halfTop = 62;
+  const hillTop = (u: number): number => plateau + ridge(u, 9.1, 1.5) + Math.max(0, Math.abs(u - cx) - halfTop) ** 2 / 150;
   for (let fx = 0; fx <= p.width; fx++) {
     const u = (fx + 0.5) / s - 0.5;
     farTop.push(HZ - 70 - ridge(u * 0.8, 3.1, 46));
-    midTop.push(HZ - 24 - ridge(u, 5.3, 16) - Math.max(0, 1 - Math.abs(u - W * 0.8) / (W * 0.14)) * 30);
+    midTop.push(Math.min(HZ - 24 - ridge(u, 5.3, 16), hillTop(u)));
   }
   // The Milky Way runs diagonally from top left to the right horizon.
   const bx0 = 0;
@@ -554,7 +559,29 @@ export function paintTitleBackdrop(width: number, height: number, horizon: numbe
   dragon(p, mx + mr * 2.6, my + mr * 0.9, 58);
 
   // Castle on its hill; framing pines go on last, over the grass.
-  castle(p, W * 0.8, Math.min(...midTop.slice(Math.floor(W * 0.78 * s), Math.floor(W * 0.82 * s))) + 6, 1.35);
+  // The castle stands just behind the hill's front edge: paint it sunk into the hill, then put the hill
+  // (as painted above) back in front of its foot, with a moonlit crest and some ground mist.
+  const hill = data.slice();
+  castle(p, cx, plateau + 6, 1.2);
+  const crest = (u: number): number => plateau + 3 + Math.sin((u - cx) / 11) * 0.8 + ridge(u, 2.7, 1);
+  const x0 = Math.floor((cx - halfTop - 20) * s);
+  const x1 = Math.ceil((cx + halfTop + 20) * s);
+  for (let fx = Math.max(0, x0); fx < Math.min(p.width, x1); fx++) {
+    const u = (fx + 0.5) / s - 0.5;
+    const top = crest(u);
+    for (let fy = Math.max(0, Math.floor(top * s)); fy < Math.floor(HZ * s); fy++) {
+      const i = (fy * p.width + fx) * 4;
+      data[i] = hill[i];
+      data[i + 1] = hill[i + 1];
+      data[i + 2] = hill[i + 2];
+    }
+    if (top >= midTop[fx] + 1) {
+      p.fpx(fx, Math.floor(top * s), '#4a5890', 0.55);
+    }
+  }
+  p.flat(ell(cx, plateau + 2, halfTop + 10, 4), mist, 0.18);
+  // The road climbs the hill to the gate.
+  p.flat(poly([cx - 3.5, HZ, cx + 3.5, HZ, cx + 1.6, crest(cx) + 0.5, cx - 1.6, crest(cx) + 0.5]), '#2e2c2a', 0.75);
   // Moonlit grass in the foreground.
   for (let i = 0; i < 260; i++) {
     const t = Math.pow(hash(i, 1, 111), 0.7);
