@@ -1,9 +1,9 @@
-name: 'Deploy Frontend: Staging (stg.jouster.org)'
+name: 'Rebuild Frontend: Staging from main (fallback)'
 
-# GREEN environment. Promote to production with "Promote Frontend: Staging → Production".
+# GREEN environment. The normal path is "Promote Frontend: QA → Staging", which copies the
+# tested QA artifact. This workflow rebuilds stg.jouster.org from the selected ref and is only
+# for recovery or hotfixes; it no longer runs on push.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

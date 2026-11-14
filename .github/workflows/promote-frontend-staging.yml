@@ -1,0 +1,123 @@
+name: 'Promote Frontend: QA → Staging'
+
+# Build once, promote many: copies the artifact already running on qa.jouster.org to
+# stg.jouster.org without rebuilding, so staging tests exactly what QA tested.
+# QA and staging both use `npm run build:prod`, so the artifact is environment-agnostic.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "promote" to copy qa.jouster.org to stg.jouster.org'
+        required: true
+        type: string
+      dry_run:
+        description: 'Dry run (show what would change, deploy nothing)'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: frontend-staging
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-west-2
+  QA_BUCKET: qa.jouster.org
+  STAGING_BUCKET: stg.jouster.org
+  STAGING_DOMAIN: stg.jouster.org
+
+jobs:
+  promote:
+    name: Promote qa.jouster.org → stg.jouster.org
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+      url: https://stg.jouster.org
+
+    steps:
+      - name: Require confirmation
+        if: inputs.confirm != 'promote'
+        run: |
+          echo "::error::Confirmation input must be exactly 'promote'"
+          exit 1
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::924677642513:role/GitHubActionsPreviewRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Read QA build
+        id: qa
+        run: |
+          if ! INFO=$(aws s3 cp "s3://${QA_BUCKET}/build-info.json" - 2>/dev/null); then
+            echo "::error::s3://${QA_BUCKET}/build-info.json not found. Re-run 'Deploy Frontend: QA' so the QA build records its commit."
+            exit 1
+          fi
+          echo "$INFO"
+          echo "sha=$(jq -r '.sha' <<<"$INFO")" >> "$GITHUB_OUTPUT"
+          echo "ref=$(jq -r '.ref' <<<"$INFO")" >> "$GITHUB_OUTPUT"
+
+      - name: Read current staging build
+        id: stg
+        run: |
+          INFO=$(aws s3 cp "s3://${STAGING_BUCKET}/build-info.json" - 2>/dev/null || echo '{}')
+          echo "$INFO"
+          echo "sha=$(jq -r '.sha // "unknown"' <<<"$INFO")" >> "$GITHUB_OUTPUT"
+
+      - name: Planned changes
+        run: aws s3 sync "s3://${QA_BUCKET}" "s3://${STAGING_BUCKET}" --delete --dryrun
+
+      - name: Publish QA build to staging
+        if: ${{ !inputs.dry_run }}
+        run: aws s3 sync "s3://${QA_BUCKET}" "s3://${STAGING_BUCKET}" --delete --copy-props metadata-directive --only-show-errors
+
+      - name: Invalidate staging CloudFront cache
+        id: cdn
+        if: ${{ !inputs.dry_run }}
+        run: |
+          DIST_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Aliases.Items && contains(Aliases.Items, '${STAGING_DOMAIN}')].Id | [0]" \
+            --output text)
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
+            echo "::error::No CloudFront distribution found for ${STAGING_DOMAIN}"
+            exit 1
+          fi
+          INV_ID=$(aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths '/*' \
+            --query 'Invalidation.Id' --output text)
+          echo "Invalidation $INV_ID on $DIST_ID; waiting for completion..."
+          aws cloudfront wait invalidation-completed --distribution-id "$DIST_ID" --id "$INV_ID"
+          echo "id=$DIST_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Verify stg.jouster.org serves the QA build
+        if: ${{ !inputs.dry_run }}
+        run: |
+          SERVED=$(curl -fsS "https://${STAGING_DOMAIN}/build-info.json?v=${GITHUB_RUN_ID}" | jq -r '.sha')
+          if [ "$SERVED" != "${{ steps.qa.outputs.sha }}" ]; then
+            echo "::error::stg.jouster.org serves ${SERVED}, expected ${{ steps.qa.outputs.sha }}"
+            exit 1
+          fi
+          echo "stg.jouster.org serves ${SERVED}"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Frontend promotion: qa.jouster.org → stg.jouster.org"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Mode | ${{ inputs.dry_run && 'dry run' || 'live' }} |"
+            echo "| QA build | \`${{ steps.qa.outputs.sha }}\` (${{ steps.qa.outputs.ref }}) |"
+            echo "| Previous staging build | \`${{ steps.stg.outputs.sha }}\` |"
+            echo "| CloudFront | \`${{ steps.cdn.outputs.id || 'n/a' }}\` |"
+            echo "| Result | ${{ job.status }} |"
+            echo ""
+            echo "Next: test https://stg.jouster.org, then run **Promote Frontend: Staging → Production**."
+          } >> "$GITHUB_STEP_SUMMARY"

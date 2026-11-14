@@ -1,23 +1,27 @@
 # Staging Environment Setup Guide (Green Environment)
 
 ## Overview
-The staging environment automatically deploys from the `main` branch to `stg.jouster.org` whenever a pull request is merged. This represents your **GREEN environment** for blue-green deployment strategy.
+Staging (`stg.jouster.org`) is the **GREEN environment** in the blue-green strategy. It is not built
+from a branch: the artifact already tested on QA is promoted to it unchanged with the
+**Promote Frontend: QA → Staging** workflow.
 
 ## Architecture
-- **Domain**: stg.jouster.org
+- **Domain**: stg.jouster.org (served through CloudFront)
 - **AWS Region**: us-west-2
 - **S3 Bucket**: stg.jouster.org
-- **Deployment Trigger**: PR merge to `main` branch
-- **Build Tool**: GitHub Actions + AWS CLI
+- **Deployment Trigger**: manual promotion from QA
+- **Build Tool**: none at promotion time (the QA build from `develop` is copied)
 - **Environment Type**: GREEN (Pre-production staging)
 
-## Automated Deployment
-When a PR is merged into the `main` branch:
-1. GitHub Actions triggers the staging deployment workflow
-2. Application is built using `npm run build:prod` (production build)
-3. Built files are deployed to S3 bucket `stg.jouster.org`
-4. DNS record is created/updated for stg.jouster.org
-5. Staging environment is accessible at https://stg.jouster.org
+## Promotion from QA
+1. Run **Promote Frontend: QA → Staging** in GitHub Actions (`confirm` = `promote`; try `dry_run` first)
+2. `s3://qa.jouster.org` is synced to `s3://stg.jouster.org`
+3. The staging CloudFront cache is invalidated
+4. The workflow checks that https://stg.jouster.org/build-info.json reports the QA commit
+
+## Fallback rebuild
+**Rebuild Frontend: Staging from main (fallback)** (`staging-deploy.yml`) rebuilds staging from a
+selected ref. Use it only for recovery or hotfixes; it does not run automatically.
 
 ## Manual Deployment
 You can also deploy manually using:
@@ -46,16 +50,16 @@ cd aws/scripts
 
 ### Environment Mapping:
 - **QA Environment**: qa.jouster.org (develop branch)
-- **GREEN Environment**: stg.jouster.org (main branch) ← **This is staging**
+- **GREEN Environment**: stg.jouster.org (promoted from QA) ← **This is staging**
 - **BLUE Environment**: jouster.org / www.jouster.org (production)
 
 ### Deployment Flow:
-1. **Feature Development** → `develop` branch → **QA** (qa.jouster.org)
-2. **Release Candidate** → `main` branch → **GREEN** (stg.jouster.org) ← **Staging**
-3. **Production Release** → Manual promotion → **BLUE** (jouster.org)
+1. **Feature Development** → `develop` branch → **QA** (qa.jouster.org), built once here
+2. **Release Candidate** → Promote QA → **GREEN** (stg.jouster.org) ← **Staging**
+3. **Production Release** → Promote staging → **BLUE** (jouster.org)
 
 ## Configuration Files
-- **Workflow**: `.github/workflows/staging-deploy.yml`
+- **Workflows**: `.github/workflows/promote-frontend-staging.yml` (normal), `.github/workflows/staging-deploy.yml` (fallback)
 - **Scripts**: `aws/scripts/deploy-staging.{bat,sh}`
 - **Policies**: `aws/policies/staging-bucket-policy.json`
 - **DNS Config**: `aws/configs/staging-dns-record.json`
@@ -67,15 +71,16 @@ For automated deployment, ensure these secrets are set in GitHub:
 - `AWS_SECRET_ACCESS_KEY`
 
 ## Branch Strategy
-- **`develop`** → QA Environment (qa.jouster.org)
-- **`main`** → GREEN Environment (stg.jouster.org) ← **This staging**
+- **`develop`** → QA Environment (qa.jouster.org); the only branch that builds the frontend
+- **Manual promotion** → GREEN Environment (stg.jouster.org) ← **This staging**
 - **Manual promotion** → BLUE Environment (jouster.org)
 
 ## Development Workflow
 1. Create feature branch from `develop`
 2. Create PR to merge into `develop` → Deploys to **QA**
-3. When QA testing passes, create PR from `develop` to `main` → Deploys to **GREEN (Staging)**
-4. When staging testing passes, manually promote to **BLUE (Production)**
+3. When QA testing passes, run **Promote Frontend: QA → Staging** → **GREEN (Staging)**
+4. When staging testing passes, run **Promote Frontend: Staging → Production** → **BLUE (Production)**
+5. Fast-forward `main` to the promoted commit so `main` records what is in production
 
 ## Monitoring & Logs
 - GitHub Actions logs: Repository → Actions tab

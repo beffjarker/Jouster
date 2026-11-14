@@ -1,14 +1,17 @@
 # GitHub Actions Structure
 
 Inventory of the workflows in `.github/workflows/` and the runbook for promoting the frontend
-from staging (GREEN) to production (BLUE).
+from QA through staging (GREEN) to production (BLUE).
+
+The frontend is built **once**, when a change merges to `develop`. The same artifact is then promoted
+QA → staging → production by copying S3 objects, so each environment runs exactly what the previous one tested.
 
 ## Environments
 
 | Environment | URL | Source | Deployed by |
 | ----------- | --- | ------ | ----------- |
-| QA | http://qa.jouster.org | `develop` | `qa-deploy.yml` (push to `develop`) |
-| GREEN / staging | http://stg.jouster.org | `main` | `staging-deploy.yml` (push to `main`) |
+| QA | https://qa.jouster.org | `develop` (built here) | `qa-deploy.yml` (push to `develop`) |
+| GREEN / staging | https://stg.jouster.org | promoted from QA | `promote-frontend-staging.yml` (manual) |
 | BLUE / production | https://jouster.org | promoted from staging | `promote-frontend-production.yml` (manual) |
 
 ## Recommended pinned workflows
@@ -16,19 +19,20 @@ from staging (GREEN) to production (BLUE).
 Pinning is only available in the GitHub UI. In **Actions**, select the workflow and choose
 **…** → **Pin workflow**.
 
-1. **Promote Frontend: Staging → Production** (`promote-frontend-production.yml`)
-2. **Rollback Frontend Production** (`rollback-frontend-production.yml`)
-3. **Deploy Frontend: Staging (stg.jouster.org)** (`staging-deploy.yml`)
+1. **Promote Frontend: QA → Staging** (`promote-frontend-staging.yml`)
+2. **Promote Frontend: Staging → Production** (`promote-frontend-production.yml`)
+3. **Rollback Frontend Production** (`rollback-frontend-production.yml`)
 4. **Deploy Backend (prod) — Lambda Blue/Green Canary** (`deploy-backend-prod.yml`)
 
 ## Workflow inventory
 
 | Workflow | Trigger | Purpose |
 | -------- | ------- | ------- |
+| `promote-frontend-staging.yml` | manual | Copy the QA artifact to staging (sync → invalidate → verify `build-info.json`) |
 | `promote-frontend-production.yml` | manual | Copy the staging artifact to production (snapshot → publish → invalidate → verify) |
 | `rollback-frontend-production.yml` | manual | Restore a production snapshot |
-| `staging-deploy.yml` | push `main`, manual | Build and deploy GREEN; writes `build-info.json` |
-| `qa-deploy.yml` | push `develop`, manual | Build and deploy QA |
+| `staging-deploy.yml` | manual | Fallback only: rebuild GREEN from a ref (e.g. a hotfix); writes `build-info.json` |
+| `qa-deploy.yml` | push `develop`, manual | Build and deploy QA; writes `build-info.json` |
 | `ci.yml` | push `main` / `develop` | Lint, test, build |
 | `build-preview-artifact.yml` | pull request | Build the PR preview artifact |
 | `pull-request-delete-preview.yml` | PR closed | Remove PR preview resources |
@@ -38,6 +42,18 @@ Pinning is only available in the GitHub UI. In **Actions**, select the workflow 
 | `dependency-review.yml` | pull request, merge group | Dependency vulnerability review |
 | `deploy-backend-nonprod.yml` | push `develop`, manual | Backend Lambda blue/green (nonprod) |
 | `deploy-backend-prod.yml` | `v*` tag, manual | Backend Lambda blue/green canary (prod) |
+
+## Frontend promotion (QA → GREEN)
+
+1. Confirm qa.jouster.org is good. `https://qa.jouster.org/build-info.json` shows the deployed commit.
+2. Run **Promote Frontend: QA → Staging** with `confirm` = `promote` (try `dry_run` = `true` first).
+3. The workflow syncs `s3://qa.jouster.org` to `s3://stg.jouster.org`, invalidates the staging
+   CloudFront distribution, and checks that `https://stg.jouster.org/build-info.json` reports the QA commit.
+
+It runs in the `staging` GitHub environment as `GitHubActionsPreviewRole`, which needs read access to
+`qa.jouster.org`, write access to `stg.jouster.org`, and `cloudfront:ListDistributions` /
+`CreateInvalidation` / `GetInvalidation` on the staging distribution
+(see `aws/policies/github-actions-preview-policy.json`).
 
 ## Frontend promotion (GREEN → BLUE)
 
