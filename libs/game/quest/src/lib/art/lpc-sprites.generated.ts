@@ -62,10 +62,10 @@ export const LPC_MONSTERS: ReadonlyMap<string, { sheet: 'characters' | 'monsters
 ]);
 
 /** Real-pixel size of one `actions.png` cell (a battle pose frame, facing right). */
-export const LPC_ACTION_CELL = { width: 72, height: 60 } as const;
+export const LPC_ACTION_CELL = { width: 70, height: 60 } as const;
 
 /** Real-pixel offset of the `characters.png` cell inside an `actions.png` cell (the body lines up). */
-export const LPC_ACTION_ORIGIN = { x: -8, y: -6 } as const;
+export const LPC_ACTION_ORIGIN = { x: -10, y: -6 } as const;
 
 /** `actions.png` row and frame count per `look:action` (action `attack` or `cast`). */
 export const LPC_ACTIONS: ReadonlyMap<string, { row: number; frames: number }> = new Map([

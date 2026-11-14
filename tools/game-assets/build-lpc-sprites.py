@@ -207,6 +207,8 @@ POSES = {
 }
 OVERSIZE = {'slash_128': ('slash', 128), 'slash_oversize': ('slash', 192), 'thrust_oversize': ('thrust', 192)}
 POSE_CANVAS = 192
+# ULPC draws the bow-shoot body 1px left of the walk frames; shift it back so the head does not jump.
+POSE_NUDGE = {'shoot': (1, 0)}
 
 
 # ---------------------------------------------------------------------------------------------------------
@@ -363,11 +365,12 @@ def pose_frames(name: str, anim: str, used: set[str], missing: list[str]) -> lis
         if len(fs) != count:
             missing.append(f'{anim}: {name} layer has {len(fs)} frames, body has {count}')
     frames = []
+    nudge = POSE_NUDGE.get(anim, (0, 0))
     for i in range(count):
         cell = Image.new('RGBA', (POSE_CANVAS, POSE_CANVAS))
         for _, fs in layers:
             if i < len(fs):
-                cell.alpha_composite(fs[i])
+                cell.alpha_composite(fs[i], nudge)
         frames.append(cell)
     return frames
 
