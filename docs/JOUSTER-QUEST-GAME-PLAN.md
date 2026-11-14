@@ -65,7 +65,7 @@ apps/
 | **Fog of war** | Hidden overworld and dungeon tiles revealed within a radius of the party; explored tiles saved per map (14.1) |
 | **World map** | `M` overlay of the current map's explored tiles, discovered places and quest hints (14.1) |
 | **Quests** | Main quest plus one side quest per companion, shown in the field menu's quest log (14.2) |
-| **Movement** | 4-direction, grid-locked, smooth movement between tiles, 2-frame walk cycle |
+| **Movement** | 4-direction, grid-locked, smooth movement between tiles, walk cycle (8 LPC frames, 2 classic; §23) |
 | **Camera** | Follows the player and clamps to map bounds |
 | **Dialogue** | Typewriter text box, portraits (optional), yes/no prompts, sets and reads story flags |
 | **Encounters** | Step counter in danger tiles; per-region rate (default ~1/16 per step); towns are safe. Each area has a level (Greenwood 2, Forest 4, Hills 5, Cave 6, Den 6); when the highest party level is more than 3 above it, the rate drops to ¼ and halves for each further level (floor 1/32 of the base) |
@@ -1649,6 +1649,7 @@ Every Act III asset is procedural, at the §16.10 density:
 
 - ~~The finale: Vyrmorth's lair.~~ Done in §21.
 - ~~Music loops.~~ Done in §22.
+- ~~Smoother walking.~~ Done in §23.
 - Status curing at the chapel (§12 deferred list).
 - A Cypress smoke test for `/jouster-quest` (§9: load, pick a class, move, save).
 - LPC wolf and toad art with attack animations (16.4 item 4c).
@@ -1790,3 +1791,28 @@ When a battle ends, the music stops so the victory or defeat jingle plays alone,
   and final boss themes.
 - Manual: listen in the browser. Each area should have its own loop, battles should switch smoothly and `N`
   should silence everything.
+
+## 23. Polish: smooth walking (implemented)
+
+Walking looked jerky for four reasons, all fixed:
+
+1. **Limping walk cycle.** The LPC sheet kept only two walk frames (stand and one half-stride with the same leg
+   forward every time), switched once per tile. `characters.png` now keeps all 9 LPC walk columns, and
+   `Art.characterWalk(id, facing, phase)` plays the 8 stride frames over two tiles, so the feet alternate.
+   Standing still still uses the stand and step pose (`Art.character`, frames 0 and 1). Classic (procedural) art
+   keeps its 2-frame swap.
+2. **A pause at every tile.** Each step ended one update before the next began, so the party froze for a frame on
+   every tile (11 updates per tile instead of 9.6). A held direction now starts the next step in the same update,
+   carrying over the leftover time, unless the step opened a dialog, battle or warp.
+3. **No render interpolation.** Updates run at a fixed 60 Hz, but screens refresh at 60 to 144 Hz with uneven
+   timing. `GameLoop` now passes `ahead` (seconds since the last update) to `render`, the scene stack hands it to
+   the top scene only (0 during fades), and the world scene draws the party, camera and NPCs that far into their
+   step.
+4. **Leader wobble.** The camera was rounded to whole logical pixels while sprites were drawn at quarter pixels,
+   so the leader shifted by up to half a pixel against the screen. The camera now follows the leader exactly and
+   the renderer snaps everything to real pixels together.
+
+Tests: `GameLoop` passes the leftover time to render; `SceneStack` passes it only to the top scene; holding a
+direction for 10 step times takes 9 steps (8 with the old pause); `characterWalk` picks LPC columns 2..8 and 1
+and keeps the procedural swap. Manual: hold a direction across a long field and compare feel on 60 Hz and
+120/144 Hz screens, with and without `?art=classic`.

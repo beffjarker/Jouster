@@ -21,6 +21,7 @@ import {
   LPC_CHARACTER_FACINGS,
   LPC_CHARACTER_ROWS,
   LPC_CHARACTER_STEPS,
+  LPC_CHARACTER_STEP_POSE,
   LPC_MONSTERS,
   LPC_MONSTER_CELL,
 } from './lpc-sprites.generated';
@@ -157,6 +158,36 @@ describe('Art sprites', () => {
     const left = art.character('warrior', 'left');
     expect(left).not.toBe(art.character('warrior', 'right'));
     expect(spriteSize(left)).toEqual({ width: TILE * 2, height: TILE * 2 });
+  });
+
+  it('walks through the full LPC cycle over two tiles, never the standing frame', () => {
+    const art = new Art(fakeSheets());
+    const crop = jest.spyOn(art as unknown as { sheetSprite(...a: unknown[]): HTMLCanvasElement }, 'sheetSprite');
+    const base = LPC_CHARACTER_FACINGS.indexOf('down') * LPC_CHARACTER_STEPS;
+    const cols = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+      art.characterWalk('warrior', 'down', i / 8);
+      return (crop.mock.calls[crop.mock.calls.length - 1][1] as number) / LPC_CHARACTER_CELL.width - base;
+    });
+    expect(cols).toEqual([2, 3, 4, 5, 6, 7, 8, 1]);
+    expect(art.characterWalk('warrior', 'down', 1.25)).toBe(art.characterWalk('warrior', 'down', 0.25));
+    art.character('warrior', 'up', 1);
+    const upBase = LPC_CHARACTER_FACINGS.indexOf('up') * LPC_CHARACTER_STEPS;
+    expect((crop.mock.calls[crop.mock.calls.length - 1][1] as number) / LPC_CHARACTER_CELL.width - upBase).toBe(
+      LPC_CHARACTER_STEP_POSE,
+    );
+  });
+
+  it('swaps procedural walk frames mid-tile, as before', () => {
+    const art = new Art();
+    const stand = art.character('warrior', 'down', 0);
+    const step = art.character('warrior', 'down', 1);
+    expect([0, 0.2, 0.3, 0.7, 0.8].map((p) => art.characterWalk('warrior', 'down', p))).toEqual([
+      stand,
+      stand,
+      step,
+      step,
+      stand,
+    ]);
   });
 });
 

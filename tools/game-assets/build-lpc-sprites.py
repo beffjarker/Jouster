@@ -39,10 +39,13 @@ BASE_ASSETS = 'https://opengameart.org/sites/default/files/lpc_base_assets.zip'
 BASE_ASSETS_PAGE = 'https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles'
 
 FRAME = 64
-# walk.png rows by facing, and the two walk-cycle columns used for the game's 2-frame step.
+# walk.png rows by facing. The sheet keeps every walk column: 0 is the standing pose and 1-8 the walk cycle
+# (3 and 7 are the strides, 1 and 5 the passing poses). STEP_POSE is the half-stride used as the "step" frame of
+# the game's two-frame idle bob.
 ROWS = {'up': 0, 'left': 1, 'down': 2, 'right': 3}
 FACINGS = ('down', 'up', 'left', 'right')
-STEP_COLS = (0, 4)
+STEP_COLS = tuple(range(9))
+STEP_POSE = 4
 MONSTER_FACING = 'left'  # battle enemies face the party on the left
 
 # ---------------------------------------------------------------------------------------------------------
@@ -384,9 +387,12 @@ def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str]) -> None:
         '/** Real-pixel size of one `characters.png` cell (an LPC 64x64 walk frame cropped to the art). */',
         f'export const LPC_CHARACTER_CELL = {{ width: {cw}, height: {ch} }} as const;',
         '',
-        '/** `characters.png` column order: facing, then step frame. */',
+        '/** `characters.png` column order: facing, then step frame (0 = standing, 1-8 = the LPC walk cycle). */',
         f"export const LPC_CHARACTER_FACINGS = [{', '.join(repr(f) for f in FACINGS)}] as const;",
         f'export const LPC_CHARACTER_STEPS = {len(STEP_COLS)};',
+        '',
+        '/** Step frame used for the two-frame "step" pose (idle bob). */',
+        f'export const LPC_CHARACTER_STEP_POSE = {STEP_COLS.index(STEP_POSE)};',
         '',
         '/** `characters.png` row per humanoid look id. */',
         'export const LPC_CHARACTER_ROWS: ReadonlyMap<string, number> = new Map<string, number>([',

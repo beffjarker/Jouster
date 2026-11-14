@@ -277,6 +277,22 @@ describe('GameLoop', () => {
     loop.stop();
     expect(loop.running).toBe(false);
   });
+
+  it('tells render how far real time has run past the last update', () => {
+    const frames: Array<(t: number) => void> = [];
+    const scheduler: FrameScheduler = {
+      request: (cb) => frames.push(cb),
+      cancel: jest.fn(),
+    };
+    const render = jest.fn();
+    const loop = new GameLoop(jest.fn(), render, scheduler);
+    loop.start();
+    frames[0](0);
+    frames[1](110);
+    // 110 ms is six 1/60 s updates plus 10 ms left over.
+    expect(render.mock.calls[1][0]).toBeCloseTo(0.01, 5);
+    loop.stop();
+  });
 });
 
 describe('SceneStack', () => {
@@ -312,6 +328,21 @@ describe('SceneStack', () => {
     expect(world.renders).toBe(1);
     expect(menu.renders).toBe(1);
     expect(onChange).toHaveBeenLastCalledWith(menu);
+  });
+
+  it('passes the render lead to the top scene only, and not during a fade', () => {
+    const stack = new SceneStack();
+    const world = { ...testScene('world'), render: jest.fn() };
+    const menu = { ...testScene('menu', true), render: jest.fn() };
+    stack.push(world);
+    stack.push(menu);
+    const r = { fade: jest.fn() } as never;
+    stack.render(r, 0.01);
+    expect(world.render).toHaveBeenLastCalledWith(r, 0);
+    expect(menu.render).toHaveBeenLastCalledWith(r, 0.01);
+    stack.pop(true);
+    stack.render(r, 0.01);
+    expect(menu.render).toHaveBeenLastCalledWith(r, 0);
   });
 
   it('applies faded operations after the fade out', () => {

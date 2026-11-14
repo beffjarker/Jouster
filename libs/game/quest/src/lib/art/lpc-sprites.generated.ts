@@ -3,9 +3,12 @@
 /** Real-pixel size of one `characters.png` cell (an LPC 64x64 walk frame cropped to the art). */
 export const LPC_CHARACTER_CELL = { width: 64, height: 64 } as const;
 
-/** `characters.png` column order: facing, then step frame. */
+/** `characters.png` column order: facing, then step frame (0 = standing, 1-8 = the LPC walk cycle). */
 export const LPC_CHARACTER_FACINGS = ['down', 'up', 'left', 'right'] as const;
-export const LPC_CHARACTER_STEPS = 2;
+export const LPC_CHARACTER_STEPS = 9;
+
+/** Step frame used for the two-frame "step" pose (idle bob). */
+export const LPC_CHARACTER_STEP_POSE = 4;
 
 /** `characters.png` row per humanoid look id. */
 export const LPC_CHARACTER_ROWS: ReadonlyMap<string, number> = new Map<string, number>([

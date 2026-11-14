@@ -15,7 +15,9 @@ export const animationFrameScheduler: FrameScheduler = {
 
 /**
  * Fixed-timestep loop: `update` runs at a steady 60 Hz regardless of display refresh rate;
- * `render` runs once per animation frame.
+ * `render` runs once per animation frame and gets `ahead`, the seconds (0 to {@link FIXED_STEP}) of real
+ * time since the last update, so moving things can be drawn where they are now rather than where the last
+ * update left them. Without it, motion judders whenever the display and the update rate drift apart.
  */
 export class GameLoop {
   private handle: number | null = null;
@@ -24,7 +26,7 @@ export class GameLoop {
 
   constructor(
     private readonly update: (dt: number) => void,
-    private readonly render: () => void,
+    private readonly render: (ahead: number) => void,
     private readonly scheduler: FrameScheduler = animationFrameScheduler,
   ) {}
 
@@ -57,7 +59,7 @@ export class GameLoop {
       this.update(FIXED_STEP);
       this.accumulator -= FIXED_STEP;
     }
-    this.render();
+    this.render(this.accumulator);
     if (this.handle !== null) {
       this.handle = this.scheduler.request(this.tick);
     }

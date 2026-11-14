@@ -25,9 +25,13 @@ import {
   LPC_CHARACTER_FACINGS,
   LPC_CHARACTER_ROWS,
   LPC_CHARACTER_STEPS,
+  LPC_CHARACTER_STEP_POSE,
   LPC_MONSTERS,
   LPC_MONSTER_CELL,
 } from './lpc-sprites.generated';
+
+/** Frames in the LPC walk cycle (every sheet column after the standing one). */
+const LPC_WALK_CYCLE = LPC_CHARACTER_STEPS - 1;
 
 /** Logical tile size. Procedural art is stored at 4x density (64x64 real pixels per tile), LPC sprites at 2x. */
 export const TILE = 16;
@@ -339,24 +343,47 @@ export class Art {
   }
 
   /**
-   * Humanoid sprite for any facing. LPC sheets give a 32x32 logical frame (stand it on a tile with
-   * {@link tileAnchor}); procedural art is one tile, with `left` mirrored from `right`.
+   * Humanoid sprite for any facing; `frame` 0 stands, 1 is the step pose (idle bob). LPC sheets give a
+   * 32x32 logical frame (stand it on a tile with {@link tileAnchor}); procedural art is one tile, with `left`
+   * mirrored from `right`. Walking uses {@link characterWalk}.
    */
   public character(spriteId: string, facing: Facing, frame = 0): HTMLCanvasElement {
     const f = frame % 2;
-    const row = this.sheets?.get('characters') ? LPC_CHARACTER_ROWS.get(spriteId) : undefined;
+    const row = this.lpcCharacterRow(spriteId);
     if (row !== undefined) {
-      const { width, height } = LPC_CHARACTER_CELL;
-      const col = LPC_CHARACTER_FACINGS.indexOf(facing) * LPC_CHARACTER_STEPS + (f % LPC_CHARACTER_STEPS);
-      return this.cached(`lpcchr:${spriteId}:${facing}:${f}`, () =>
-        this.sheetSprite('characters', col * width, row * height, width, height),
-      );
+      return this.lpcCharacter(spriteId, row, facing, f ? LPC_CHARACTER_STEP_POSE : 0);
     }
     if (facing === 'left') {
       return this.cached(`chr:${spriteId}:left:${f}`, () => mirrored(this.character(spriteId, 'right', f)));
     }
     return this.cached(`chr:${spriteId}:${facing}:${f}`, () =>
       paintHumanoid(LOOKS.get(spriteId) ?? (LOOKS.get('villager') as HumanoidLook), facing, f).toCanvas(),
+    );
+  }
+
+  /**
+   * One frame of a humanoid's walk; `phase` runs from 0 to 1 over two tiles (a stride with each foot) and
+   * wraps. LPC art plays its whole 8-frame cycle, offset so each tile ends on a passing pose and stopping
+   * lands next to the standing frame; procedural art swaps its two frames mid-tile.
+   */
+  public characterWalk(spriteId: string, facing: Facing, phase: number): HTMLCanvasElement {
+    const p = phase - Math.floor(phase);
+    const row = this.lpcCharacterRow(spriteId);
+    if (row !== undefined) {
+      return this.lpcCharacter(spriteId, row, facing, 1 + ((Math.floor(p * LPC_WALK_CYCLE) + 1) % LPC_WALK_CYCLE));
+    }
+    return this.character(spriteId, facing, Math.floor(p * 2 + 0.5) % 2);
+  }
+
+  private lpcCharacterRow(spriteId: string): number | undefined {
+    return this.sheets?.get('characters') ? LPC_CHARACTER_ROWS.get(spriteId) : undefined;
+  }
+
+  private lpcCharacter(spriteId: string, row: number, facing: Facing, step: number): HTMLCanvasElement {
+    const { width, height } = LPC_CHARACTER_CELL;
+    const col = LPC_CHARACTER_FACINGS.indexOf(facing) * LPC_CHARACTER_STEPS + step;
+    return this.cached(`lpcchr:${spriteId}:${facing}:${step}`, () =>
+      this.sheetSprite('characters', col * width, row * height, width, height),
     );
   }
 
