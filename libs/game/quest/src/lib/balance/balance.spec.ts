@@ -4,7 +4,7 @@ import { ACT_THREE_BOSS_IDS, ACT_TWO_BOSS_IDS, ENCOUNTER_TABLES, BOSS_HP_SCALE, 
 import { ITEMS, WEAPONS } from '../data/equipment';
 import { pickEncounter } from '@jouster/game/engine';
 import { DEFAULT_GOLD_CHANCE, PartyMember, applyFieldRegen, createMember, grantXp, memberToCombatant } from '../state/party';
-import { STARTING_GOLD, companionJoinLevel } from '../state/game-state';
+import { MAX_PARTY, STARTING_GOLD, companionJoinLevel } from '../state/game-state';
 import { ABILITIES } from '../data/abilities';
 import { expectedDamage, runMany, simulateFight } from './simulator';
 import { MONSTERS } from '../data/monsters';
@@ -35,6 +35,11 @@ function geared(m: PartyMember, tier = 2): PartyMember {
       .filter((g) => g.slot === slot && g.tier <= tier && gearUsableBy(g, m.classId))
       .sort((x, y) => y.price - x.price)[0]?.id;
   return { ...armed(m, tier), armorId: best('armor'), shieldId: best('shield'), accessoryId: best('accessory') };
+}
+
+/** The smallest post-unlock party: the hero at `level` and one companion a level behind, both fully geared. */
+function duo(hero: ClassId, ally: ClassId, level: number, tier: number): PartyMember[] {
+  return [geared(createMember('a', 'A', hero, level), tier), geared(createMember('b', 'B', ally, level - 1), tier)];
 }
 
 function killRounds(classId: ClassId, level: number, monsterId: string): number {
@@ -225,22 +230,23 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     expect(bosses.sort()).toEqual([...ACT_TWO_BOSS_IDS].sort());
   });
 
-  const southCases = CLASS_ORDER.flatMap((id) => ['desert', 'marsh', 'shrine'].map((t) => [id, t] as const));
-  it.each(southCases)('%s wins >= 90%% of solo %s fights at level 10 with tier-3 gear', (id, tableId) => {
+  // Plan 4.1/4.4c: from Act II on a party is expected, so the floor is a hero with one companion a level
+  // behind (the smallest party), against full-size encounters. Solo is not a target here.
+  const southPairs = pairs.flatMap(([a, b]) => ['desert', 'marsh', 'shrine'].map((t) => [a, b, t] as const));
+  it.each(southPairs)('a level-10 %s + level-9 %s win >= 90%% of %s fights with tier-3 gear', (a, b, tableId) => {
     const table = ENCOUNTER_TABLES.get(tableId) ?? fail();
-    const hero = geared(createMember('h', 'Hero', id, 10), 3);
-    const stats = runMany(N, (i) => simulateFight([hero], pickEncounter(table, createRng(31000 + i), SOLO_MAX_ENEMIES), actTwoKit, createRng(32000 + i)));
+    const party = duo(a, b, 10, 3);
+    const stats = runMany(N, (i) => simulateFight(party, pickEncounter(table, createRng(31000 + i), MAX_PARTY), actTwoKit, createRng(32000 + i)));
     expect(stats.winRate).toBeGreaterThanOrEqual(0.9);
   });
 
   const shrineFights = ['sunShrine', 'mireShrine'].flatMap((id) => mapDef(id).npcs).flatMap((n) => (n.boss ? [n.boss.monsterIds] : []));
-  const shrineSolo = CLASS_ORDER.flatMap((id) => shrineFights.map((fight) => [id, fight.join('+'), fight] as const));
-  it.each(shrineSolo)('%s solo beats %s >= 60%% at level 12 with tier-3 gear', (id, _name, fight) => {
-    const hero = geared(createMember('h', 'Hero', id, 12), 3);
+  const shrinePairs = pairs.flatMap(([a, b]) => shrineFights.map((fight) => [a, b, fight.join('+'), fight] as const));
+  it.each(shrinePairs)('a level-11 %s + level-10 %s beat %s >= 70%% with tier-3 gear', (a, b, _name, fight) => {
     const stats = runMany(N, (i) =>
-      simulateFight([hero], [...fight], actTwoKit, createRng(33000 + i), { bossHpScale: BOSS_HP_SCALE[0] }),
+      simulateFight(duo(a, b, 11, 3), [...fight], actTwoKit, createRng(33000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
     );
-    expect(stats.winRate).toBeGreaterThanOrEqual(0.6);
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
 
   const shrineTrios = trios.flatMap((t) => shrineFights.map((fight) => [...t, fight.join('+'), fight] as const));
@@ -278,22 +284,21 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     expect(bosses).toEqual([...ACT_THREE_BOSS_IDS]);
   });
 
-  const northCases = CLASS_ORDER.flatMap((id) => ['snowfield', 'pines', 'roost'].map((t) => [id, t] as const));
-  it.each(northCases)('%s wins >= 90%% of solo %s fights at level 13 with tier-4 gear', (id, tableId) => {
+  const northPairs = pairs.flatMap(([a, b]) => ['snowfield', 'pines', 'roost'].map((t) => [a, b, t] as const));
+  it.each(northPairs)('a level-13 %s + level-12 %s win >= 90%% of %s fights with tier-4 gear', (a, b, tableId) => {
     const table = ENCOUNTER_TABLES.get(tableId) ?? fail();
-    const hero = geared(createMember('h', 'Hero', id, 13), 4);
-    const stats = runMany(N, (i) => simulateFight([hero], pickEncounter(table, createRng(41000 + i), SOLO_MAX_ENEMIES), actThreeKit, createRng(42000 + i)));
+    const party = duo(a, b, 13, 4);
+    const stats = runMany(N, (i) => simulateFight(party, pickEncounter(table, createRng(41000 + i), MAX_PARTY), actThreeKit, createRng(42000 + i)));
     expect(stats.winRate).toBeGreaterThanOrEqual(0.9);
   });
 
   const roostFights = mapDef('wyvernRoost').npcs.flatMap((n) => (n.boss ? [n.boss.monsterIds] : []));
-  const roostSolo = CLASS_ORDER.flatMap((id) => roostFights.map((fight) => [id, fight.join('+'), fight] as const));
-  it.each(roostSolo)('%s solo beats %s >= 60%% at level 15 with tier-4 gear', (id, _name, fight) => {
-    const hero = geared(createMember('h', 'Hero', id, 15), 4);
+  const roostPairs = pairs.flatMap(([a, b]) => roostFights.map((fight) => [a, b, fight.join('+'), fight] as const));
+  it.each(roostPairs)('a level-14 %s + level-13 %s beat %s >= 70%% with tier-4 gear', (a, b, _name, fight) => {
     const stats = runMany(N, (i) =>
-      simulateFight([hero], [...fight], actThreeKit, createRng(43000 + i), { bossHpScale: BOSS_HP_SCALE[0] }),
+      simulateFight(duo(a, b, 14, 4), [...fight], actThreeKit, createRng(43000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
     );
-    expect(stats.winRate).toBeGreaterThanOrEqual(0.6);
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
 
   const roostTrios = trios.flatMap((t) => roostFights.map((fight) => [...t, fight.join('+'), fight] as const));
@@ -358,10 +363,17 @@ const bossStages = (maps: string[], level: number, tier: number, kit: Record<str
 const soloKitI = { herb: 6, tonic: 1 };
 const soloKitII = { herb: 8, tonic: 2 };
 const soloKitIII = { herb: 8, tonic: 2, potion: 2 };
+/** Plan 4.4b: everything the hero must clear alone, up to the companion mini-bosses (their recruit quests). */
 const STAGES: Stage[] = [
   tableStage('greenwood', 3, 1),
+  tableStage('forest', 4, 1, soloKitI),
+  tableStage('hills', 5, 2, soloKitI),
+  tableStage('cave', 6, 2, soloKitI),
   { name: 'goblinKing', level: 6, tier: 2, kit: soloKitI, fight: () => ['goblinKing'], bossHpScale: BOSS_HP_SCALE[0] },
   ...bossStages(['overworld', 'goblinCave', 'wolfDen'], 7, 2, soloKitI, ['goblinKing']),
+];
+/** Plan 4.4c: post-unlock content, reported for a hero who stays alone but not asserted (a party is expected). */
+const POST_UNLOCK: Stage[] = [
   ...['desert', 'marsh', 'shrine'].map((id) => tableStage(id, 10, 3, soloKitII)),
   ...bossStages(['sunShrine', 'mireShrine'], 12, 3, soloKitII),
   ...['snowfield', 'pines', 'roost'].map((id) => tableStage(id, 13, 4, soloKitIII)),
@@ -435,7 +447,7 @@ function avgStreak(classId: ClassId, stage: Stage): number {
   return total / runs;
 }
 
-describe('Jouster Quest: the Wizard playing alone (plan 4.4b)', () => {
+describe('Jouster Quest: solo play before companions unlock (plan 4.4b)', () => {
   const pct = (x: number): string => `${(x * 100).toFixed(0)}%`;
   const report: string[] = [];
   afterAll(() => {
@@ -445,7 +457,8 @@ describe('Jouster Quest: the Wizard playing alone (plan 4.4b)', () => {
     }
   });
 
-  it.each(STAGES.map((s) => [s.name, s.level, s] as const))('wins %s at level %i >= 70%%, and >= 50%% one level under', (_n, _l, stage) => {
+  // The Wizard is the frailest class (lowest HP/DEF, no healing, no field MP regen): the solo reference case.
+  it.each(STAGES.map((s) => [s.name, s.level, s] as const))('the Wizard wins %s at level %i >= 70%%, and >= 50%% one level under', (_n, _l, stage) => {
     const at = stageStats('wizard', stage);
     const under = stageStats('wizard', stage, -1);
     const warrior = stageStats('warrior', stage);
@@ -459,12 +472,25 @@ describe('Jouster Quest: the Wizard playing alone (plan 4.4b)', () => {
     expect(at.avgRounds).toBeLessThanOrEqual(warrior.avgRounds * 1.5);
   });
 
-  // Plan 4.4b: enough staying power to cross an area (or a shrine) between inns.
+  // Enough staying power to cross a pre-unlock area between inns, for every class.
   const areas = STAGES.filter((s) => !s.bossHpScale);
-  it.each(areas.map((s) => [s.name, s] as const))('wins %s fights in a row on items and field regen alone', (_n, stage) => {
-    const avg = avgStreak('wizard', stage);
-    report.push(`${stage.name.padEnd(24)} streak ${avg.toFixed(1)} fights (cap 25)`);
+  const streakCases = areas.flatMap((s) => CLASS_ORDER.map((c) => [c, s.name, s] as const));
+  it.each(streakCases)('a solo %s wins %s fights in a row on items and field regen alone', (classId, _n, stage) => {
+    const avg = avgStreak(classId, stage);
+    report.push(`${stage.name.padEnd(10)} ${classId.padEnd(8)} streak ${avg.toFixed(1)} fights (cap 25)`);
     expect(avg).toBeGreaterThanOrEqual(stage.level <= 3 ? 10 : 4);
+  });
+
+  // Plan 4.4c: after the unlock a lone hero is expected to struggle; recorded for the report only.
+  it('reports how a hero who stays alone fares after the unlock (not asserted)', () => {
+    if (!process.env['BALANCE_REPORT']) {
+      return;
+    }
+    POST_UNLOCK.forEach((stage) => {
+      const row = CLASS_ORDER.map((c) => `${c} ${pct(stageStats(c, stage).winRate)}`).join(', ');
+      report.push(`post-unlock solo ${stage.name.padEnd(22)} L${stage.level}: ${row}`);
+    });
+    expect(POST_UNLOCK.length).toBeGreaterThan(0);
   });
 });
 function fail(): never {
