@@ -1932,9 +1932,11 @@ Party members now swing, thrust, shoot and cast with the ULPC action rows instea
 | Ranger | Bow shot, 13 frames (Aimed Shot and Volley too) | none |
 
 - **Sheet:** `build-lpc-sprites.py` composites each class's east-facing action row from the same layers and
-  recolours as its walk sheet into `actions.png` (one row per class and action, 72×60 cells cropped to the union
+  recolours as its walk sheet into `actions.png` (one row per class and action, 70×60 cells cropped to the union
   of all poses). `LPC_ACTIONS`, `LPC_ACTION_CELL` and `LPC_ACTION_ORIGIN` in the generated TS give each row's
-  frame count and the offset that keeps the body where the standing frame draws it. Layers with no ULPC animation
+  frame count and the offset that keeps the body where the standing frame draws it (ULPC's bow-shoot body sits
+  1 px left of the walk frames, so the script nudges it back; every pose's first frame matches the standing head).
+  Layers with no ULPC animation
   (the gnarled staff, arming sword and mace have no spellcast) are skipped and reported, so those weapons are
   sheathed while casting.
 - **Timing:** a melee pose plays over the 0.6 s lunge, so the weapon connects on the frame the hit lands (0.32 s).
