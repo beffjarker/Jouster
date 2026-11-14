@@ -99,6 +99,15 @@ jobs:
           echo "QA S3 bucket already exists"
         fi
 
+    # Lets "Promote Frontend: QA → Staging" report and verify exactly which commit it is shipping.
+    - name: Write build-info.json
+      run: |
+        jq -n --arg sha "$GITHUB_SHA" --arg ref "$GITHUB_REF_NAME" --arg run "$GITHUB_RUN_ID" \
+          --arg builtAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          '{sha: $sha, ref: $ref, runId: $run, builtAt: $builtAt}' \
+          > dist/apps/jouster-ui/browser/build-info.json
+        cat dist/apps/jouster-ui/browser/build-info.json
+
     - name: Deploy to QA S3 bucket
       run: |
         echo "Deploying to QA environment..."
