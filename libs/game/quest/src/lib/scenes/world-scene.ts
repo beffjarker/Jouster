@@ -10,7 +10,7 @@ import {
   rollEncounter,
   scaledEncounterRate,
 } from '@jouster/game/engine';
-import { TILE, castsShadow, decorTopOf, tileAnchor, tileVariant } from '../art/art';
+import { TILE, WALKWAY_TILES, castsShadow, decorTopOf, tileAnchor, tileVariant, walkwayMask } from '../art/art';
 import { groundVariant } from '../art/lpc-manifest';
 import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionRestSpot, companionSlot } from '../data/companions';
@@ -436,7 +436,9 @@ export class WorldScene implements Scene {
     for (let ty = startY; ty <= startY + SCREEN_H / TILE + 1; ty++) {
       for (let tx = startX; tx <= startX + SCREEN_W / TILE + 1; tx++) {
         const id = tileId(tx, ty);
-        const variant = tileVariant(this.map.id, id, tx, ty);
+        const variant = WALKWAY_TILES.has(id)
+          ? walkwayMask((dx, dy) => tileId(tx + dx, ty + dy))
+          : tileVariant(this.map.id, id, tx, ty);
         r.draw(this.ctx.art.tile(id, frame, variant, groundVariant(tx, ty)), tx * TILE - camX, ty * TILE - camY);
         if (!castsShadow(id) && castsShadow(tileId(tx, ty - 1))) {
           r.draw(this.ctx.art.wallShadow(), tx * TILE - camX, ty * TILE - camY);

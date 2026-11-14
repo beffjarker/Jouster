@@ -13,12 +13,12 @@ import { Backdrop } from '../data/maps';
 import { paintBackdrop, paintShadow, paintTitleBackdrop } from './hd-backdrops';
 import { HumanoidLook, LOOKS, paintHumanoid, paintMonster, paintSign } from './hd-characters';
 import { ART_SCALE, Paint, box } from './hd-paint';
-import { ANIMATED_DECOR, decorParts, paintDecorTop, paintTile, paintWallShadow } from './hd-tiles';
+import { ANIMATED_DECOR, WALKWAY_TILES, decorParts, paintDecorTop, paintTile, paintWallShadow } from './hd-tiles';
 
 /** Logical width of {@link Art.shadow}. */
 export const SHADOW_W = 32;
 
-export { SHADOW_CASTERS, castsShadow, decorTopOf } from './hd-tiles';
+export { SHADOW_CASTERS, WALKWAY_TILES, castsShadow, decorTopOf, walkwayMask } from './hd-tiles';
 import { LPC_CELL, LpcSheetId, lpcGroundCell, lpcTileFor } from './lpc-manifest';
 import {
   LPC_CHARACTER_CELL,
@@ -268,6 +268,9 @@ function hashSeed(id: string): number {
 
 const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWater', 'fountain', 'torch', 'bog', 'iceWater', 'lava']);
 
+/** Distinct walkway connection masks (four edge bits and four inner-corner bits). */
+const WALKWAY_VARIANTS = 256;
+
 /** Loaded art sheets (LPC atlases) by id; see `loadLpcSheets`. */
 export type ArtSheets = ReadonlyMap<LpcSheetId, CanvasImageSource>;
 
@@ -319,13 +322,14 @@ export class Art {
   }
 
   /**
-   * Tile art; `variant` (see {@link tileVariant}) picks an alternate look where one exists, and
-   * `ground` (see `groundVariant`) picks among look-alike sheet ground cells.
+   * Tile art; `variant` (see {@link tileVariant}) picks an alternate look where one exists (for a walkway tile
+   * it is the `walkwayMask` of edges its deck joins), and `ground` (see `groundVariant`) picks among look-alike
+   * sheet ground cells.
    */
   public tile(id: string, frame = 0, variant = 0, ground = 0): HTMLCanvasElement {
     const animated = ANIMATED_TILES.has(id) || ANIMATED_DECOR.has(decorParts(id)?.decor ?? '');
     const f = animated ? frame % 2 : 0;
-    const v = variant % (TILE_VARIANT_COUNTS.get(id) ?? 1);
+    const v = variant % (WALKWAY_TILES.has(id) ? WALKWAY_VARIANTS : TILE_VARIANT_COUNTS.get(id) ?? 1);
     const lpc = this.sheets ? lpcTileFor(id) : undefined;
     if (lpc && this.sheets) {
       const sheets = this.sheets;

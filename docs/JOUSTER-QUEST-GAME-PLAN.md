@@ -1837,3 +1837,21 @@ board ends on both sides with one that has a board end on one side, and the wall
 frame's bottom line. Each list now holds only fill cells: flagstone `t(17,27)`, wood `t(17,20)` and wall
 `o(4,13)`. A test decodes the real atlases and checks that every ground list mixes only cells with matching
 edges and no border lines on opposite sides. It fails on the old lists.
+
+## 25. Polish: connected bridges and boardwalks (implemented)
+
+Bridges and marsh boardwalks used to be drawn as one horizontal strip, so a road that stepped north or south
+left gaps between the decks. They are now connection-aware. Each deck runs an arm out to every neighbour it
+links to (another deck, a road, a town or an entrance). Straight runs go either way, and corners, T-junctions
+and crossings join up. A dead end runs straight through its tile. A deck with no links spans across the water
+around it. Inside a 2×2 block of decks the inner corners are filled, so the block has no hole. Planks turn with
+the run, and bridge rails only line the closed sides.
+
+`walkwayMask` (in `art/hd-tiles.ts`) works out the connections from the neighbouring tiles. `WorldScene` passes
+that mask as the tile variant (256 cached variants per walkway tile), and every other tile keeps its
+position-based variant.
+
+Tests (`hd-art.spec.ts`): masks for straight runs, corners, T-junctions, dead ends, water-only decks and 2×2
+blocks. Every pair of joined orientations meets along the same edge pixels, and 2×2 corners line up. Manual:
+follow the zigzag boardwalk across the Southlands marsh and the river bridges on the overworld, with and without
+`?art=classic`.

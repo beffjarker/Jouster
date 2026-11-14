@@ -6,11 +6,22 @@ import {
   HD_TILE,
   HD_TILES,
   SHADOW_CASTERS,
+  WALKWAY_TILES,
+  WALK_E,
+  WALK_N,
+  WALK_NE,
+  WALK_NW,
+  WALK_S,
+  WALK_SE,
+  WALK_SW,
+  WALK_W,
   WALL_SHADOW_ROWS,
   decorTopOf,
   paintDecorTop,
   paintTile,
   paintWallShadow,
+  walkwayArms,
+  walkwayMask,
 } from './hd-tiles';
 
 /** Real (stored) pixels per tile and per sprite edge. */
@@ -88,6 +99,91 @@ describe('HD tiles', () => {
     expect(p.get(10, R - 4)[3]).toBeGreaterThan(0);
     expect(p.get(10, R)[3]).toBe(0);
     expect(p.get(T - 1, T - 1)[3]).toBe(0);
+  });
+});
+
+describe('walkways (bridges and boardwalks)', () => {
+  /** walkwayMask for the centre of a 3x3 `rows` patch, using `legend` for tile ids. */
+  const maskOf = (rows: string[], legend: Map<string, string>): number =>
+    walkwayMask((dx, dy) => legend.get(rows[1 + dy][1 + dx]) ?? '');
+  const bridgeKey = new Map([
+    ['~', 'water'],
+    ['=', 'bridge'],
+    ['r', 'road'],
+    ['.', 'grass'],
+  ]);
+  const boardKey = new Map([
+    [',', 'marsh'],
+    ['#', 'boardwalk'],
+    ['b', 'bog'],
+  ]);
+
+  it('runs a deck out to each linked neighbour (other decks, roads)', () => {
+    expect(maskOf(['~~~', '===', '~~~'], bridgeKey)).toBe(WALK_E | WALK_W);
+    expect(maskOf(['~=~', '~=~', '~=~'], bridgeKey)).toBe(WALK_N | WALK_S);
+    expect(maskOf(['~r~', '~=~', '~=~'], bridgeKey)).toBe(WALK_N | WALK_S);
+    expect(maskOf([',,,', ',##', ',#,'], boardKey)).toBe(WALK_E | WALK_S);
+    expect(maskOf([',#,', '##,', ',,,'], boardKey)).toBe(WALK_N | WALK_W);
+    expect(maskOf([',#,', '###', ',,,'], boardKey)).toBe(WALK_N | WALK_E | WALK_W);
+  });
+
+  it('runs a dead end straight through, and a lone deck across the water around it', () => {
+    expect(maskOf([',#,', ',#,', ',,,'], boardKey)).toBe(WALK_N | WALK_S);
+    expect(maskOf([',,,', ',##', ',,,'], boardKey)).toBe(WALK_E | WALK_W);
+    expect(maskOf(['...', '~=~', '...'], bridgeKey)).toBe(WALK_N | WALK_S);
+    expect(maskOf(['.~.', '.=.', '.~.'], bridgeKey)).toBe(WALK_E | WALK_W);
+    expect(maskOf([',,,', 'b#b', ',,,'], boardKey)).toBe(WALK_N | WALK_S);
+    expect(maskOf([',,,', ',#,', ',,,'], boardKey)).toBe(WALK_E | WALK_W);
+    expect(walkwayArms(0)).toBe(WALK_E | WALK_W);
+  });
+
+  it('fills the inner corner of a 2x2 block of decks so it has no hole', () => {
+    expect(maskOf([',,,', '###', ',##'], boardKey)).toBe(WALK_E | WALK_S | WALK_W | WALK_SE);
+    expect(maskOf(['##,', '##,', ',,,'], boardKey)).toBe(WALK_N | WALK_W | WALK_NW);
+    expect(maskOf([',##', ',##', ',,,'], boardKey)).toBe(WALK_N | WALK_E | WALK_NE);
+    expect(maskOf([',,,', '##,', '##,'], boardKey)).toBe(WALK_S | WALK_W | WALK_SW);
+    // A road on the diagonal does not fill the corner.
+    expect(maskOf(['...', '.==', '.=r'], bridgeKey)).toBe(WALK_E | WALK_S);
+  });
+
+  it('meets its neighbour exactly along every joined edge, in every orientation', () => {
+    /** Which pixels along each edge are deck: drawn on the bridge's overlay, different from bare marsh on a boardwalk. */
+    const edges = (id: string, mask: number): Record<'top' | 'bottom' | 'left' | 'right', string> => {
+      const p = id === 'bridge' ? paintTile(id, 0, mask, false) : paintTile(id, 0, mask);
+      const bare = paintTile('marsh', 0, 0);
+      if (!p || !bare) {
+        throw new Error(`no art for ${id}`);
+      }
+      const deck = (x: number, y: number): string =>
+        (id === 'bridge' ? p.get(x, y)[3] > 0 : p.get(x, y).join() !== bare.get(x, y).join()) ? '#' : '.';
+      const line = (f: (i: number) => string): string => Array.from({ length: T }, (_, i) => f(i)).join('');
+      return {
+        top: line((i) => deck(i, 0)),
+        bottom: line((i) => deck(i, T - 1)),
+        left: line((i) => deck(0, i)),
+        right: line((i) => deck(T - 1, i)),
+      };
+    };
+    expect([...WALKWAY_TILES].sort()).toEqual(['boardwalk', 'bridge']);
+    WALKWAY_TILES.forEach((id) => {
+      const masks = [...new Set(Array.from({ length: 16 }, (_, m) => walkwayArms(m)))];
+      const art = new Map(masks.map((m) => [m, edges(id, m)]));
+      masks.forEach((a) =>
+        masks.forEach((b) => {
+          if (a & WALK_E && b & WALK_W) {
+            expect(`${id} ${a}>${b} ${art.get(a)?.right}`).toBe(`${id} ${a}>${b} ${art.get(b)?.left}`);
+          }
+          if (a & WALK_S && b & WALK_N) {
+            expect(`${id} ${a}v${b} ${art.get(a)?.bottom}`).toBe(`${id} ${a}v${b} ${art.get(b)?.top}`);
+          }
+        }),
+      );
+      expect(art.get(WALK_N | WALK_S)?.top).toContain('#');
+      // In a 2x2 block the filled corners line up too.
+      const upper = edges(id, WALK_E | WALK_S | WALK_W | WALK_SE).bottom;
+      expect(upper).toBe(edges(id, WALK_N | WALK_E | WALK_W | WALK_NE).top);
+      expect(upper).not.toBe(art.get(WALK_E | WALK_S | WALK_W)?.bottom);
+    });
   });
 });
 
