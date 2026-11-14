@@ -5,7 +5,7 @@ import { InputDriver } from '../testing/input-driver';
 import { BattleEnd, BattleScene } from './battle-scene';
 import { GameContext } from './context';
 import { applyRestore, canRestore } from './menu-scenes';
-import { memberStats } from '../state/party';
+import { createMember, memberStats } from '../state/party';
 
 interface BattleInternals {
   phase: string;
@@ -16,7 +16,7 @@ interface BattleInternals {
   gone: Set<string>;
 }
 
-function setup(): { scene: BattleScene; internals: BattleInternals; driver: InputDriver; onEnd: jest.Mock } {
+function setup(extraMembers = 0): { scene: BattleScene; internals: BattleInternals; driver: InputDriver; onEnd: jest.Mock } {
   const ctx: GameContext = {
     stack: new SceneStack(),
     audio: { play: jest.fn(), toggleMute: jest.fn(), muted: false, dispose: jest.fn() } as never,
@@ -25,6 +25,9 @@ function setup(): { scene: BattleScene; internals: BattleInternals; driver: Inpu
     storage: memoryStorage(),
     state: newGameState('TEST', 'warrior'),
   };
+  for (let i = 0; i < extraMembers; i++) {
+    ctx.state?.party.push(createMember(`ally${i}`, `Ally${i}`, 'cleric', 1));
+  }
   const onEnd = jest.fn<void, [BattleEnd]>();
   const scene = new BattleScene(ctx, { monsterIds: ['slime'], backdrop: 'field', onEnd });
   ctx.stack.push(scene);
@@ -33,6 +36,34 @@ function setup(): { scene: BattleScene; internals: BattleInternals; driver: Inpu
 }
 
 describe('BattleScene', () => {
+  it("asks each party member for an action on their own turn and plays it out before the next one's", () => {
+    const { internals, driver } = setup(1);
+    const enemy = internals.battle.enemies[0];
+    enemy.hp = enemy.maxHp = 999;
+    internals.battle.party.forEach((c) => (c.hp = c.maxHp = 999));
+    const prompted: string[] = [];
+    let actionsBefore = 0;
+    for (let i = 0; i < 400 && prompted.length < 4; i++) {
+      driver.run(1);
+      if (internals.phase === 'command') {
+        const actor = internals.battle.currentActor;
+        expect(actor?.side).toBe('party');
+        const acted = internals.battle.party.reduce((n, c) => n + c.actionsTaken, 0);
+        // Every earlier prompt's action has already been resolved by the time the next prompt shows.
+        expect(acted).toBe(actionsBefore);
+        prompted.push(actor?.id ?? '');
+        driver.run(10);
+        driver.tap('confirm');
+        driver.tap('confirm');
+        expect(internals.phase).toBe('events');
+        actionsBefore++;
+        expect(internals.battle.party.reduce((n, c) => n + c.actionsTaken, 0)).toBe(actionsBefore);
+      }
+    }
+    expect(prompted.length).toBe(4);
+    expect(new Set(prompted.slice(0, 2)).size).toBe(2);
+    expect(new Set(prompted.slice(2, 4)).size).toBe(2);
+  });
   it('waits for the player to choose an action every round, even with a single enemy', () => {
     const { internals, driver } = setup();
     const enemy = internals.battle.enemies[0];

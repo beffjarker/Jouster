@@ -182,7 +182,8 @@ export class BattleScene implements Scene {
   private time = 0;
   private inputGuard = 0;
   private actorIndex = 0;
-  private actions: BattleAction[] = [];
+  /** True between `beginRound` and `endRound` (turn-by-turn battle). */
+  private roundOpen = false;
   private readonly commandMenu: ListMenu;
   private subMenu: ListMenu | null = null;
   private subIds: string[] = [];
@@ -262,7 +263,7 @@ export class BattleScene implements Scene {
       case 'intro':
         this.timer += dt;
         if (this.timer > 1.2 || input.wasPressed('confirm') || input.tap) {
-          this.startCommands();
+          this.nextTurn();
         }
         return;
       case 'command':
@@ -297,9 +298,28 @@ export class BattleScene implements Scene {
     return this.battle.party[this.actorIndex];
   }
 
-  private startCommands(): void {
-    this.actions = [];
-    this.actorIndex = this.battle.party.findIndex(isAlive);
+  /**
+   * Moves the battle to the next turn: enemies act on their own, and a party member is asked for an action
+   * only when their turn comes up in the initiative order.
+   */
+  private nextTurn(): void {
+    if (!this.roundOpen) {
+      this.battle.beginRound();
+      this.roundOpen = true;
+    }
+    const actor = this.battle.nextActor();
+    if (!actor) {
+      this.roundOpen = false;
+      this.playEvents(this.battle.endRound());
+      return;
+    }
+    if (actor.side === 'enemy') {
+      this.playEvents(this.battle.act());
+      return;
+    }
+    this.actorIndex = this.battle.party.indexOf(actor);
+    this.log = [];
+    this.subMenu = null;
     this.commandMenu.cursor = 0;
     this.inputGuard = COMMAND_INPUT_GUARD;
     this.phase = 'command';
@@ -307,10 +327,6 @@ export class BattleScene implements Scene {
 
   private updateCommand(input: InputManager): void {
     const res = this.commandMenu.update(input);
-    if (res?.kind === 'cancel') {
-      this.previousActor();
-      return;
-    }
     if (res?.kind !== 'select') {
       return;
     }
@@ -330,8 +346,7 @@ export class BattleScene implements Scene {
         this.pushAction({ kind: 'defend', actorId: actor.id });
         return;
       case 'RUN':
-        this.actions = [{ kind: 'run', actorId: actor.id }];
-        this.executeRound();
+        this.pushAction({ kind: 'run', actorId: actor.id });
         return;
     }
   }
@@ -355,14 +370,10 @@ export class BattleScene implements Scene {
     this.phase = 'ability';
   }
 
-  private reservedItems(itemId: string): number {
-    return this.actions.filter((a) => a.kind === 'item' && a.itemId === itemId).length;
-  }
-
   private openItems(): void {
     const anyDead = this.battle.party.some((c) => !isAlive(c));
     this.subIds = [...ITEMS.values()]
-      .filter((i) => i.usableInBattle && (this.state.inventory[i.id] ?? 0) - this.reservedItems(i.id) > 0)
+      .filter((i) => i.usableInBattle && (this.state.inventory[i.id] ?? 0) > 0)
       .map((i) => i.id);
     if (this.subIds.length === 0) {
       this.ctx.audio.play('cancel');
@@ -373,7 +384,7 @@ export class BattleScene implements Scene {
       const def = ITEMS.get(id);
       return {
         label: (def?.name ?? id).toUpperCase(),
-        right: `x${(this.state.inventory[id] ?? 0) - this.reservedItems(id)}`,
+        right: `x${this.state.inventory[id] ?? 0}`,
         enabled: def?.effect !== 'revive' || anyDead,
       };
     });
@@ -499,35 +510,16 @@ export class BattleScene implements Scene {
     }
   }
 
+  /** Plays out the chosen action straight away, then moves on to the next turn. */
   private pushAction(action: BattleAction): void {
-    this.actions.push(action);
     this.subMenu = null;
-    const next = this.battle.party.findIndex((c, i) => i > this.actorIndex && isAlive(c));
-    if (next < 0) {
-      this.executeRound();
-      return;
-    }
-    this.actorIndex = next;
-    this.commandMenu.cursor = 0;
-    this.phase = 'command';
+    this.playEvents(this.battle.act(action));
   }
 
-  private previousActor(): void {
-    for (let i = this.actorIndex - 1; i >= 0; i--) {
-      if (isAlive(this.battle.party[i])) {
-        this.actorIndex = i;
-        this.actions.pop();
-        this.phase = 'command';
-        return;
-      }
-    }
-  }
+  // --- Turn playback -------------------------------------------------------------------------
 
-  // --- Round playback ------------------------------------------------------------------------
-
-  private executeRound(): void {
-    this.queue = this.battle.resolveRound(this.actions);
-    this.log = [];
+  private playEvents(events: BattleEvent[]): void {
+    this.queue = events;
     this.timer = 0;
     this.phase = 'events';
   }
@@ -544,7 +536,7 @@ export class BattleScene implements Scene {
     }
     if (this.timer <= 0 && this.queue.length === 0) {
       if (this.battle.outcome === 'ongoing') {
-        this.startCommands();
+        this.nextTurn();
       } else {
         this.finish();
       }
@@ -1133,10 +1125,11 @@ export class BattleScene implements Scene {
         return;
       }
       r.text(`${this.actor.name.toUpperCase()}'S TURN`, subX + 8, y + 8, COLORS.gold);
-      this.battle.enemies
-        .filter(isAlive)
-        .slice(0, 3)
-        .forEach((e, i) => r.text(e.name.toUpperCase().slice(0, 20), subX + 8, y + 20 + i * 10, COLORS.dim));
+      const upcoming = this.battle.upcoming.slice(0, 2);
+      r.text(upcoming.length > 0 ? 'NEXT:' : 'NEXT: NEW ROUND', subX + 8, y + 22, COLORS.dim);
+      upcoming.forEach((c, i) =>
+        r.text(c.name.toUpperCase().slice(0, 18), subX + 14, y + 32 + i * 10, c.side === 'party' ? COLORS.text : COLORS.dim),
+      );
       if (this.log.length > 0 && this.phase === 'command') {
         r.text(this.log[this.log.length - 1].toUpperCase().slice(0, 20), subX + 8, y + 56, COLORS.warn);
       }

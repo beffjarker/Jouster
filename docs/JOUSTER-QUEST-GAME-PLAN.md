@@ -196,10 +196,11 @@ instead of changing the engine.
 - **Commands:** Attack · Ability (spells and skills) · Item · Defend · Run
 - **Attack** is available to every class and always uses the equipped melee weapon. It costs no MP and has no
   cooldown, so no class is left without a damage option when it runs out of MP.
-- **Turn order:** sort by `AGI + random(0..AGI/4)` each round; the player picks commands for all members, then
-  the round resolves.
-- **Waiting for the player (play-test 1 fix):** every round, the battle stops and waits for a command from each
-  living party member; it never resolves a round on its own. When the battle ends, the result text (XP, gold,
+- **Turn order:** sort by `AGI + random(0..AGI/4)` each round. Each combatant acts when their turn comes up:
+  a party member is asked for a command on their own turn and the action plays out straight away, so the
+  player can react to what just happened (see 18.6).
+- **Waiting for the player (play-test 1 fix):** the battle stops and waits for a command whenever a living
+  party member's turn comes up; it never chooses for them. When the battle ends, the result text (XP, gold,
   level-ups, drops) stays on screen until the player presses OK (Z/Enter) or Esc.
 - **Damage formula (starting point):**
 
@@ -1466,6 +1467,20 @@ across any `counter`, `altar` or `jailBars` tile (`talkAcross`).
   without a rest spot goes back to its usual place.
 - Clue events have their own tiles: a torn fishing net on the lakeshore and a bone-strewn nest in the
   Wolf Den. The Thornwick clue is already marked by the ruins.
+
+### 18.6 Turn-by-turn battles
+
+- Battles no longer ask for every party member's command up front. Initiative is rolled at the start of each
+  round (`Battle.beginRound`). `nextActor` then hands out turns one at a time:
+  - enemies act on their own;
+  - a party member gets the command menu, and the chosen action resolves at once (`act`).
+- Timers tick once per round (`endRound`): regen, buffs, cooldowns and taunts. Defend lasts until that
+  member's next turn.
+- The command panel shows whose turn it is and the next two combatants in the order ("NEXT:").
+- Items are spent as they are used, so the item menu shows the real count. Cancel no longer steps back
+  to the previous member's choice, because that action has already happened.
+- The balance simulator still uses `resolveRound`, which chooses every party action at the start of the
+  round. Both modes share the same action and AI code.
 
 ### 17.8 Next
 
