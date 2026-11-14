@@ -3,12 +3,66 @@
  */
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
+import { inflateSync } from 'zlib';
 import { Art } from './art';
 import { ART_SCALE } from './hd-paint';
-import { LPC_CELL, LPC_SHEETS, LPC_SHEET_SIZE, LPC_TILES, LpcSheetId, groundVariant, lpcGroundCell, lpcSheetUrl } from './lpc-manifest';
+import { LPC_CELL, LPC_SHEETS, LPC_SHEET_SIZE, LPC_TILES, LpcCell, LpcSheetId, groundVariant, lpcGroundCell, lpcSheetUrl } from './lpc-manifest';
 import { ImageLoader, loadLpcSheets } from './sheet-loader';
 
 const assetDir = resolve(__dirname, '../../../../../../apps/jouster-ui/public/game-assets/lpc');
+
+interface Rgba {
+  width: number;
+  data: Uint8Array;
+}
+
+/** Minimal decoder for the LPC atlases (8-bit RGBA, non-interlaced PNG). */
+function readRgbaPng(file: string): Rgba {
+  const buf = readFileSync(file);
+  const width = buf.readUInt32BE(16);
+  const height = buf.readUInt32BE(20);
+  expect([buf[24], buf[25], buf[28]]).toEqual([8, 6, 0]);
+  const idat: Uint8Array[] = [];
+  for (let at = 8; at < buf.length; ) {
+    const len = buf.readUInt32BE(at);
+    if (buf.toString('ascii', at + 4, at + 8) === 'IDAT') {
+      idat.push(Uint8Array.from(buf.subarray(at + 8, at + 8 + len)));
+    }
+    at += len + 12;
+  }
+  const joined = new Uint8Array(idat.reduce((n, c) => n + c.length, 0));
+  idat.reduce((offset, c) => (joined.set(c, offset), offset + c.length), 0);
+  const raw = inflateSync(joined);
+  const stride = width * 4;
+  const data = new Uint8Array(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)];
+    for (let x = 0; x < stride; x++) {
+      const v = raw[y * (stride + 1) + 1 + x];
+      const a = x >= 4 ? data[y * stride + x - 4] : 0;
+      const b = y > 0 ? data[(y - 1) * stride + x] : 0;
+      const c = x >= 4 && y > 0 ? data[(y - 1) * stride + x - 4] : 0;
+      const p = a + b - c;
+      const paeth = Math.abs(p - a) <= Math.abs(p - b) && Math.abs(p - a) <= Math.abs(p - c) ? a : Math.abs(p - b) <= Math.abs(p - c) ? b : c;
+      const pred = [0, a, b, (a + b) >> 1, paeth][filter];
+      data[y * stride + x] = (v + pred) & 255;
+    }
+  }
+  return { width, data };
+}
+
+/** Brightness of each cell edge (top, bottom, left, right) relative to the cell's mean; dark border lines go strongly negative. */
+function edgeProfile(sheet: Rgba, cell: LpcCell): number[] {
+  const lum = (x: number, y: number): number => {
+    const i = ((cell.row * LPC_CELL + y) * sheet.width + cell.col * LPC_CELL + x) * 4;
+    return 0.3 * sheet.data[i] + 0.59 * sheet.data[i + 1] + 0.11 * sheet.data[i + 2];
+  };
+  const n = LPC_CELL;
+  const range = Array.from({ length: n }, (_, i) => i);
+  const mean = range.reduce((s, y) => s + range.reduce((r, x) => r + lum(x, y), 0), 0) / (n * n);
+  const avg = (f: (i: number) => number): number => range.reduce((s, i) => s + f(i), 0) / n - mean;
+  return [avg((x) => lum(x, 0)), avg((x) => lum(x, n - 1)), avg((y) => lum(0, y)), avg((y) => lum(n - 1, y))];
+}
 
 describe('LPC manifest', () => {
   it('only references cells inside the 1024 px sheets', () => {
@@ -37,6 +91,32 @@ describe('LPC manifest', () => {
     const floor = LPC_TILES.get('cobble')?.ground ?? [];
     expect(floor.length).toBeGreaterThan(0);
     floor.forEach((c) => expect(walls.has(key(c))).toBe(false));
+  });
+
+  it('only mixes ground cells that tile seamlessly (no border pieces from a patch edge)', () => {
+    const sheets = new Map<LpcSheetId, Rgba>();
+    const sheet = (id: LpcSheetId): Rgba => {
+      const loaded = sheets.get(id) ?? readRgbaPng(resolve(assetDir, LPC_SHEETS[id]));
+      sheets.set(id, loaded);
+      return loaded;
+    };
+    const problems: string[] = [];
+    LPC_TILES.forEach((tile, id) => {
+      const profiles = tile.ground.map((cell) => ({ cell, edges: edgeProfile(sheet(cell.sheet), cell) }));
+      profiles.forEach(({ cell, edges: [top, bottom, left, right] }) => {
+        // A dark line on both opposite edges doubles up against a copy of itself.
+        if ((top < -30 && bottom < -30) || (left < -30 && right < -30)) {
+          problems.push(`${id} ${cell.col},${cell.row} is framed on opposite edges`);
+        }
+      });
+      const [first, ...rest] = profiles;
+      rest.forEach(({ cell, edges }) => {
+        if (edges.some((e, i) => Math.abs(e - first.edges[i]) > 15)) {
+          problems.push(`${id} ${cell.col},${cell.row} has different edges than ${first.cell.col},${first.cell.row}`);
+        }
+      });
+    });
+    expect(problems).toEqual([]);
   });
 
   it('cycles ground cells with the animation frame', () => {

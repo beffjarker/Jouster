@@ -50,10 +50,17 @@ const WATER = [t(21, 17), t(22, 17), t(23, 17)];
 const DIRT = [t(16, 3), t(16, 5), t(17, 5)];
 const CAVE_FLOOR = [t(19, 3), t(19, 5), t(20, 5)];
 const CAVE_ROCK = [t(30, 5), t(31, 5), t(19, 11)];
-/** Warm taupe flagstones: the town floor must read apart from the cool grey brick walls. */
-const FLAGSTONE = [t(17, 27), t(16, 26), t(18, 26), t(16, 28), t(18, 28)];
+/**
+ * Warm taupe flagstones: the town floor must read apart from the cool grey brick walls. Only the centre
+ * of the LPC 3x3 flagstone patch: the cells around it are edge pieces with a grout border on the outside,
+ * which doubled up into thick seams and cut-off cracks when mixed into a floor.
+ */
+const FLAGSTONE = [t(17, 27)];
 
-/** Tile ids with LPC ground art. Ids not listed keep the procedural look. */
+/**
+ * Tile ids with LPC ground art. Ids not listed keep the procedural look. Ground cells in one list are mixed
+ * freely, so they must share their edge profile (no border pieces), or seams appear between them.
+ */
 export const LPC_TILES: ReadonlyMap<string, LpcTile> = new Map<string, LpcTile>([
   ['grass', { ground: GRASS }],
   ['townGrass', { ground: [t(21, 5), t(21, 11), t(23, 5)] }],
@@ -67,10 +74,12 @@ export const LPC_TILES: ReadonlyMap<string, LpcTile> = new Map<string, LpcTile>(
   ['ruins', { ground: GRASS }],
   ['water', { ground: WATER, animatedGround: true }],
   ['bridge', { ground: WATER, animatedGround: true }],
-  ['wall', { ground: [o(4, 13), o(4, 14)] }],
+  // One brick course: o(4, 14) carries the frame's dark bottom line, which showed as random dark bars.
+  ['wall', { ground: [o(4, 13)] }],
   ['cobble', { ground: FLAGSTONE }],
   ['fountain', { ground: FLAGSTONE }],
-  ['wood', { ground: [t(16, 20), t(17, 20)] }],
+  // The middle plank cell: t(16, 20) has dark board ends on both sides, doubling seams next to it.
+  ['wood', { ground: [t(17, 20)] }],
   ['caveFloor', { ground: CAVE_FLOOR }],
   ['caveExit', { ground: CAVE_FLOOR }],
   ['rock', { ground: CAVE_ROCK }],
