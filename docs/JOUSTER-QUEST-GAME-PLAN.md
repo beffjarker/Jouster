@@ -1327,6 +1327,10 @@ Goal: all the generated art should be much more detailed than in 16.8.
   high-DPI screens and in full screen the extra detail is shown 1:1. The logical screen stays 480×270.
   LPC character sheets stay at their native 2× density; LPC ground tiles are upscaled to 4× so the
   procedural object overlays line up.
+- **Battle sprite density:** battle boxes enlarge mini-bosses (1.5×) and bosses (2×), which would make their
+  pixels twice as coarse as the party's. `Art.sharp(sprite, scale)` (with `sharpFactor` in `art/art.ts`) gives
+  any sprite drawn coarser than `ART_PIXEL` (½ logical px, the LPC grid) a cached EPX copy at 2× or 4× density
+  with the same logical size, so curves and diagonals are re-drawn on the finer grid instead of turning into blocks.
 - **Battle backdrops** (`art/hd-backdrops.ts`): the flat colour bands are replaced by painted scenes, cached per
   kind by `Art.backdrop()`:
   - field: dithered sky with haze and sun glow, clouds and birds, a hazy far ridge, round fruit trees and a

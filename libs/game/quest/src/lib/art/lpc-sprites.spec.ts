@@ -5,7 +5,16 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { createCanvas, setImageDensity } from '@jouster/game/engine';
 import { artStyleFromQuery } from '../game';
-import { Art, CHARACTER_LOOK_IDS, TILE, fitScale, monsterVariantCount, spriteSize, tileAnchor } from './art';
+import {
+  Art,
+  CHARACTER_LOOK_IDS,
+  TILE,
+  fitScale,
+  monsterVariantCount,
+  sharpFactor,
+  spriteSize,
+  tileAnchor,
+} from './art';
 import { LpcSheetId } from './lpc-manifest';
 import {
   LPC_CHARACTER_CELL,
@@ -95,6 +104,34 @@ describe('sprite placement helpers', () => {
     expect(fitScale(tileSprite, 32)).toBe(2);
     expect(fitScale(lpcFrame, 32)).toBe(1);
     expect(fitScale(lpcFrame, 64)).toBe(2);
+  });
+
+  it('upscales only sprites drawn coarser than the LPC pixel grid', () => {
+    const procedural = setImageDensity(createCanvas(128, 128), 4);
+    expect(sharpFactor(lpcFrame, 1)).toBe(1);
+    expect(sharpFactor(lpcFrame, 1.5)).toBe(2);
+    expect(sharpFactor(lpcFrame, 2)).toBe(2);
+    expect(sharpFactor(lpcFrame, 4)).toBe(4);
+    expect(sharpFactor(lpcFrame, 8)).toBe(4);
+    expect(sharpFactor(tileSprite, 2)).toBe(2);
+    expect(sharpFactor(procedural, 2)).toBe(1);
+    expect(sharpFactor(procedural, 4)).toBe(2);
+  });
+
+  it('sharpens a boss sprite to a denser copy of the same logical size, cached', () => {
+    const art = new Art(fakeSheets());
+    const boss = setImageDensity(createCanvas(4, 4), 2);
+    const data = new Uint8ClampedArray(4 * 4 * 4).fill(255);
+    Object.defineProperty(boss, 'getContext', {
+      value: () => ({ getImageData: () => ({ width: 4, height: 4, data }) }),
+    });
+    expect(art.sharp(boss, 1)).toBe(boss);
+    const sharp = art.sharp(boss, 2);
+    expect(sharp).not.toBe(boss);
+    expect(sharp.width).toBe(8);
+    expect(spriteSize(sharp)).toEqual(spriteSize(boss));
+    expect(art.sharp(boss, 2)).toBe(sharp);
+    expect(spriteSize(art.sharp(boss, 4))).toEqual(spriteSize(boss));
   });
 });
 

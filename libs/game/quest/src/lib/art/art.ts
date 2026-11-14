@@ -1,4 +1,14 @@
-import { Facing, Palette, createCanvas, imageDensity, palette, setImageDensity } from '@jouster/game/engine';
+import {
+  Facing,
+  Palette,
+  canvasPixels,
+  createCanvas,
+  imageDensity,
+  palette,
+  pixelsToCanvas,
+  scale2xPixels,
+  setImageDensity,
+} from '@jouster/game/engine';
 import { Backdrop } from '../data/maps';
 import { paintBackdrop, paintShadow, paintTitleBackdrop } from './hd-backdrops';
 import { HumanoidLook, LOOKS, paintHumanoid, paintMonster, paintSign } from './hd-characters';
@@ -35,6 +45,18 @@ export function spriteSize(image: Sized): { width: number; height: number } {
 export function fitScale(image: Sized, size: number): number {
   const s = spriteSize(image);
   return size / Math.max(s.width, s.height);
+}
+
+/** Logical size of one LPC art pixel (64x64 frames at 2x density): the pixel density all art aims to match. */
+export const ART_PIXEL = 0.5;
+
+/**
+ * Pixel-art upscale (1, 2 or 4) that keeps `image`, drawn at `scale`, near {@link ART_PIXEL} density, so an
+ * enlarged sprite (e.g. a boss) shows pixels as fine as everything else instead of big blocks.
+ */
+export function sharpFactor(image: Sized, scale: number): number {
+  const k = Math.round(Math.log2(scale / imageDensity(image) / ART_PIXEL));
+  return k > 0 ? 2 ** Math.min(k, 2) : 1;
 }
 
 /**
@@ -247,6 +269,7 @@ export type ArtStyle = 'classic' | 'lpc';
  */
 export class Art {
   private readonly cache = new Map<string, HTMLCanvasElement>();
+  private readonly sharpened = new WeakMap<HTMLCanvasElement, Map<number, HTMLCanvasElement>>();
   private sheets: ArtSheets | null = null;
 
   constructor(sheets?: ArtSheets) {
@@ -331,6 +354,36 @@ export class Art {
       const colors = new Map([...(MONSTER_PALETTES.get(spriteId) ?? new Map<string, string>()), ...(look.colors ?? [])]);
       return paintMonster(shape, colors).toCanvas();
     });
+  }
+
+  /**
+   * `sprite` ready to draw at `scale`: when that would enlarge its pixels past {@link ART_PIXEL}, a Scale2x
+   * (EPX) copy at higher density (same logical size), so edges are re-drawn at the finer grid rather than
+   * blown up into blocks. Cached per sprite.
+   */
+  public sharp(sprite: HTMLCanvasElement, scale: number): HTMLCanvasElement {
+    const factor = sharpFactor(sprite, scale);
+    if (factor === 1) {
+      return sprite;
+    }
+    let byFactor = this.sharpened.get(sprite);
+    if (!byFactor) {
+      byFactor = new Map();
+      this.sharpened.set(sprite, byFactor);
+    }
+    let out = byFactor.get(factor);
+    if (!out) {
+      let pixels = canvasPixels(sprite);
+      if (!pixels) {
+        return sprite;
+      }
+      for (let f = 1; f < factor; f *= 2) {
+        pixels = scale2xPixels(pixels);
+      }
+      out = setImageDensity(pixelsToCanvas(pixels), imageDensity(sprite) * factor);
+      byFactor.set(factor, out);
+    }
+    return out;
   }
 
   /** Soft shadow drawn over a tile that sits directly below a wall or rock (see SHADOW_CASTERS). */

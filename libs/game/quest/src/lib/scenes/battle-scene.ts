@@ -956,8 +956,9 @@ export class BattleScene implements Scene {
     const fleeing = this.motions.get(c.id)?.kind === 'flee';
     const walking = this.motions.has(c.id) || this.phase === 'intro' || this.isActing(c);
     const frame = walking ? Math.floor(this.time * 6) % 2 : 0;
-    const sprite = this.ctx.art.character(c.sourceId, fleeing ? 'left' : 'right', frame);
-    const scale = fitScale(sprite, spot.size);
+    const raw = this.ctx.art.character(c.sourceId, fleeing ? 'left' : 'right', frame);
+    const scale = fitScale(raw, spot.size);
+    const sprite = this.ctx.art.sharp(raw, scale);
     const flashing = this.flash.has(c.id) && Math.floor(this.time * 20) % 2 === 0;
     if (down) {
       r.draw(sprite, p.x, p.y + 6, { scale, alpha: 0.35 });
@@ -982,8 +983,9 @@ export class BattleScene implements Scene {
       const g = this.pose(e, false);
       this.shadow(r, g.x, g.y, spot.size);
     }
-    const sprite = this.ctx.art.monster(def.spriteId, this.looks.get(e.id));
-    r.draw(sprite, p.x, p.y - bob, { scale: fitScale(sprite, spot.size), alpha });
+    const raw = this.ctx.art.monster(def.spriteId, this.looks.get(e.id));
+    const scale = fitScale(raw, spot.size);
+    r.draw(this.ctx.art.sharp(raw, scale), p.x, p.y - bob, { scale, alpha });
     if (dying !== undefined) {
       // Dissolve: drifting embers as the sprite fades out.
       const k = 1 - dying / DISSOLVE_TIME;
