@@ -1,12 +1,12 @@
 import { ClassId, createRng, statBudget, totalXpForLevel } from '@jouster/game/engine';
 import { CLASS_ORDER, classDef } from '../data/classes';
-import { ACT_THREE_BOSS_IDS, ACT_TWO_BOSS_IDS, ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
+import { ACT_THREE_BOSS_IDS, ACT_TWO_BOSS_IDS, FINALE_BOSS_IDS, ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
 import { ITEMS, WEAPONS } from '../data/equipment';
 import { pickEncounter } from '@jouster/game/engine';
 import { DEFAULT_GOLD_CHANCE, PartyMember, applyFieldRegen, createMember, grantXp, memberToCombatant } from '../state/party';
 import { MAX_PARTY, STARTING_GOLD, companionJoinLevel } from '../state/game-state';
 import { ABILITIES } from '../data/abilities';
-import { expectedDamage, runMany, simulateFight } from './simulator';
+import { FightResult, expectedDamage, runMany, simulateFight } from './simulator';
 import { MONSTERS } from '../data/monsters';
 import { monstersToCombatants } from '../state/party';
 import { mapDef } from '../data/maps';
@@ -327,6 +327,64 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     const tier4Price = Math.max(...[...WEAPONS.values()].filter((w) => w.tier === 4).map((w) => w.price));
     expect(fightsNeeded * (gold / fights)).toBeGreaterThanOrEqual(tier4Price);
   });
+
+  // --- Finale: the Ember Mountains and Vyrmorth (plan 21) ---------------------------------------
+  const finaleKit = { herb: 8, tonic: 3, potion: 3 };
+
+  it('places both of Vyrmorth\'s forms in his lair', () => {
+    const boss = mapDef('vyrmorthLair').npcs.find((n) => n.boss)?.boss ?? fail();
+    expect([boss.monsterIds[0], boss.phaseTwo?.monsterIds[0]]).toEqual([...FINALE_BOSS_IDS]);
+  });
+
+  const emberPairs = pairs.flatMap(([a, b]) => ['ashfield', 'cinderwood', 'lair'].map((t) => [a, b, t] as const));
+  it.each(emberPairs)('a level-16 %s + level-15 %s win >= 90%% of %s fights with tier-5 gear', (a, b, tableId) => {
+    const table = ENCOUNTER_TABLES.get(tableId) ?? fail();
+    const party = duo(a, b, 16, 5);
+    const stats = runMany(N, (i) => simulateFight(party, pickEncounter(table, createRng(61000 + i), MAX_PARTY), finaleKit, createRng(62000 + i)));
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.9);
+  });
+
+  /** Vyrmorth then, with no rest, Vyrmorth Unbound: HP, MP and consumables carry over between the phases. */
+  const vyrmorth = (party: PartyMember[], kit: Record<string, number>, seed: number, scale: number): FightResult => {
+    const boss = mapDef('vyrmorthLair').npcs.find((n) => n.boss)?.boss ?? fail();
+    const rng = createRng(seed);
+    const first = simulateFight(party, [...boss.monsterIds], kit, rng, { bossHpScale: scale });
+    if (first.outcome !== 'victory') {
+      return first;
+    }
+    const worn = party.map((m, i) => ({ ...m, hp: first.hp[i], mp: first.mp[i] }));
+    const second = simulateFight(worn, [...(boss.phaseTwo?.monsterIds ?? [])], first.inventory, rng, { bossHpScale: scale });
+    return { ...second, rounds: first.rounds + second.rounds };
+  };
+
+  it.each(pairs)('a level-18 %s + level-17 %s beat both of Vyrmorth\'s forms >= 70%% with tier-5 gear', (a, b) => {
+    const stats = runMany(N, (i) => vyrmorth(duo(a, b, 18, 5), finaleKit, 63000 + i, BOSS_HP_SCALE[1]));
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it.each(trios)('a %s + %s + %s party at level 17 beats both of Vyrmorth\'s forms >= 70%%', (a, b, c) => {
+    const party = [a, b, c].map((cls, i) => geared(createMember(`m${i}`, `M${i}`, cls, 17), 5));
+    const stats = runMany(N, (i) => vyrmorth(party, { herb: 6, tonic: 2, potion: 3 }, 64000 + i, BOSS_HP_SCALE[2]));
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it('ashfield fights from level 14 to 17 pay for a tier-5 weapon (plan 21)', () => {
+    const table = ENCOUNTER_TABLES.get('ashfield') ?? fail();
+    const rng = createRng(80);
+    let xp = 0;
+    let gold = 0;
+    const fights = 2000;
+    for (let i = 0; i < fights; i++) {
+      pickEncounter(table, rng, SOLO_MAX_ENEMIES).forEach((id) => {
+        const m = MONSTERS.get(id) ?? fail();
+        xp += m.xp;
+        gold += m.gold * (m.goldChance ?? DEFAULT_GOLD_CHANCE);
+      });
+    }
+    const fightsNeeded = (totalXpForLevel(17) - totalXpForLevel(14)) / (xp / fights);
+    const tier5Price = Math.max(...[...WEAPONS.values()].filter((w) => w.tier === 5).map((w) => w.price));
+    expect(fightsNeeded * (gold / fights)).toBeGreaterThanOrEqual(tier5Price);
+  });
 });
 
 // --- The Wizard playing alone (plan 4.4b) -------------------------------------------------------
@@ -378,6 +436,8 @@ const POST_UNLOCK: Stage[] = [
   ...bossStages(['sunShrine', 'mireShrine'], 12, 3, soloKitII),
   ...['snowfield', 'pines', 'roost'].map((id) => tableStage(id, 13, 4, soloKitIII)),
   ...bossStages(['wyvernRoost'], 15, 4, soloKitIII),
+  ...['ashfield', 'cinderwood', 'lair'].map((id) => tableStage(id, 16, 5, soloKitIII)),
+  ...bossStages(['vyrmorthLair'], 18, 5, soloKitIII),
 ];
 
 function hero(classId: ClassId, level: number, tier: number): PartyMember {

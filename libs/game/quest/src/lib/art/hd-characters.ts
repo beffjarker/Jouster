@@ -1287,6 +1287,115 @@ function frostMage(p: Paint, c: Colors): void {
   p.draw(paintHumanoid(frostMageLook(c), 'down', 0));
 }
 
+/** A dragon cultist: red-robed, hooded zealot with a dagger and a burning brand of flame at his side. */
+function dragonCultist(p: Paint, c: Colors): void {
+  [[10, 30], [54, 22], [50, 46]].forEach(([x, y], i) => {
+    p.flat(ell(x, y, 3.5, 4.5), '#ff8020', 0.2);
+    p.fill(poly([x - 1.4, y + 2, x, y - 3 - i, x + 1.4, y + 2]), '#ffb030', { gradX: 1, bevel: 0, dither: 0 });
+  });
+  p.draw(
+    paintHumanoid(
+      {
+        skin: col(c, 'g'),
+        hair: col(c, 'd'),
+        body: col(c, 'b'),
+        trim: col(c, 'y'),
+        legs: col(c, 'n'),
+        eyes: col(c, 'r'),
+        robe: true,
+        hat: 'hood',
+        hatColor: col(c, 'n'),
+        weapon: 'dagger',
+      },
+      'down',
+      0,
+    ),
+  );
+}
+
+/** A magma golem: a hulk of cooled black rock held together by rivers of glowing lava. */
+function magmaGolem(p: Paint, c: Colors): void {
+  const g = col(c, 'g');
+  const d = col(c, 'd', g);
+  const glowC = col(c, 'l', '#ff8a30');
+  const hot = col(c, 'r', '#ffd040');
+  p.flat(ell(32, 60, 21, 2.5), '#000000', 0.25);
+  p.flat(ell(32, 36, 26, 24), glowC, 0.12);
+  const chunk = (s: ReturnType<typeof ell>, shade: string, seed: number): void => p.fill(s, shade, { sphere: true, rim: true, tex: 0.7, seed });
+  // Legs: stacked boulders.
+  [[24, 50], [40, 50]].forEach(([x, y], i) => {
+    chunk(ell(x, y, 6, 5), i ? g : d, 70 + i);
+    chunk(ell(x + (i ? 1 : -1), y + 6, 6.5, 3.5), d, 72 + i);
+  });
+  // Arms: three boulders each, the fists heavy.
+  [[14, 26, 10, 36, 9, 47], [50, 26, 54, 36, 55, 47]].forEach(([ax, ay, bx, by, fx, fy], i) => {
+    chunk(ell(ax, ay, 5.5, 5), d, 74 + i);
+    chunk(ell(bx, by, 5, 5), i ? g : d, 76 + i);
+    chunk(ell(fx, fy, 6.5, 6), g, 78 + i);
+  });
+  // Torso and head.
+  const body = union(ell(32, 32, 14, 13), ell(32, 44, 10, 6));
+  chunk(body, g, 80);
+  const headShape = ell(32, 15, 7.5, 6.5);
+  chunk(headShape, g, 81);
+  // Glowing seams of lava between the rocks.
+  const seams: ReadonlyArray<readonly number[]> = [
+    [24, 22, 30, 30, 27, 38, 33, 46],
+    [40, 22, 35, 30, 39, 37],
+    [20, 34, 26, 32],
+    [44, 34, 38, 33],
+    [28, 13, 31, 17, 30, 20],
+    [9, 44, 12, 48],
+    [55, 44, 52, 49],
+  ];
+  seams.forEach((pts) => {
+    for (let i = 0; i + 3 < pts.length; i += 2) {
+      p.flat(seg(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], 0.9), glowC, 0.55);
+      p.flat(seg(pts[i], pts[i + 1], pts[i + 2], pts[i + 3], 0.35), hot);
+    }
+  });
+  // Molten core and blazing eyes.
+  p.flat(ell(32, 32, 4, 4), glowC, 0.5);
+  p.fill(ell(32, 32, 2.4, 2.4), hot, { sphere: true, bevel: 0 });
+  [[29, 15], [35, 15]].forEach(([x, y]) => {
+    p.flat(ell(x, y, 2, 1.5), glowC, 0.5);
+    p.fill(ell(x, y, 1.1, 0.8), hot, { sphere: true, bevel: 0 });
+  });
+}
+
+/** A great dragon: the wyvern body crowned with a ring of horns and a back of spines, breathing fire. */
+function dragon(p: Paint, c: Colors): void {
+  const g = col(c, 'g');
+  const d = col(c, 'd', g);
+  const l = col(c, 'l', g);
+  // Spines along the back, behind the body.
+  [[44, 31], [40, 30], [48, 34], [52, 38]].forEach(([x, y]) => p.fill(poly([x - 1.6, y + 2, x, y - 4, x + 1.6, y + 2]), d, { bevel: 0, rim: true }));
+  wyvern(p, c);
+  // Sweeping horns.
+  p.fill(union(seg(13, 18, 18, 10, 0.9), seg(18, 10, 23, 8, 0.6)), l, { bevel: 0, rim: true, gradX: 1 });
+  p.fill(union(seg(10, 18, 9, 11, 0.8), seg(9, 11, 12, 7, 0.5)), tone(l, -1), { bevel: 0, rim: true, gradX: 1 });
+  // A tongue of fire from the jaws.
+  const flame = poly([2, 23.5, -1, 20, 1, 27, -1, 31, 4, 28, 6, 25]);
+  p.flat(ell(1, 26, 4, 5), '#ff6020', 0.3);
+  p.fill(clip(flame, box(0, 0, 64, 64)), '#ff8020', { gradX: -1, bevel: 0, dither: 0.3 });
+  p.flat(clip(poly([2, 24, 0.5, 26, 2.5, 28, 4.5, 25.5]), box(0, 0, 64, 64)), '#ffe080');
+}
+
+/** Vyrmorth's second form: the dragon wreathed in flame. */
+function dragonUnbound(p: Paint, c: Colors): void {
+  for (let i = 0; i < 14; i++) {
+    const x = 8 + hash(i, 1, 90) * 52;
+    const y = 6 + hash(i, 2, 90) * 50;
+    p.flat(ell(x, y, 3, 4.5), '#ff5010', 0.18);
+    p.fill(poly([x - 1.2, y + 2, x, y - 3 - hash(i, 3, 90) * 3, x + 1.2, y + 2]), i % 3 ? '#ff9030' : '#ffe060', {
+      gradX: 1,
+      bevel: 0,
+      dither: 0,
+    });
+  }
+  dragon(p, c);
+}
+
 const MONSTER_PAINTERS: ReadonlyMap<string, (p: Paint, c: Colors) => void> = new Map<string, (p: Paint, c: Colors) => void>([
   ['slime', (p, c) => slime(p, c, 'round')],
   ['slimeTall', (p, c) => slime(p, c, 'tall')],
@@ -1306,10 +1415,14 @@ const MONSTER_PAINTERS: ReadonlyMap<string, (p: Paint, c: Colors) => void> = new
   ['yeti', yeti],
   ['wyvern', wyvern],
   ['frostMage', frostMage],
+  ['dragonCultist', dragonCultist],
+  ['magmaGolem', magmaGolem],
+  ['dragon', dragon],
+  ['dragonUnbound', dragonUnbound],
 ]);
 
 /** Shapes drawn as (already outlined) humanoids. */
-const HUMANOID_SHAPES: ReadonlySet<string> = new Set(['goblin', 'goblinKing', 'lizardman', 'marshWitch', 'frostMage']);
+const HUMANOID_SHAPES: ReadonlySet<string> = new Set(['goblin', 'goblinKing', 'lizardman', 'marshWitch', 'frostMage', 'dragonCultist']);
 
 /** Shapes that {@link paintMonster} can draw. */
 export const HD_MONSTER_SHAPES: readonly string[] = [...MONSTER_PAINTERS.keys()];

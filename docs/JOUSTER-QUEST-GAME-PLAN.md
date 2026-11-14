@@ -4,8 +4,9 @@
 > (see [Implementation status](#12-implementation-status-act-i-slice),
 > [Revision 2](#13-revision-2-play-test-feedback) and
 > [Revision 3](#14-revision-3-exploration-pacing-widescreen-and-battle-presentation)). Mouse and touch controls
-> are implemented (see [16.9](#169-mouse-and-touch-controls-implemented)). Acts II–Finale are not
-> started.
+> are implemented (see [16.9](#169-mouse-and-touch-controls-implemented)). Acts II, III and the Finale are
+> implemented (see [17](#17-act-ii-the-southlands-implemented), [19](#19-act-iii-the-frost-peaks-implemented) and
+> [21](#21-finale-the-ember-mountains-implemented)).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -360,7 +361,7 @@ NPCs with hints and side quests
 | **4. Battle** | Core combat | Encounter rolls, battle scene, turn system, enemy AI, XP and level-ups, defeat handling | Done |
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
-| **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II done (§17): the Southlands, Sandhollow and two shrines. Act III and the finale are not started |
+| **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
 | **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, battle animations) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
@@ -1644,7 +1645,7 @@ Every Act III asset is procedural, at the §16.10 density:
 
 ### 17.8 Next
 
-- The finale: Vyrmorth's lair. Dragonbane (`dragonbaneForged`) is the key to wounding the dragon.
+- ~~The finale: Vyrmorth's lair.~~ Done in §21.
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
   play-testing confirms parties find Act II/III too easy.
 
@@ -1656,3 +1657,86 @@ a hero who refuses to recruit may be unable to finish the game. The simulator te
 expected level, companion one level behind) and every trio for Act II and III instead of a lone hero, and only
 reports how a lone hero would fare (4.4c, 4.6, 17.5, 19.5). The measurements and the suggested tuning are in 4.4c.
 
+## 21. Finale: the Ember Mountains (implemented)
+
+Goal: the last chapter of the story (§6), playable after Act III, with the same party balance rules (§20, 4.6)
+and art density (§16.10).
+
+### 21.1 Getting there
+
+- An **ember pass** on the northern rim of the Frost Peaks (`NORTH_LANDMARKS.emberPass`) leads to the Ember
+  Mountains. Its warp `requires` `dragonbaneForged` (set when Act III ends); until then it shows locked lines.
+  A warden (`emberWarden`) explains the rule.
+- King Aldric's Act III ending now points the party to the ember pass.
+
+### 21.2 Maps
+
+| Map | Size | Notes |
+| --- | --- | --- |
+| The Ember Mountains | 64×48 | Generated from a fixed seed (`data/embermountains-gen.ts`): ash fields, charred woods, basalt, lava rivers and cooled obsidian flats. Roads are carved by the cheapest-path search, so every landmark is reachable. |
+| Emberwatch | 27×15 | Last town: inn, item shop, smith (tier-5 weapons), armorer (tier-5 armor) and townsfolk with hints. |
+| Vyrmorth's Lair | 22×16 | Obsidian cavern with lava pools at the top of the mountains. Final boss: **Vyrmorth**. |
+
+All three places show on the world map (M), and the quest log tracks Vyrmorth.
+
+### 21.3 Monsters and encounters
+
+| Monster | Where | Notes |
+| --- | --- | --- |
+| Fire Drake | ash fields, charred woods, lair | Weak to ice |
+| Magma Golem | charred woods, lair | Slow and very tough; weak to ice and lightning |
+| Dragon Cultist | ash fields, charred woods, lair | Robed humanoid; weak to holy |
+| Vyrmorth | lair boss, phase 1 | 700 HP, ATK 39, DEF 24 before boss scaling |
+| Vyrmorth Unbound | lair boss, phase 2 | 520 HP, ATK 40, DEF 22 before boss scaling; also weak to holy |
+
+New encounter tables: `ashfield`, `cinderwood` and `lair`. Battles on volcanic tiles use a new **volcano**
+backdrop (smoky sky, lava runnels, a volcano cone and drifting embers). Fights inside the lair use the cave
+backdrop.
+
+### 21.4 Two-phase final boss
+
+- Talking to Vyrmorth offers FIGHT or RETREAT. Winning the first fight shows his "unbound" lines and starts the
+  second fight at once, with no rest in between (`BossDef.phaseTwo`).
+- `vyrmorthDefeated` is set only after the second phase. Losing either phase is a normal defeat (wake at the
+  Aldmere inn, half the gold lost).
+- The first stats (380/280 HP) made the fight trivial (about 4 rounds), so both forms were raised until a duo
+  needs about as many rounds as the Act III Matriarch.
+
+### 21.5 Gear
+
+Tier 5 is sold in Emberwatch:
+
+- Weapons: Dragonfang, Emberguard Blade, Cinder Staff, Obsidian Mace, Ember Daggers and Drake Knife.
+- Armor: Ember Silk, Drakehide, Cinder Mail and Dragon Plate.
+- Shield: Basalt Shield.
+- Accessory: Ember Heart.
+
+### 21.6 Balance (checked in `balance.spec.ts`)
+
+- Every pair (hero at level 16, companion at 15, tier-5 gear) wins at least 90% of ash field, charred wood and
+  lair fights.
+- Every pair (levels 18 + 17) beats both of Vyrmorth's phases back to back at least 70% of the time. Measured:
+  most pairs win 94–100% in about 7.5–11.5 rounds. The weakest pairs have no healer (rogue + ranger 72%,
+  ranger + rogue 78%).
+- Every three-class party (level 17) beats both phases at least 70% of the time.
+- Ash field fights from level 14 to 17 earn enough gold for a tier-5 weapon.
+- A lone hero is only reported, not required to win (§20).
+
+### 21.7 Ending
+
+Once Vyrmorth is slain, King Aldric:
+
+- sets `gameComplete`;
+- gives 2000 gold (once);
+- shows the epilogue and "THE END".
+
+The world stays open afterwards, so the party can keep exploring.
+
+### 21.8 Art
+
+Every finale asset is procedural, at the §16.10 density:
+
+- Tiles: ash (2 variants), charred trees, basalt, animated lava, obsidian walls and floors (3 variants each),
+  plus the town, road and lair entrance tiles. Obsidian walls cast shadows.
+- Monsters: new painters for the magma golem, dragon cultist, dragon (Vyrmorth) and the burning "unbound"
+  dragon. The fire drake reuses the wyvern shape with its own palette.

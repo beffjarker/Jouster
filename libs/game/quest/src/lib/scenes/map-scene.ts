@@ -2,6 +2,7 @@ import { InputManager, Renderer, Scene, createCanvas, wrapText } from '@jouster/
 import { COMPANION_SLOTS } from '../data/companions';
 import { MapDef, mapDef } from '../data/maps';
 import { LANDMARKS } from '../data/overworld-gen';
+import { EMBER_LANDMARKS } from '../data/embermountains-gen';
 import { NORTH_LANDMARKS } from '../data/frostpeaks-gen';
 import { SOUTH_LANDMARKS } from '../data/southlands-gen';
 import { GameState, questStage } from '../state/game-state';
@@ -62,6 +63,16 @@ const TILE_COLORS: Readonly<Record<string, string>> = {
   roostEntrance: '#202020',
   iceWall: '#3e5470',
   iceFloor: '#8aa0bc',
+  ash: '#5a5250',
+  cinders: '#6a4a3a',
+  ashRoad: '#8a7a6a',
+  charredTree: '#2a2220',
+  obsidian: '#2a2030',
+  basalt: '#3a3436',
+  lava: '#e05010',
+  lairEntrance: '#100808',
+  obsidianWall: '#241c24',
+  obsidianFloor: '#4a3a40',
 };
 const FOG_COLOR = '#14100c';
 const PARCHMENT = '#3a2c1c';
@@ -88,6 +99,12 @@ export const PLACES: Readonly<Record<string, ReadonlyArray<{ name: string; x: nu
     { name: 'Southern Pass', ...NORTH_LANDMARKS.pass },
     { name: 'Frostgate', ...NORTH_LANDMARKS.frostgate },
     { name: 'Wyvern Roost', ...NORTH_LANDMARKS.wyvernRoost },
+    { name: 'Ember Pass', ...NORTH_LANDMARKS.emberPass },
+  ],
+  embermountains: [
+    { name: 'Ember Pass', ...EMBER_LANDMARKS.pass },
+    { name: 'Emberwatch', ...EMBER_LANDMARKS.emberwatch },
+    { name: "Vyrmorth's Lair", ...EMBER_LANDMARKS.lair },
   ],
 };
 
@@ -117,7 +134,11 @@ export function questLog(state: GameState): string[] {
               ? 'MAIN: Cross the northern pass and slay the Wyvern Matriarch in her roost in the Frost Peaks.'
               : !f['actThreeComplete']
                 ? "MAIN: Bring the Matriarch's scale                 to King Aldric."
-                : 'MAIN: Act III complete. Dragonbane is forged; Vyrmorth awaits.',
+                : !f['vyrmorthDefeated']
+                  ? 'MAIN: Cross the ember pass north of the Frost Peaks and slay Vyrmorth in his lair.'
+                  : !f['gameComplete']
+                    ? 'MAIN: Tell King Aldric that Vyrmorth is dead.'
+                    : 'MAIN: The realm is saved. Thank you for playing!',
   ];
   let any = false;
   for (const slot of COMPANION_SLOTS) {

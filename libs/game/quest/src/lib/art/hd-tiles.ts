@@ -1398,6 +1398,157 @@ function iceFloor(p: Paint, _f = 0, variant = 0): void {
   }
 }
 
+// --- Ember Mountains (finale) -------------------------------------------------------------------
+
+const ASH = '#5a5250';
+const BASALT = '#4a4044';
+const LAVA = '#e05010';
+const OBSIDIAN = '#2a2030';
+
+/** Glowing embers scattered on the ground (a dark-red halo round a bright core). */
+function embers(p: Paint, seed: number, count: number): void {
+  for (let i = 0; i < count; i++) {
+    const fx = Math.floor(hash(i, 1, seed) * FS);
+    const fy = Math.floor(hash(i, 2, seed) * FS);
+    [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ].forEach(([dx, dy]) => p.fpx(fwrap(fx + dx), fwrap(fy + dy), '#8a2010', 0.6));
+    p.fpx(fx, fy, hash(i, 3, seed) > 0.5 ? '#ffb030' : '#ff6a20');
+  }
+}
+
+function ash(p: Paint, _f = 0, variant = 0): void {
+  ground(p, ASH, 110, 0.6, 0.4);
+  fine(p, (x, y, fx, fy) => {
+    if (valueNoise(x, y, 6, 111) < 0.28) {
+      p.fpx(fx, fy, '#3a3234', 0.4 + dither(fx, fy) * 0.4);
+    }
+  });
+  pebbles(p, '#3a3438', 110, 0.008);
+  if (variant === 1) {
+    embers(p, 112, 3);
+  }
+}
+
+function cinders(p: Paint): void {
+  ground(p, '#5a4038', 113, 0.7, 0.45);
+  pebbles(p, '#2a2024', 113, 0.02);
+  embers(p, 114, 7);
+}
+
+function ashRoad(p: Paint): void {
+  ground(p, '#7a6e64', 115, 0.6, 0.3);
+  [9, 23].forEach((x) => {
+    p.flat(box(x, 0, 2.5, S), '#5a5048', 0.6);
+    p.flat(box(x + 0.4, 0, 0.6, S), '#423a36', 0.5);
+  });
+  pebbles(p, '#3a3438', 115, 0.012);
+}
+
+function obsidian(p: Paint): void {
+  const r = ramp(OBSIDIAN);
+  fine(p, (x, y, fx, fy) => {
+    const v = (valueNoise(x, y, 8, 116) - 0.5) * 1.4 + (hash(fx, fy, 116) - 0.5) * 0.5;
+    p.fpx(fx, fy, r[clampK(v + dither(fx, fy), -2, 1) + 3]);
+  });
+  // Glassy sheen and conchoidal fractures.
+  [[3, 12, 12, 5], [16, 28, 27, 18]].forEach(([x0, y0, x1, y1]) => p.flat(seg(x0, y0, x1, y1, 0.35), '#8a7aa8', 0.5));
+  crack(p, [5, 22, 10, 20, 13, 24, 19, 22], tone(OBSIDIAN, -2.5), '#6a5a80', 0.2);
+}
+
+/** A dead, fire-blackened tree with a few glowing cracks. */
+function charredTree(p: Paint, _f: number, variant: number): void {
+  shadow(p, 16, 29, 7, 1.8);
+  const bark = '#2e2422';
+  p.fill(poly([14, 29, 18, 29, 17.2, 10, 14.8, 10]), bark, { gradX: 1.2, tex: 0.5, seed: 117 });
+  const limbs: ReadonlyArray<readonly number[]> =
+    variant === 1
+      ? [[16, 14, 9, 7], [16, 12, 23, 5], [16, 18, 24, 13]]
+      : variant === 2
+        ? [[16, 16, 8, 11], [16, 11, 20, 3], [16, 15, 25, 10], [10, 12, 7, 6]]
+        : [[16, 13, 8, 6], [16, 11, 24, 6], [16, 19, 9, 15]];
+  limbs.forEach(([x0, y0, x1, y1]) => p.fill(seg(x0, y0, x1, y1, 0.9), bark, { bevel: 0, tex: 0.4, seed: 118 }));
+  crack(p, [16, 27, 15.6, 23, 16.4, 19], '#ff6a20', undefined, 0.22);
+}
+
+/** Jagged black basalt crags with a glowing fissure. */
+function basalt(p: Paint, _f: number, variant: number): void {
+  shadow(p, 16, 29, 15, 2.5);
+  if (variant === 1) {
+    peak(p, 21, 2, 11, 29, BASALT, 0);
+    peak(p, 9, 9, 9, 30, '#544a4c', 0);
+  } else if (variant === 2) {
+    peak(p, 17, 6, 13, 29, '#3e363a', 0);
+    p.fill(ell(6, 26, 5, 4), '#544a4c', { sphere: true, tex: 0.4 });
+    crack(p, [18, 18, 19, 22, 18.4, 26], '#ff6a20', '#8a2010', 0.24);
+  } else {
+    peak(p, 16, 1, 15, 30, BASALT, 0);
+    crack(p, [14, 14, 13, 19, 14.2, 24], '#ff6a20', '#8a2010', 0.24);
+  }
+}
+
+/** Molten rock: a slow churn of orange crust over a white-hot glow. */
+function lava(p: Paint, frame: number, variant: number): void {
+  const r = ramp(LAVA);
+  const phase = variant * 6;
+  fine(p, (x, y, fx, fy) => {
+    const v =
+      (valueNoise(x + frame, y + frame * 0.5, 8, 120 + phase) - 0.5) * 2 +
+      (valueNoise(x - frame, y, 3, 121 + phase) - 0.5) * 0.8;
+    p.fpx(fx, fy, r[clampK(v + dither(fx, fy) * 0.5, -2, 2) + 3]);
+    // Dark crust floats on the cooler patches.
+    if (valueNoise(x + frame * 0.5, y, 5, 122 + phase) < 0.22) {
+      p.fpx(fx, fy, '#3a1810', 0.85);
+    }
+  });
+  for (let i = 0; i < 3; i++) {
+    const gx = Math.floor(hash(i, frame, 123 + phase) * FS);
+    const gy = Math.floor(hash(frame, i, 124 + phase) * FS);
+    p.fpx(gx, gy, '#fff0a0');
+    p.fpx(fwrap(gx + 1), gy, '#ffc040', 0.6);
+  }
+}
+
+/** Vyrmorth's lair: a cave mouth in a basalt crag, glowing red from within, guarded by horned skulls. */
+function lairEntrance(p: Paint): void {
+  caveEntrance(p);
+  p.flat(ell(16, 25, 5, 4), '#ff4010', 0.35);
+  p.flat(ell(16, 27, 3, 2), '#ffa030', 0.4);
+  [8, 24].forEach((x) => {
+    p.fill(ell(x, 28, 1.7, 1.3), '#e8dcc0', { sphere: true, bevel: 0 });
+    p.spot(x - 0.5, 27.8, '#2a2028');
+    p.spot(x + 0.5, 27.8, '#2a2028');
+  });
+}
+
+function obsidianWall(p: Paint, _f: number, variant: number): void {
+  rockWall(p, 70 + variant, '#241c24');
+  fine(p, (x, y, fx, fy) => {
+    if (valueNoise(x, y, 3, 125 + variant) > 0.72) {
+      p.fpx(fx, fy, '#6a5a80', 0.45);
+    }
+  });
+  if (variant === 2) {
+    crack(p, [10, 4, 11, 12, 9.6, 18, 10.4, 26], '#ff6a20', '#8a2010', 0.24);
+  }
+}
+
+function obsidianFloor(p: Paint, _f = 0, variant = 0): void {
+  ground(p, '#4a3a40', 126, 0.7, 0.35);
+  crack(p, [4, 8, 7, 9.5, 9, 8.6, 12, 10], tone('#4a3a40', -2.5), '#6a5a60', 0.2);
+  if (variant === 1) {
+    embers(p, 127, 4);
+  } else if (variant === 2) {
+    // A scattering of gold coins from the dragon's hoard.
+    [[17, 20], [19.5, 21.5], [15.5, 22.5]].forEach(([x, y]) => {
+      p.fill(ell(x, y, 1.2, 0.8), '#d8a838', { sphere: true, bevel: 0 });
+    });
+  }
+}
+
 // --- Furniture and decor (composite `object@floor` tiles) ---------------------------------------
 
 const OAK = '#8a5a2e';
@@ -2395,6 +2546,16 @@ export const HD_TILES: ReadonlyMap<string, HdTile> = new Map<string, HdTile>([
   ['roostEntrance', { ground: snow, object: roostEntrance }],
   ['iceWall', { ground: iceWall }],
   ['iceFloor', { ground: iceFloor }],
+  ['ash', { ground: ash }],
+  ['cinders', { ground: cinders }],
+  ['ashRoad', { ground: ashRoad }],
+  ['obsidian', { ground: obsidian }],
+  ['charredTree', { ground: ash, object: charredTree }],
+  ['basalt', { ground: ash, object: basalt }],
+  ['lava', { ground: lava }],
+  ['lairEntrance', { ground: ash, object: lairEntrance }],
+  ['obsidianWall', { ground: obsidianWall }],
+  ['obsidianFloor', { ground: obsidianFloor }],
 ]);
 
 /**
@@ -2424,7 +2585,7 @@ export function paintTile(id: string, frame: number, variant: number, withGround
 }
 
 /** Tall solid tiles (town walls, cave rock) that cast a short shadow onto the tile below them. */
-export const SHADOW_CASTERS: ReadonlySet<string> = new Set(['wall', 'rock', 'torch', 'sunWall', 'mireWall', 'iceWall']);
+export const SHADOW_CASTERS: ReadonlySet<string> = new Set(['wall', 'rock', 'torch', 'sunWall', 'mireWall', 'iceWall', 'obsidianWall']);
 
 /** True when tile `id` (or the floor under a decor tile such as `banner@wall`) is a {@link SHADOW_CASTERS} tile. */
 export function castsShadow(id: string): boolean {

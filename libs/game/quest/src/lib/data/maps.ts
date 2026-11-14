@@ -1,9 +1,10 @@
 import { Facing, TileDef, TileMap } from '@jouster/game/engine';
 import { GameState, companionBenched, companionPresent } from '../state/game-state';
 import { COMPANION_SLOTS, CompanionSlot, companionRestSpot } from './companions';
-import { NORTH_WEAPON_STOCK, SOUTH_WEAPON_STOCK } from './equipment';
+import { EMBER_LANDMARKS, generateEmberMountains } from './embermountains-gen';
+import { EMBER_WEAPON_STOCK, NORTH_WEAPON_STOCK, SOUTH_WEAPON_STOCK } from './equipment';
 import { NORTH_LANDMARKS, generateFrostPeaks } from './frostpeaks-gen';
-import { NORTH_ARMOR_STOCK, SOUTH_ARMOR_STOCK } from './gear';
+import { EMBER_ARMOR_STOCK, NORTH_ARMOR_STOCK, SOUTH_ARMOR_STOCK } from './gear';
 import { LANDMARKS, generateOverworld } from './overworld-gen';
 import { SOUTH_LANDMARKS, generateSouthlands } from './southlands-gen';
 
@@ -39,6 +40,11 @@ export interface BossDef {
   lines: string[];
   /** Shown after winning. */
   victory: string[];
+  /**
+   * A second form fought straight after the first is beaten (no rest, no retreat). The `defeatFlag` is only
+   * set, and `victory` only shown, once this form falls too.
+   */
+  phaseTwo?: { monsterIds: string[]; lines: string[] };
 }
 
 /** A boss NPC that stays on the map until its `defeatFlag` is set (plus any extra condition). */
@@ -92,7 +98,7 @@ export interface MapEvent {
   id: string;
 }
 
-export type Backdrop = 'field' | 'forest' | 'hills' | 'cave' | 'desert' | 'marsh' | 'snow';
+export type Backdrop = 'field' | 'forest' | 'hills' | 'cave' | 'desert' | 'marsh' | 'snow' | 'volcano';
 
 export interface MapDef {
   id: string;
@@ -416,6 +422,7 @@ const FROSTPEAKS_LEGEND: TileDef[] = [
   { char: 'F', id: 'town', solid: false },
   { char: 'R', id: 'roostEntrance', solid: false },
   { char: 'N', id: 'pass', solid: false },
+  { char: 'M', id: 'pass', solid: false },
 ];
 
 // --- Frostgate (27x15) ---------------------------------------------------------------------
@@ -469,11 +476,83 @@ const WYVERN_ROOST_ROWS = [
 /** Items sold in Frostgate (Act III). */
 export const FROSTGATE_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'phoenixFeather'];
 
+// --- Ember Mountains (64x48, generated from a fixed seed) - finale -------------------------
+
+const EMBER_LEGEND: TileDef[] = [
+  { char: '.', id: 'ash', solid: false, encounterTableId: 'ashfield' },
+  { char: 'c', id: 'cinders', solid: false, encounterTableId: 'ashfield' },
+  { char: 'f', id: 'charredTree', solid: false, encounterTableId: 'cinderwood' },
+  { char: ':', id: 'ashRoad', solid: false, encounterTableId: 'ashfield' },
+  { char: 'o', id: 'obsidian', solid: false, encounterTableId: 'cinderwood' },
+  { char: '^', id: 'basalt', solid: true },
+  { char: '~', id: 'lava', solid: true },
+  { char: 'E', id: 'town', solid: false },
+  { char: 'L', id: 'lairEntrance', solid: false },
+  { char: 'S', id: 'pass', solid: false },
+];
+
+// --- Emberwatch (27x15) --------------------------------------------------------------------
+
+const EMBERWATCH_ROWS = [
+  'TTTTTTTTTTTTTTTTTTTTTTTTTTT',
+  'TgggggggggggggggggggggggggT',
+  'Tg#####g#####g#####g#####gT',
+  'Tg#kwb#g#PwP#g#WwW#g#AwA#gT',
+  'Tg#ccc#g#ccc#g#ccc#g#ccc#gT',
+  'Tg_______________________gT',
+  'Tggaau_______________vRgggT',
+  'Tggg_________f_________gggT',
+  'Tggg_______j___j_______gggT',
+  'Tgggg_________________ggggT',
+  'Tg####gggg_______gggg####gT',
+  'Tg####gggg_______gggg####gT',
+  'TTgggggggg_______ggggggggTT',
+  'TTTTTTTTTTTTEETTTTTTTTTTTTT',
+  'TTTTTTTTTTTTTTTTTTTTTTTTTTT',
+];
+
+/** Last camp before the dragon: basalt crags and ash instead of trees and grass, a campfire for a fountain. */
+const EMBER_TOWN_LEGEND: TileDef[] = [
+  ...TOWN_LEGEND.map((t) => (t.char === 'T' ? { ...t, id: 'basalt' } : t.char === 'g' ? { ...t, id: 'ash' } : t)),
+  { char: 'f', id: 'campfire@cobble', solid: true },
+  { char: 'j', id: 'stool@cobble', solid: false },
+];
+
+// --- Vyrmorth's Lair (22x16) ---------------------------------------------------------------
+
+const VYRMORTH_LAIR_ROWS = [
+  '######################',
+  '######t_________t#####',
+  '#######_________######',
+  '#####~~___~~~___~~####',
+  '#########_____########',
+  '##~~_______________~##',
+  '##_####_###_###_###_##',
+  '##_#t##_###_###_#t#_##',
+  '##___~_____~~______~##',
+  '##__________________##',
+  '#######_####__####_###',
+  '###t###_####__####_###',
+  '###_____~______~~___##',
+  '##########_###########',
+  '##########E###########',
+  '######################',
+];
+
+/** Items sold in Emberwatch (finale). */
+export const EMBERWATCH_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'phoenixFeather'];
+
 const kingLines = (s: GameState): string[] => {
+  if (s.flags['gameComplete']) {
+    return [
+      'KING ALDRIC: Songs of your deeds are sung in every tavern from Sandhollow to Frostgate.',
+      'The realm is yours to wander, hero. Aldmere\'s gates are always open to you.',
+    ];
+  }
   if (s.flags['actThreeComplete']) {
     return [
       'KING ALDRIC: Dragonbane is forged from the three seals. Only Vyrmorth remains.',
-      'Rest and ready yourselves, heroes. The dragon\'s lair awaits.',
+      'Cross the ember pass at the north of the Frost Peaks. Emberwatch, the last camp, lies below the dragon\'s lair.',
     ];
   }
   if (s.flags['actTwoComplete']) {
@@ -520,7 +599,9 @@ const {
   northPass: NORTH_PASS_AT,
 } = LANDMARKS;
 
-const { pass: FROST_PASS_AT, frostgate: FROSTGATE_AT, wyvernRoost: ROOST_AT } = NORTH_LANDMARKS;
+const { pass: FROST_PASS_AT, frostgate: FROSTGATE_AT, wyvernRoost: ROOST_AT, emberPass: EMBER_PASS_AT } = NORTH_LANDMARKS;
+
+const { pass: EMBER_SOUTH_AT, emberwatch: EMBERWATCH_AT, lair: LAIR_AT } = EMBER_LANDMARKS;
 
 const { pass: SOUTH_PASS_AT, sandhollow: SANDHOLLOW_AT, sunShrine: SUN_AT, mireShrine: MIRE_AT } = SOUTH_LANDMARKS;
 
@@ -951,8 +1032,31 @@ const BASE_MAPS: MapDef[] = [
         { x: FROST_PASS_AT.x, y: FROST_PASS_AT.y, toMap: 'overworld', toX: NORTH_PASS_AT.x, toY: NORTH_PASS_AT.y + 1, facing: 'down' },
         { x: FROSTGATE_AT.x, y: FROSTGATE_AT.y, toMap: 'frostgate', toX: 12, toY: 12, facing: 'up' },
         { x: ROOST_AT.x, y: ROOST_AT.y, toMap: 'wyvernRoost', toX: 10, toY: 13, facing: 'up' },
+        {
+          x: EMBER_PASS_AT.x,
+          y: EMBER_PASS_AT.y,
+          toMap: 'embermountains',
+          toX: EMBER_SOUTH_AT.x,
+          toY: EMBER_SOUTH_AT.y - 1,
+          facing: 'up',
+          requires: 'dragonbaneForged',
+          lockedLines: ['Heat shimmers over the ember pass, and the warden bars the way.', 'None may face Vyrmorth without Dragonbane.'],
+        },
       ],
-      npcs: [],
+      npcs: [
+        {
+          id: 'emberWarden',
+          x: EMBER_PASS_AT.x + 1,
+          y: EMBER_PASS_AT.y + 1,
+          spriteId: 'guard',
+          facing: 'left',
+          role: 'talk',
+          lines: (s) =>
+            s.flags['dragonbaneForged']
+              ? ['WARDEN: Dragonbane... so it is true. Go, hero. Emberwatch lies beyond the pass, the lair beyond that.']
+              : ['WARDEN: Beyond this pass lie the Ember Mountains and Vyrmorth himself.', 'Without Dragonbane, no blade can pierce his hide.'],
+        },
+      ],
       events: [],
       outsideTile: '^',
       backdrop: 'snow',
@@ -1033,6 +1137,111 @@ const BASE_MAPS: MapDef[] = [
           defeatFlag: 'wyvernMatriarchDefeated',
           lines: ['A vast white wyvern rises from her nest of bones, the third seal glinting beneath her. She shrieks!'],
           victory: ['The Wyvern Matriarch falls from the crag. You take the third seal from her nest.'],
+        }),
+      ],
+      events: [],
+      outsideTile: '#',
+      backdrop: 'cave',
+      fog: true,
+    },
+  {
+      id: 'embermountains',
+      name: 'The Ember Mountains',
+      rows: generateEmberMountains(),
+      legend: EMBER_LEGEND,
+      warps: [
+        { x: EMBER_SOUTH_AT.x, y: EMBER_SOUTH_AT.y, toMap: 'frostpeaks', toX: EMBER_PASS_AT.x, toY: EMBER_PASS_AT.y + 1, facing: 'down' },
+        { x: EMBERWATCH_AT.x, y: EMBERWATCH_AT.y, toMap: 'emberwatch', toX: 12, toY: 12, facing: 'up' },
+        { x: LAIR_AT.x, y: LAIR_AT.y, toMap: 'vyrmorthLair', toX: 10, toY: 13, facing: 'up' },
+      ],
+      npcs: [],
+      events: [],
+      outsideTile: '^',
+      backdrop: 'volcano',
+      fog: true,
+    },
+  {
+      id: 'emberwatch',
+      name: 'Emberwatch',
+      rows: EMBERWATCH_ROWS,
+      legend: EMBER_TOWN_LEGEND,
+      warps: [
+        { x: 12, y: 13, toMap: 'embermountains', toX: EMBERWATCH_AT.x, toY: EMBERWATCH_AT.y + 1, facing: 'down' },
+        { x: 13, y: 13, toMap: 'embermountains', toX: EMBERWATCH_AT.x, toY: EMBERWATCH_AT.y + 1, facing: 'down' },
+      ],
+      npcs: [
+        { id: 'emberInn', x: 4, y: 3, spriteId: 'innkeeper', facing: 'down', role: 'inn' },
+        { id: 'emberItems', x: 10, y: 3, spriteId: 'merchant', facing: 'down', role: 'itemShop', stock: EMBERWATCH_ITEM_STOCK },
+        { id: 'emberSmith', x: 16, y: 3, spriteId: 'smith', facing: 'down', role: 'weaponShop', stock: EMBER_WEAPON_STOCK },
+        { id: 'emberArmorer', x: 22, y: 3, spriteId: 'guard', facing: 'down', role: 'armorShop', stock: EMBER_ARMOR_STOCK },
+        {
+          id: 'emberCaptain',
+          x: 6,
+          y: 8,
+          spriteId: 'guard',
+          facing: 'down',
+          role: 'talk',
+          wander: true,
+          lines: (s) =>
+            s.flags['vyrmorthDefeated']
+              ? ['CAPTAIN: The mountain sleeps at last. Take the news to King Aldric - he will want to hear it from you.']
+              : [
+                  'CAPTAIN: Vyrmorth\'s lair is the black maw at the top of the mountains. Follow the road north.',
+                  'Wound him and he only grows angrier. Do not go in tired, and do not go in alone.',
+                ],
+        },
+        {
+          id: 'emberScout',
+          x: 18,
+          y: 11,
+          spriteId: 'villager',
+          facing: 'left',
+          role: 'talk',
+          lines: () => [
+            'SCOUT: Fire only feeds the drakes and golems. Ice and lightning crack their hides.',
+            'The cultists are only men in red robes - any blade will do, but holy light burns them worst.',
+          ],
+        },
+        {
+          id: 'emberSmithy',
+          x: 20,
+          y: 8,
+          spriteId: 'child',
+          facing: 'down',
+          role: 'talk',
+          wander: true,
+          lines: () => ['I sweep the forge for the smith. He says his blades are quenched in dragon-fire!'],
+        },
+      ],
+      signs: [
+        { x: 2, y: 4, kind: 'inn' },
+        { x: 8, y: 4, kind: 'item' },
+        { x: 14, y: 4, kind: 'weapon' },
+        { x: 20, y: 4, kind: 'armor' },
+      ],
+      events: [],
+      outsideTile: 'T',
+      backdrop: 'volcano',
+    },
+  {
+      id: 'vyrmorthLair',
+      name: "Vyrmorth's Lair",
+      rows: VYRMORTH_LAIR_ROWS,
+      legend: shrineLegend('obsidianWall', 'obsidianFloor', 'lair', 'lava'),
+      warps: [{ x: 10, y: 14, toMap: 'embermountains', toX: LAIR_AT.x, toY: LAIR_AT.y + 1, facing: 'down' }],
+      npcs: [
+        bossNpc('vyrmorth', 11, 2, 'vyrmorth', {
+          monsterIds: ['vyrmorth'],
+          defeatFlag: 'vyrmorthDefeated',
+          lines: [
+            'A mountain of red scales uncoils from a bed of gold. VYRMORTH: "So, the little kingdom sends its little heroes."',
+            'Dragonbane hums in your hands. The dragon roars!',
+          ],
+          victory: ['Vyrmorth crashes into the lava and is still. The mountain falls silent. Return to King Aldric.'],
+          phaseTwo: {
+            monsterIds: ['vyrmorthUnbound'],
+            lines: ['Vyrmorth staggers... then the lava rises to meet him. VYRMORTH: "ENOUGH!"', 'Wreathed in flame, the dragon rises again!'],
+          },
         }),
       ],
       events: [],

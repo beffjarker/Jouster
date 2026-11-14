@@ -305,6 +305,79 @@ const LIST: MonsterDef[] = [
     critChance: 1 / 32,
     spriteId: 'wyvernMatriarch',
   },
+  // --- Finale: the Ember Mountains ----------------------------------------------------------
+  {
+    id: 'fireDrake',
+    name: 'Fire Drake',
+    stats: { hp: 82, mp: 0, atk: 28, def: 16, agi: 11, mag: 0 },
+    xp: 42,
+    gold: 34,
+    weaknesses: ['ice'],
+    resistances: ['fire'],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'tonic', chance: 0.15 }],
+    spriteId: 'fireDrake',
+  },
+  {
+    id: 'magmaGolem',
+    name: 'Magma Golem',
+    stats: { hp: 95, mp: 0, atk: 28, def: 17, agi: 4, mag: 0 },
+    xp: 44,
+    gold: 34,
+    weaknesses: ['ice', 'lightning'],
+    resistances: ['fire'],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'potion', chance: 0.15 }],
+    spriteId: 'magmaGolem',
+  },
+  {
+    id: 'dragonCultist',
+    name: 'Dragon Cultist',
+    stats: { hp: 66, mp: 0, atk: 28, def: 13, agi: 10, mag: 0 },
+    xp: 42,
+    gold: 38,
+    weaknesses: ['holy'],
+    resistances: ['fire'],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'tonic', chance: 0.2 }],
+    spriteId: 'dragonCultist',
+  },
+  {
+    id: 'vyrmorth',
+    name: 'Vyrmorth',
+    stats: { hp: 700, mp: 0, atk: 39, def: 24, agi: 10, mag: 0 },
+    xp: 320,
+    gold: 300,
+    boss: true,
+    weaknesses: ['ice'],
+    resistances: ['fire'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 2 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [],
+    critChance: 1 / 32,
+    spriteId: 'vyrmorth',
+  },
+  {
+    id: 'vyrmorthUnbound',
+    name: 'Vyrmorth Unbound',
+    stats: { hp: 520, mp: 0, atk: 40, def: 22, agi: 12, mag: 0 },
+    xp: 400,
+    gold: 500,
+    boss: true,
+    weaknesses: ['ice', 'holy'],
+    resistances: ['fire'],
+    actions: [
+      { action: 'attack', weight: 5 },
+      { action: 'cleave', weight: 3 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'phoenixFeather', chance: 1 }],
+    critChance: 1 / 32,
+    spriteId: 'vyrmorthUnbound',
+  },
 ];
 
 /** Side-quest mini-bosses (fought after the Goblin King, usually solo or as a pair). */
@@ -315,6 +388,9 @@ export const ACT_TWO_BOSS_IDS: readonly string[] = ['sandWyrm', 'marshWitch'];
 
 /** Act III boss (Wyvern Roost, Frost Peaks). */
 export const ACT_THREE_BOSS_IDS: readonly string[] = ['wyvernMatriarch'];
+
+/** Finale boss, both forms (Vyrmorth's Lair, Ember Mountains); fought back to back. */
+export const FINALE_BOSS_IDS: readonly string[] = ['vyrmorth', 'vyrmorthUnbound'];
 
 export const MONSTERS: ReadonlyMap<string, MonsterDef> = new Map(LIST.map((m) => [m.id, m]));
 
@@ -457,6 +533,43 @@ const TABLE_LIST: EncounterTable[] = [
       { monsterIds: ['wyvern', 'wyvern'], weight: 2 },
       { monsterIds: ['iceTroll', 'wyvern'], weight: 2 },
       { monsterIds: ['wyvern', 'frostMage', 'iceTroll'], weight: 1 },
+    ],
+  },
+  // --- Finale -------------------------------------------------------------------------------
+  {
+    id: 'ashfield',
+    rate: 1 / 14,
+    level: 16,
+    groups: [
+      { monsterIds: ['fireDrake'], weight: 4 },
+      { monsterIds: ['dragonCultist'], weight: 3 },
+      { monsterIds: ['fireDrake', 'dragonCultist'], weight: 2 },
+      { monsterIds: ['dragonCultist', 'dragonCultist'], weight: 2 },
+      { monsterIds: ['fireDrake', 'fireDrake', 'dragonCultist'], weight: 1 },
+    ],
+  },
+  {
+    id: 'cinderwood',
+    rate: 1 / 12,
+    level: 17,
+    groups: [
+      { monsterIds: ['magmaGolem'], weight: 4 },
+      { monsterIds: ['dragonCultist'], weight: 3 },
+      { monsterIds: ['magmaGolem', 'dragonCultist'], weight: 2 },
+      { monsterIds: ['fireDrake', 'dragonCultist'], weight: 2 },
+      { monsterIds: ['magmaGolem', 'dragonCultist', 'dragonCultist'], weight: 1 },
+    ],
+  },
+  {
+    id: 'lair',
+    rate: 1 / 12,
+    level: 18,
+    groups: [
+      { monsterIds: ['fireDrake'], weight: 3 },
+      { monsterIds: ['dragonCultist', 'fireDrake'], weight: 3 },
+      { monsterIds: ['fireDrake', 'fireDrake'], weight: 2 },
+      { monsterIds: ['magmaGolem', 'fireDrake'], weight: 2 },
+      { monsterIds: ['fireDrake', 'dragonCultist', 'magmaGolem'], weight: 1 },
     ],
   },
 ];

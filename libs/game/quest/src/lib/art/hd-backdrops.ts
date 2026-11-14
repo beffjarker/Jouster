@@ -18,6 +18,7 @@ export const BACKDROP_COLORS: ReadonlyMap<Backdrop, BackdropColors> = new Map<Ba
   ['desert', ['#3a6ab8', '#f0d8a8', '#e0c07a', '#d0a860', '#a8603a']],
   ['marsh', ['#3a4a5a', '#a8b8a0', '#4a5a30', '#3a4a26', '#2a3a20']],
   ['snow', ['#3a5a8a', '#c8d8ec', '#e4ecf6', '#d4e0ee', '#4a5a72']],
+  ['volcano', ['#1a0a10', '#b0482a', '#4a3a36', '#3a2e2c', '#2a1e1e']],
 ]);
 
 /** Paint units per logical pixel (matching the tiles' and sprites' 2x paint space). */
@@ -152,6 +153,7 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
   const HZ = horizon * U;
   const p = new Paint(W, H, ART_SCALE);
   const cave = kind === 'cave';
+  const volcano = kind === 'volcano';
   const sunX = W * 0.78;
   const sunY = HZ * 0.28;
   const sunR = HZ * 0.09;
@@ -165,13 +167,15 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
   const sunGlow = rgb('#fff4c8');
   const snow = rgb('#f4f8ff');
   const dirt = rgb('#b89a62');
+  const lavaRgb = rgb('#ff7a20');
+  const lavaHot = rgb('#ffd060');
   const black: Rgb = [0, 0, 0];
   const s = p.scale;
   const ridgeTop: number[] = [];
   for (let fx = 0; fx <= p.width; fx++) {
     const u = (fx + 0.5) / s - 0.5;
-    const tall = kind === 'hills' || kind === 'snow' ? 70 : kind === 'desert' ? 34 : kind === 'marsh' ? 26 : 42;
-    ridgeTop.push(HZ - tall - ridge(u, 1.7, kind === 'hills' || kind === 'snow' ? 34 : kind === 'marsh' ? 10 : 20));
+    const tall = kind === 'hills' || kind === 'snow' || volcano ? 70 : kind === 'desert' ? 34 : kind === 'marsh' ? 26 : 42;
+    ridgeTop.push(HZ - tall - ridge(u, 1.7, kind === 'hills' || kind === 'snow' || volcano ? 34 : kind === 'marsh' ? 10 : 20));
   }
   const data = p.data;
   const lerp = (x: Rgb, y: Rgb, t: number): Rgb => [x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t];
@@ -193,6 +197,10 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
           if (valueNoise(u, v * 2.2, 11, 9, NO_WRAP) > 0.78) {
             c = scaled(c, 0.7);
           }
+        } else if (volcano) {
+          // Smoke-choked sky: drifting ash bands, lit red from below.
+          const smoke = valueNoise(u, v * 2.4, 30, 71, NO_WRAP);
+          c = scaled(c, 0.82 + smoke * 0.3 + d * 0.06);
         } else {
           // Haze towards the horizon and the sun's glow.
           c = lerp(c, haze, Math.max(0, t - 0.7) * 0.6);
@@ -225,10 +233,13 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
           let rc = scaled(ridgeRgb, 0.66 + band * 0.13);
           if (kind === 'snow' && (mv < rTop + 9 + hash(mu, 0, 37) * 8 || hash(mu >> 1, mv >> 1, 38) > 0.62 - lit * 0.3)) {
             rc = lerp(rc, snow, band >= 2 ? 0.92 : 0.72);
+          } else if (volcano && valueNoise(u * 0.6, v * 3, 7, 72, NO_WRAP) > 0.72 && hash(mu >> 2, 0, 73) > 0.55) {
+            // Lava runnels streaking down the far slopes.
+            rc = lerp(lavaRgb, lavaHot, band >= 3 ? 0.6 : 0);
           } else if (kind === 'hills' && rTop < HZ - 82 && mv < rTop + 5 + hash(mu, 0, 37) * 5) {
             rc = lerp(rc, snow, band >= 2 ? 0.9 : 0.7);
           }
-          const hazeAmt = cave ? 0 : Math.max(0, (HZ - v) / 120) * 0.25;
+          const hazeAmt = cave || volcano ? 0 : Math.max(0, (HZ - v) / 120) * 0.25;
           c = lerp(rc, cLow, Math.max(0, Math.round(hazeAmt * 10 + md)) / 10);
         }
       } else {
@@ -239,6 +250,10 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
         c = scaled(c, (0.82 + n * 0.32 + valueNoise(u, v, 2, 15, NO_WRAP) * 0.08 + grain + d * 0.04) * stripe * ripple);
         if (kind === 'hills' && Math.abs(u - pathCentre) < 4 + tg * 36) {
           c = lerp(c, dirt, 0.75);
+        }
+        if (volcano && valueNoise(u, v * (3 - tg * 2), 14, 74, NO_WRAP) > 0.8) {
+          // Glowing cracks in the ash plain.
+          c = lerp(lavaRgb, lavaHot, hash(fx >> 1, fy >> 1, 75) > 0.7 ? 0.7 : 0.1);
         }
         // Atmospheric haze right at the horizon.
         c = lerp(c, cave ? black : cLow, Math.max(0, 0.08 - tg) * (cave ? 6 : 4));
@@ -274,6 +289,19 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
     for (let i = 0; i < 5; i++) {
       crystal(p, (i + 0.3 + hash(i, 8, 23) * 0.4) * (W / 5), HZ + 4, 10 + hash(i, 9, 23) * 8, i);
     }
+  } else if (volcano) {
+    // Black smoke billowing across the sky.
+    for (let i = 0; i < 7; i++) {
+      const cx = (i + hash(i, 1, 76) * 0.8) * (W / 7);
+      const cy = HZ * (0.1 + hash(i, 2, 76) * 0.35);
+      const r = 12 + hash(i, 3, 76) * 16;
+      p.fill(union(ell(cx, cy, r * 1.6, r * 0.6), ell(cx + r * 0.6, cy - r * 0.3, r, r * 0.55)), '#2a1a1c', {
+        sphere: true,
+        tex: 0.5,
+        seed: i + 80,
+        dither: 0.8,
+      });
+    }
   } else {
     for (let i = 0; i < 6; i++) {
       const s = 14 + hash(i, 1, 31) * 20;
@@ -289,7 +317,32 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
   }
 
   // Middle distance.
-  if (kind === 'desert') {
+  if (volcano) {
+    // A smouldering volcano with lava spilling from its crater, and a jagged basalt ridge.
+    const vx = W * 0.62;
+    const top = HZ - 78;
+    const cone = poly([vx - 70, HZ + 2, vx - 12, top, vx + 12, top + 1, vx + 72, HZ + 2]);
+    p.fill(cone, mix(scenery, skyLow, 0.15), { gradX: 1.4, tex: 0.6, seed: 77, rim: true, rimShade: -1.5, dither: 0.8 });
+    p.flat(ell(vx, top - 4, 18, 8), '#ff8030', 0.25);
+    p.fill(ell(vx, top + 1, 11, 2.2), '#ffb040', { bevel: 0 });
+    [[-6, 0.6], [3, 1], [8, 0.4]].forEach(([dx, wob], i) => {
+      const pts = [vx + dx, top + 1];
+      for (let k = 1; k <= 6; k++) {
+        pts.push(vx + dx * (1 + k * 0.9) + Math.sin(k * 1.7 + i) * 4 * wob, top + k * ((HZ - top) / 6));
+      }
+      for (let k = 0; k < pts.length - 2; k += 2) {
+        p.flat(seg(pts[k], pts[k + 1], pts[k + 2], pts[k + 3], 1.1 - k * 0.05), '#ff6a20', 0.85);
+        p.flat(seg(pts[k], pts[k + 1], pts[k + 2], pts[k + 3], 0.4), '#ffd060', 0.8);
+      }
+    });
+    const crag = (x: number): number => HZ - 6 - ridge(x, 6.7, 12) - (hash(Math.floor(x / 6), 0, 78) > 0.8 ? 6 : 0);
+    const pts: number[] = [-2, HZ + 2];
+    for (let x = -2; x <= W + 2; x += 3) {
+      pts.push(x, crag(x));
+    }
+    pts.push(W + 2, HZ + 2);
+    p.fill(poly(pts), mix(far, '#000000', 0.3), { grad: 0.8, tex: 0.6, seed: 79, rim: true, rimShade: -1.5, dither: 0.8 });
+  } else if (kind === 'desert') {
     // Flat-topped mesas and a line of dunes.
     for (let i = 0; i < 4; i++) {
       const x = (i + 0.2 + hash(i, 1, 45) * 0.6) * (W / 4);
@@ -383,6 +436,14 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
       } else {
         p.flat(seg(x, y, x + (r - 0.75) * 30 * sc, y + 2 * sc, 0.25), tone(near, -2.5), 0.8);
       }
+    } else if (volcano && r < 0.4) {
+      rock(p, x, y, 1.4 + sc * 2.6, '#2e2626', i);
+    } else if (volcano && r < 0.6) {
+      p.flat(seg(x - 3 * sc, y, x + 3 * sc, y - 0.4 * sc, 0.25 * sc), '#ff7a20', 0.8);
+      p.spot(x, y - 0.2 * sc, '#ffd060');
+    } else if (volcano) {
+      p.spot(x, y, '#6a5a56');
+      p.spot(x + sc, y - sc, '#8a7a76');
     } else if (kind === 'snow' && r < 0.45) {
       // Wind-carved drift lines with a bright lip and a blue shadow.
       p.flat(seg(x - 4 * sc, y, x + 4 * sc, y - 0.6 * sc, 0.25 * sc), '#a8bcd8', 0.6);
@@ -430,6 +491,14 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
       for (let j = 0; j < 3; j++) {
         p.fill(ell(x + (hash(i, j, 63) - 0.5) * rx * 1.2, y + (hash(j, i, 64) - 0.5) * rx * 0.2, 2.2, 1), '#5a8a3a', { bevel: 0, rim: true });
       }
+    }
+  }
+  if (volcano) {
+    // Embers drifting up through the air.
+    for (let i = 0; i < 60; i++) {
+      const x = hash(i, 1, 81) * W;
+      const y = hash(i, 2, 81) * H;
+      p.spot(x, y, hash(i, 3, 81) > 0.5 ? '#ffb040' : '#ff6020');
     }
   }
   if (kind === 'snow') {

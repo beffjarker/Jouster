@@ -66,9 +66,11 @@ const KING_GIFT = 50;
 const ACT_ONE_REWARD = 200;
 const ACT_TWO_REWARD = 500;
 const ACT_THREE_REWARD = 900;
+const FINALE_REWARD = 2000;
 const DESERT_TILES = new Set(['sand', 'dunes', 'sandRoad', 'cactus']);
 const MARSH_TILES = new Set(['marsh', 'mireTree', 'boardwalk', 'bog']);
 const SNOW_TILES = new Set(['snow', 'drifts', 'snowRoad', 'snowPine', 'frozenLake']);
+const VOLCANO_TILES = new Set(['ash', 'cinders', 'ashRoad', 'charredTree', 'obsidian']);
 const COMPANION_READY = 'I owe you. Shall I come along?';
 
 function rewardText(reward: { gold: number; items?: Record<string, number> }): string {
@@ -715,6 +717,9 @@ export class WorldScene implements Scene {
     if (id && SNOW_TILES.has(id)) {
       return 'snow';
     }
+    if (id && VOLCANO_TILES.has(id)) {
+      return 'volcano';
+    }
     return this.map.backdrop;
   }
 
@@ -748,6 +753,11 @@ export class WorldScene implements Scene {
     }
     this.ctx.stack.pop(true);
     if (boss && outcome === 'victory') {
+      const second = boss.phaseTwo;
+      if (second) {
+        this.queueMessage(second.lines, () => this.startBattle(second.monsterIds, { ...boss, phaseTwo: undefined }));
+        return;
+      }
       s.flags[boss.defeatFlag] = true;
       const readyId = markQuestReady(s, boss.defeatFlag);
       const giver = readyId ? companionInfo(s, readyId) : null;
@@ -870,8 +880,22 @@ export class WorldScene implements Scene {
       say(stack, audio, [
         `KING ALDRIC: The Wyvern Matriarch is slain and the third seal is ours! ${hero}, you have done the impossible.`,
         `Take these ${ACT_THREE_REWARD} gold pieces. My smiths have forged the three seals into one blade: Dragonbane.`,
-        'With it, Vyrmorth can be wounded at last. The dragon waits in its lair beneath the northern peaks.',
-        '- END OF ACT III - Thank you for playing! The finale is coming soon.',
+        'With it, Vyrmorth can be wounded at last. His lair lies in the Ember Mountains, beyond the north of the Frost Peaks.',
+        'The warden at the ember pass will now let you through.',
+        '- END OF ACT III - The Ember Mountains await.',
+      ]);
+      return;
+    }
+    if (s.flags['vyrmorthDefeated'] && s.flags['actThreeComplete'] && !s.flags['gameComplete']) {
+      s.flags['gameComplete'] = true;
+      s.gold += FINALE_REWARD;
+      audio.play('victory');
+      say(stack, audio, [
+        `KING ALDRIC: Vyrmorth... slain? The whole kingdom felt the mountain fall silent. ${hero}, you have saved us all.`,
+        `Take these ${FINALE_REWARD} gold pieces - a pittance beside what we owe you and your companions.`,
+        'From the Goblin King to the dragon himself, your names will be sung in Greenwood Vale for a thousand years.',
+        'The roads are yours to wander. Rest, and know that you are always welcome in Aldmere.',
+        '- THE END - Thank you for playing Jouster Quest!',
       ]);
       return;
     }

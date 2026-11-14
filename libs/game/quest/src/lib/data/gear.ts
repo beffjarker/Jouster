@@ -182,6 +182,58 @@ const GEAR_LIST: GearDef[] = [
     description: 'Faced with wyvern scale.',
   },
   { id: 'frostCharm', name: 'Frost Charm', slot: 'accessory', tier: 4, bonus: { def: 3, hp: 12 }, price: 360, description: 'A snowflake in clear quartz.' },
+  // --- Tier 5: Emberwatch (finale) --------------------------------------------------------------
+  {
+    id: 'emberSilk',
+    name: 'Ember Silk',
+    slot: 'armor',
+    tier: 5,
+    bonus: { def: 7, mag: 6 },
+    classes: ['wizard', 'cleric'],
+    price: 760,
+    description: 'Woven by fire-spiders. Wizards and clerics.',
+  },
+  {
+    id: 'drakehide',
+    name: 'Drakehide',
+    slot: 'armor',
+    tier: 5,
+    bonus: { def: 8, agi: 4 },
+    classes: ['rogue', 'ranger'],
+    price: 780,
+    description: 'Supple, scorch-proof hide. Rogues and rangers.',
+  },
+  {
+    id: 'cinderMail',
+    name: 'Cinder Mail',
+    slot: 'armor',
+    tier: 5,
+    bonus: { def: 9, hp: 9 },
+    classes: ['warrior', 'paladin', 'cleric', 'ranger'],
+    price: 820,
+    description: 'Blackened rings that shed heat.',
+  },
+  {
+    id: 'dragonPlate',
+    name: 'Dragon Plate',
+    slot: 'armor',
+    tier: 5,
+    bonus: { def: 9, hp: 12, agi: 1 },
+    classes: HEAVY,
+    price: 980,
+    description: 'Red scale over black steel. Warriors and paladins.',
+  },
+  {
+    id: 'basaltShield',
+    name: 'Basalt Shield',
+    slot: 'shield',
+    tier: 5,
+    bonus: { def: 5, hp: 9 },
+    classes: HEAVY,
+    price: 640,
+    description: 'Stone-faced and fireproof.',
+  },
+  { id: 'emberHeart', name: 'Ember Heart', slot: 'accessory', tier: 5, bonus: { def: 4, hp: 12, mag: 2 }, price: 620, description: 'A coal that beats like a heart.' },
 ];
 
 export const GEAR: ReadonlyMap<string, GearDef> = new Map(GEAR_LIST.map((g) => [g.id, g]));
@@ -192,6 +244,8 @@ export const ARMOR_SHOP_STOCK: readonly string[] = GEAR_LIST.filter((g) => g.tie
 export const SOUTH_ARMOR_STOCK: readonly string[] = GEAR_LIST.filter((g) => g.tier === 3).map((g) => g.id);
 /** Tier-4 gear ids sold by Frostgate's armorer (Act III). */
 export const NORTH_ARMOR_STOCK: readonly string[] = GEAR_LIST.filter((g) => g.tier === 4).map((g) => g.id);
+/** Tier-5 gear ids sold by Emberwatch's armorer (finale). */
+export const EMBER_ARMOR_STOCK: readonly string[] = GEAR_LIST.filter((g) => g.tier === 5).map((g) => g.id);
 
 export function gearDef(id: string): GearDef {
   const g = GEAR.get(id);
