@@ -1,123 +1,46 @@
 {
   "name": "auth-mfe",
-  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "root": true,
+  "sourceRoot": "src",
   "projectType": "application",
-  "prefix": "auth",
-  "sourceRoot": "apps/auth-mfe/src",
-  "tags": ["type:app", "scope:auth"],
   "targets": {
-    "build": {
-      "executor": "@angular/build:application",
-      "outputs": ["{options.outputPath}"],
-      "options": {
-        "outputPath": "dist/apps/auth-mfe",
-        "browser": "apps/auth-mfe/src/main.ts",
-        "polyfills": ["zone.js"],
-        "tsConfig": "apps/auth-mfe/tsconfig.app.json",
-        "inlineStyleLanguage": "scss",
-        "assets": [
-          {
-            "glob": "**/*",
-            "input": "apps/auth-mfe/public"
-          }
-        ],
-        "styles": ["apps/auth-mfe/src/styles.scss"]
-      },
-      "configurations": {
-        "production": {
-          "budgets": [
-            {
-              "type": "initial",
-              "maximumWarning": "300kb",
-              "maximumError": "500kb"
-            },
-            {
-              "type": "anyComponentStyle",
-              "maximumWarning": "10kb",
-              "maximumError": "20kb"
-            }
-          ],
-          "outputHashing": "all",
-          "fileReplacements": [
-            {
-              "replace": "apps/auth-mfe/src/environments/environment.ts",
-              "with": "apps/auth-mfe/src/environments/environment.prod.ts"
-            }
-          ]
-        },
-        "staging": {
-          "budgets": [
-            {
-              "type": "initial",
-              "maximumWarning": "300kb",
-              "maximumError": "500kb"
-            }
-          ],
-          "outputHashing": "all",
-          "fileReplacements": [
-            {
-              "replace": "apps/auth-mfe/src/environments/environment.ts",
-              "with": "apps/auth-mfe/src/environments/environment.staging.ts"
-            }
-          ]
-        },
-        "qa": {
-          "budgets": [
-            {
-              "type": "initial",
-              "maximumWarning": "400kb",
-              "maximumError": "600kb"
-            }
-          ],
-          "outputHashing": "all",
-          "sourceMap": true,
-          "fileReplacements": [
-            {
-              "replace": "apps/auth-mfe/src/environments/environment.ts",
-              "with": "apps/auth-mfe/src/environments/environment.qa.ts"
-            }
-          ]
-        },
-        "development": {
-          "optimization": false,
-          "extractLicenses": false,
-          "sourceMap": true
-        }
-      },
-      "defaultConfiguration": "production"
-    },
     "serve": {
-      "executor": "@angular/build:dev-server",
-      "configurations": {
-        "production": {
-          "buildTarget": "auth-mfe:build:production"
-        },
-        "qa": {
-          "buildTarget": "auth-mfe:build:qa"
-        },
-        "staging": {
-          "buildTarget": "auth-mfe:build:staging"
-        },
-        "development": {
-          "buildTarget": "auth-mfe:build:development"
-        }
-      },
-      "defaultConfiguration": "development",
+      "executor": "@nrwl/web:dev-server",
       "options": {
-        "port": 4300
+        "ssl": true
       }
+    },
+    "build": {
+      "executor": "@nrwl/web:build",
+      "outputs": [
+        "{workspaceRoot}/dist/apps/auth-mfe"
+      ],
+      "options": {}
     },
     "lint": {
-      "executor": "@nx/eslint:lint"
+      "executor": "@nrwl/linter:eslint",
+      "options": {
+        "tsConfig": [
+          "tsconfig.app.json",
+          "tsconfig.spec.json"
+        ],
+        "exclude": [
+          "**/node_modules/**",
+          "!apps/auth-mfe/**/*"
+        ]
+      }
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "executor": "@nrwl/jest:jest",
       "options": {
-        "jestConfig": "apps/auth-mfe/jest.config.ts",
-        "tsConfig": "apps/auth-mfe/tsconfig.spec.json"
+        "jestConfig": "jest.config.ts",
+        "tsConfig": [
+          "tsconfig.app.json",
+          "tsconfig.spec.json"
+        ],
+        "passWithNoTests": true
       }
     }
-  }
+  },
+  "tags": []
 }
-

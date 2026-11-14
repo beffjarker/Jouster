@@ -1,142 +1,46 @@
 {
   "name": "jouster-ui",
-  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "root": true,
+  "sourceRoot": "src",
   "projectType": "application",
-  "prefix": "app",
-  "sourceRoot": "apps/jouster-ui/src",
-  "tags": [],
   "targets": {
-    "build": {
-      "executor": "@angular/build:application",
-      "outputs": ["{options.outputPath}"],
-      "options": {
-        "outputPath": "dist/apps/jouster-ui",
-        "browser": "apps/jouster-ui/src/main.ts",
-        "polyfills": ["zone.js"],
-        "tsConfig": "apps/jouster-ui/tsconfig.app.json",
-        "inlineStyleLanguage": "scss",
-        "assets": [
-          {
-            "glob": "**/*",
-            "input": "apps/jouster-ui/public"
-          }
-        ],
-        "styles": [
-          "apps/jouster-ui/src/styles.scss"
-        ]
-      },
-      "configurations": {
-        "production": {
-          "fileReplacements": [
-            {
-              "replace": "apps/jouster-ui/src/environments/environment.ts",
-              "with": "apps/jouster-ui/src/environments/environment.production.ts"
-            }
-          ],
-          "budgets": [
-            {
-              "type": "initial",
-              "maximumWarning": "500kb",
-              "maximumError": "1mb"
-            },
-            {
-              "type": "anyComponentStyle",
-              "maximumWarning": "20kb",
-              "maximumError": "40kb"
-            }
-          ],
-          "outputHashing": "all"
-        },
-        "qa": {
-          "fileReplacements": [
-            {
-              "replace": "apps/jouster-ui/src/environments/environment.ts",
-              "with": "apps/jouster-ui/src/environments/environment.qa.ts"
-            }
-          ],
-          "optimization": false,
-          "sourceMap": true
-        },
-        "staging": {
-          "fileReplacements": [
-            {
-              "replace": "apps/jouster-ui/src/environments/environment.ts",
-              "with": "apps/jouster-ui/src/environments/environment.staging.ts"
-            }
-          ],
-          "optimization": true,
-          "outputHashing": "all"
-        },
-        "nonprod": {
-          "fileReplacements": [
-            {
-              "replace": "apps/jouster-ui/src/environments/environment.ts",
-              "with": "apps/jouster-ui/src/environments/environment.nonprod.ts"
-            }
-          ],
-          "optimization": true,
-          "outputHashing": "all"
-        },
-        "development": {
-          "optimization": false,
-          "extractLicenses": false,
-          "sourceMap": true
-        }
-      },
-      "defaultConfiguration": "production"
-    },
     "serve": {
-      "continuous": true,
-      "executor": "@angular/build:dev-server",
+      "executor": "@nrwl/web:dev-server",
       "options": {
-        "proxyConfig": "apps/jouster-ui/proxy.conf.mjs"
-      },
-      "configurations": {
-        "production": {
-          "buildTarget": "jouster-ui:build:production"
-        },
-        "qa": {
-          "buildTarget": "jouster-ui:build:qa"
-        },
-        "staging": {
-          "buildTarget": "jouster-ui:build:staging"
-        },
-        "nonprod": {
-          "buildTarget": "jouster-ui:build:nonprod"
-        },
-        "development": {
-          "buildTarget": "jouster-ui:build:development"
-        }
-      },
-      "defaultConfiguration": "development"
-    },
-    "extract-i18n": {
-      "executor": "@angular/build:extract-i18n",
-      "options": {
-        "buildTarget": "jouster-ui:build"
+        "ssl": true
       }
+    },
+    "build": {
+      "executor": "@nrwl/web:build",
+      "outputs": [
+        "{workspaceRoot}/dist/apps/jouster-ui"
+      ],
+      "options": {}
     },
     "lint": {
-      "executor": "@nx/eslint:lint"
+      "executor": "@nrwl/linter:eslint",
+      "options": {
+        "tsConfig": [
+          "tsconfig.app.json",
+          "tsconfig.spec.json"
+        ],
+        "exclude": [
+          "**/node_modules/**",
+          "!apps/jouster-ui/**/*"
+        ]
+      }
     },
     "test": {
-      "executor": "@nx/jest:jest",
-      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "executor": "@nrwl/jest:jest",
       "options": {
-        "jestConfig": "apps/jouster-ui/jest.config.ts",
-        "tsConfig": "apps/jouster-ui/tsconfig.spec.json"
-      }
-    },
-    "serve-static": {
-      "continuous": true,
-      "executor": "@nx/web:file-server",
-      "options": {
-        "buildTarget": "jouster-ui:build",
-        "port": 4200,
-        "staticFilePath": "dist/apps/jouster-ui/browser",
-        "spa": true
+        "jestConfig": "jest.config.ts",
+        "tsConfig": [
+          "tsconfig.app.json",
+          "tsconfig.spec.json"
+        ],
+        "passWithNoTests": true
       }
     }
-  }
+  },
+  "tags": []
 }
-
