@@ -2,8 +2,8 @@ import { FACING_DELTA, TileMap } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { CLASSES } from '../data/classes';
 import { ITEMS, WEAPONS, WEAPON_SHOP_STOCK } from '../data/equipment';
-import { INN_RESPAWN, MAPS, MapDef, SIGN_TEXT, SignKind, talkAcross } from '../data/maps';
-import { COMPANION_SLOTS } from '../data/companions';
+import { INN_RESPAWN, MAPS, MapDef, SIGN_TEXT, SignKind, mapHasEncounters, talkAcross, wanderBlocked } from '../data/maps';
+import { COMPANION_SLOTS, companionRestSpot } from '../data/companions';
 import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
 import { OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
 import { newGameState } from '../state/game-state';
@@ -88,6 +88,66 @@ describe('Jouster Quest content', () => {
     const town = MAPS.get(s.mapId) as MapDef;
     expect(reachable(town, s.x, s.y).has(`${town.warps[0].x},${town.warps[0].y}`)).toBe(true);
     expect(reachable(town, INN_RESPAWN.x, INN_RESPAWN.y).size).toBeGreaterThan(10);
+  });
+
+  it('wandering NPCs never block a counter, a standing NPC or a doorway', () => {
+    const aldmere = MAPS.get('aldmere') as MapDef;
+    const map = tileMap(aldmere);
+    // In front of the item shop counter, beside the king, and in the gap between two buildings.
+    expect(wanderBlocked(map, [], 4, 13)).toBe(true);
+    expect(wanderBlocked(map, [{ x: 6, y: 2 }], 6, 3)).toBe(true);
+    expect(wanderBlocked(map, [], 11, 12)).toBe(true);
+    expect(wanderBlocked(map, [], 8, 8)).toBe(false);
+    MAPS.forEach((def) => {
+      const tiles = tileMap(def);
+      const standing = def.npcs.filter((n) => !n.wander);
+      def.npcs
+        .filter((n) => n.wander)
+        .forEach((n) => {
+          const blocked = wanderBlocked(tiles, standing, n.x, n.y);
+          expect({ map: def.id, npc: n.id, blocked }).toEqual({ map: def.id, npc: n.id, blocked: false });
+        });
+    });
+  });
+
+  it('companions wait where they were found, then in a town once they have left the party', () => {
+    const s = newGameState('Hero', 'rogue');
+    s.flags['bossDefeated'] = true;
+    const visibleAt = (mapId: string, id: string): boolean => {
+      const npc = (MAPS.get(mapId) as MapDef).npcs.find((n) => n.id === id);
+      return !!npc && (npc.visible ? npc.visible(s) : true);
+    };
+    expect(visibleAt('goblinCave', 'cave')).toBe(true);
+    expect(visibleAt('aldmere', 'caveResting')).toBe(false);
+    s.companionProgress['cave'] = { level: 2, xp: 40 };
+    s.companionProgress['thornwick'] = { level: 2, xp: 40 };
+    s.companionProgress['tavern'] = { level: 2, xp: 40 };
+    expect(visibleAt('goblinCave', 'cave')).toBe(false);
+    expect(visibleAt('aldmere', 'caveResting')).toBe(true);
+    expect(visibleAt('overworld', 'thornwick')).toBe(false);
+    expect(visibleAt('aldmere', 'thornwickResting')).toBe(true);
+    // A companion found in town simply waits at the same spot.
+    expect(visibleAt('aldmere', 'tavern')).toBe(true);
+    COMPANION_SLOTS.forEach((slot) => {
+      const rest = companionRestSpot(slot.id);
+      const town = MAPS.get(rest.mapId) as MapDef;
+      expect({ id: slot.id, town: mapHasEncounters(town) }).toEqual({ id: slot.id, town: false });
+      expect(tileMap(town).isSolid(rest.x, rest.y)).toBe(false);
+    });
+  });
+
+  it('marks clue spots with their own walkable tile', () => {
+    const clue = (mapId: string, eventId: string): string | undefined => {
+      const def = MAPS.get(mapId) as MapDef;
+      const e = def.events.find((ev) => ev.id === eventId);
+      expect(e).toBeDefined();
+      const map = tileMap(def);
+      expect(map.isSolid(e?.x ?? 0, e?.y ?? 0)).toBe(false);
+      return map.tileAt(e?.x ?? 0, e?.y ?? 0)?.id;
+    };
+    expect(clue('overworld', 'lakeShore')).toBe('tornNet@grass');
+    expect(clue('wolfDen', 'denNest')).toBe('boneNest@caveFloor');
+    expect(clue('overworld', 'thornwick')).toBe('ruins');
   });
 
   it('boss fights and companion quest pins reference real monsters, flags and tiles', () => {

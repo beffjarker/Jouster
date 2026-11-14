@@ -13,10 +13,10 @@ import {
 import { TILE, castsShadow, decorTopOf, tileAnchor, tileVariant } from '../art/art';
 import { groundVariant } from '../art/lpc-manifest';
 import { classDef } from '../data/classes';
-import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
+import { PRE_BOSS_HINT, companionIntro, companionLines, companionRestSpot, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { ARMOR_SHOP_STOCK } from '../data/gear';
-import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, SIGN_TEXT, Warp, mapDef, mapHasEncounters, talkAcross } from '../data/maps';
+import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, SIGN_TEXT, Warp, mapDef, mapHasEncounters, talkAcross, wanderBlocked } from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
 import {
   CAVE_FOG_RADIUS,
@@ -38,7 +38,7 @@ import {
   recruitCompanion,
   saveGame,
 } from '../state/game-state';
-import { applyFieldRegen, restoreMember } from '../state/party';
+import { PartyMember, applyFieldRegen, restoreMember } from '../state/party';
 import {
   SEASON_NAMES,
   Season,
@@ -555,6 +555,11 @@ export class WorldScene implements Scene {
     return n.def.visible ? n.def.visible(this.state) : true;
   }
 
+  /** Positions of visible NPCs that stay put (shopkeepers, kings, companions, bosses). */
+  private standingNpcs(): NpcRuntime[] {
+    return this.npcs.filter((n) => !n.def.wander && this.npcVisible(n));
+  }
+
   private tryMove(dir: Facing): void {
     const leader = this.walkers[0];
     leader.facing = dir;
@@ -679,6 +684,7 @@ export class WorldScene implements Scene {
         Math.abs(ny - n.def.y) <= WANDER_RADIUS &&
         !this.tiles.isSolid(nx, ny) &&
         !this.npcAt(nx, ny) &&
+        !wanderBlocked(this.tiles, this.standingNpcs(), nx, ny) &&
         !this.walkers.some((w) => (w.x === nx && w.y === ny) || (w.fromX === nx && w.fromY === ny)) &&
         !this.map.warps.some((w) => w.x === nx && w.y === ny);
       if (free) {
@@ -1001,12 +1007,12 @@ export class WorldScene implements Scene {
     }
     const c = companionInfo(s, companionId);
     const intro = companionLines([`{name}: ${COMPANION_READY}`], c);
-    const joined = (leaving?: string): void => {
+    const joined = (leaving?: PartyMember): void => {
       this.syncWalkers();
       audio.play('levelUp');
       say(stack, audio, [
         `${c.name} the ${classDef(c.classId).name.toLowerCase()} joins the party!`,
-        ...(leaving ? [`${leaving} heads off and will wait at their usual spot.`] : []),
+        ...(leaving ? [`${leaving.name} heads off to wait in ${companionRestSpot(leaving.id).home}.`] : []),
       ]);
     };
     ask(stack, audio, [...intro, `Let ${c.name} join the party?`], ['YES', 'NO'], (choice) => {
@@ -1028,7 +1034,7 @@ export class WorldScene implements Scene {
         (k) => {
           const leaving = swappable[k];
           if (leaving && recruitCompanion(s, companionId, leaving.id)) {
-            joined(leaving.name);
+            joined(leaving);
           }
         },
       );
