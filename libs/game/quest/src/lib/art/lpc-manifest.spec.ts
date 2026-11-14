@@ -48,6 +48,20 @@ describe('LPC manifest', () => {
     }
   });
 
+  it('animates only water-like ground; object-only animations keep a fixed floor cell', () => {
+    const animated = [...LPC_TILES].filter(([, tile]) => tile.animatedGround).map(([id]) => id);
+    expect(animated.sort()).toEqual(['bridge', 'caveWater', 'water']);
+    ['fountain', 'torch', 'cobble'].forEach((id) => {
+      const tile = LPC_TILES.get(id);
+      expect(tile).toBeDefined();
+      if (tile) {
+        for (let seed = 0; seed < 10; seed++) {
+          expect(lpcGroundCell(tile, seed, 1)).toBe(lpcGroundCell(tile, seed, 0));
+        }
+      }
+    });
+  });
+
   it('picks a deterministic, varied ground per position', () => {
     expect(groundVariant(7, 9)).toBe(groundVariant(7, 9));
     const seen = new Set<number>();
@@ -106,5 +120,21 @@ describe('Art style', () => {
     const classic = art.tile('grass');
     art.useSheets(new Map<LpcSheetId, CanvasImageSource>());
     expect(art.tile('grass')).not.toBe(classic);
+  });
+
+  it('keeps the fountain and torch floor cell steady across animation frames, but ripples water', () => {
+    type SheetTile = (sheets: unknown, id: string, sheet: LpcSheetId, col: number, row: number) => HTMLCanvasElement;
+    const spy = jest.spyOn(Art.prototype as unknown as { sheetTile: SheetTile }, 'sheetTile');
+    const art = new Art(new Map<LpcSheetId, CanvasImageSource>());
+    const cellAt = (id: string, frame: number): string => {
+      spy.mockClear();
+      art.tile(id, frame, 0, 3);
+      const [, , sheet, col, row] = spy.mock.calls[0];
+      return `${sheet}:${col}:${row}`;
+    };
+    expect(cellAt('fountain', 1)).toBe(cellAt('fountain', 0));
+    expect(cellAt('torch', 1)).toBe(cellAt('torch', 0));
+    expect(cellAt('water', 1)).not.toBe(cellAt('water', 0));
+    spy.mockRestore();
   });
 });
