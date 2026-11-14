@@ -570,7 +570,7 @@ to the world rather than the screen (15.1).
 
 | Action | Animation |
 | --- | --- |
-| Party melee | Hero steps toward the target, weapon swing pose, slash sprite on the target, target flashes white and shakes, damage number floats up, hero steps back |
+| Party melee | Hero steps toward the target, weapon swing pose, slash sprite on the target, target flashes white and shakes, damage number floats up, hero steps back. Single-target physical skills (Power Strike, Arcane Strike, Holy Strike, Backstab) and Steal use the same step-in; Rangers shoot instead |
 | Ranged (Ranger) | Draw pose, arrow projectile flies to the target, hit flash and number |
 | Spell | Cast pose with a glow; element effect on the target(s): fire burst, ice shards, lightning bolt, holy light, dark swirl |
 | Heal / buff | Sparkles rising over the target, green number for healing; shield glint for Defend/Protect |

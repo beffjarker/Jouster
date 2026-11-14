@@ -544,7 +544,7 @@ export class BattleScene implements Scene {
   }
 
   private fxDelay(fx: BattleFx): number {
-    if (fx.type === 'act' && fx.act !== 'attack' && fx.act !== 'defend') {
+    if (fx.type === 'act' && fx.act !== 'attack' && fx.act !== 'defend' && !this.isMeleeAct(fx)) {
       return CAST_LEAD;
     }
     return FX_DELAY[fx.type];
@@ -715,13 +715,26 @@ export class BattleScene implements Scene {
     }
   }
 
+  /** Attacks and close-range skills step up to the target instead of firing a projectile (rangers shoot). */
+  private isMeleeAct(fx: Extract<BattleFx, { type: 'act' }>): boolean {
+    const actor = this.combatant(fx.actorId);
+    if (!actor || !fx.targetId || this.isRanged(actor)) {
+      return false;
+    }
+    return fx.act === 'attack' || (fx.act === 'skill' && fx.melee === true);
+  }
+
+  private isRanged(actor: Combatant): boolean {
+    return actor.side === 'party' && actor.sourceId === 'ranger';
+  }
+
   private playAct(fx: Extract<BattleFx, { type: 'act' }>): void {
     const actor = this.combatant(fx.actorId);
     if (!actor) {
       return;
     }
-    const ranged = actor.side === 'party' && actor.sourceId === 'ranger';
-    if (fx.act === 'attack' && fx.targetId && !ranged) {
+    const ranged = this.isRanged(actor);
+    if (fx.targetId && this.isMeleeAct(fx)) {
       const home = this.spots.get(actor.id);
       const target = this.spots.get(fx.targetId);
       if (home && target) {

@@ -166,6 +166,23 @@ describe('BattleScene', () => {
     expect(internals.gone.has(enemy.id)).toBe(true);
   });
 
+  it('steps up to the target for melee skills like Backstab but casts spells from afar', () => {
+    const { internals, driver } = setup();
+    const t = internals as unknown as BattleInternals & {
+      shots: unknown[];
+      playAct(fx: { type: 'act'; actorId: string; act: string; targetId?: string; melee?: boolean }): void;
+    };
+    driver.run(2);
+    const hero = internals.battle.party[0];
+    const enemy = internals.battle.enemies[0];
+    t.playAct({ type: 'act', actorId: hero.id, act: 'skill', targetId: enemy.id, melee: true });
+    expect(internals.motions.get(hero.id)?.kind).toBe('lunge');
+    expect(t.shots.length).toBe(0);
+    t.playAct({ type: 'act', actorId: hero.id, act: 'cast', targetId: enemy.id });
+    expect(internals.motions.get(hero.id)?.kind).toBe('hop');
+    expect(t.shots.length).toBe(1);
+  });
+
   it('greys out full-HP allies for heals and will not use a heal on them', () => {
     const { internals, driver } = setup();
     const t = internals as unknown as BattleInternals & {

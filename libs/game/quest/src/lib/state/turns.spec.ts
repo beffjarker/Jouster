@@ -94,6 +94,29 @@ describe('turn-by-turn battles', () => {
     expect(battle.endRound()).toEqual([]);
   });
 
+  it('marks close-range skills as melee for the animation, but not spells', () => {
+    const battle = setup(['slime']);
+    const hero = battle.party[0];
+    hero.abilityIds = ['backstab', 'fire'];
+    hero.mp = 99;
+    const fxFor = (abilityId: string) => {
+      battle.beginRound();
+      for (let c = battle.nextActor(); c && c !== hero; c = battle.nextActor()) {
+        playTurn(battle, c);
+      }
+      battle.enemies[0].hp = battle.enemies[0].maxHp = 999;
+      hero.cooldowns = {};
+      const ev = battle.act({ kind: 'ability', actorId: hero.id, abilityId, targetId: battle.enemies[0].id });
+      for (let c = battle.nextActor(); c; c = battle.nextActor()) {
+        playTurn(battle, c);
+      }
+      battle.endRound();
+      return ev.find((e) => e.fx?.type === 'act')?.fx;
+    };
+    expect(fxFor('backstab')).toMatchObject({ act: 'skill', melee: true });
+    expect(fxFor('fire')).toMatchObject({ act: 'cast', melee: false });
+  });
+
   it('ticks cooldowns and buffs once per round in endRound', () => {
     const battle = setup(['slime']);
     const hero = battle.party[0];
