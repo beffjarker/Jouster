@@ -1,6 +1,7 @@
 import {
   ART_SCALE,
   Color,
+  FillOptions,
   Paint,
   Shape,
   box,
@@ -458,29 +459,175 @@ function caveWaterTile(p: Paint, frame: number, variant: number): void {
   }
 }
 
-function bridgeDeck(p: Paint): void {
-  const wood = '#a0703a';
-  for (let x = 0; x < S; x += 8) {
-    const plank = box(x, 5, 8, 22);
-    p.fill(plank, wood, { tex: 0.5, seed: x, shade: (hash(x, 0, 3) - 0.5) * 0.8 });
-    for (let g = 0; g < 3; g++) {
-      const gx = x + 2 + g * 2 + hash(x, g, 5);
-      p.flat(clip(seg(gx, 6, gx + (hash(g, x, 6) - 0.5) * 1.5, 26, 0.2), plank), tone(wood, -1.5), 0.55);
+// --- Walkways (bridges, boardwalks) ---------------------------------------------------------------
+
+/** Walkway connection bits: the deck runs out to the north, east, south or west edge of its tile. */
+export const WALK_N = 1;
+export const WALK_E = 2;
+export const WALK_S = 4;
+export const WALK_W = 8;
+/** Inner-corner bits: the deck also fills its north-east, south-east, south-west or north-west corner. */
+export const WALK_NE = 16;
+export const WALK_SE = 32;
+export const WALK_SW = 64;
+export const WALK_NW = 128;
+const WALK_EW = WALK_E | WALK_W;
+const WALK_NS = WALK_N | WALK_S;
+const WALK_CORNERS = WALK_NE | WALK_SE | WALK_SW | WALK_NW;
+
+/** Decks drawn to join up with their neighbours; their tile variant is a {@link walkwayMask}. */
+export const WALKWAY_TILES: ReadonlySet<string> = new Set(['bridge', 'boardwalk']);
+
+/** Tiles a deck runs out to meet: other decks, roads, and the places roads lead to. */
+const WALKWAY_LINKS: ReadonlySet<string> = new Set([
+  'bridge',
+  'boardwalk',
+  'road',
+  'sandRoad',
+  'snowRoad',
+  'ashRoad',
+  'town',
+  'caveEntrance',
+  'pass',
+  'shrineEntrance',
+  'mireEntrance',
+  'roostEntrance',
+  'lairEntrance',
+]);
+
+/** Open water a deck spans across (it runs between the banks, not along the stream). */
+const WALKWAY_WATER: ReadonlySet<string> = new Set(['water', 'caveWater', 'bog', 'iceWater', 'lava']);
+
+/**
+ * Which edges a deck reaches: one arm out to each neighbour it links to (see {@link walkwayArms} for dead ends),
+ * plus an inner corner wherever it sits in a 2x2 block of decks so the block has no hole. With no linked
+ * neighbour the deck spans whichever way the water around it runs. `at(dx, dy)` is the tile id of the neighbour
+ * at that offset.
+ */
+export function walkwayMask(at: (dx: number, dy: number) => string): number {
+  const sides: [number, number, number][] = [
+    [0, -1, WALK_N],
+    [1, 0, WALK_E],
+    [0, 1, WALK_S],
+    [-1, 0, WALK_W],
+  ];
+  let mask = 0;
+  sides.forEach(([dx, dy, bit]) => {
+    if (WALKWAY_LINKS.has(at(dx, dy))) {
+      mask |= bit;
     }
-    [8, 23].forEach((y) => {
-      p.fill(ell(x + 2, y, 0.65), '#4a4a50', { sphere: true, bevel: 0, dither: 0 });
-      p.fill(ell(x + 6, y, 0.65), '#4a4a50', { sphere: true, bevel: 0, dither: 0 });
-    });
-  }
-  const rail = '#6a4520';
-  [2, 26].forEach((y) => {
-    p.fill(box(0, y, S, 4), rail, { tex: 0.3, grad: 0.8 });
-    p.flat(seg(0, y + 2, S, y + 1.6, 0.2), tone(rail, -1.5), 0.6);
   });
-  [3, 19].forEach((x) => {
-    p.fill(box(x, 0, 4, 7), '#5a3a1a', { gradX: 0.8 });
-    p.fill(box(x, 24, 4, 7), '#5a3a1a', { gradX: 0.8 });
-    p.fill(box(x - 0.5, 23.5, 5, 1.5), tone('#5a3a1a', 1), { bevel: 0 });
+  const deck = (dx: number, dy: number): boolean => WALKWAY_TILES.has(at(dx, dy));
+  const corners: [number, number, number][] = [
+    [1, -1, WALK_NE],
+    [1, 1, WALK_SE],
+    [-1, 1, WALK_SW],
+    [-1, -1, WALK_NW],
+  ];
+  corners.forEach(([dx, dy, bit]) => {
+    if (deck(dx, 0) && deck(0, dy) && deck(dx, dy)) {
+      mask |= bit;
+    }
+  });
+  if (!mask && WALKWAY_WATER.has(at(-1, 0)) && WALKWAY_WATER.has(at(1, 0)) && !(WALKWAY_WATER.has(at(0, -1)) && WALKWAY_WATER.has(at(0, 1)))) {
+    mask = WALK_NS;
+  }
+  return walkwayArms(mask);
+}
+
+/** The arms actually drawn for `mask`: a dead end (or no link at all) runs straight through its tile. */
+export function walkwayArms(mask: number): number {
+  const m = mask & (WALK_EW | WALK_NS);
+  if (m === WALK_N || m === WALK_S) {
+    return WALK_NS;
+  }
+  if (m === 0 || m === WALK_E || m === WALK_W) {
+    return WALK_EW;
+  }
+  return m | (mask & WALK_CORNERS);
+}
+
+/** A deck `lo`..`hi` units wide: a centre pad, an arm out to the edge and a filled corner for each bit of `arms`. */
+function walkwayShape(arms: number, lo: number, hi: number): Shape {
+  const w = hi - lo;
+  const parts = [box(lo, lo, w, w)];
+  if (arms & WALK_N) parts.push(box(lo, 0, w, hi));
+  if (arms & WALK_S) parts.push(box(lo, lo, w, S - lo));
+  if (arms & WALK_W) parts.push(box(0, lo, hi, w));
+  if (arms & WALK_E) parts.push(box(lo, lo, S - lo, w));
+  if (arms & WALK_NE) parts.push(box(hi, 0, S - hi, lo));
+  if (arms & WALK_SE) parts.push(box(hi, hi, S - hi, S - hi));
+  if (arms & WALK_SW) parts.push(box(0, hi, lo, S - hi));
+  if (arms & WALK_NW) parts.push(box(0, 0, lo, lo));
+  return union(...parts);
+}
+
+/**
+ * Where a deck's boards run across east-west travel (`across`, boards stand upright) and across north-south
+ * travel (`along`, boards lie flat), both `lo`..`hi` wide. A corner's centre pad and filled corners take the
+ * east-west boards.
+ */
+function walkwayRuns(arms: number, lo: number, hi: number): { across: Shape | null; along: Shape | null } {
+  const across = arms & WALK_EW ? walkwayShape(arms & (WALK_EW | WALK_CORNERS), lo, hi) : null;
+  const ns = arms & WALK_NS ? walkwayShape(arms & WALK_NS, lo, hi) : null;
+  return { across, along: ns && across ? cut(ns, across) : ns };
+}
+
+function bridgeDeck(p: Paint, _f = 0, variant = 0): void {
+  const arms = walkwayArms(variant);
+  const wood = '#a0703a';
+  const nail = (x: number, y: number, deck: Shape): void => {
+    if (deck.test(x, y)) {
+      p.fill(ell(x, y, 0.65), '#4a4a50', { sphere: true, bevel: 0, dither: 0 });
+    }
+  };
+  const { across, along } = walkwayRuns(arms, 5, 27);
+  for (let i = 0; i < S; i += 8) {
+    if (across) {
+      const plank = clip(box(i, 0, 8, S), across);
+      p.fill(plank, wood, { tex: 0.5, seed: i, shade: (hash(i, 0, 3) - 0.5) * 0.8 });
+      for (let g = 0; g < 3; g++) {
+        const gx = i + 2 + g * 2 + hash(i, g, 5);
+        p.flat(clip(seg(gx, 0, gx + (hash(g, i, 6) - 0.5) * 1.5, S, 0.2), plank), tone(wood, -1.5), 0.55);
+      }
+      [8, 23].forEach((y) => [2, 6].forEach((dx) => nail(i + dx, y, across)));
+    }
+    if (along) {
+      const plank = clip(box(0, i, S, 8), along);
+      p.fill(plank, wood, { tex: 0.5, seed: i + 40, shade: (hash(i, 1, 3) - 0.5) * 0.8 });
+      for (let g = 0; g < 3; g++) {
+        const gy = i + 2 + g * 2 + hash(i, g, 7);
+        p.flat(clip(seg(0, gy, S, gy + (hash(g, i, 8) - 0.5) * 1.5, 0.2), plank), tone(wood, -1.5), 0.55);
+      }
+      [8, 23].forEach((x) => [2, 6].forEach((dy) => nail(x, i + dy, along)));
+    }
+  }
+  // Rails line every side the deck does not run out of; posts stand along each railed side.
+  const rail = '#6a4520';
+  const rails = cut(walkwayShape(arms, 2, 30), walkwayShape(arms, 6, 26));
+  p.fill(rails, rail, { tex: 0.3 });
+  const sides: [number, Shape, Shape, FillOptions][] = [
+    [WALK_N, seg(0, 4, S, 3.6, 0.2), box(0, 2, S, 4), { grad: 0.8 }],
+    [WALK_S, seg(0, 28, S, 27.6, 0.2), box(0, 26, S, 4), { grad: 0.8 }],
+    [WALK_W, seg(4, 0, 3.6, S, 0.2), box(2, 0, 4, S), { gradX: 0.8 }],
+    [WALK_E, seg(28, 0, 27.6, S, 0.2), box(26, 0, 4, S), { gradX: 0.8 }],
+  ];
+  sides.forEach(([side, line, band, shading]) => {
+    if (!(arms & side)) {
+      const railed = clip(band, rails);
+      p.fill(railed, rail, { tex: 0.3, ...shading });
+      p.flat(clip(line, railed), tone(rail, -1.5), 0.6);
+    }
+  });
+  const post = '#5a3a1a';
+  [3, 19].forEach((a) => {
+    if (!(arms & WALK_N)) p.fill(box(a, 0, 4, 7), post, { gradX: 0.8 });
+    if (!(arms & WALK_W)) p.fill(box(0, a, 7, 4), post, { grad: 0.8 });
+    if (!(arms & WALK_E)) p.fill(box(25, a, 7, 4), post, { grad: 0.8 });
+    if (!(arms & WALK_S)) {
+      p.fill(box(a, 24, 4, 7), post, { gradX: 0.8 });
+      p.fill(box(a - 0.5, 23.5, 5, 1.5), tone(post, 1), { bevel: 0 });
+    }
   });
 }
 
@@ -1051,18 +1198,36 @@ function marsh(p: Paint, _f = 0, variant = 0): void {
   }
 }
 
-function boardwalk(p: Paint): void {
+function boardwalk(p: Paint, _f = 0, variant = 0): void {
   marsh(p);
+  const arms = walkwayArms(variant);
   const wood = '#8a6a44';
-  [3, 25].forEach((y) => p.fill(box(0, y, S, 2), tone(wood, -2), { bevel: 0 }));
-  for (let x = 0; x < S; x += 4) {
-    const board = box(x + 0.2, 4, 3.6, 22);
-    p.fill(board, wood, { tex: 0.6, seed: x + 50, shade: (hash(x, 1, 51) - 0.5) * 0.9, grad: 0.4 });
-    p.flat(clip(seg(x + 1.4, 4, x + 1.6, 26, 0.18), board), tone(wood, -1.5), 0.5);
-    p.spot(x + 2, 6, '#3a3a40');
-    p.spot(x + 2, 24, '#3a3a40');
+  const deck = walkwayShape(arms, 3, 27);
+  // A soft shadow on the marsh just below and right of the deck (light comes from the top left).
+  p.flat(cut(walkwayShape(arms, 3, 28), deck), '#0a1206', 0.35);
+  p.fill(deck, tone(wood, -2), { bevel: 0 });
+  const { across, along } = walkwayRuns(arms, 4, 26);
+  const nail = (x: number, y: number, run: Shape): void => {
+    if (run.test(x, y)) {
+      p.spot(x, y, '#3a3a40');
+    }
+  };
+  for (let i = 0; i < S; i += 4) {
+    if (across) {
+      const board = clip(box(i + 0.2, 0, 3.6, S), across);
+      p.fill(board, wood, { tex: 0.6, seed: i + 50, shade: (hash(i, 1, 51) - 0.5) * 0.9, grad: 0.4 });
+      p.flat(clip(seg(i + 1.4, 0, i + 1.6, S, 0.18), board), tone(wood, -1.5), 0.5);
+      nail(i + 2, 6, across);
+      nail(i + 2, 24, across);
+    }
+    if (along) {
+      const board = clip(box(0, i + 0.2, S, 3.6), along);
+      p.fill(board, wood, { tex: 0.6, seed: i + 70, shade: (hash(i, 2, 51) - 0.5) * 0.9, gradX: 0.4 });
+      p.flat(clip(seg(0, i + 1.4, S, i + 1.6, 0.18), board), tone(wood, -1.5), 0.5);
+      nail(6, i + 2, along);
+      nail(24, i + 2, along);
+    }
   }
-  p.flat(box(0, 26, S, 1), '#0a1206', 0.35);
 }
 
 function mireTree(p: Paint, _f: number, variant: number): void {
