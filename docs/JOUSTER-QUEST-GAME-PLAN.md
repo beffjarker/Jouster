@@ -364,7 +364,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9)) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27)) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -383,8 +383,9 @@ NPCs with hints and side quests
 - **Scenes (Jest, headless):** a scripted input driver plays the title flow, world movement, fog reveal, `M` map,
   companion quest flow, battles (command waits, animations, result screen) and menus without a DOM.
 - **Page (Jest, `apps/jouster-ui`):** the `/jouster-quest` component boots the game on a 16:9 canvas.
-- **E2E (Cypress, `apps/jouster-ui-e2e`):** planned, not written yet: load `/jouster-quest` → pick a class → move
-  → trigger a seeded encounter → win a battle → save → reload.
+- **E2E (Cypress, `apps/jouster-ui-e2e`, §27):** a smoke spec plays a new game (title → class → name → intro
+  → world → field menu), and continues a seeded save, rests at the Aldmere inn (which saves), reloads and
+  continues again. Battles stay in the seeded Jest tests, since the page has no fixed seed.
 - **Coverage target:** ≥80% on engine logic.
 - Use a seeded RNG everywhere so battle and encounter outcomes are reproducible in tests.
 
@@ -1652,7 +1653,7 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~Music loops.~~ Done in §22.
 - ~~Smoother walking.~~ Done in §23.
 - Status curing at the chapel (§12 deferred list).
-- A Cypress smoke test for `/jouster-quest` (§9: load, pick a class, move, save).
+- ~~A Cypress smoke test for `/jouster-quest`.~~ Done in §27.
 - LPC wolf and toad art with attack animations (16.4 item 4c).
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
   play-testing confirms parties find Act II/III too easy.
@@ -1866,3 +1867,26 @@ everything while the sheets load or if they fail. `JousterQuestOptions.art`, `ar
 the hybrid needs it.
 
 Tests: the sheet switch tests use `Art.hasSheets`; the page test no longer passes an art option.
+
+## 27. Cypress smoke test (implemented)
+
+`apps/jouster-ui-e2e` was the untouched Nx scaffold, and it pointed at a project that does not exist. Its web
+server now runs `jouster-ui:serve`, its tsconfig resolves modules as `node` (the root `bundler` setting is not
+valid with CommonJS), and its ESLint config extends the root flat config. The scaffold spec and helpers are gone.
+
+`src/e2e/jouster-quest.cy.ts` (tagged `@smoke @CI`) drives the real game in a browser. The game draws to a
+canvas, so the spec reads the top scene from the canvas's `data-scene` attribute (`data-automation-id` is
+`jouster-quest-screen`) and the save from `localStorage`:
+
+1. **New game:** title → class select → name entry → intro message → world; the field menu opens and closes; no
+   save is written.
+2. **Save and continue:** a fixture save stands on the inn rug in Aldmere. The spec continues it, steps up to the
+   counter, rests (the inn takes gold, heals and saves at the new tile), reloads and continues again.
+
+Keys go to the canvas as `keydown`/`keyup` pairs held for a few frames, because the game reads held directions
+per frame. `questPressUntil` presses a key until a check passes, and after each press waits up to 0.6 s for the
+check before pressing again: during a 0.25 s scene fade the old scene id stays on the canvas and input is dropped,
+and a repeated Enter would land in the next scene.
+
+Run it with `npx nx e2e jouster-ui-e2e`, or against a running `nx serve jouster-ui` with
+`npx cypress run --project apps/jouster-ui-e2e`.
