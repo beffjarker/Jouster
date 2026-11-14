@@ -1084,6 +1084,209 @@ function goblinLook(c: Colors, king: boolean): HumanoidLook {
   };
 }
 
+/** Short strokes clipped to `s` in random spots of the box (x0, y0, w, h), running along (dx, dy). */
+function strokes(p: Paint, s: Shape, n: number, box0: readonly number[], dx: number, dy: number, light: Color, dark: Color, seed: number): void {
+  const [x0, y0, w, h] = box0;
+  for (let i = 0; i < n; i++) {
+    const fx = x0 + hash(i, seed, 41) * w;
+    const fy = y0 + hash(seed, i, 43) * h;
+    p.flat(clip(seg(fx, fy, fx + dx, fy + dy, 0.14), s), i % 3 === 0 ? light : dark, 0.75);
+  }
+}
+
+/** A hulking ice troll: hunched blue-grey brute, frost crystals on its back, gripping a club. */
+function iceTroll(p: Paint, c: Colors): void {
+  const g = col(c, 'g');
+  const d = col(c, 'd', g);
+  const l = col(c, 'l', g);
+  p.flat(ell(33, 60, 22, 2.5), '#000000', 0.25);
+  // Legs.
+  [[38, 46, 41, 58], [26, 46, 23, 58]].forEach(([ax, ay, bx, by], i) => {
+    p.fill(seg(ax, ay, bx, by, 4.2), i ? g : d, { rim: true, gradX: 0.6, tex: 0.4, seed: 30 + i });
+    p.fill(ell(bx - 1.5, by + 1, 5, 2.4), i ? g : d, { rim: true });
+    [-3, -1, 1].forEach((t) => p.fill(ell(bx - 1.5 + t, by + 2.6, 0.7, 0.5), '#e0e8f0', { bevel: 0, dither: 0 }));
+  });
+  // Back arm hanging behind.
+  p.fill(union(seg(44, 26, 49, 40, 3.6), seg(49, 40, 47, 49, 3.2)), d, { rim: true, tex: 0.4, seed: 33 });
+  p.fill(ell(47, 51, 3.6, 3), d, { sphere: true, rim: true });
+  // Hunched torso with a pot belly.
+  const body = union(ell(33, 33, 14, 14), ell(31, 44, 11, 7));
+  p.fill(body, g, { sphere: true, rim: true, tex: 0.5, seed: 34 });
+  p.fill(clip(ell(29, 42, 8, 6), body), l, { bevel: 0, sphere: true, tex: 0.4, seed: 35 });
+  strokes(p, body, 50, [20, 20, 28, 30], 0.6, 1.4, tone(g, 1.5), tone(g, -2), 6);
+  // Frost crystals growing from the shoulders.
+  [[38, 21, 6], [42, 23, 8], [46, 26, 5], [34, 20, 4]].forEach(([x, y, h], i) => {
+    const shard = poly([x - 1.6, y + 2, x - 0.4 + i * 0.4, y - h, x + 1.6, y + 2]);
+    p.fill(shard, '#c8ecff', { gradX: 1.3, bevel: 0, dither: 0 });
+    p.flat(clip(seg(x - 0.4 + i * 0.4, y - h, x, y + 2, 0.2), shard), '#ffffff', 0.8);
+  });
+  // Head jutting forward with heavy brow, tusks and glowing eyes.
+  const headShape = union(ell(20, 24, 8, 7), ell(15, 28, 6, 4.5));
+  p.fill(headShape, g, { sphere: true, rim: true, tex: 0.4, seed: 36 });
+  p.fill(clip(ell(19, 20.5, 7, 2.6), headShape), d, { bevel: 0, grad: -0.6 });
+  [[15, 23], [21, 23.5]].forEach(([x, y]) => {
+    p.flat(ell(x, y, 2, 1.5), col(c, 'r', '#40e0ff'), 0.3);
+    p.fill(ell(x, y, 1, 0.8), col(c, 'r', '#40e0ff'), { sphere: true, bevel: 0 });
+    p.spot(x - 0.3, y - 0.3, '#ffffff');
+  });
+  p.fill(ell(11.5, 26, 2, 1.6), tone(g, 0.5), { sphere: true, bevel: 0 });
+  p.flat(seg(11, 30, 19, 30.5, 0.3), tone(d, -2));
+  const tusk = col(c, 'w', '#f0f8ff');
+  [[12.5, 30], [17.5, 30.4]].forEach(([x, y]) => p.fill(poly([x - 0.9, y, x + 0.9, y, x + 0.2, y - 3.2]), tusk, { bevel: 0, gradX: 1 }));
+  // Front arm raising a studded club.
+  const club = union(seg(9, 8, 15, 34, 1.4), ell(9.5, 10, 4, 6));
+  p.fill(club, col(c, 'b', '#5a4a3a'), { gradX: 1.2, tex: 0.6, seed: 37, rim: true });
+  [[7, 8], [11.5, 7], [8.5, 13], [12, 12]].forEach(([x, y]) => p.fill(ell(x, y, 0.8), '#c0c8d0', { sphere: true, bevel: 0, dither: 0 }));
+  p.fill(union(seg(28, 30, 22, 38, 3.4), seg(22, 38, 15, 33, 3)), g, { rim: true, tex: 0.4, seed: 38 });
+  p.fill(ell(14.5, 32.5, 3.4, 3), g, { sphere: true, rim: true });
+  [[12.5, 31], [12, 33.5]].forEach(([x, y]) => p.flat(seg(x, y, x + 3, y, 0.2), tone(d, -1.5)));
+}
+
+/** A shaggy yeti: a white ape mantled in long fur, arms raised to pound. */
+function yeti(p: Paint, c: Colors): void {
+  const g = col(c, 'g');
+  const d = col(c, 'd', g);
+  const b = col(c, 'b', d);
+  p.flat(ell(32, 60, 20, 2.5), '#000000', 0.22);
+  // Legs and big feet.
+  [[38, 46, 40, 57], [26, 46, 24, 57]].forEach(([ax, ay, bx, by], i) => {
+    const leg = seg(ax, ay, bx, by, 4.5);
+    p.fill(leg, i ? g : d, { rim: true, gradX: 0.5 });
+    strokes(p, leg, 14, [bx - 5, ay, 10, by - ay], 0.4, 2, tone(g, 1), tone(d, -1), 50 + i);
+    p.fill(ell(bx - 1, by + 1.5, 5.5, 2.2), b, { sphere: true, rim: true });
+  });
+  // Fur-mantled body with ragged fringes.
+  const pts: number[] = [];
+  for (let i = 0; i <= 16; i++) {
+    const t = (i / 16) * Math.PI * 2;
+    const r = 15 + (i % 2 ? 2.2 : -0.5);
+    pts.push(32 + Math.cos(t) * r * 0.95, 34 + Math.sin(t) * r);
+  }
+  const body = poly(pts);
+  p.fill(body, g, { sphere: true, rim: true, tex: 0.5, seed: 52 });
+  strokes(p, body, 110, [14, 17, 36, 34], 0.5, 2.4, '#ffffff', d, 53);
+  p.fill(clip(ell(30, 39, 7, 7.5), body), tone(b, 2), { sphere: true, bevel: 0, tex: 0.3, seed: 54 });
+  // Raised arms with dark palms.
+  [[22, 26, 12, 12], [42, 26, 52, 12]].forEach(([ax, ay, bx, by], i) => {
+    const arm = seg(ax, ay, bx, by, 4);
+    p.fill(arm, i ? d : g, { rim: true, gradX: 0.6 });
+    strokes(p, arm, 20, [Math.min(ax, bx) - 3, by, Math.abs(bx - ax) + 6, ay - by], -0.5, 2, '#ffffff', tone(d, -1), 55 + i);
+    p.fill(ell(bx, by - 2, 4, 3.5), b, { sphere: true, rim: true });
+    [-2, 0, 2].forEach((t) => p.fill(poly([bx + t - 0.5, by - 4.5, bx + t + 0.5, by - 4.5, bx + t, by - 7]), '#2a2a30', { bevel: 0, dither: 0 }));
+  });
+  // Head: dark face, blue eyes, roaring mouth with fangs.
+  const headShape = ell(29, 18, 8.5, 8);
+  p.fill(headShape, g, { sphere: true, rim: true, tex: 0.4, seed: 56 });
+  strokes(p, headShape, 30, [20, 10, 18, 9], 0.2, 1.8, '#ffffff', d, 57);
+  const face = ell(27.5, 20, 5.5, 5);
+  p.fill(face, b, { sphere: true, bevel: 0 });
+  p.flat(seg(22, 16.5, 33, 16.5, 0.6), tone(g, -1));
+  [[25, 18.5], [30, 18.5]].forEach(([x, y]) => {
+    p.fill(ell(x, y, 1.2, 1), col(c, 'r', '#3060ff'), { sphere: true, bevel: 0 });
+    p.spot(x - 0.4, y - 0.3, '#ffffff');
+  });
+  p.fill(ell(27.5, 22.8, 3, 1.8), '#3a0a14', { bevel: 0 });
+  const fang = col(c, 'w', '#f8f8f0');
+  [25.6, 29.4].forEach((x) => p.fill(poly([x - 0.6, 21.4, x + 0.6, 21.4, x, 23.4]), fang, { bevel: 0, dither: 0 }));
+}
+
+/** A wyvern: two-legged drake with bat-like wings spread wide, neck snaking forward, barbed tail. */
+function wyvern(p: Paint, c: Colors): void {
+  const g = col(c, 'g');
+  const d = col(c, 'd', g);
+  const l = col(c, 'l', g);
+  const m = col(c, 'p', d);
+  p.flat(ell(36, 60, 20, 2.4), '#000000', 0.22);
+  // Far wing (darker, behind the body).
+  const wing = (rootX: number, rootY: number, tipX: number, tipY: number, dark: boolean): void => {
+    const fingers: ReadonlyArray<[number, number]> = [[tipX, tipY], [tipX + 9, tipY + 12], [tipX + 12, tipY + 24], [tipX + 6, tipY + 30]];
+    const pts = [rootX, rootY, ...fingers.flat(), rootX - 2, rootY + 12];
+    const membrane = poly(pts);
+    p.fill(membrane, m, { shade: dark ? -1.2 : -0.3, grad: 0.6, tex: 0.25, seed: tipX });
+    fingers.forEach(([fx, fy]) => p.flat(clip(seg(rootX, rootY, fx, fy, 0.5), box(0, 0, 64, 64)), dark ? tone(g, -1.5) : g, 0.9));
+    for (let i = 0; i < 3; i++) {
+      const [ax, ay] = fingers[i];
+      const [bx, by] = fingers[i + 1];
+      p.flat(clip(seg((ax + bx) / 2, (ay + by) / 2 + 1.5, rootX + 2, rootY + 4, 0.12), membrane), tone(m, -2.5), 0.6);
+    }
+    p.flat(seg(rootX, rootY, tipX, tipY, 0.35), l, dark ? 0.4 : 0.8);
+    p.spot(tipX, tipY - 0.8, '#f0e8d8');
+  };
+  wing(38, 28, 50, 2, true);
+  // Tail sweeping back to a barb.
+  const tail = union(seg(46, 44, 55, 48, 3), seg(55, 48, 61, 42, 2));
+  p.fill(tail, g, { rim: true, tex: 0.4, seed: 60 });
+  p.fill(poly([60, 39, 63.5, 41, 61.5, 45, 59, 43]), d, { bevel: 0, rim: true });
+  // Back leg.
+  p.fill(union(seg(42, 44, 44, 52, 3), seg(44, 52, 42, 57, 2)), d, { rim: true });
+  [-2, 0, 2].forEach((t) => p.flat(seg(42 + t, 57.5, 41 + t, 59, 0.3), '#f0e8d8'));
+  // Body with a pale scaled belly.
+  const body = union(ell(38, 40, 11, 8), ell(29, 36, 6, 6));
+  p.fill(body, g, { sphere: true, rim: true, tex: 0.4, seed: 61 });
+  const belly = clip(ell(34, 45, 9, 4), body);
+  p.fill(belly, l, { bevel: 0, grad: 0.6 });
+  for (let x = 26; x < 44; x += 2.2) {
+    p.flat(clip(seg(x, 41, x + 0.5, 49, 0.18), belly), tone(l, -1.5), 0.7);
+  }
+  for (let i = 0; i < 30; i++) {
+    const x = 28 + hash(i, 1, 62) * 20;
+    const y = 33 + hash(i, 2, 62) * 9;
+    if (body.test(x, y) && !belly.test(x, y)) {
+      p.flat(cut(ell(x, y, 1.2, 0.8), ell(x, y - 0.4, 1.2, 0.8)), tone(d, -1), 0.7);
+    }
+  }
+  // Front leg with talons.
+  p.fill(union(seg(33, 44, 30, 52, 3), seg(30, 52, 31, 57, 2.2)), g, { rim: true });
+  [-2, 0, 2].forEach((t) => p.flat(seg(30 + t, 57.5, 29 + t, 59.2, 0.35), '#f0e8d8'));
+  // Near wing.
+  wing(34, 30, 18, 3, false);
+  // Neck curving forward to a horned head.
+  const neck = union(seg(29, 34, 22, 26, 3.4), seg(22, 26, 15, 22, 3));
+  p.fill(neck, g, { rim: true, tex: 0.4, seed: 63 });
+  [[27, 30], [24, 27.5], [21, 25.5], [18, 23.8]].forEach(([x, y]) => p.fill(poly([x, y - 2.6, x + 1.2, y - 5, x + 2, y - 2.4]), d, { bevel: 0, rim: true }));
+  const headShape = union(ell(12, 21, 5.5, 4), poly([8, 19, 1, 22, 2, 25, 10, 25]));
+  p.fill(headShape, g, { sphere: true, rim: true, tex: 0.3, seed: 64 });
+  p.fill(poly([13, 18, 19, 12, 16, 18.5]), l, { gradX: 1, bevel: 0, rim: true });
+  p.fill(poly([10, 18, 13, 13, 12.5, 18.5]), tone(l, -1), { gradX: 1, bevel: 0, rim: true });
+  p.flat(seg(2, 23.5, 10, 23.5, 0.25), tone(d, -2.5));
+  const fang = col(c, 'w', '#f0f0e8');
+  [3.5, 6, 8.5].forEach((x) => p.fill(poly([x - 0.5, 23.5, x + 0.5, 23.5, x, 25.2]), fang, { bevel: 0, dither: 0 }));
+  p.fill(ell(10, 20, 1.3, 0.9), col(c, 'r', '#ffd020'), { sphere: true, bevel: 0 });
+  p.flat(ell(10, 20, 0.3, 0.8), '#100808');
+  p.spot(9.6, 19.6, '#ffffff');
+  p.spot(2.5, 21.6, tone(d, -3));
+}
+
+function frostMageLook(c: Colors): HumanoidLook {
+  return {
+    skin: col(c, 'g'),
+    hair: col(c, 'y'),
+    body: col(c, 'b'),
+    trim: col(c, 'y'),
+    legs: col(c, 'n'),
+    eyes: col(c, 'r'),
+    robe: true,
+    hat: 'wizard',
+    hatColor: col(c, 'n'),
+    cape: col(c, 'y'),
+    beard: col(c, 'y'),
+    weapon: 'staff',
+  };
+}
+
+function frostMage(p: Paint, c: Colors): void {
+  // Snowflakes swirling round the caster.
+  [[9, 18], [54, 12], [52, 42], [8, 44], [44, 4]].forEach(([x, y], i) => {
+    p.flat(ell(x, y, 3.5, 3.5), '#a8e8ff', 0.18);
+    const r = 1.6 + (i % 2) * 0.6;
+    [0, 1, 2].forEach((k) => {
+      const a = (k / 3) * Math.PI;
+      p.flat(seg(x - Math.cos(a) * r, y - Math.sin(a) * r, x + Math.cos(a) * r, y + Math.sin(a) * r, 0.22), '#e8f8ff');
+    });
+  });
+  p.draw(paintHumanoid(frostMageLook(c), 'down', 0));
+}
+
 const MONSTER_PAINTERS: ReadonlyMap<string, (p: Paint, c: Colors) => void> = new Map<string, (p: Paint, c: Colors) => void>([
   ['slime', (p, c) => slime(p, c, 'round')],
   ['slimeTall', (p, c) => slime(p, c, 'tall')],
@@ -1099,10 +1302,14 @@ const MONSTER_PAINTERS: ReadonlyMap<string, (p: Paint, c: Colors) => void> = new
   ['wraith', wraith],
   ['lizardman', lizardman],
   ['marshWitch', marshWitch],
+  ['iceTroll', iceTroll],
+  ['yeti', yeti],
+  ['wyvern', wyvern],
+  ['frostMage', frostMage],
 ]);
 
 /** Shapes drawn as (already outlined) humanoids. */
-const HUMANOID_SHAPES: ReadonlySet<string> = new Set(['goblin', 'goblinKing', 'lizardman', 'marshWitch']);
+const HUMANOID_SHAPES: ReadonlySet<string> = new Set(['goblin', 'goblinKing', 'lizardman', 'marshWitch', 'frostMage']);
 
 /** Shapes that {@link paintMonster} can draw. */
 export const HD_MONSTER_SHAPES: readonly string[] = [...MONSTER_PAINTERS.keys()];

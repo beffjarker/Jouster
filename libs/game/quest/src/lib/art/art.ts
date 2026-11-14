@@ -90,6 +90,11 @@ const MONSTER_PALETTES: ReadonlyMap<string, Palette> = new Map([
   ['lizardman', palette([['g', '#5a8a3a'], ['d', '#2e5a26'], ['b', '#8a6a3a'], ['n', '#5a4020'], ['r', '#f0d020']])],
   ['wraith', palette([['g', '#4a5a7a'], ['d', '#1e2438'], ['l', '#a8b8d8'], ['r', '#60f0ff']])],
   ['marshWitch', palette([['g', '#8aa860'], ['d', '#1e1e1e'], ['b', '#3a4a2a'], ['n', '#22281a'], ['y', '#2a3a20'], ['r', '#e0ff40']])],
+  ['iceTroll', palette([['g', '#7aa0b8'], ['d', '#3a5470'], ['l', '#c8e0f0'], ['b', '#5a4a3a'], ['r', '#40e0ff'], ['w', '#f0f8ff']])],
+  ['wyvern', palette([['g', '#4a7a9a'], ['d', '#1e3a54'], ['l', '#a8d0e8'], ['p', '#2a5a7a'], ['r', '#ffd020'], ['w', '#f0f0e8']])],
+  ['yeti', palette([['g', '#e8eef4'], ['d', '#9aaac0'], ['l', '#ffffff'], ['b', '#5a6a8a'], ['r', '#3060ff'], ['w', '#f8f8f0']])],
+  ['frostMage', palette([['g', '#c8d8e8'], ['d', '#101828'], ['b', '#2a4a8a'], ['n', '#1a2a5a'], ['y', '#e0f0ff'], ['r', '#60e0ff']])],
+  ['wyvernMatriarch', palette([['g', '#6a4a8a'], ['d', '#2a1a40'], ['l', '#d0b8f0'], ['p', '#4a2a6a'], ['r', '#ff4020'], ['w', '#fff8e0']])],
 ]);
 
 interface MonsterVariant {
@@ -188,6 +193,7 @@ const MONSTER_SHAPE: ReadonlyMap<string, string> = new Map([
   ['boneCaptain', 'skeleton'],
   ['goblinChief', 'goblinKing'],
   ['sandWyrm', 'sandWorm'],
+  ['wyvernMatriarch', 'wyvern'],
 ]);
 
 /** Number of art variants for tiles that have more than one look (all solid landscape tiles). */
@@ -210,6 +216,13 @@ export const TILE_VARIANT_COUNTS: ReadonlyMap<string, number> = new Map<string, 
   ['sunFloor', 2],
   ['mireWall', 3],
   ['mireFloor', 2],
+  ['snow', 3],
+  ['snowPine', 3],
+  ['glacier', 3],
+  ['iceWater', 3],
+  ['frozenLake', 3],
+  ['iceWall', 3],
+  ['iceFloor', 3],
 ]);
 
 /**
@@ -235,7 +248,7 @@ function hashSeed(id: string): number {
   return h;
 }
 
-const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWater', 'fountain', 'torch', 'bog']);
+const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWater', 'fountain', 'torch', 'bog', 'iceWater']);
 
 /** Loaded art sheets (LPC atlases) by id; see `loadLpcSheets`. */
 export type ArtSheets = ReadonlyMap<LpcSheetId, CanvasImageSource>;

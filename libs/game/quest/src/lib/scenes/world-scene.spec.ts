@@ -2,6 +2,7 @@ import { InputAction, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { INN_RESPAWN, mapDef } from '../data/maps';
 import { ENCOUNTER_TABLES } from '../data/monsters';
+import { NORTH_LANDMARKS } from '../data/frostpeaks-gen';
 import { LANDMARKS } from '../data/overworld-gen';
 import { SOUTH_LANDMARKS } from '../data/southlands-gen';
 import { CAVE_FOG_RADIUS, isExplored } from '../state/fog';
@@ -203,6 +204,63 @@ describe('WorldScene', () => {
     expect(pages).toContain('END OF ACT II');
     expect(h.state.flags['actTwoComplete']).toBe(true);
     expect(h.state.gold).toBe(gold + 500);
+  });
+
+  it('bars the northern pass until Act II is complete (plan 19)', () => {
+    const at = { mapId: 'overworld', x: LANDMARKS.northPass.x, y: LANDMARKS.northPass.y + 1, facing: 'up' as const };
+    const locked = setup(at);
+    locked.hold('up', STEP_TIME + 0.02);
+    locked.run(1);
+    expect(locked.state.mapId).toBe('overworld');
+    expect(locked.ctx.stack.top?.id).toBe('message');
+    const pages = (locked.ctx.stack.top as unknown as { pages: string[][] }).pages.flat().join(' ');
+    expect(pages).toContain('northern pass');
+
+    const open = setup(at);
+    open.state.flags['actTwoComplete'] = true;
+    open.hold('up', STEP_TIME + 0.02);
+    open.run(1);
+    expect(open.state.mapId).toBe('frostpeaks');
+  });
+
+  it('ends Act III and forges Dragonbane once the Wyvern Matriarch is slain (plan 19)', () => {
+    const h = setup({ mapId: 'aldmere', x: 6, y: 3, facing: 'up' });
+    Object.assign(h.state.flags, {
+      metKing: true,
+      bossDefeated: true,
+      actOneComplete: true,
+      sandWyrmDefeated: true,
+      marshWitchDefeated: true,
+      actTwoComplete: true,
+    });
+    h.tap('confirm');
+    h.confirmUntilWorld();
+    expect(h.state.flags['actThreeComplete']).toBeUndefined();
+    h.state.flags['wyvernMatriarchDefeated'] = true;
+    const gold = h.state.gold;
+    h.tap('confirm');
+    const pages = (h.ctx.stack.top as unknown as { pages: string[][] }).pages.flat().join(' ');
+    expect(pages).toContain('END OF ACT III');
+    expect(h.state.flags['actThreeComplete']).toBe(true);
+    expect(h.state.flags['dragonbaneForged']).toBe(true);
+    expect(h.state.gold).toBe(gold + 900);
+    h.confirmUntilWorld();
+    h.tap('confirm');
+    h.confirmUntilWorld();
+    expect(h.state.gold).toBe(gold + 900);
+  });
+
+  it('fights in the snow outdoors in the Frost Peaks but in the cave inside the roost (plan 19)', () => {
+    const backdropAfterStep = (place: Partial<GameState>, dir: InputAction): string | undefined => {
+      const h = setup({ ...place, stepsSinceBattle: 50 }, true);
+      h.hold(dir, STEP_TIME + 0.02);
+      h.run(1);
+      expect(h.ctx.stack.top?.id).toBe('battle');
+      return (h.ctx.stack.top as unknown as { options: { backdrop: string } }).options.backdrop;
+    };
+    const { pass } = NORTH_LANDMARKS;
+    expect(backdropAfterStep({ mapId: 'frostpeaks', x: pass.x, y: pass.y - 1, facing: 'up' }, 'up')).toBe('snow');
+    expect(backdropAfterStep({ mapId: 'wyvernRoost', x: 10, y: 13, facing: 'up' }, 'up')).toBe('cave');
   });
 
   it('fights on desert sand outdoors but in the cave inside the shrines (plan 17)', () => {

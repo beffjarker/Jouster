@@ -29,6 +29,8 @@ export const LANDMARKS = {
   lakeshore: { x: 38, y: 62 },
   /** Mountain pass on the southern rim, gated until Act I is complete (leads to the Southlands). */
   southPass: { x: 60, y: 69 },
+  /** Mountain pass on the northern rim, gated until Act II is complete (leads to the Frost Peaks). */
+  northPass: { x: 36, y: 2 },
 } as const satisfies Record<string, Point>;
 
 const GRASS = '.';
@@ -176,6 +178,19 @@ function placePass(g: Grid): void {
   g[pass.y][pass.x] = 'P';
 }
 
+/** The northern notch: a grass landing below it, mountains either side (warps are positional, so `P` is reused). */
+function placeNorthPass(g: Grid): void {
+  const { northPass: pass } = LANDMARKS;
+  for (let y = pass.y + 1; y <= pass.y + 3; y++) {
+    for (let x = pass.x - 1; x <= pass.x + 1; x++) {
+      g[y][x] = GRASS;
+    }
+  }
+  g[pass.y][pass.x - 1] = MOUNTAIN;
+  g[pass.y][pass.x + 1] = MOUNTAIN;
+  g[pass.y][pass.x] = 'P';
+}
+
 function stepCost(ch: string): number {
   switch (ch) {
     case ROAD:
@@ -295,7 +310,8 @@ export function generateOverworld(): string[] {
   const g = terrain();
   carveRiver(g);
   placeLandmarks(g);
-  const { aldmere, goblinCave, thornwick, brookhollow, wolfDen, lakeshore, southPass } = LANDMARKS;
+  placeNorthPass(g);
+  const { aldmere, goblinCave, thornwick, brookhollow, wolfDen, lakeshore, southPass, northPass } = LANDMARKS;
   const below = (p: Point): Point => ({ x: p.x, y: p.y + 1 });
   carveRoad(g, below(aldmere), below(goblinCave));
   carveRoad(g, below(aldmere), below(thornwick));
@@ -305,6 +321,9 @@ export function generateOverworld(): string[] {
   carveRoad(g, below(thornwick), { x: southPass.x, y: southPass.y - 3 });
   g[southPass.y - 2][southPass.x] = ROAD;
   g[southPass.y - 1][southPass.x] = ROAD;
+  carveRoad(g, below(aldmere), { x: northPass.x, y: northPass.y + 3 });
+  g[northPass.y + 2][northPass.x] = ROAD;
+  g[northPass.y + 1][northPass.x] = ROAD;
   // The torn net that hints at the Giant Toad (lakeShore event).
   g[lakeshore.y][lakeshore.x] = CLUE_NET;
   return g.map((row) => row.join(''));

@@ -5,7 +5,7 @@ import { ART_SCALE, Paint } from './hd-paint';
 const W = 60;
 const H = 40;
 const HORIZON = 24;
-const KINDS: Backdrop[] = ['field', 'forest', 'hills', 'cave', 'desert', 'marsh'];
+const KINDS: Backdrop[] = ['field', 'forest', 'hills', 'cave', 'desert', 'marsh', 'snow'];
 
 /** Byte-wise pixel equality (toEqual on million-entry arrays exhausts Jest's heap). */
 const samePixels = (a: Paint, b: Paint | undefined): boolean =>
