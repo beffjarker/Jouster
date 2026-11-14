@@ -6,10 +6,10 @@ export default defineConfig({
     ...nxE2EPreset(__filename, {
       cypressDir: 'src',
       webServerCommands: {
-        default: 'npx nx run jouster:serve',
-        production: 'npx nx run jouster:serve-static',
+        default: 'npx nx run jouster-ui:serve',
+        production: 'npx nx run jouster-ui:serve-static',
       },
-      ciWebServerCommand: 'npx nx run jouster:serve-static',
+      ciWebServerCommand: 'npx nx run jouster-ui:serve-static',
       ciBaseUrl: 'http://localhost:4200',
     }),
     baseUrl: 'http://localhost:4200',
