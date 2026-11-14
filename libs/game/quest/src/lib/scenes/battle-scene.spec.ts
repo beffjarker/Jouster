@@ -1,4 +1,4 @@
-import { Battle, SceneStack, createRng } from '@jouster/game/engine';
+import { Battle, SceneStack, createRng, totalXpForLevel } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { memoryStorage, newGameState } from '../state/game-state';
 import { InputDriver } from '../testing/input-driver';
@@ -92,6 +92,25 @@ describe('BattleScene', () => {
       driver.run(0.3);
     }
     expect(onEnd).toHaveBeenCalledWith('victory');
+  });
+
+  it('shows the raised max HP/MP and the gained HP/MP on the results screen after a level-up', () => {
+    const { scene, internals, driver } = setup();
+    const member = (scene as unknown as { members: Array<{ hp: number; mp: number; xp: number }> }).members[0];
+    member.xp = totalXpForLevel(2) - 1;
+    const hero = internals.battle.party[0];
+    const oldMax = hero.maxHp;
+    hero.hp -= 5;
+    internals.battle.enemies[0].hp = 1;
+    driver.run(2);
+    driver.tap('confirm');
+    driver.tap('confirm');
+    driver.run(30);
+    expect(internals.phase).toBe('end');
+    const shown = (scene as unknown as { shown: Map<string, { hp: number; mp: number }> }).shown.get(hero.id);
+    expect(hero.maxHp).toBeGreaterThan(oldMax);
+    expect(hero.hp).toBe(member.hp);
+    expect(shown).toEqual({ hp: member.hp, mp: member.mp });
   });
 
   it('places the party on the left and enemies on the right', () => {

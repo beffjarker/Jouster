@@ -1,6 +1,6 @@
-import { ClassId } from '@jouster/game/engine';
+import { ClassId, totalXpForLevel } from '@jouster/game/engine';
 import { MAPS, mapHasEncounters } from '../data/maps';
-import { applyFieldRegen, createMember, memberStats } from './party';
+import { applyFieldRegen, createMember, grantXp, memberStats } from './party';
 
 function walk(classId: ClassId, steps: number, encounterMap: boolean): { hp: number; mp: number } {
   const m = createMember('h', 'Hero', classId, 5);
@@ -53,5 +53,28 @@ describe('field regen (plan 15.9 / 15.10)', () => {
     expect(mapHasEncounters(MAPS.get('brookhollow') ?? fail())).toBe(false);
     expect(mapHasEncounters(MAPS.get('overworld') ?? fail())).toBe(true);
     expect(mapHasEncounters(MAPS.get('goblinCave') ?? fail())).toBe(true);
+  });
+});
+
+describe('grantXp', () => {
+  it('adds the HP and MP gained on level-up to current HP and MP', () => {
+    const m = createMember('h', 'Hero', 'cleric', 3);
+    const before = memberStats(m);
+    m.hp = before.hp - 7;
+    m.mp = before.mp - 4;
+    const up = grantXp(m, totalXpForLevel(5) - m.xp);
+    const after = memberStats(m);
+    expect(up?.level).toBe(5);
+    expect(after.hp).toBeGreaterThan(before.hp);
+    expect(after.mp).toBeGreaterThan(before.mp);
+    expect(m.hp).toBe(after.hp - 7);
+    expect(m.mp).toBe(after.mp - 4);
+  });
+
+  it('leaves HP/MP alone when no level is gained', () => {
+    const n = createMember('n', 'Nim', 'rogue', 3);
+    n.hp = 5;
+    expect(grantXp(n, 1)).toBeNull();
+    expect(n.hp).toBe(5);
   });
 });

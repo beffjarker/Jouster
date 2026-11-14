@@ -22,7 +22,7 @@ import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
 import { BOSS_HP_SCALE, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
 import { GameState, addItem } from '../state/game-state';
-import { PartyMember, grantXp, memberToCombatant, monstersToCombatants, syncFromCombatants } from '../state/party';
+import { PartyMember, grantXp, memberStats, memberToCombatant, monstersToCombatants, syncFromCombatants } from '../state/party';
 import { COLORS, ListMenu, MenuItem, SCREEN_H, SCREEN_W, charsFit, drawCursor, drawHint, inRect } from '../ui/widgets';
 import { GameContext, requireState } from './context';
 
@@ -172,6 +172,8 @@ export class BattleScene implements Scene {
   private readonly members: PartyMember[];
   private readonly battle: Battle;
   private readonly shown = new Map<string, Vitals>();
+  /** Level-up result lines mapped to the member whose HUD row refreshes when the line is shown. */
+  private readonly levelUpLines = new Map<string, PartyMember>();
   private readonly flash = new Map<string, number>();
   private phase: Phase = 'intro';
   private log: string[] = [];
@@ -855,7 +857,9 @@ export class BattleScene implements Scene {
         const up = grantXp(m, share);
         if (up) {
           this.outcomeSound = 'levelUp';
-          lines.push(`${up.name} is now level ${up.level}!`);
+          const line = `${up.name} is now level ${up.level}!`;
+          lines.push(line);
+          this.levelUpLines.set(wrapText(line, LOG_CHARS)[0], m);
           up.learned.forEach((a) => lines.push(`${up.name} learned ${ABILITIES.get(a)?.name ?? a}!`));
         }
       });
@@ -912,9 +916,25 @@ export class BattleScene implements Scene {
       if (line.includes('level')) {
         this.ctx.audio.play('levelUp');
       }
+      this.showLevelUp(line);
       this.log.push(line);
       this.timer = this.endLines.length > 0 && this.log.length < END_PAGE_LINES ? EVENT_DELAY : 0;
     }
+  }
+
+  /** When a level-up line is revealed, show that member's raised max HP/MP and the HP/MP gained with it. */
+  private showLevelUp(line: string): void {
+    const m = this.levelUpLines.get(line);
+    const c = m && this.battle.party.find((x) => x.id === m.id);
+    if (!m || !c) {
+      return;
+    }
+    const s = memberStats(m);
+    c.maxHp = s.hp;
+    c.maxMp = s.mp;
+    c.hp = m.hp;
+    c.mp = m.mp;
+    this.shown.set(c.id, { hp: m.hp, mp: m.mp });
   }
 
   // --- Rendering -----------------------------------------------------------------------------
