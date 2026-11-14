@@ -1816,3 +1816,16 @@ Tests: `GameLoop` passes the leftover time to render; `SceneStack` passes it onl
 direction for 10 step times takes 9 steps (8 with the old pause); `characterWalk` picks LPC columns 2..8 and 1
 and keeps the procedural swap. Manual: hold a direction across a long field and compare feel on 60 Hz and
 120/144 Hz screens, with and without `?art=classic`.
+
+## 24. Polish: tile animation artifacts (implemented)
+
+With LPC art, animated tiles stepped through their list of look-alike ground cells on every animation frame.
+That is right for water, where the ground itself ripples, but fountains (town flagstones) and cave torches only
+animate an object on top. Their floor switched to a different flagstone or rock cell every other frame, so each
+fountain flashed a square with mismatched seams. `LpcTile.animatedGround` now marks the tiles whose ground moves
+(water, bridge, cave water). Every other tile keeps the cell picked by its position, while its procedural
+object (fountain spray, torch flame) still animates.
+
+Tests: only water, bridge and cave water cycle ground cells; fountain, torch and cobble keep the same cell on
+both frames, both in `lpcGroundCell` and in the cell `Art.tile` draws. Manual: watch the Aldmere fountain and a
+cave torch for a few seconds. The floor under them should no longer flicker, and water should still ripple.

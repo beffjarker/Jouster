@@ -29,12 +29,17 @@ export interface LpcCell {
 }
 
 /**
- * LPC art for one tile id. `ground` lists look-alike variants (picked by a per-position hash, and
- * cycled per frame for animated tiles such as water). Objects on top of the ground (trees, peaks,
- * houses, torches) are still drawn procedurally over it until LPC objects are converted.
+ * LPC art for one tile id. `ground` lists look-alike variants (picked by a per-position hash).
+ * Objects on top of the ground (trees, peaks, houses, torches) are still drawn procedurally over it
+ * until LPC objects are converted.
  */
 export interface LpcTile {
   ground: readonly LpcCell[];
+  /**
+   * True when the ground itself moves (water), so its cell is cycled per animation frame. Tiles that
+   * only animate an object (fountain, torch) keep one ground cell, or their floor would flicker.
+   */
+  animatedGround?: boolean;
 }
 
 const t = (col: number, row: number): LpcCell => ({ sheet: 'terrain', col, row });
@@ -60,8 +65,8 @@ export const LPC_TILES: ReadonlyMap<string, LpcTile> = new Map<string, LpcTile>(
   ['town', { ground: GRASS }],
   ['caveEntrance', { ground: GRASS }],
   ['ruins', { ground: GRASS }],
-  ['water', { ground: WATER }],
-  ['bridge', { ground: WATER }],
+  ['water', { ground: WATER, animatedGround: true }],
+  ['bridge', { ground: WATER, animatedGround: true }],
   ['wall', { ground: [o(4, 13), o(4, 14)] }],
   ['cobble', { ground: FLAGSTONE }],
   ['fountain', { ground: FLAGSTONE }],
@@ -70,7 +75,7 @@ export const LPC_TILES: ReadonlyMap<string, LpcTile> = new Map<string, LpcTile>(
   ['caveExit', { ground: CAVE_FLOOR }],
   ['rock', { ground: CAVE_ROCK }],
   ['torch', { ground: CAVE_ROCK }],
-  ['caveWater', { ground: [t(13, 3), t(13, 5), t(14, 5)] }],
+  ['caveWater', { ground: [t(13, 3), t(13, 5), t(14, 5)], animatedGround: true }],
 ]);
 
 /** LPC ground for tile `id`; a decor tile `object@floor` uses its floor's ground. */
@@ -86,9 +91,9 @@ export function groundVariant(x: number, y: number): number {
   return (h >>> 0) % 997;
 }
 
-/** The ground cell to draw for `tile`, given its ground seed and animation frame. */
+/** The ground cell to draw for `tile`, given its ground seed and animation frame (used only by animated ground). */
 export function lpcGroundCell(tile: LpcTile, seed: number, frame = 0): LpcCell {
-  return tile.ground[(seed + frame) % tile.ground.length];
+  return tile.ground[(seed + (tile.animatedGround ? frame : 0)) % tile.ground.length];
 }
 
 /** Public URL of a sheet. `base` is the asset folder URL (default `game-assets/lpc/`). */
