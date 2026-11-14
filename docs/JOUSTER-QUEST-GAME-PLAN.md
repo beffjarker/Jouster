@@ -79,8 +79,11 @@ apps/
 
 ### 4.1 Design principles
 
-1. **Every class can win alone.** Any class, including the Cleric or Wizard, must be able to clear the Prologue and
-   Act I before recruiting a companion. Some classes may find it harder, but none should be stuck.
+1. **Every class can win alone — until companions unlock.** Any class, including the Cleric or Wizard, must be able
+   to clear the Prologue and Act I (the Goblin King and each companion's recruit mini-boss) before recruiting a
+   companion. Some classes may find it harder, but none should be stuck. **The game is not meant to be played
+   alone after that (revision 6, 4.4c):** once companions can join, the player is expected to recruit them, and a
+   hero who refuses may well be unable to finish the game. Balance from Act II on is tuned and tested for parties.
 2. **Every class has a real melee attack.** The basic **Attack** command always uses a melee weapon, never just a
    token hit for 1 damage.
 3. **Different, not stronger.** Classes differ in *how* they win (burst damage, staying power, speed), not in
@@ -157,23 +160,61 @@ floor for **staying power**, where the Cleric sets the floor for damage.
 - **Simulator policy (revision 4):** the auto-player now judges danger by the combined damage of all enemies,
   uses Potions, and lets a caster with no Heal drink a Tonic once it can no longer cast. The chained-fight check
   also tops HP up to 60% with Heal or items between fights, as a careful player would.
+- **Scope (revision 6):** solo targets cover only the pre-unlock path: Greenwood, Forest, Hills, the Goblin
+  Cave, the Goblin King and the four recruit mini-bosses. The growth change above is still justified by that path
+  alone: with +4 HP / +6 MP the solo Wizard beat the Alpha Wolf and its packmate only 71% at level 7 and 43% at
+  level 6.
 - **Measured (solo, 400 fights per row; "L−1" = one level under):**
 
 | Stage | Level / gear | Wizard win | Avg rounds | L−1 win | Warrior win |
 | --- | --- | --- | --- | --- | --- |
-| Greenwood | 3 / starting | 100% | 1.5 | 100% | 100% |
+| Greenwood, Forest, Hills, Goblin Cave | 3–6 / starting–tier 2 | 100% | 1.3–1.5 | 100% | 100% |
 | Goblin King | 6 / tier 2 | 91% | 5.5 | 76% | 98% |
 | Mini-bosses (4 fights) | 7 / tier 2 | 83–100% | 3.6–4.5 | 61–100% | 100% |
-| Desert, Marsh, Shrine | 10 / tier 3 | 99–100% | 1.8–2.2 | 97–100% | 100% |
-| Sand Wyrm / Marsh Witch | 12 / tier 3 | 93% / 74% | 8.8 / 6.6 | 94% / 56% | 100% |
-| Snowfield, Pines, Roost | 13 / tier 4 | 100% | 1.4–1.8 | 99–100% | 100% |
-| Wyvern Matriarch | 15 / tier 4 | 99% | 6.1 | 97% | 100% |
 
-- **Fights in a row without an inn** (average of 60 runs, capped at 25): Greenwood 14, Desert 10, Marsh 8,
-  **Shrine 4.7**, Snowfield 21, Pines 15, Roost 15. The Warrior and Cleric reach the cap almost everywhere.
-- **Still to watch:** the Shrine (an area-level-11 table) and the Marsh Witch are the Wizard's thinnest spots. If
-  play-testing agrees, options are a little more Wizard DEF from armor (a tier-3 robe), cheaper Bolt (6→5 MP),
-  or slightly weaker Wraiths. The balance spec guards these numbers (section 4.6).
+- **Fights in a row without an inn** (average of 60 runs, capped at 25): the Wizard manages Greenwood 14,
+  Forest 14, Hills 18, Goblin Cave 17. Every other class reaches the cap in every pre-unlock area.
+
+### 4.4c After the unlock: a party is expected (revision 6)
+
+Once the Goblin King falls and the first recruit quest is done, the player is expected to travel with
+companions. Act II and III are balanced for a party: up to 3 enemies per random encounter (the solo cap of 2 no
+longer applies), bosses scaled by party size (`BOSS_HP_SCALE`), and the simulator checks every pair and every
+trio instead of a lone hero. A hero who stays alone gets no balance guarantee and may not be able to finish.
+
+- **Smallest party tested:** the hero at the expected level plus one companion **one level behind**, both in the
+  act's shop gear, for all 15 class pairs (and the 20 three-class parties for bosses).
+- **Measured (revision 6; 400 fights per row, min–max over every pair or trio):**
+
+| Content | Party / levels | Win rate |
+| --- | --- | --- |
+| Desert, Marsh, Shrine (≤ 3 enemies) | any pair, 10 + 9, tier 3 | 100% |
+| Sand Wyrm, Marsh Witch + Lizardman | any pair, 11 + 10, tier 3 | 99–100% |
+| Shrine bosses | any trio, all level 10 | 100% |
+| Snowfield, Pines, Roost (≤ 3 enemies) | any pair, 13 + 12, tier 4 | 100% |
+| Wyvern Matriarch + Wyvern | any pair, 14 + 13, tier 4 | 100% |
+| Wyvern Matriarch + Wyvern | any trio, all level 13 | 100% |
+| Lone hero (report only) | Act II bosses at 12 / Matriarch at 15 | 74–100% / 97–100% |
+
+- **Finding:** since Act II and III were tuned for a lone hero, a party now wins essentially every fight, and
+  even a hero who never recruits still wins. This contradicts "a party is expected". **Suggested tuning (not yet
+  applied; to confirm in play-testing):**
+  1. **Raise Act II/III boss strength for parties first.** A trial with bosses at ×1.6 HP and ×1.2 ATK/MAG and
+     area monsters at ×1.3 HP and ×1.15 ATK/MAG gave pairs 6–100% (average 88%) and trios 64–100% (average 98%)
+     against the shrine bosses, and pairs 83–100% against the Matriarch, while a lone hero dropped to 0–100%
+     (average 40%) against the shrine bosses. Area fights stayed at 100% for parties, so area monsters are not where
+     the challenge lives; their buff mainly makes solo play costly.
+  2. **The Sand Wyrm is a composition check.** In that trial, parties with no Warrior, Paladin or Cleric (Rogue +
+     Ranger 6%, Wizard + Rogue 43%, Wizard + Ranger 48%, Wizard + Rogue + Ranger 64%) were the only ones that
+     struggled. Either accept it (the Wyrm rewards a front-liner or healer), or tune the Wyrm's single-target burst
+     rather than its HP so frail parties are not walled.
+  3. **Measure attrition, not single fights, in areas.** Single-fight win rates stay at 100% for any party; the
+     real area challenge is how many fights a party can chain before the inn. A party streak check (like 4.4b's)
+     should set the Act II/III area targets.
+  4. **Keep pre-unlock solo as is.** Every class clears the Goblin King solo at level 6 at 72–98% (Paladin 72%,
+     Cleric 81%, Wizard 91%, Rogue 95%, Ranger 97%, Warrior 98%). Optionally raise the Paladin's damage a little
+     (13.9 rounds against the King, the slowest) instead of weakening the King, so the target band (65–80%) is
+     not pushed below for the slow classes.
 
 ### 4.5 Help for solo play (before the first companion)
 
@@ -198,8 +239,12 @@ floor for **staying power**, where the Cleric sets the floor for damage.
 | Solo hero at level 6 with shop gear against the Goblin King, every class (revision 3: the real path) | ≥ 60%, aim 65–80% |
 | Solo hero at level 7 with tier-2 gear against each side-quest mini-boss fight, every class (revision 3) | ≥ 60% |
 | Level-6 hero + a newly joined companion (join level 3) in Forest/Hills (16.1) | ≥ 90% wins; ally reaches level 4 in ≤ 15 fights on average |
-| Solo Wizard at every checkpoint above plus each Act II/III area and boss (4.4b) | ≥ 70% at the expected level, ≥ 50% one level under, avg rounds ≤ 1.5× the Warrior's |
-| Solo Wizard fights in a row without an inn, on items and field regen (4.4b) | ≥ 10 in Greenwood, ≥ 4 in every later area |
+| Solo Wizard at every pre-unlock checkpoint: Greenwood, Forest, Hills, Goblin Cave, Goblin King, mini-bosses (4.4b, revision 6) | ≥ 70% at the expected level, ≥ 50% one level under, avg rounds ≤ 1.5× the Warrior's |
+| Solo hero of every class, fights in a row without an inn in each pre-unlock area (4.4b, revision 6) | ≥ 10 in Greenwood, ≥ 4 in Forest, Hills and the Goblin Cave |
+| Any pair (hero at the expected level, companion one level behind) in Act II / III areas, up to 3 enemies (4.4c) | ≥ 90% |
+| Any pair against each Act II shrine boss (levels 11 + 10) and the Matriarch (14 + 13) (4.4c) | ≥ 70% |
+| Any three-class party against each Act II / III boss (level 10 / 13) | ≥ 70% |
+| A lone hero after the unlock (4.4c) | No target; reported only (`BALANCE_REPORT=1`) |
 
 If a class misses a target, tune its numbers in `game-quest` data files (growth curve, weapon stats, skill costs)
 instead of changing the engine.
@@ -325,7 +370,8 @@ NPCs with hints and side quests
 - **Unit (Jest, `libs/game/engine`, `libs/game/quest`):** damage formula, turn order, encounter-rate RNG
   (with a seeded RNG), XP curve and level-ups, inventory and equipment, save-schema migration, fog bitsets,
   content validation (every monster, item, boss and quest pin referenced by a map exists and is in bounds).
-- **Balance (Jest, `libs/game/quest`):** a seeded battle simulator runs each class alone and with companions
+- **Balance (Jest, `libs/game/quest`):** a seeded battle simulator runs each class alone (pre-unlock content
+  only) and with companions
   through the encounters in section 4.6, including every side-quest mini-boss, then fails if any target is
   missed. It also checks that every class's level 1 stats add up to 36 points and that every class has a melee
   basic Attack.
@@ -346,7 +392,8 @@ NPCs with hints and side quests
 | Art production time | Start with CC0 placeholders; finalize the palette early |
 | Scope creep | Ship the Act I vertical slice first; keep Acts II+ in the backlog |
 | Balance issues | All stats in data files; equal stat budget; simulator tests that each class meets the targets in 4.6; debug overlay |
-| A class is too weak to play alone | The Cleric is the reference case (4.4); solo help (4.5); simulator fails the build if solo win rates miss targets |
+| A class is too weak to play alone | The Cleric is the reference case (4.4); solo help (4.5); simulator fails the build if pre-unlock solo win rates miss targets. After the unlock a party is expected (4.4c) |
+| A party makes Act II/III trivial | Simulator checks every pair and trio (4.4c); stronger post-unlock bosses are the suggested fix |
 | Input and focus conflicts with the Angular app | Handle keys only while the canvas has focus; pause when the tab is hidden |
 | Performance on low-end devices | Pre-render static map layers to offscreen canvases |
 
@@ -367,8 +414,9 @@ NPCs with hints and side quests
 5. **Fog of war:** the overworld and dungeons start hidden and are revealed around the party; `M` opens a full
    map showing only explored areas (see 14.1). Towns are always fully visible.
 6. **Screen:** 16:9 widescreen (384×216 logical, 768×432 canvas); 960×540 since revision 5 (16.6).
-7. **Class balance:** every class, including the Cleric, must be able to win alone (possibly with more effort),
-   and every class has a real melee Attack (section 4).
+7. **Class balance:** every class, including the Cleric, must be able to win alone (possibly with more effort)
+   until companions unlock; after that a party is expected (revision 6, 4.4c). Every class has a real melee
+   Attack (section 4).
 8. **Battle input:** each round waits for every party member's command, and the result screen waits for OK/Enter
    or Esc (section 5).
 9. **Graphics:** 32-bit-era look (section 13.3).
@@ -1441,8 +1489,10 @@ Daggers, Dune Knife) and armor, shields and accessories up to +6 DEF.
 
 ### 17.5 Balance (checked in `balance.spec.ts`)
 
-- Every class wins at least 90% of solo desert, marsh and shrine fights at level 10 with tier-3 gear.
-- Every class beats each shrine boss solo at least 60% of the time at level 12 with tier-3 gear.
+- Revision 6 (4.4c): Act II expects a party. Every pair (hero at level 10, companion at 9, tier-3 gear) wins at
+  least 90% of desert, marsh and shrine fights with up to 3 enemies. (Was: every class solo at level 10.)
+- Every pair (levels 11 + 10) beats each shrine boss at least 70% of the time. (Was: every class solo at level 12,
+  ≥ 60%.)
 - Every three-class party beats each shrine boss at least 70% of the time at level 10.
 - Desert fights from level 8 to 11 earn enough gold for the most expensive tier-3 weapon.
 
@@ -1566,8 +1616,10 @@ The catalogue test allows up to +12 HP and +9 for any other stat.
 
 ### 19.5 Balance (checked in `balance.spec.ts`)
 
-- Every class wins at least 90% of solo snowfield, pines and roost fights at level 13 with tier-4 gear.
-- Every class beats the Matriarch and her escort solo at least 60% of the time at level 15 with tier-4 gear.
+- Revision 6 (4.4c): Act III expects a party. Every pair (hero at level 13, companion at 12, tier-4 gear) wins at
+  least 90% of snowfield, pines and roost fights with up to 3 enemies. (Was: every class solo at level 13.)
+- Every pair (levels 14 + 13) beats the Matriarch and her escort at least 70% of the time. (Was: every class solo
+  at level 15, ≥ 60%.)
 - Every three-class party beats them at least 70% of the time at level 13.
 - Snowfield fights from level 11 to 14 earn enough gold for the most expensive tier-4 weapon.
 
@@ -1591,3 +1643,14 @@ Every Act III asset is procedural, at the §16.10 density:
 ### 17.8 Next
 
 - The finale: Vyrmorth's lair. Dragonbane (`dragonbaneForged`) is the key to wounding the dragon.
+- Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
+  play-testing confirms parties find Act II/III too easy.
+
+## 20. Revision 6: solo only before the unlock
+
+The game is not meant to be played alone except before companions can join. Solo balance now covers only the
+Prologue and Act I up to each companion's recruit mini-boss (4.1, 4.4b). From Act II on, a party is expected;
+a hero who refuses to recruit may be unable to finish the game. The simulator tests every class pair (hero at the
+expected level, companion one level behind) and every trio for Act II and III instead of a lone hero, and only
+reports how a lone hero would fare (4.4c, 4.6, 17.5, 19.5). The measurements and the suggested tuning are in 4.4c.
+
