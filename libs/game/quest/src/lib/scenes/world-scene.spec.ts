@@ -86,6 +86,14 @@ describe('cameraAxis', () => {
 });
 
 describe('WorldScene', () => {
+  it('plays the town theme in towns, keeping it under dialog boxes (plan 22)', () => {
+    const h = setup({ mapId: 'aldmere', x: 6, y: 3, facing: 'up' });
+    expect(h.ctx.stack.music).toBe('town');
+    h.tap('confirm');
+    expect(h.ctx.stack.top?.id).toBe('message');
+    expect(h.ctx.stack.music).toBe('town');
+  });
+
   it('walks one tile per step and blocks on solid tiles', () => {
     const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
     h.hold('up', STEP_TIME + 0.02);
@@ -256,6 +264,7 @@ describe('WorldScene', () => {
       h.hold(dir, STEP_TIME + 0.02);
       h.run(1);
       expect(h.ctx.stack.top?.id).toBe('battle');
+      expect(h.ctx.stack.music).toBe('battle');
       return (h.ctx.stack.top as unknown as { options: { backdrop: string } }).options.backdrop;
     };
     const { pass } = NORTH_LANDMARKS;
@@ -295,6 +304,7 @@ describe('WorldScene', () => {
     h.run(1);
     expect(top().id).toBe('battle');
     expect(top().options.monsterIds).toEqual(['vyrmorth']);
+    expect(h.ctx.stack.music).toBe('finalBoss');
     top().options.onEnd('victory');
     expect(h.state.flags['vyrmorthDefeated']).toBeUndefined();
     h.run(1);

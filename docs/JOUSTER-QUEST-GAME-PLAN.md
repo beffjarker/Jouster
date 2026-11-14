@@ -6,7 +6,8 @@
 > [Revision 3](#14-revision-3-exploration-pacing-widescreen-and-battle-presentation)). Mouse and touch controls
 > are implemented (see [16.9](#169-mouse-and-touch-controls-implemented)). Acts II, III and the Finale are
 > implemented (see [17](#17-act-ii-the-southlands-implemented), [19](#19-act-iii-the-frost-peaks-implemented) and
-> [21](#21-finale-the-ember-mountains-implemented)).
+> [21](#21-finale-the-ember-mountains-implemented)). Phase 8 polish is in progress; chiptune music loops are
+> implemented (see [22](#22-polish-chiptune-music-implemented)).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -72,7 +73,7 @@ apps/
 | **Inventory/Equipment** | Weapon, armor, shield and accessory slots with an EQUIP menu (15.4); consumables; key items; gold |
 | **Progression** | XP curve, level-ups, per-class stat growth, spells learned by level |
 | **Save/Load** | Save at the inn or chapel; one save slot (more slots deferred); schema version for migrations |
-| **Audio** | SFX (step, hit, spell, level-up) and per-scene music |
+| **Audio** | SFX (step, hit, spell, level-up) and per-scene music loops (§22); `N` mutes both |
 
 ---
 
@@ -321,12 +322,13 @@ weapon that can end the dragon's reign.
 | **Act III** | Frost Peaks | Ice Troll, Wyvern, Yeti, Frost Mage | Third seal; forge Dragonbane; boss: **Wyvern Matriarch** |
 | **Finale** | Ember Mountains (volcano lair) | Fire Drake, Magma Golem, Dragon Cultist | Two-phase final boss: **Vyrmorth** |
 
-### Content scope (target)
+### Content scope (target; built)
 
-- 4 towns (Aldmere and Brookhollow built; Sandhollow and Frostgate planned) plus the ruins of Thornwick
-- 1 overworld map with 5 regions
-- 4 dungeons and 1 final lair
-- About 25 monster types and 5 bosses
+- 5 towns, all built: Aldmere, Brookhollow, Sandhollow, Frostgate and Emberwatch, plus the ruins of Thornwick
+- 4 region maps (Greenwood Vale, the Southlands, the Frost Peaks, the Ember Mountains) covering the 5 story regions
+- 5 dungeons (Goblin Cave, Wolf Den, Sun Shrine, Mire Shrine, Wyvern Roost) and 1 final lair (Vyrmorth's Lair)
+- About 25 monster types and 5 bosses (built: 26 monster entries, including 4 mini-bosses, 4 act bosses and the
+  two forms of Vyrmorth)
 - About 40 items or equipment pieces and about 15 spells
 
 ### Town services
@@ -362,7 +364,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, battle animations) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9)) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -461,7 +463,7 @@ NPCs with hints and side quests
 - Field menu opens with X/Esc (not Space); Space is an extra confirm key. `M` opens the world map, `N` toggles sound.
 - Keyboard input is only read while the game canvas has focus.
 - Full parties may beat the trio balance targets slightly; solo and duo targets are enforced by the simulator.
-- Armor/shield/accessory slots (built in 15.4); status-curing at the chapel, and music loops are deferred.
+- Armor/shield/accessory slots (built in 15.4); status-curing at the chapel is deferred. Music loops are built in §22.
 
 ---
 
@@ -1646,6 +1648,10 @@ Every Act III asset is procedural, at the §16.10 density:
 ### 17.8 Next
 
 - ~~The finale: Vyrmorth's lair.~~ Done in §21.
+- ~~Music loops.~~ Done in §22.
+- Status curing at the chapel (§12 deferred list).
+- A Cypress smoke test for `/jouster-quest` (§9: load, pick a class, move, save).
+- LPC wolf and toad art with attack animations (16.4 item 4c).
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
   play-testing confirms parties find Act II/III too easy.
 
@@ -1740,3 +1746,47 @@ Every finale asset is procedural, at the §16.10 density:
   plus the town, road and lair entrance tiles. Obsidian walls cast shadows.
 - Monsters: new painters for the magma golem, dragon cultist, dragon (Vyrmorth) and the burning "unbound"
   dragon. The fire drake reuses the wyvern shape with its own palette.
+## 22. Polish: chiptune music (implemented)
+
+Every scene now has a looping chiptune theme, played by the engine's WebAudio sequencer. The melodies are original
+compositions for this game (no borrowed tunes), so no extra licence or credit is needed.
+
+### 22.1 Engine
+
+- `MusicTrack` (`libs/game/engine/src/lib/runtime/music.ts`): a tempo plus voices. Each voice has a wave
+  (`square`, `triangle`, `sawtooth` or `noise`), a volume and a note string with one token per eighth note:
+  a note such as `C4`, `F#3` or `Bb2`, `.` to hold, `-` to rest, `x` for a noise hit and `|` between bars.
+- `AudioManager.playMusic(track | null)` loops a track. It schedules notes 0.25 s ahead on a 50 ms timer and
+  crossfades over 0.4 s when the track changes. Asking for the track that is already playing does nothing, so the
+  game calls it every frame. After a stall (e.g. a background tab) it skips ahead instead of bursting old notes.
+- `N` mutes the music as well as the SFX; unmuting resumes the current scene's track.
+- `Scene.music` is optional. `SceneStack.music` takes it from the topmost scene that defines it, so menus,
+  dialogs and the world map keep the music underneath. An empty string means silence.
+
+### 22.2 Themes
+
+| Track | Where |
+|---|---|
+| `title` | Title, class select and name entry |
+| `town` | Every map without encounters (the five towns) |
+| `overworld` | Greenwood Vale |
+| `southlands` | The Southlands |
+| `frostpeaks` | The Frost Peaks |
+| `embermountains` | The Ember Mountains |
+| `dungeon` | Every cave-backdrop map (dungeons and Vyrmorth's Lair) |
+| `battle` | Random encounters |
+| `boss` | Mini-boss and act-boss fights |
+| `finalBoss` | Both Vyrmorth fights |
+
+When a battle ends, the music stops so the victory or defeat jingle plays alone, then the map theme fades back in.
+
+### 22.3 Tests
+
+- Engine (`music.spec.ts`, `engine.spec.ts`): note frequencies (A4 = 440 Hz), voice parsing, lookahead
+  scheduling and looping against a fake AudioContext, no restart for the same track, crossfade, catching up after
+  a stall, mute and unmute, no WebAudio, and `SceneStack.music`.
+- Quest (`data/music.spec.ts`, `world-scene.spec.ts`): every track parses into whole bars at a sane tempo and
+  volume, every map gets a theme, towns keep their theme under dialogs, and encounters and Vyrmorth pick the battle
+  and final boss themes.
+- Manual: listen in the browser. Each area should have its own loop, battles should switch smoothly and `N`
+  should silence everything.

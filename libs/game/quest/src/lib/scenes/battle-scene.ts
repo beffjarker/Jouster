@@ -20,7 +20,7 @@ import { SHADOW_W, fitScale, monsterVariant, spriteSize } from '../art/art';
 import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
-import { BOSS_HP_SCALE, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
+import { BOSS_HP_SCALE, FINALE_BOSS_IDS, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
 import { GameState, addItem } from '../state/game-state';
 import { PartyMember, grantXp, memberStats, memberToCombatant, monstersToCombatants, syncFromCombatants } from '../state/party';
 import { COLORS, ListMenu, MenuItem, SCREEN_H, SCREEN_W, charsFit, drawCursor, drawHint, inRect } from '../ui/widgets';
@@ -204,6 +204,17 @@ export class BattleScene implements Scene {
   private shots: Shot[] = [];
   private floaters: Floater[] = [];
   private sparks: Spark[] = [];
+
+  /** Battle theme (boss and finale themes for those fights); silent once the outcome jingle plays. */
+  public get music(): string {
+    if (this.phase === 'end') {
+      return '';
+    }
+    if (this.options.monsterIds.some((id) => FINALE_BOSS_IDS.includes(id))) {
+      return 'finalBoss';
+    }
+    return this.options.boss ? 'boss' : 'battle';
+  }
 
   constructor(
     private readonly ctx: GameContext,
