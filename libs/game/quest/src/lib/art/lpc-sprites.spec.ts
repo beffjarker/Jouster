@@ -16,6 +16,9 @@ import {
 } from './art';
 import { LpcSheetId } from './lpc-manifest';
 import {
+  LPC_ACTIONS,
+  LPC_ACTION_CELL,
+  LPC_ACTION_ORIGIN,
   LPC_CHARACTER_CELL,
   LPC_CHARACTER_FACINGS,
   LPC_CHARACTER_ROWS,
@@ -41,6 +44,7 @@ function fakeSheets(): Map<LpcSheetId, CanvasImageSource> {
     ['outside', img],
     ['characters', img],
     ['monsters', img],
+    ['actions', img],
   ]);
 }
 
@@ -77,11 +81,35 @@ describe('LPC sprite layout', () => {
     expect((Math.max(...rows) + 1) * LPC_CHARACTER_CELL.height).toBeLessThanOrEqual(chars.height);
   });
 
+  it('gives every class an attack pose and the spell casters a cast pose, inside actions.png', () => {
+    const casters = ['wizard', 'paladin', 'cleric'];
+    ['warrior', 'wizard', 'paladin', 'cleric', 'rogue', 'ranger'].forEach((id) => {
+      expect(LPC_ACTIONS.has(`${id}:attack`)).toBe(true);
+      expect(LPC_ACTIONS.has(`${id}:cast`)).toBe(casters.includes(id));
+    });
+    const sheet = pngSize('actions.png');
+    const rows = new Set<number>();
+    LPC_ACTIONS.forEach(({ row, frames }) => {
+      rows.add(row);
+      expect(frames).toBeGreaterThan(1);
+      expect(frames * LPC_ACTION_CELL.width).toBeLessThanOrEqual(sheet.width);
+      expect((row + 1) * LPC_ACTION_CELL.height).toBeLessThanOrEqual(sheet.height);
+    });
+    expect(rows.size).toBe(LPC_ACTIONS.size);
+  });
+
+  it('keeps pose offsets on whole logical pixels', () => {
+    [LPC_ACTION_CELL.width, LPC_ACTION_CELL.height, LPC_ACTION_ORIGIN.x, LPC_ACTION_ORIGIN.y].forEach((n) =>
+      expect(Math.abs(n % 2)).toBe(0),
+    );
+  });
+
   it('credits the generated sheets', () => {
     const credits = readFileSync(resolve(assetDir, 'CREDITS.md'), 'utf8');
     expect(credits).toContain('lpc-sprites:start');
     expect(credits).toContain('characters.png');
     expect(credits).toContain('monsters.png');
+    expect(credits).toContain('actions.png');
   });
 });
 
@@ -198,5 +226,36 @@ describe('Art sprites', () => {
       step,
       stand,
     ]);
+  });
+
+  it('plays battle poses frame by frame from actions.png, offset so the body lines up', () => {
+    const art = new Art(fakeSheets());
+    const crop = jest.spyOn(art as unknown as { sheetSprite(...a: unknown[]): HTMLCanvasElement }, 'sheetSprite');
+    const slash = LPC_ACTIONS.get('warrior:attack');
+    const pose = art.characterAction('warrior', 'attack', 0.55);
+    expect(pose).toBeDefined();
+    expect(crop).toHaveBeenLastCalledWith(
+      'actions',
+      Math.floor(0.55 * (slash?.frames ?? 0)) * LPC_ACTION_CELL.width,
+      (slash?.row ?? 0) * LPC_ACTION_CELL.height,
+      LPC_ACTION_CELL.width,
+      LPC_ACTION_CELL.height,
+    );
+    expect(spriteSize(pose?.sprite as HTMLCanvasElement)).toEqual({
+      width: LPC_ACTION_CELL.width / 2,
+      height: LPC_ACTION_CELL.height / 2,
+    });
+    expect(pose?.offsetX).toBe(-LPC_ACTION_ORIGIN.x / 2);
+    expect(pose?.offsetY).toBe(-LPC_ACTION_ORIGIN.y / 2);
+    expect(art.characterAction('warrior', 'attack', 0)?.sprite).not.toBe(pose?.sprite);
+    expect(art.characterAction('warrior', 'attack', 1)?.sprite).toBe(art.characterAction('warrior', 'attack', 0.99)?.sprite);
+  });
+
+  it('has no battle pose without sheets, for non-casters casting, or for NPC looks', () => {
+    expect(new Art().characterAction('warrior', 'attack', 0)).toBeUndefined();
+    const art = new Art(fakeSheets());
+    expect(art.characterAction('warrior', 'cast', 0)).toBeUndefined();
+    expect(art.characterAction('king', 'attack', 0)).toBeUndefined();
+    expect(art.characterAction('wizard', 'cast', 0.5)).toBeDefined();
   });
 });

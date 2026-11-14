@@ -33,7 +33,7 @@ function setup(place: Partial<GameState>, alwaysEncounter = false): Harness {
   const ctx: GameContext = {
     stack: new SceneStack(),
     audio: { play: jest.fn(), toggleMute: jest.fn(), muted: false, dispose: jest.fn() } as never,
-    art: {} as Art,
+    art: { characterAction: () => undefined } as Partial<Art> as Art,
     rng,
     storage: memoryStorage(),
     state,
