@@ -79,11 +79,12 @@ apps/
 
 ### 4.1 Design principles
 
-1. **Every class can win alone — until companions unlock.** Any class, including the Cleric or Wizard, must be able
-   to clear the Prologue and Act I (the Goblin King and each companion's recruit mini-boss) before recruiting a
-   companion. Some classes may find it harder, but none should be stuck. **The game is not meant to be played
-   alone after that (revision 6, 4.4c):** once companions can join, the player is expected to recruit them, and a
-   hero who refuses may well be unable to finish the game. Balance from Act II on is tuned and tested for parties.
+1. **Any class can be the starting hero and still win the game.** The hero travels alone only until companions
+   unlock, so any class, including the Cleric or Wizard, must be able to clear the Prologue and Act I (the Goblin
+   King and each companion's recruit mini-boss) alone. Some classes may find it harder, but none should be stuck.
+   **After that, the player is expected to form a party (revision 6, 4.4c):** once companions can join, the game
+   assumes the player recruits them; a hero who stays alone may well be unable to finish. Balance from Act II on is
+   tuned and tested for parties, and "winning" with a class means winning with that class as the hero of a party.
 2. **Every class has a real melee attack.** The basic **Attack** command always uses a melee weapon, never just a
    token hit for 1 damage.
 3. **Different, not stronger.** Classes differ in *how* they win (burst damage, staying power, speed), not in
@@ -93,7 +94,7 @@ apps/
 
 ### 4.2 Class overview
 
-| Class | Role | Melee weapon (basic Attack) | Signature abilities | How it wins alone |
+| Class | Role | Melee weapon (basic Attack) | Signature abilities | How it wins as the starting hero (alone, before the unlock) |
 | --- | --- | --- | --- | --- |
 | **Warrior** | Tank / damage | Sword or axe | *Power Strike* (×1.5 dmg, 25% miss), *Taunt* | High damage and defense |
 | **Wizard** | Attack magic | Staff (+2 MAG when equipped) | Fire, Ice, Bolt, later Meteor; *Arcane Strike* (staff hit + MAG/2) | Hits weaknesses; spells kill groups fast |
@@ -128,9 +129,10 @@ The budget is **36 points**, counted as `HP/4 + MP/4 + ATK + DEF + AGI + MAG`.
 - **Starting weapons (ATK bonus):** Sword +6, Mace +4, Sword and shield +4 (shield +2 DEF), Daggers +3,
   Hunting knife +4, Staff +3.
 
-### 4.4 The Cleric playing alone (reference case)
+### 4.4 The Cleric as the starting hero (reference case)
 
-The Cleric is the hardest class to start with, so it sets the minimum viable power for solo play.
+The Cleric is the hardest class to start with, so it sets the minimum viable power for the solo stretch before
+companions unlock.
 
 - **Mace:** basic Attack with ATK 8 + mace 4. Kills a Slime (10 HP) in 1–2 hits and a Goblin (21 HP, DEF 6) in 3 hits.
   Deals ×1.5 damage against undead, which makes the Wraith-heavy Mirewood Marsh a strong area for the Cleric.
@@ -144,7 +146,7 @@ The Cleric is the hardest class to start with, so it sets the minimum viable pow
 - **Expected difference:** fights last about 1.5–2× longer than for a Warrior. The Cleric uses more MP but fewer
   potions.
 
-### 4.4b The Wizard playing alone (second reference case)
+### 4.4b The Wizard as the starting hero (second reference case)
 
 The Wizard is the frailest class: lowest HP and DEF, no healing, and no MP regeneration on the road. It sets the
 floor for **staying power**, where the Cleric sets the floor for damage.
@@ -392,7 +394,7 @@ NPCs with hints and side quests
 | Art production time | Start with CC0 placeholders; finalize the palette early |
 | Scope creep | Ship the Act I vertical slice first; keep Acts II+ in the backlog |
 | Balance issues | All stats in data files; equal stat budget; simulator tests that each class meets the targets in 4.6; debug overlay |
-| A class is too weak to play alone | The Cleric is the reference case (4.4); solo help (4.5); simulator fails the build if pre-unlock solo win rates miss targets. After the unlock a party is expected (4.4c) |
+| A class is too weak to start the game with | The Cleric is the reference case (4.4); solo help (4.5); simulator fails the build if pre-unlock solo win rates miss targets. After the unlock a party is expected (4.4c) |
 | A party makes Act II/III trivial | Simulator checks every pair and trio (4.4c); stronger post-unlock bosses are the suggested fix |
 | Input and focus conflicts with the Angular app | Handle keys only while the canvas has focus; pause when the tab is hidden |
 | Performance on low-end devices | Pre-render static map layers to offscreen canvases |
@@ -414,9 +416,9 @@ NPCs with hints and side quests
 5. **Fog of war:** the overworld and dungeons start hidden and are revealed around the party; `M` opens a full
    map showing only explored areas (see 14.1). Towns are always fully visible.
 6. **Screen:** 16:9 widescreen (384×216 logical, 768×432 canvas); 960×540 since revision 5 (16.6).
-7. **Class balance:** every class, including the Cleric, must be able to win alone (possibly with more effort)
-   until companions unlock; after that a party is expected (revision 6, 4.4c). Every class has a real melee
-   Attack (section 4).
+7. **Class balance:** the player can start with any class, including the Cleric, and still win (possibly with
+   more effort). The hero fights alone only until companions unlock; after that the player is expected to form a
+   party (revision 6, 4.4c). Every class has a real melee Attack (section 4).
 8. **Battle input:** each round waits for every party member's command, and the result screen waits for OK/Enter
    or Esc (section 5).
 9. **Graphics:** 32-bit-era look (section 13.3).
