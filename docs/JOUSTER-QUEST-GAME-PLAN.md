@@ -1420,6 +1420,41 @@ Every Act II tile, monster and backdrop is procedural, at the §16.10 density: s
 cactus (3), mesa (3), marsh (3), boardwalk, mire tree (3), animated bog (3), shrine entrances (sandstone and mossy),
 mossy boulders (3), the pass, and sun and mire shrine walls and floors. Shrine walls cast shadows.
 
+## 18. Furnished interiors (implemented)
+
+### 18.1 Decor tiles
+
+Furniture is a composite tile id `object@floor` (for example `barrel@wood` or `banner@wall`). The object is
+painted over the floor tile's ground, so one painter works on any floor. Some decor is walkable (thrones,
+stools, rugs, straw); the rest is solid. Wall shadows use the floor part of the id.
+
+Decor painters include banners, candelabras, plants, bookshelves, potion shelves, an altar, pews, barrels,
+kegs, crates, sacks, tables, stools, beds, weapon racks, armor stands, an anvil, a hearth, rugs and chests.
+Cave decor: jail bars, straw, bones, a gold pile, a campfire and a crude log throne.
+
+Thrones are tall. The seat sits in its tile and the back is drawn over the tile above (`decorTopOf` /
+`Art.decorTop`), so it rises behind the seated king's head.
+
+### 18.2 Counters
+
+Shopkeepers, the innkeeper, the barkeep and the priest stand behind a counter or altar. The hero talks
+across any `counter`, `altar` or `jailBars` tile (`talkAcross`).
+
+### 18.3 Aldmere (34x30)
+
+- North: the castle, where the king sits on his throne between guards, a garden and the chapel.
+- Middle: the item shop, smithy and armorer, each with a counter and sign.
+- South: the tavern, where the barkeep works behind the bar, and the inn, which has beds.
+- The town exit is at the bottom middle. A new game starts in the throne room.
+
+### 18.4 Goblin Cave (30x22) and the cell key
+
+- The tunnel from the entrance forks north to the Jailer's den and east to the throne room.
+- The Goblin King sits on a crude throne. The prisoner is visible in a cell behind him, behind jail bars.
+- The Goblin Jailer guards the key in his den from the start. The key can be won before or after the king.
+- The prisoner joins only after the king falls. If the key was won early, the quest is already done when
+  the hero reaches the cell.
+
 ### 17.8 Next
 
 - Act III: Frost Peaks (§6), the third seal and Dragonbane.

@@ -13,13 +13,13 @@ import { Backdrop } from '../data/maps';
 import { paintBackdrop, paintShadow, paintTitleBackdrop } from './hd-backdrops';
 import { HumanoidLook, LOOKS, paintHumanoid, paintMonster, paintSign } from './hd-characters';
 import { ART_SCALE, Paint, box } from './hd-paint';
-import { paintTile, paintWallShadow } from './hd-tiles';
+import { ANIMATED_DECOR, decorParts, paintDecorTop, paintTile, paintWallShadow } from './hd-tiles';
 
 /** Logical width of {@link Art.shadow}. */
 export const SHADOW_W = 32;
 
-export { SHADOW_CASTERS } from './hd-tiles';
-import { LPC_CELL, LPC_TILES, LpcSheetId, lpcGroundCell } from './lpc-manifest';
+export { SHADOW_CASTERS, castsShadow, decorTopOf } from './hd-tiles';
+import { LPC_CELL, LpcSheetId, lpcGroundCell, lpcTileFor } from './lpc-manifest';
 import {
   LPC_CHARACTER_CELL,
   LPC_CHARACTER_FACINGS,
@@ -292,13 +292,13 @@ export class Art {
    * `ground` (see `groundVariant`) picks among look-alike sheet ground cells.
    */
   public tile(id: string, frame = 0, variant = 0, ground = 0): HTMLCanvasElement {
-    const animated = ANIMATED_TILES.has(id);
+    const animated = ANIMATED_TILES.has(id) || ANIMATED_DECOR.has(decorParts(id)?.decor ?? '');
     const f = animated ? frame % 2 : 0;
     const v = variant % (TILE_VARIANT_COUNTS.get(id) ?? 1);
-    const lpc = this.sheets ? LPC_TILES.get(id) : undefined;
+    const lpc = this.sheets ? lpcTileFor(id) : undefined;
     if (lpc && this.sheets) {
       const sheets = this.sheets;
-      const cell = lpcGroundCell(lpc, ground, f);
+      const cell = lpcGroundCell(lpc, ground, decorParts(id) ? 0 : f);
       return this.cached(`lpc:${id}:${f}:${v}:${cell.sheet}:${cell.col}:${cell.row}`, () =>
         this.sheetTile(sheets, id, cell.sheet, cell.col, cell.row, f, v),
       );
@@ -389,6 +389,11 @@ export class Art {
   /** Soft shadow drawn over a tile that sits directly below a wall or rock (see SHADOW_CASTERS). */
   public wallShadow(): HTMLCanvasElement {
     return this.cached('wallShadow', () => paintWallShadow().toCanvas());
+  }
+
+  /** Upper part of tall decor `decor` (e.g. a throne's back), drawn over the tile above the decor tile. */
+  public decorTop(decor: string): HTMLCanvasElement {
+    return this.cached(`decorTop:${decor}`, () => paintDecorTop(decor).toCanvas());
   }
 
   /** Painted battle backdrop `kind` of `width` x `height` logical pixels with the horizon at `horizon`. */

@@ -2,7 +2,7 @@ import { createRng } from '@jouster/game/engine';
 import { COMPANION_SLOTS, companionSlot } from '../data/companions';
 import { mapDef } from '../data/maps';
 import { LANDMARKS } from '../data/overworld-gen';
-import { GameState, answerCompanionQuest, markQuestReady, newGameState } from '../state/game-state';
+import { GameState, answerCompanionQuest, markQuestReady, newGameState, questStage } from '../state/game-state';
 import { questLog, questPins } from './map-scene';
 
 function afterKing(): GameState {
@@ -23,7 +23,6 @@ describe('companion side quests (plan 15.6)', () => {
   it.each([
     ['tavern', 'wolfDen', 'alphaWolf'],
     ['brookhollow', 'overworld', 'giantToad'],
-    ['cave', 'goblinCave', 'goblinChief'],
   ])('the %s mini-boss only appears while its quest is active', (questId, mapId, npcId) => {
     const s = afterKing();
     expect(bossVisible(s, mapId, npcId)).toBe(false);
@@ -34,6 +33,25 @@ describe('companion side quests (plan 15.6)', () => {
     s.flags[companionSlot(questId).quest.doneFlag] = true;
     markQuestReady(s, companionSlot(questId).quest.doneFlag);
     expect(bossVisible(s, mapId, npcId)).toBe(false);
+  });
+
+  it('the Goblin Jailer guards the cell key from the start, so it can be won before the quest', () => {
+    const s = newGameState('A', 'paladin', createRng(1));
+    expect(bossVisible(s, 'goblinCave', 'goblinChief')).toBe(true);
+    s.flags['goblinChiefDefeated'] = true;
+    expect(bossVisible(s, 'goblinCave', 'goblinChief')).toBe(false);
+    s.flags['bossDefeated'] = true;
+    // The key is already won: the prisoner skips straight to thanking you.
+    expect(questStage(s, 'cave')).toBe('ready');
+  });
+
+  it('keeps the cave prisoner inside the cell behind the Goblin King, across the bars', () => {
+    const cave = mapDef('goblinCave');
+    const slot = companionSlot('cave');
+    const king = cave.npcs.find((n) => n.id === 'goblinKing');
+    expect(cave.rows[slot.y + 1][slot.x]).toBe('=');
+    expect(king && king.y > slot.y).toBe(true);
+    expect(king && cave.rows[king.y][king.x]).toBe('Y');
   });
 
   it('has dormant flavour events where the wolf and toad wait', () => {

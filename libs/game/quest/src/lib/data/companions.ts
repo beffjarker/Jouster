@@ -58,8 +58,8 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
   {
     id: 'tavern',
     mapId: 'aldmere',
-    x: 15,
-    y: 12,
+    x: 12,
+    y: 24,
     home: 'the Aldmere tavern',
     intro: ['{name}: Coin is scarce and the goblins are many. I could use honest work.'],
     quest: {
@@ -127,26 +127,25 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
   {
     id: 'cave',
     mapId: 'goblinCave',
-    x: 25,
+    x: 19,
     y: 2,
     home: 'the cell in the Goblin Cave',
-    requiresFlag: 'bossDefeated',
     intro: [
       '{name}: Over here, behind the bars! The goblins caught me poking around the dragon seal.',
       'The seal IS weakening. Get me out and I will fight beside you.',
     ],
     quest: {
       title: 'The Cell Key',
-      objective: 'Take the cell key from the Goblin Jailer in the east chamber of the cave.',
+      objective: "Take the cell key from the Goblin Jailer in his den off the cave's north tunnel.",
       doneFlag: 'goblinChiefDefeated',
-      pin: { mapId: 'goblinCave', x: 23, y: 8 },
+      pin: { mapId: 'goblinCave', x: 5, y: 3 },
       offer: [
         "{name}: You beat the king! But I'm still locked in. The Goblin Jailer has the key.",
-        'He hides in the eastern chamber of this cave. Get the key and let me out!',
+        'He keeps a den off the north tunnel, near the cave mouth. Get the key and let me out!',
       ],
-      reminder: ['{name}: The Jailer is in the eastern chamber. Please hurry!'],
+      reminder: ['{name}: The Jailer dens off the north tunnel, near the entrance. Please hurry!'],
       thanks: ['{name}: The key! Free at last. The goblins hoarded some gold - take it.'],
-      already: ['{name}: You already have the key? Bless you!'],
+      already: ['{name}: Is that the Jailer\'s key? You took it already - bless you!'],
       reward: { gold: 80, items: { herb: 2 } },
     },
   },

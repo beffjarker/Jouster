@@ -171,8 +171,9 @@ describe('recruiting', () => {
     const s = withRoster('paladin');
     COMPANION_SLOTS.forEach((slot) => (s.quests[slot.id] = 'done'));
     expect(companionPresent(s, 'tavern')).toBe(true);
-    expect(companionPresent(s, 'cave')).toBe(false);
+    expect(companionPresent(s, 'cave')).toBe(true);
     expect(recruitCompanion(s, 'tavern')).toBe(false);
+    expect(recruitCompanion(s, 'cave')).toBe(false);
     expect(questStage(s, 'thornwick')).toBe('done');
     delete s.quests['thornwick'];
     expect(questStage(s, 'thornwick')).toBe('locked');
@@ -232,9 +233,10 @@ describe('recruiting', () => {
   it('includes a starter kit of at least 2 Herbs in every side-quest reward', () => {
     COMPANION_SLOTS.forEach((slot) => expect(slot.quest.reward.items?.['herb'] ?? 0).toBeGreaterThanOrEqual(2));
   });
-  it('shows the cave companion only after the Goblin King is defeated', () => {
+  it('keeps the cave companion in the cell until the Goblin King is defeated', () => {
     const s = withRoster('paladin');
-    expect(companionPresent(s, 'cave')).toBe(false);
+    expect(companionPresent(s, 'cave')).toBe(true);
+    expect(recruitCompanion(s, 'cave')).toBe(false);
     unlocked(s);
     expect(recruitCompanion(s, 'cave')).toBe(true);
     expect(s.party[1]).toMatchObject({ id: 'cave', name: 'Ilya', classId: 'wizard' });

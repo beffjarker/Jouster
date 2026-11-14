@@ -272,7 +272,7 @@ export class MapScene implements Scene {
     for (let y = 0; y < h; y++) {
       for (let x = 0; x < w; x++) {
         const id = ids.get(this.map.rows[y][x]) ?? '';
-        g.fillStyle = tileKnown(this.state, this.map, x, y) ? TILE_COLORS[id] ?? '#808080' : FOG_COLOR;
+        g.fillStyle = tileKnown(this.state, this.map, x, y) ? (TILE_COLORS[id] ?? TILE_COLORS[id.slice(id.indexOf('@') + 1)]) ?? '#808080' : FOG_COLOR;
         g.fillRect(x, y, 1, 1);
       }
     }

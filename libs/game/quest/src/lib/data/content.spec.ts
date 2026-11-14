@@ -2,7 +2,7 @@ import { FACING_DELTA, TileMap } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { CLASSES } from '../data/classes';
 import { ITEMS, WEAPONS, WEAPON_SHOP_STOCK } from '../data/equipment';
-import { INN_RESPAWN, MAPS, MapDef, SIGN_TEXT, SignKind } from '../data/maps';
+import { INN_RESPAWN, MAPS, MapDef, SIGN_TEXT, SignKind, talkAcross } from '../data/maps';
 import { COMPANION_SLOTS } from '../data/companions';
 import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
 import { OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
@@ -68,7 +68,7 @@ describe('Jouster Quest content', () => {
         const talkable = Object.values(FACING_DELTA).some((d) => {
           const adj = `${npc.x + d.x},${npc.y + d.y}`;
           const across = `${npc.x + d.x * 2},${npc.y + d.y * 2}`;
-          const counter = map.tileAt(npc.x + d.x, npc.y + d.y)?.id === 'counter';
+          const counter = talkAcross(map.tileAt(npc.x + d.x, npc.y + d.y)?.id);
           return reach.has(adj) || (counter && reach.has(across));
         });
         expect({ npc: npc.id, talkable }).toEqual({ npc: npc.id, talkable: true });
