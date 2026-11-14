@@ -263,6 +263,89 @@ describe('WorldScene', () => {
     expect(backdropAfterStep({ mapId: 'wyvernRoost', x: 10, y: 13, facing: 'up' }, 'up')).toBe('cave');
   });
 
+  it('bars the ember pass until Dragonbane is forged (plan 21)', () => {
+    const { emberPass } = NORTH_LANDMARKS;
+    const at = { mapId: 'frostpeaks', x: emberPass.x, y: emberPass.y + 1, facing: 'up' as const };
+    const locked = setup(at);
+    locked.hold('up', STEP_TIME + 0.02);
+    locked.run(1);
+    expect(locked.state.mapId).toBe('frostpeaks');
+    expect(locked.ctx.stack.top?.id).toBe('message');
+
+    const open = setup(at);
+    open.state.flags['dragonbaneForged'] = true;
+    open.hold('up', STEP_TIME + 0.02);
+    open.run(1);
+    expect(open.state.mapId).toBe('embermountains');
+  });
+
+  it('fights Vyrmorth in two phases back to back, and only marks him slain after the second (plan 21)', () => {
+    const lair = mapDef('vyrmorthLair');
+    const npc = lair.npcs.find((n) => n.role === 'boss');
+    if (!npc?.boss) {
+      throw new Error('no lair boss');
+    }
+    const h = setup({ mapId: 'vyrmorthLair', x: npc.x, y: npc.y + 1, facing: 'up' });
+    interface BattleTop { id: string; options: { monsterIds: string[]; onEnd(outcome: string): void } }
+    const top = (): BattleTop => h.ctx.stack.top as unknown as BattleTop;
+    h.tap('confirm');
+    for (let i = 0; i < 10 && h.ctx.stack.top?.id === 'message'; i++) {
+      h.tap('confirm');
+    }
+    h.run(1);
+    expect(top().id).toBe('battle');
+    expect(top().options.monsterIds).toEqual(['vyrmorth']);
+    top().options.onEnd('victory');
+    expect(h.state.flags['vyrmorthDefeated']).toBeUndefined();
+    h.run(1);
+    expect(h.ctx.stack.top?.id).toBe('message');
+    for (let i = 0; i < 10 && h.ctx.stack.top?.id === 'message'; i++) {
+      h.tap('confirm');
+    }
+    h.run(1);
+    expect(top().id).toBe('battle');
+    expect(top().options.monsterIds).toEqual(['vyrmorthUnbound']);
+    top().options.onEnd('victory');
+    expect(h.state.flags['vyrmorthDefeated']).toBe(true);
+  });
+
+  it('ends the game once Vyrmorth is slain (plan 21)', () => {
+    const h = setup({ mapId: 'aldmere', x: 6, y: 3, facing: 'up' });
+    Object.assign(h.state.flags, {
+      metKing: true,
+      bossDefeated: true,
+      actOneComplete: true,
+      sandWyrmDefeated: true,
+      marshWitchDefeated: true,
+      actTwoComplete: true,
+      wyvernMatriarchDefeated: true,
+      actThreeComplete: true,
+      dragonbaneForged: true,
+      vyrmorthDefeated: true,
+    });
+    const gold = h.state.gold;
+    h.tap('confirm');
+    const pages = (h.ctx.stack.top as unknown as { pages: string[][] }).pages.flat().join(' ');
+    expect(pages).toContain('THE END');
+    expect(h.state.flags['gameComplete']).toBe(true);
+    expect(h.state.gold).toBe(gold + 2000);
+    h.confirmUntilWorld();
+    h.tap('confirm');
+    h.confirmUntilWorld();
+    expect(h.state.gold).toBe(gold + 2000);
+  });
+
+  it('fights amid lava and ash in the Ember Mountains (plan 21)', () => {
+    const rows = mapDef('embermountains').rows;
+    const y = rows.findIndex((r, i) => i > 2 && r.indexOf('...') > 0);
+    const x = rows[y].indexOf('...');
+    const h = setup({ mapId: 'embermountains', x, y, facing: 'right', stepsSinceBattle: 50 }, true);
+    h.hold('right', STEP_TIME + 0.02);
+    h.run(1);
+    expect(h.ctx.stack.top?.id).toBe('battle');
+    expect((h.ctx.stack.top as unknown as { options: { backdrop: string } }).options.backdrop).toBe('volcano');
+  });
+
   it('fights on desert sand outdoors but in the cave inside the shrines (plan 17)', () => {
     const backdropAfterStep = (place: Partial<GameState>, dir: InputAction): string | undefined => {
       const h = setup({ ...place, stepsSinceBattle: 50 }, true);

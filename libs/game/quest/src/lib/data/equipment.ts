@@ -175,6 +175,50 @@ const WEAPON_LIST: WeaponDef[] = [
     description: 'Slim and cold. Strikes twice.',
   },
   { id: 'wolfsbaneKnife', name: 'Wolfsbane Knife', family: 'knife', tier: 4, atk: 16, price: 460, description: 'A trapper\'s heavy blade.' },
+  // --- Tier 5: quenched in Emberwatch (finale) -------------------------------------------------
+  { id: 'dragonfangSword', name: 'Dragonfang', family: 'sword', tier: 5, atk: 25, price: 820, description: 'Ground from a drake\'s fang.' },
+  {
+    id: 'emberguardBlade',
+    name: 'Emberguard Blade',
+    family: 'swordShield',
+    tier: 5,
+    atk: 19,
+    def: 10,
+    price: 860,
+    description: 'Black steel and a fireproof shield.',
+  },
+  {
+    id: 'cinderStaff',
+    name: 'Cinder Staff',
+    family: 'staff',
+    tier: 5,
+    atk: 14,
+    mag: 17,
+    price: 780,
+    description: 'An ember that never dies, set in obsidian.',
+  },
+  {
+    id: 'obsidianMace',
+    name: 'Obsidian Mace',
+    family: 'mace',
+    tier: 5,
+    atk: 20,
+    undeadMultiplier: 1.5,
+    price: 780,
+    description: 'Volcanic glass on an iron haft. 1.5x vs undead.',
+  },
+  {
+    id: 'emberDaggers',
+    name: 'Ember Daggers',
+    family: 'daggers',
+    tier: 5,
+    atk: 15,
+    hits: 2,
+    hitMultiplier: 0.6,
+    price: 820,
+    description: 'Still warm from the forge. Strikes twice.',
+  },
+  { id: 'drakeKnife', name: 'Drake Knife', family: 'knife', tier: 5, atk: 20, price: 780, description: 'Hilted in drake bone.' },
 ];
 
 export const WEAPONS: ReadonlyMap<string, WeaponDef> = new Map(WEAPON_LIST.map((w) => [w.id, w]));
@@ -230,5 +274,7 @@ export const WEAPON_SHOP_STOCK: readonly string[] = WEAPON_LIST.filter((w) => w.
 export const SOUTH_WEAPON_STOCK: readonly string[] = WEAPON_LIST.filter((w) => w.tier === 3).map((w) => w.id);
 /** Tier-4 weapons sold by Frostgate's smith (Act III). */
 export const NORTH_WEAPON_STOCK: readonly string[] = WEAPON_LIST.filter((w) => w.tier === 4).map((w) => w.id);
+/** Tier-5 weapons sold by Emberwatch's smith (finale). */
+export const EMBER_WEAPON_STOCK: readonly string[] = WEAPON_LIST.filter((w) => w.tier === 5).map((w) => w.id);
 /** Item ids sold in Aldmere's item shop. */
 export const ITEM_SHOP_STOCK: readonly string[] = ['herb', 'tonic', 'phoenixFeather'];

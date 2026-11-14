@@ -95,6 +95,11 @@ const MONSTER_PALETTES: ReadonlyMap<string, Palette> = new Map([
   ['yeti', palette([['g', '#e8eef4'], ['d', '#9aaac0'], ['l', '#ffffff'], ['b', '#5a6a8a'], ['r', '#3060ff'], ['w', '#f8f8f0']])],
   ['frostMage', palette([['g', '#c8d8e8'], ['d', '#101828'], ['b', '#2a4a8a'], ['n', '#1a2a5a'], ['y', '#e0f0ff'], ['r', '#60e0ff']])],
   ['wyvernMatriarch', palette([['g', '#6a4a8a'], ['d', '#2a1a40'], ['l', '#d0b8f0'], ['p', '#4a2a6a'], ['r', '#ff4020'], ['w', '#fff8e0']])],
+  ['fireDrake', palette([['g', '#c84a20'], ['d', '#5a1a10'], ['l', '#f0a050'], ['p', '#8a2a14'], ['r', '#ffe040'], ['w', '#fff0d0']])],
+  ['magmaGolem', palette([['g', '#4a3a38'], ['d', '#1e1618'], ['l', '#ff8a30'], ['b', '#3a2a28'], ['r', '#ffd040'], ['w', '#fff0c0']])],
+  ['dragonCultist', palette([['g', '#d8b098'], ['d', '#1a0a0a'], ['b', '#8a1a1a'], ['n', '#4a0a0a'], ['y', '#f0c040'], ['r', '#ff6020']])],
+  ['vyrmorth', palette([['g', '#a8201a'], ['d', '#3a0a0a'], ['l', '#f0b070'], ['p', '#6a1010'], ['r', '#ffd020'], ['w', '#fff8e0']])],
+  ['vyrmorthUnbound', palette([['g', '#e04a10'], ['d', '#2a0606'], ['l', '#ffe080'], ['p', '#a01a0a'], ['r', '#ffffff'], ['w', '#fff8e0']])],
 ]);
 
 interface MonsterVariant {
@@ -194,6 +199,9 @@ const MONSTER_SHAPE: ReadonlyMap<string, string> = new Map([
   ['goblinChief', 'goblinKing'],
   ['sandWyrm', 'sandWorm'],
   ['wyvernMatriarch', 'wyvern'],
+  ['fireDrake', 'wyvern'],
+  ['vyrmorth', 'dragon'],
+  ['vyrmorthUnbound', 'dragonUnbound'],
 ]);
 
 /** Number of art variants for tiles that have more than one look (all solid landscape tiles). */
@@ -223,6 +231,12 @@ export const TILE_VARIANT_COUNTS: ReadonlyMap<string, number> = new Map<string, 
   ['frozenLake', 3],
   ['iceWall', 3],
   ['iceFloor', 3],
+  ['ash', 2],
+  ['charredTree', 3],
+  ['basalt', 3],
+  ['lava', 3],
+  ['obsidianWall', 3],
+  ['obsidianFloor', 3],
 ]);
 
 /**
@@ -248,7 +262,7 @@ function hashSeed(id: string): number {
   return h;
 }
 
-const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWater', 'fountain', 'torch', 'bog', 'iceWater']);
+const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWater', 'fountain', 'torch', 'bog', 'iceWater', 'lava']);
 
 /** Loaded art sheets (LPC atlases) by id; see `loadLpcSheets`. */
 export type ArtSheets = ReadonlyMap<LpcSheetId, CanvasImageSource>;
