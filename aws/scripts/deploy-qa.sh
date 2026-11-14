@@ -75,6 +75,6 @@ echo "QA Environment URLs:"
 echo "- Custom Domain: https://qa.jouster.org"
 echo "- S3 Direct: http://qa.jouster.org.s3-website-us-west-2.amazonaws.com"
 echo
-echo "Build deployed from develop branch"
+echo "Build deployed from main branch"
 echo "Timestamp: $(date)"
 echo

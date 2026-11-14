@@ -2,7 +2,7 @@ name: 'Deploy Frontend: QA (qa.jouster.org)'
 
 on:
   push:
-    branches: [develop]
+    branches: [main]
   workflow_dispatch:
 
 env:

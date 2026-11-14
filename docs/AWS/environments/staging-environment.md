@@ -10,7 +10,7 @@ from a branch: the artifact already tested on QA is promoted to it unchanged wit
 - **AWS Region**: us-west-2
 - **S3 Bucket**: stg.jouster.org
 - **Deployment Trigger**: manual promotion from QA
-- **Build Tool**: none at promotion time (the QA build from `develop` is copied)
+- **Build Tool**: none at promotion time (the QA build from `main` is copied)
 - **Environment Type**: GREEN (Pre-production staging)
 
 ## Promotion from QA
@@ -20,7 +20,7 @@ from a branch: the artifact already tested on QA is promoted to it unchanged wit
 4. The workflow checks that https://stg.jouster.org/build-info.json reports the QA commit
 
 ## Fallback rebuild
-**Rebuild Frontend: Staging from main (fallback)** (`staging-deploy.yml`) rebuilds staging from a
+**Rebuild Frontend: Staging (fallback)** (`staging-deploy.yml`) rebuilds staging from a
 selected ref. Use it only for recovery or hotfixes; it does not run automatically.
 
 ## Manual Deployment
@@ -49,12 +49,12 @@ cd aws/scripts
 ## Blue-Green Deployment Strategy
 
 ### Environment Mapping:
-- **QA Environment**: qa.jouster.org (develop branch)
+- **QA Environment**: qa.jouster.org (main branch)
 - **GREEN Environment**: stg.jouster.org (promoted from QA) ← **This is staging**
 - **BLUE Environment**: jouster.org / www.jouster.org (production)
 
 ### Deployment Flow:
-1. **Feature Development** → `develop` branch → **QA** (qa.jouster.org), built once here
+1. **Feature Development** → `main` branch → **QA** (qa.jouster.org), built once here
 2. **Release Candidate** → Promote QA → **GREEN** (stg.jouster.org) ← **Staging**
 3. **Production Release** → Promote staging → **BLUE** (jouster.org)
 
@@ -71,16 +71,17 @@ For automated deployment, ensure these secrets are set in GitHub:
 - `AWS_SECRET_ACCESS_KEY`
 
 ## Branch Strategy
-- **`develop`** → QA Environment (qa.jouster.org); the only branch that builds the frontend
+- **`main`** (trunk) → QA Environment (qa.jouster.org); the only branch that builds the frontend
 - **Manual promotion** → GREEN Environment (stg.jouster.org) ← **This staging**
 - **Manual promotion** → BLUE Environment (jouster.org)
 
 ## Development Workflow
-1. Create feature branch from `develop`
-2. Create PR to merge into `develop` → Deploys to **QA**
+1. Create a short-lived feature branch from `main`
+2. Create PR to merge into `main` → Deploys to **QA**
 3. When QA testing passes, run **Promote Frontend: QA → Staging** → **GREEN (Staging)**
 4. When staging testing passes, run **Promote Frontend: Staging → Production** → **BLUE (Production)**
-5. Fast-forward `main` to the promoted commit so `main` records what is in production
+
+`https://<env>/build-info.json` records which `main` commit each environment is running.
 
 ## Monitoring & Logs
 - GitHub Actions logs: Repository → Actions tab

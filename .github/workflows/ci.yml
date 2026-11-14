@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - develop
   # PRs are covered by build-preview-artifact.yml
 
 permissions:

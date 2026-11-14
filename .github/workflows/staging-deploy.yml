@@ -1,4 +1,4 @@
-name: 'Rebuild Frontend: Staging from main (fallback)'
+name: 'Rebuild Frontend: Staging (fallback)'
 
 # GREEN environment. The normal path is "Promote Frontend: QA → Staging", which copies the
 # tested QA artifact. This workflow rebuilds stg.jouster.org from the selected ref and is only

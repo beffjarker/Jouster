@@ -3,7 +3,7 @@
     "domain": "qa.jouster.org",
     "region": "us-west-2",
     "bucket": "qa.jouster.org",
-    "branch": "develop",
+    "branch": "main",
     "buildCommand": "npm run build",
     "distFolder": "dist",
     "autoDeployOnPR": true,

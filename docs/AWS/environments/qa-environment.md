@@ -1,21 +1,22 @@
 # QA Environment Setup Guide
 
 ## Overview
-The QA environment automatically deploys from the `develop` branch to `qa.jouster.org` whenever a pull request is merged.
+The QA environment automatically deploys from the `main` branch to `qa.jouster.org` whenever a pull request is merged.
+This is the only place the frontend is built; staging and production receive this same artifact by promotion.
 
 ## Architecture
 - **Domain**: qa.jouster.org
 - **AWS Region**: us-west-2
 - **S3 Bucket**: qa.jouster.org
-- **Deployment Trigger**: PR merge to `develop` branch
+- **Deployment Trigger**: PR merge to `main` branch
 - **Build Tool**: GitHub Actions + AWS CLI
 
 ## Automated Deployment
-When a PR is merged into the `develop` branch:
+When a PR is merged into the `main` branch:
 1. GitHub Actions triggers the QA deployment workflow
-2. Application is built using `npm run build`
-3. Built files are deployed to S3 bucket `qa.jouster.org`
-4. DNS record is created/updated for qa.jouster.org
+2. Application is built using `npm run build:prod`
+3. `build-info.json` (commit sha, ref, run id) is written into the build
+4. Built files are deployed to S3 bucket `qa.jouster.org`
 5. QA environment is accessible at https://qa.jouster.org
 
 ## Manual Deployment
@@ -51,17 +52,18 @@ For automated deployment, ensure these secrets are set in GitHub:
 - `AWS_SECRET_ACCESS_KEY`
 
 ## Branch Strategy
-- **`main`** → Production (jouster.org)
-- **`develop`** → QA Environment (qa.jouster.org)
-- **Feature branches** → Create PRs to `develop`
+Trunk-based: `main` is the only long-lived branch.
+- **`main`** → QA Environment (qa.jouster.org), built once here
+- **Manual promotion** → Staging (stg.jouster.org) → Production (jouster.org)
+- **Feature branches** → Create PRs to `main`
 
 ## Development Workflow
-1. Create feature branch from `develop`
+1. Create a short-lived feature branch from `main`
 2. Make changes and commit
-3. Create PR to merge into `develop`
+3. Create PR to merge into `main`
 4. After PR approval and merge, QA deployment automatically triggers
 5. Test changes on qa.jouster.org
-6. When ready, create PR from `develop` to `main` for production release
+6. When ready, run **Promote Frontend: QA → Staging**, then **Promote Frontend: Staging → Production**
 
 ## Monitoring & Logs
 - GitHub Actions logs: Repository → Actions tab

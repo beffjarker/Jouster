@@ -73,7 +73,7 @@ fix(lib-name): resolve bug
 docs: update guide
 ```
 
-**PRs:** Against `develop`, must pass lint/test/build, 1+ review required
+**PRs:** Against `main` (trunk-based; there is no `develop` branch), must pass lint/test/build, 1+ review required
 
 ---
 

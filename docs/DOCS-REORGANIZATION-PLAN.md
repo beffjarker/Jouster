@@ -58,8 +58,8 @@ docs/
 | File | Reason |
 |------|--------|
 | `RELEASE-PROCESS.md` | Active process doc |
-| `PROPER-RELEASE-PROCESS.md` | Consolidate with above |
-| `RELEASE-BEST-PRACTICES-SUMMARY.md` | Consolidate with above |
+| `PROPER-RELEASE-PROCESS.md` | Consolidated into `RELEASE-PROCESS.md` (removed) |
+| `RELEASE-BEST-PRACTICES-SUMMARY.md` | Consolidated into `RELEASE-PROCESS.md` (removed) |
 | `RELEASE-v1.0.0-PLAN.md` | Active planning doc |
 | `ANGULAR-21-UPGRADE-PLAN.md` | Active upgrade plan |
 

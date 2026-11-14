@@ -5,7 +5,7 @@
 ## How it works
 
 S3 static website endpoints only support HTTP, so the QA bucket is fronted by a CloudFront
-distribution managed by `.github/workflows/qa-deploy.yml` on every `develop` deploy:
+distribution managed by `.github/workflows/qa-deploy.yml` on every `main` deploy:
 
 1. **Ensure QA CloudFront distribution** – reuses the distribution whose alias is `qa.jouster.org`,
    otherwise creates one with:

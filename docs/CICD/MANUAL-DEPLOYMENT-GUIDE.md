@@ -213,14 +213,10 @@ git push origin v0.5.0
 gh release create v0.5.0 --title "v0.5.0 - Auth Navigation & HTTPS Infrastructure" --notes "**Features:**\n- Auth-based menu visibility\n- HTTPS infrastructure\n- CloudFront SSL setup\n- Region migration to us-west-2"
 ```
 
-### Step 5: Merge Main Back to Develop
+### Step 5: (No longer applies)
 
-```cmd
-git checkout develop
-git pull origin develop
-git merge main --no-ff -m "chore: merge main back to develop after v0.5.0 release"
-git push origin develop
-```
+The `develop` branch was retired when the repository moved to trunk-based development, so there is
+nothing to merge back. See [Release Process](../Project/RELEASE-PROCESS.md).
 
 ---
 
@@ -300,8 +296,7 @@ aws s3 sync dist\apps\jouster-ui\browser\ s3://stg.jouster.org --delete --region
 
 ## 📖 Reference Documents
 
-- **RELEASE-PROCESS.md** - Complete release workflow guide
-- **RELEASE-BEST-PRACTICES-SUMMARY.md** - Industry standards
+- **[Release Process](../Project/RELEASE-PROCESS.md)** - Current trunk-based release workflow
 - **STAGING-DEPLOYMENT-FIX.md** - Root cause analysis
 - **GITHUB-ACTIONS-STATUS.md** - Workflow status details
 - **DEPLOYMENT-STATUS-v0.5.0.md** - Deployment checklist
@@ -351,7 +346,6 @@ aws s3 ls s3://stg.jouster.org/
 - [ ] Stakeholder approvals obtained
 - [ ] Git tag created
 - [ ] GitHub Release published
-- [ ] Main merged back to develop
 
 ---
 

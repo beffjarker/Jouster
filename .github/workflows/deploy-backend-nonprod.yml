@@ -2,7 +2,7 @@ name: Deploy Backend (nonprod) — Lambda Blue/Green
 
 on:
   push:
-    branches: [develop]
+    branches: [main]
     paths:
       - 'apps/backend/**'
       - 'terraform/modules/backend-api/**'

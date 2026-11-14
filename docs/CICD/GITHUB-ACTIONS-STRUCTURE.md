@@ -3,14 +3,15 @@
 Inventory of the workflows in `.github/workflows/` and the runbook for promoting the frontend
 from QA through staging (GREEN) to production (BLUE).
 
-The frontend is built **once**, when a change merges to `develop`. The same artifact is then promoted
+The repository is trunk-based: `main` is the only long-lived branch, and feature branches merge into it.
+The frontend is built **once**, when a change merges to `main`. The same artifact is then promoted
 QA → staging → production by copying S3 objects, so each environment runs exactly what the previous one tested.
 
 ## Environments
 
 | Environment | URL | Source | Deployed by |
 | ----------- | --- | ------ | ----------- |
-| QA | https://qa.jouster.org | `develop` (built here) | `qa-deploy.yml` (push to `develop`) |
+| QA | https://qa.jouster.org | `main` (built here) | `qa-deploy.yml` (push to `main`) |
 | GREEN / staging | https://stg.jouster.org | promoted from QA | `promote-frontend-staging.yml` (manual) |
 | BLUE / production | https://jouster.org | promoted from staging | `promote-frontend-production.yml` (manual) |
 
@@ -32,15 +33,15 @@ Pinning is only available in the GitHub UI. In **Actions**, select the workflow 
 | `promote-frontend-production.yml` | manual | Copy the staging artifact to production (snapshot → publish → invalidate → verify) |
 | `rollback-frontend-production.yml` | manual | Restore a production snapshot |
 | `staging-deploy.yml` | manual | Fallback only: rebuild GREEN from a ref (e.g. a hotfix); writes `build-info.json` |
-| `qa-deploy.yml` | push `develop`, manual | Build and deploy QA; writes `build-info.json` |
-| `ci.yml` | push `main` / `develop` | Lint, test, build |
+| `qa-deploy.yml` | push `main`, manual | Build and deploy QA; writes `build-info.json` |
+| `ci.yml` | push `main` | Lint, test, build |
 | `build-preview-artifact.yml` | pull request | Build the PR preview artifact |
 | `pull-request-delete-preview.yml` | PR closed | Remove PR preview resources |
 | `branch-delete-cleanup.yml` | branch deleted | Remove branch preview resources |
 | `scheduled-cleanup.yml` | weekly, manual | Remove orphaned preview resources |
 | `codeql-monorepo.yml` | push, pull request | CodeQL scanning |
 | `dependency-review.yml` | pull request, merge group | Dependency vulnerability review |
-| `deploy-backend-nonprod.yml` | push `develop`, manual | Backend Lambda blue/green (nonprod) |
+| `deploy-backend-nonprod.yml` | push `main`, manual | Backend Lambda blue/green (nonprod) |
 | `deploy-backend-prod.yml` | `v*` tag, manual | Backend Lambda blue/green canary (prod) |
 
 ## Frontend promotion (QA → GREEN)
