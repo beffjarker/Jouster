@@ -23,7 +23,7 @@ const LIST: ClassDef[] = [
     role: 'Attack magic',
     description: 'Fire, Ice and Bolt. Staff blows boosted by magic.',
     base: { hp: 20, mp: 16, atk: 6, def: 4, agi: 6, mag: 11 },
-    growth: { hp: 4, mp: 6, atk: 0.5, def: 0.5, agi: 0.5, mag: 2 },
+    growth: { hp: 5, mp: 5, atk: 0.5, def: 0.5, agi: 0.5, mag: 2 },
     startingWeaponId: 'oakStaff',
     weaponFamily: 'staff',
     critChance: 1 / 32,
