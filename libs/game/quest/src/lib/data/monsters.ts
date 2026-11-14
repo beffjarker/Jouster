@@ -238,6 +238,73 @@ const LIST: MonsterDef[] = [
     critChance: 1 / 32,
     spriteId: 'marshWitch',
   },
+  // --- Act III: the Frost Peaks -------------------------------------------------------------
+  {
+    id: 'iceTroll',
+    name: 'Ice Troll',
+    stats: { hp: 72, mp: 0, atk: 24, def: 14, agi: 5, mag: 0 },
+    xp: 34,
+    gold: 26,
+    weaknesses: ['fire'],
+    resistances: ['ice'],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'potion', chance: 0.12 }],
+    spriteId: 'iceTroll',
+  },
+  {
+    id: 'wyvern',
+    name: 'Wyvern',
+    stats: { hp: 58, mp: 0, atk: 23, def: 12, agi: 11, mag: 0 },
+    xp: 32,
+    gold: 24,
+    weaknesses: ['lightning'],
+    resistances: [],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'tonic', chance: 0.12 }],
+    spriteId: 'wyvern',
+  },
+  {
+    id: 'yeti',
+    name: 'Yeti',
+    stats: { hp: 66, mp: 0, atk: 23, def: 13, agi: 7, mag: 0 },
+    xp: 32,
+    gold: 24,
+    weaknesses: ['fire'],
+    resistances: ['ice'],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'herb', chance: 0.3 }],
+    spriteId: 'yeti',
+  },
+  {
+    id: 'frostMage',
+    name: 'Frost Mage',
+    stats: { hp: 52, mp: 0, atk: 24, def: 10, agi: 10, mag: 0 },
+    xp: 34,
+    gold: 30,
+    weaknesses: ['fire', 'holy'],
+    resistances: ['ice'],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'tonic', chance: 0.2 }],
+    spriteId: 'frostMage',
+  },
+  {
+    id: 'wyvernMatriarch',
+    name: 'Wyvern Matriarch',
+    stats: { hp: 360, mp: 0, atk: 32, def: 17, agi: 10, mag: 0 },
+    xp: 260,
+    gold: 240,
+    boss: true,
+    weaknesses: ['lightning'],
+    resistances: ['ice'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 2 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'phoenixFeather', chance: 1 }],
+    critChance: 1 / 32,
+    spriteId: 'wyvernMatriarch',
+  },
 ];
 
 /** Side-quest mini-bosses (fought after the Goblin King, usually solo or as a pair). */
@@ -245,6 +312,9 @@ export const MINI_BOSS_IDS: readonly string[] = ['alphaWolf', 'giantToad', 'bone
 
 /** Act II shrine bosses (one per Southlands shrine). */
 export const ACT_TWO_BOSS_IDS: readonly string[] = ['sandWyrm', 'marshWitch'];
+
+/** Act III boss (Wyvern Roost, Frost Peaks). */
+export const ACT_THREE_BOSS_IDS: readonly string[] = ['wyvernMatriarch'];
 
 export const MONSTERS: ReadonlyMap<string, MonsterDef> = new Map(LIST.map((m) => [m.id, m]));
 
@@ -350,6 +420,43 @@ const TABLE_LIST: EncounterTable[] = [
       { monsterIds: ['wraith', 'wraith'], weight: 2 },
       { monsterIds: ['sandWorm', 'wraith'], weight: 2 },
       { monsterIds: ['lizardman', 'wraith', 'scorpion'], weight: 1 },
+    ],
+  },
+  // --- Act III ------------------------------------------------------------------------------
+  {
+    id: 'snowfield',
+    rate: 1 / 14,
+    level: 13,
+    groups: [
+      { monsterIds: ['yeti'], weight: 4 },
+      { monsterIds: ['wyvern'], weight: 3 },
+      { monsterIds: ['yeti', 'wyvern'], weight: 2 },
+      { monsterIds: ['wyvern', 'wyvern'], weight: 2 },
+      { monsterIds: ['yeti', 'yeti', 'wyvern'], weight: 1 },
+    ],
+  },
+  {
+    id: 'pines',
+    rate: 1 / 12,
+    level: 14,
+    groups: [
+      { monsterIds: ['iceTroll'], weight: 4 },
+      { monsterIds: ['frostMage'], weight: 3 },
+      { monsterIds: ['iceTroll', 'frostMage'], weight: 2 },
+      { monsterIds: ['yeti', 'frostMage'], weight: 2 },
+      { monsterIds: ['iceTroll', 'frostMage', 'frostMage'], weight: 1 },
+    ],
+  },
+  {
+    id: 'roost',
+    rate: 1 / 12,
+    level: 15,
+    groups: [
+      { monsterIds: ['wyvern'], weight: 3 },
+      { monsterIds: ['frostMage', 'wyvern'], weight: 3 },
+      { monsterIds: ['wyvern', 'wyvern'], weight: 2 },
+      { monsterIds: ['iceTroll', 'wyvern'], weight: 2 },
+      { monsterIds: ['wyvern', 'frostMage', 'iceTroll'], weight: 1 },
     ],
   },
 ];

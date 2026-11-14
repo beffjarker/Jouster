@@ -1,5 +1,5 @@
 import { createRng } from '@jouster/game/engine';
-import { ARMOR_SHOP_STOCK, GEAR, SOUTH_ARMOR_STOCK, gearDef } from '../data/gear';
+import { ARMOR_SHOP_STOCK, GEAR, NORTH_ARMOR_STOCK, SOUTH_ARMOR_STOCK, gearDef } from '../data/gear';
 import {
   canEquip,
   equipChoices,
@@ -115,12 +115,14 @@ describe('equipment (plan 15.4)', () => {
   });
 
   it('has a sane catalogue sold by the armorer', () => {
-    expect(ARMOR_SHOP_STOCK.length + SOUTH_ARMOR_STOCK.length).toBe(GEAR.size);
+    expect(ARMOR_SHOP_STOCK.length + SOUTH_ARMOR_STOCK.length + NORTH_ARMOR_STOCK.length).toBe(GEAR.size);
     for (const g of GEAR.values()) {
       expect(g.price).toBeGreaterThan(0);
       expect(g.description.length).toBeGreaterThan(0);
       expect(g.description.length).toBeLessThanOrEqual(58);
-      expect(Math.max(...Object.values(g.bonus))).toBeLessThanOrEqual(8);
+      const { hp = 0, ...stats } = g.bonus;
+      expect(hp).toBeLessThanOrEqual(12);
+      expect(Math.max(0, ...Object.values(stats))).toBeLessThanOrEqual(9);
     }
     expect(gearDef('buckler').classes).toEqual(['warrior', 'paladin']);
   });

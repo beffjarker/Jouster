@@ -2,6 +2,7 @@ import { InputManager, Renderer, Scene, createCanvas, wrapText } from '@jouster/
 import { COMPANION_SLOTS } from '../data/companions';
 import { MapDef, mapDef } from '../data/maps';
 import { LANDMARKS } from '../data/overworld-gen';
+import { NORTH_LANDMARKS } from '../data/frostpeaks-gen';
 import { SOUTH_LANDMARKS } from '../data/southlands-gen';
 import { GameState, questStage } from '../state/game-state';
 import { isExplored } from '../state/fog';
@@ -51,6 +52,16 @@ const TILE_COLORS: Readonly<Record<string, string>> = {
   sunFloor: '#e0c080',
   mireWall: '#4a5a4a',
   mireFloor: '#6a7a5a',
+  snow: '#e2eaf4',
+  drifts: '#c8d4e6',
+  snowRoad: '#a8b0c0',
+  snowPine: '#2a5a4a',
+  glacier: '#7a889e',
+  iceWater: '#2a5a8a',
+  frozenLake: '#a8d0ea',
+  roostEntrance: '#202020',
+  iceWall: '#3e5470',
+  iceFloor: '#8aa0bc',
 };
 const FOG_COLOR = '#14100c';
 const PARCHMENT = '#3a2c1c';
@@ -65,12 +76,18 @@ export const PLACES: Readonly<Record<string, ReadonlyArray<{ name: string; x: nu
     { name: 'Wolf Den', ...LANDMARKS.wolfDen },
     { name: 'West Lakeshore', ...LANDMARKS.lakeshore },
     { name: 'Southern Pass', ...LANDMARKS.southPass },
+    { name: 'Northern Pass', ...LANDMARKS.northPass },
   ],
   southlands: [
     { name: 'Northern Pass', ...SOUTH_LANDMARKS.pass },
     { name: 'Sandhollow', ...SOUTH_LANDMARKS.sandhollow },
     { name: 'Sun Shrine', ...SOUTH_LANDMARKS.sunShrine },
     { name: 'Mire Shrine', ...SOUTH_LANDMARKS.mireShrine },
+  ],
+  frostpeaks: [
+    { name: 'Southern Pass', ...NORTH_LANDMARKS.pass },
+    { name: 'Frostgate', ...NORTH_LANDMARKS.frostgate },
+    { name: 'Wyvern Roost', ...NORTH_LANDMARKS.wyvernRoost },
   ],
 };
 
@@ -96,7 +113,11 @@ export function questLog(state: GameState): string[] {
               .join(' and ')} beyond the southern pass.`
           : !f['actTwoComplete']
             ? 'MAIN: Report to King Aldric that the south is free.'
-            : 'MAIN: Act II complete. The dragon Vyrmorth stirs in the north.',
+            : !f['wyvernMatriarchDefeated']
+              ? 'MAIN: Cross the northern pass and slay the Wyvern Matriarch in her roost in the Frost Peaks.'
+              : !f['actThreeComplete']
+                ? "MAIN: Bring the Matriarch's scale                 to King Aldric."
+                : 'MAIN: Act III complete. Dragonbane is forged; Vyrmorth awaits.',
   ];
   let any = false;
   for (const slot of COMPANION_SLOTS) {

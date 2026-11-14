@@ -832,8 +832,7 @@ function caveExitGlow(p: Paint): void {
 // --- Cave rock ----------------------------------------------------------------------------------
 
 /** Cave wall of packed rocks (a seamless Voronoi pattern), each rock lit from the top-left and veined. */
-function rockWall(p: Paint, seed: number): void {
-  const base = '#3a2e2c';
+function rockWall(p: Paint, seed: number, base = '#3a2e2c'): void {
   const r = ramp(base);
   const n = 4;
   const cell = S / n;
@@ -1214,6 +1213,188 @@ function mireFloor(p: Paint, _f = 0, variant = 0): void {
   });
   if (variant === 1) {
     pebbles(p, '#5a5a4a', 46, 0.01);
+  }
+}
+
+// --- Frost Peaks (Act III) ----------------------------------------------------------------------
+
+const SNOW = '#e2eaf4';
+const GLACIER_ROCK = '#7a889e';
+const ICE = '#a8d0ea';
+
+/** Sparkling ice crystals catching the light. */
+function glints(p: Paint, seed: number, count: number): void {
+  for (let i = 0; i < count; i++) {
+    const fx = Math.floor(hash(i, 1, seed) * FS);
+    const fy = Math.floor(hash(i, 2, seed) * FS);
+    p.fpx(fx, fy, '#ffffff');
+    if (hash(i, 3, seed) > 0.6) {
+      p.fpx(fwrap(fx + 1), fy, '#d8ecff', 0.6);
+      p.fpx(fx, fwrap(fy + 1), '#d8ecff', 0.6);
+    }
+  }
+}
+
+function snow(p: Paint, _f = 0, variant = 0): void {
+  ground(p, SNOW, 90, 0.55, 0.22);
+  // Cold blue hollows between the drifts.
+  fine(p, (x, y, fx, fy) => {
+    if (valueNoise(x, y, 8, 91) < 0.3) {
+      p.fpx(fx, fy, '#b8c8e0', 0.45 + dither(fx, fy) * 0.4);
+    }
+  });
+  glints(p, 92, 6);
+  if (variant === 1) {
+    // A rock poking through the snow.
+    p.flat(ell(16.5, 19, 5, 1.4), '#8a9ab8', 0.5);
+    const stone = clip(ell(16, 17.5, 4.5, 3.5), box(0, 0, S, 19));
+    p.fill(stone, '#6a7488', { sphere: true, tex: 0.4, seed: 93 });
+    p.fill(clip(ell(15.5, 15, 4, 1.6), stone), SNOW, { bevel: 0, dither: 0.4 });
+  } else if (variant === 2) {
+    // Footprints of some beast wandering by.
+    [[8, 24], [11, 20], [14, 16], [17, 12], [20, 8]].forEach(([x, y], i) => {
+      const dx = i % 2 ? 1.8 : -1.8;
+      p.flat(ell(x + dx, y, 1.1, 1.5), '#9aaccc', 0.75);
+      p.flat(ell(x + dx, y - 0.4, 0.9, 1), '#b8c8e0', 0.6);
+    });
+  }
+}
+
+function drifts(p: Paint): void {
+  ground(p, SNOW, 94, 0.5, 0.2);
+  // A drift crest: lit windward slope above a blue lee shadow.
+  fine(p, (x, y, fx, fy) => {
+    const c = 15 + Math.sin((x / S) * Math.PI * 2 + 1) * 5;
+    const d = y - c;
+    if (d > 0 && d < 7) {
+      p.fpx(fx, fy, '#a8bcd8', 0.6 * (1 - d / 7) + dither(fx, fy) * 0.3);
+    } else if (d <= 0 && d > -4) {
+      p.fpx(fx, fy, '#ffffff', 0.45 * (1 + d / 4));
+    }
+  });
+  glints(p, 95, 5);
+}
+
+function snowRoad(p: Paint): void {
+  ground(p, '#c4ccda', 96, 0.6, 0.3);
+  // Packed wheel ruts and grit thrown on the ice.
+  [9, 23].forEach((x) => {
+    p.flat(box(x, 0, 2.5, S), '#a4b0c4', 0.65);
+    p.flat(box(x + 0.4, 0, 0.6, S), '#8a96ac', 0.5);
+  });
+  pebbles(p, '#7a7a80', 96, 0.012);
+}
+
+/** A snow-laden pine: the forest pine with snow piled on every tier. */
+function snowPine(p: Paint, _f: number, variant: number): void {
+  pineTree(p, { leaf: variant === 1 ? '#2a5a4a' : '#1e4a3a', trunk: '#5a3a24' });
+  const tiers: ReadonlyArray<[number, number, number]> = [
+    [1, 11, 6],
+    [6, 18, 9],
+    [11, 25, 12],
+  ];
+  tiers.forEach(([top, bottom, half], i) => {
+    const y = top + (bottom - top) * 0.5;
+    const cap = poly([16, top - 0.5, 16 + half * 0.55, y, 16 + half * 0.15, y - 1.2, 16 - half * 0.3, y + 0.6, 16 - half * 0.75, y + 1.4]);
+    p.fill(cap, SNOW, { bevel: 0, grad: 0.6, dither: 0.5, seed: 97 + i });
+    p.flat(seg(16 - half * 0.75, y + 1.5, 16 + half * 0.5, y + 0.2, 0.25), '#a8bcd8', 0.6);
+  });
+  if (variant === 2) {
+    for (let i = 0; i < 8; i++) {
+      p.spot(6 + hash(i, 1, 98) * 20, 4 + hash(i, 2, 98) * 22, '#ffffff');
+    }
+  }
+}
+
+function glacier(p: Paint, _f: number, variant: number): void {
+  shadow(p, 16, 29, 15, 2.5);
+  if (variant === 1) {
+    peak(p, 21, 2, 11, 29, GLACIER_ROCK, 0.55);
+    peak(p, 9, 8, 9, 30, '#8494aa', 0.45);
+  } else if (variant === 2) {
+    // A tumbled ice block beside a low crag.
+    peak(p, 20, 8, 11, 29, GLACIER_ROCK, 0.5);
+    const block = poly([3, 29, 4, 20, 10, 18, 13, 22, 12, 29]);
+    p.fill(block, ICE, { gradX: 1.4, bevel: 1, dither: 0.5 });
+    p.flat(clip(seg(5, 21, 11, 27, 0.25), block), '#e8f8ff', 0.8);
+    crack(p, [8, 19, 8.5, 23, 7.6, 27], tone(ICE, -2.5), undefined, 0.22);
+  } else {
+    peak(p, 16, 1, 15, 30, GLACIER_ROCK, 0.5);
+  }
+}
+
+function iceWater(p: Paint, frame: number, variant: number): void {
+  water(p, frame, '#2a5a8a', variant * 7);
+  if (variant >= 1) {
+    // Drifting floes.
+    const floe = variant === 1 ? poly([6, 10, 13, 8, 16, 12, 12, 15, 5, 14]) : poly([17, 20, 25, 19, 27, 23, 21, 26, 16, 24]);
+    p.flat(clip(floe, box(0, 0, S, S)), '#0a1a30', 0.3);
+    p.fill(floe, '#d8ecf8', { bevel: 1, grad: 0.6, dither: 0.4 });
+    p.flat(cut(floe, poly([0, 0, S, 0, S, 18, 0, 22])), ICE, 0.5);
+  }
+}
+
+function frozenLake(p: Paint, _f = 0, variant = 0): void {
+  const r = ramp(ICE);
+  fine(p, (x, y, fx, fy) => {
+    const v = (valueNoise(x, y, 8, 100) - 0.5) * 1.6 + (valueNoise(x, y, 3, 101) - 0.5) * 0.6;
+    p.fpx(fx, fy, r[clampK(v + dither(fx, fy) * 0.5, -2, 1) + 3]);
+  });
+  // Diagonal sheen streaks and cracks in the ice.
+  [[2, 14, 12, 4], [14, 30, 28, 16]].forEach(([x0, y0, x1, y1]) => p.flat(seg(x0, y0, x1, y1, 0.4), '#f0faff', 0.55));
+  crack(p, [4, 22, 9, 20, 12, 23, 17, 21], tone(ICE, -2.5), '#f0faff', 0.2);
+  if (variant === 1) {
+    crack(p, [20, 6, 22, 9, 26, 10, 27, 13], tone(ICE, -2.5), '#f0faff', 0.2);
+  } else if (variant === 2) {
+    // A fish frozen just under the surface.
+    p.fill(ell(17, 11, 3.5, 1.4), '#5a7a8a', { bevel: 0, dither: 0.6 });
+    p.fill(poly([20, 11, 23, 9.4, 23, 12.6]), '#5a7a8a', { bevel: 0, dither: 0.6 });
+  }
+  glints(p, 102, 4);
+}
+
+/** The Wyvern Roost: a cave mouth in a glacier crag, hung with icicles and littered with bones. */
+function roostEntrance(p: Paint): void {
+  caveEntrance(p);
+  [10.5, 13, 15.5, 18.5, 21].forEach((x, i) => {
+    const len = 2.5 + (i % 2) * 2;
+    p.fill(poly([x - 0.8, 12.5, x + 0.8, 12.5, x, 12.5 + len]), '#d8f0ff', { gradX: 1.2, bevel: 0, dither: 0 });
+  });
+  p.fill(seg(8, 29, 12, 27.5, 0.6), '#f0e8d8', { bevel: 0 });
+  p.fill(ell(22, 28.5, 1.6, 1.2), '#f0e8d8', { sphere: true, bevel: 0 });
+  p.spot(21.5, 28.4, '#2a2028');
+}
+
+function iceWall(p: Paint, _f: number, variant: number): void {
+  rockWall(p, 60 + variant, '#3e5470');
+  // Frost rimes the top edge of every rock.
+  fine(p, (x, y, fx, fy) => {
+    if (valueNoise(x, y, 3, 103 + variant) > 0.68) {
+      p.fpx(fx, fy, '#c8e4f8', 0.55);
+    }
+  });
+  if (variant === 2) {
+    [8, 15, 23].forEach((x, i) => {
+      const len = 5 + i * 2;
+      p.fill(poly([x - 1.2, 0, x + 1.2, 0, x, len]), '#d8f0ff', { gradX: 1.2, bevel: 0, dither: 0 });
+    });
+  }
+}
+
+function iceFloor(p: Paint, _f = 0, variant = 0): void {
+  ground(p, '#8aa0bc', 104, 0.7, 0.3);
+  fine(p, (x, y, fx, fy) => {
+    if (valueNoise(x, y, 6, 105) > 0.7) {
+      p.fpx(fx, fy, '#c8dcf0', 0.7);
+    }
+  });
+  crack(p, [4, 8, 7, 9.5, 9, 8.6, 12, 10], tone('#8aa0bc', -2.5), '#d8ecff', 0.2);
+  if (variant === 1) {
+    pebbles(p, '#6a7488', 104, 0.012);
+  } else if (variant === 2) {
+    // A shed wyvern scale.
+    p.fill(ell(18, 20, 2.6, 1.8), '#e0e8f0', { sphere: true, bevel: 0, rim: true });
+    p.flat(seg(16, 20, 20, 20, 0.2), '#8a9ab0', 0.7);
   }
 }
 
@@ -2204,6 +2385,16 @@ export const HD_TILES: ReadonlyMap<string, HdTile> = new Map<string, HdTile>([
   ['sunFloor', { ground: sunFloor }],
   ['mireWall', { ground: mireWall }],
   ['mireFloor', { ground: mireFloor }],
+  ['snow', { ground: snow }],
+  ['drifts', { ground: drifts }],
+  ['snowRoad', { ground: snowRoad }],
+  ['snowPine', { ground: snow, object: snowPine }],
+  ['glacier', { ground: snow, object: glacier }],
+  ['iceWater', { ground: iceWater }],
+  ['frozenLake', { ground: frozenLake }],
+  ['roostEntrance', { ground: snow, object: roostEntrance }],
+  ['iceWall', { ground: iceWall }],
+  ['iceFloor', { ground: iceFloor }],
 ]);
 
 /**
@@ -2233,7 +2424,7 @@ export function paintTile(id: string, frame: number, variant: number, withGround
 }
 
 /** Tall solid tiles (town walls, cave rock) that cast a short shadow onto the tile below them. */
-export const SHADOW_CASTERS: ReadonlySet<string> = new Set(['wall', 'rock', 'torch', 'sunWall', 'mireWall']);
+export const SHADOW_CASTERS: ReadonlySet<string> = new Set(['wall', 'rock', 'torch', 'sunWall', 'mireWall', 'iceWall']);
 
 /** True when tile `id` (or the floor under a decor tile such as `banner@wall`) is a {@link SHADOW_CASTERS} tile. */
 export function castsShadow(id: string): boolean {
