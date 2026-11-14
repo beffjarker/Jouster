@@ -12,6 +12,7 @@ import {
 } from '@jouster/game/engine';
 import { Art, ArtStyle } from './art/art';
 import { loadLpcSheets } from './art/sheet-loader';
+import { musicTrack } from './data/music';
 import { GameContext } from './scenes/context';
 import { TitleScene } from './scenes/title-scene';
 import { SaveStorage, memoryStorage } from './state/game-state';
@@ -191,6 +192,7 @@ export class JousterQuestGame {
       this.ctx.audio.toggleMute();
     }
     this.ctx.stack.update(dt, this.input);
+    this.ctx.audio.playMusic(musicTrack(this.ctx.stack.music));
     this.input.endFrame();
     if (this.ctx.state) {
       this.ctx.state.playSeconds += dt;

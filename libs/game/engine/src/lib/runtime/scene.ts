@@ -11,6 +11,11 @@ export interface Scene {
   render(r: Renderer): void;
   /** When true, the scene below is rendered first (e.g. menus over the world). */
   readonly overlay?: boolean;
+  /**
+   * Music track id for this scene. Scenes that leave it undefined (menus, dialogs) keep the music of the
+   * scene below; an empty string means silence.
+   */
+  readonly music?: string;
 }
 
 type PendingOp = { kind: 'push'; scene: Scene } | { kind: 'pop' } | { kind: 'replace'; scene: Scene };
@@ -30,6 +35,17 @@ export class SceneStack {
 
   public get top(): Scene | undefined {
     return this.stack[this.stack.length - 1];
+  }
+
+  /** Music id of the topmost scene that defines one (see {@link Scene.music}), or null if none does. */
+  public get music(): string | null {
+    for (let i = this.stack.length - 1; i >= 0; i--) {
+      const music = this.stack[i].music;
+      if (music !== undefined) {
+        return music || null;
+      }
+    }
+    return null;
   }
 
   public get size(): number {

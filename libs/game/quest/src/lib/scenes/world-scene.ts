@@ -18,6 +18,7 @@ import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { ARMOR_SHOP_STOCK } from '../data/gear';
 import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, SIGN_TEXT, Warp, mapDef, mapHasEncounters, talkAcross, wanderBlocked } from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
+import { musicForMap } from '../data/music';
 import {
   CAVE_FOG_RADIUS,
   TORCH_LIGHT_RADIUS,
@@ -155,6 +156,10 @@ export class WorldScene implements Scene {
   private walkGoal: WalkGoal | null = null;
   /** Pointer press that started the current walk; dragging while it is held steers the party. */
   private steerPress = -1;
+
+  public get music(): string {
+    return musicForMap(this.map);
+  }
 
   constructor(private readonly ctx: GameContext) {
     this.state = requireState(ctx);

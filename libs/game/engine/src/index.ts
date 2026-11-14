@@ -13,3 +13,4 @@ export * from './lib/runtime/sprite';
 export * from './lib/runtime/renderer';
 export * from './lib/runtime/scene';
 export * from './lib/runtime/audio';
+export * from './lib/runtime/music';

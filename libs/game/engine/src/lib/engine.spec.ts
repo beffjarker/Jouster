@@ -282,6 +282,22 @@ describe('GameLoop', () => {
 describe('SceneStack', () => {
   const input = new InputManager(new FakeKeys());
 
+  it('reports the music of the topmost scene that defines one', () => {
+    const stack = new SceneStack();
+    const withMusic = (id: string, music?: string): Scene => ({ ...testScene(id, true), music });
+    expect(stack.music).toBeNull();
+    for (const [scene, expected] of [
+      [withMusic('world', 'town'), 'town'],
+      [withMusic('menu'), 'town'],
+      [withMusic('battle', 'battle'), 'battle'],
+      [withMusic('quiet', ''), null],
+    ] as const) {
+      stack.push(scene);
+      stack.update(0, input);
+      expect(stack.music).toBe(expected);
+    }
+  });
+
   it('only updates the top scene and renders overlays over the scene below', () => {
     const onChange = jest.fn();
     const stack = new SceneStack(onChange);

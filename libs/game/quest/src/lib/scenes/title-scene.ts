@@ -19,6 +19,7 @@ import { WorldScene } from './world-scene';
 /** Title screen: New Game / Continue. */
 export class TitleScene implements Scene {
   public readonly id = 'title';
+  public readonly music = 'title';
   private readonly menu: ListMenu;
   private time = 0;
 
@@ -81,6 +82,7 @@ function dimBackdrop(r: Renderer, ctx: GameContext): void {
 
 /** Choose the hero's class; shows stats, weapon and abilities. */
 export class ClassSelectScene implements Scene {
+  public readonly music = 'title';
   public readonly id = 'class-select';
   private readonly menu: ListMenu;
   private time = 0;
@@ -201,6 +203,7 @@ export function nameKeyAt(p: PointerPoint | null): NameKey | undefined {
 
 /** Type the hero's name (keyboard), Enter to start. */
 export class NameEntryScene implements Scene {
+  public readonly music = 'title';
   public readonly id = 'name-entry';
   private name: string;
   private time = 0;
