@@ -60,8 +60,8 @@
 
 Deployments are not run locally. Merging triggers them, and releases are promoted with GitHub Actions:
 
-- Push or merge to `develop`: deploys to **QA** (http://qa.jouster.org)
-- Push or merge to `main`: deploys to **GREEN / staging** (https://stg.jouster.org). The deployed commit is in `/build-info.json`.
+- Push or merge to `main`: deploys to **QA** (http://qa.jouster.org)
+- **Promote Frontend: QA → Staging**: copies the QA build to **GREEN / staging** (https://stg.jouster.org). The deployed commit is in `/build-info.json`.
 - **Promote Frontend: Staging → Production**: copies staging to **BLUE / production** (https://jouster.org). This is manual and needs approval.
 - **Rollback Frontend Production**: restores a previous production snapshot
 

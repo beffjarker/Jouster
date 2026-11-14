@@ -112,6 +112,23 @@
                 "arn:aws:logs:us-west-2:*:log-group:/aws/lambda/jouster-*",
                 "arn:aws:logs:us-west-2:*:log-group:/aws/apigateway/jouster-*"
             ]
+        },
+        {
+            "Sid": "CloudFrontStagingInvalidation",
+            "Effect": "Allow",
+            "Action": [
+                "cloudfront:ListDistributions"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "CloudFrontStagingInvalidationScoped",
+            "Effect": "Allow",
+            "Action": [
+                "cloudfront:CreateInvalidation",
+                "cloudfront:GetInvalidation"
+            ],
+            "Resource": "arn:aws:cloudfront::924677642513:distribution/E2A5N3HIW6553E"
         }
     ]
 }

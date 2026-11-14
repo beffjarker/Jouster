@@ -77,15 +77,16 @@ npm run start:full
 
 ### CI/CD Deployment (GitHub Actions)
 
-Deployments run through GitHub Actions using a blue/green flow:
+The repository is trunk-based (`main` only). The frontend is built once on merge to `main` and the same
+artifact is promoted through a blue/green flow (see [Release Process](docs/Project/RELEASE-PROCESS.md)):
 
 | Environment | URL | How it deploys |
 | ----------- | --- | -------------- |
-| QA | http://qa.jouster.org | Automatically on push to `develop` |
-| GREEN (staging) | https://stg.jouster.org | Automatically on push to `main` |
+| QA | http://qa.jouster.org | Automatically on push to `main` |
+| GREEN (staging) | https://stg.jouster.org | Manually via **Promote Frontend: QA → Staging** |
 | BLUE (production) | https://jouster.org | Manually via **Promote Frontend: Staging → Production** |
 
-To release, check https://stg.jouster.org/build-info.json for the staged commit, then promote. Production
+To release, promote QA to staging, check https://stg.jouster.org/build-info.json for the staged commit, then promote. Production
 changes need approval in the `production` environment. To trigger a workflow from a local terminal with
 the [GitHub CLI](https://cli.github.com/):
 

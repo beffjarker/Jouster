@@ -35,6 +35,20 @@ const getAllowedOrigins = () => {
       ];
       break;
 
+    // Shared non-prod API (api-nonprod.jouster.org) used by preview environments,
+    // dev, qa, and staging. Accepts preview frontends served from *.jouster.org
+    // custom domains and from S3 website preview buckets.
+    case 'nonprod':
+      baseOrigins = [
+        'https://api-nonprod.jouster.org',
+        'https://nonprod.jouster.org',
+        'https://*.jouster.org',                       // preview/qa/staging custom domains
+        'http://*.s3-website-us-west-2.amazonaws.com', // S3 website preview buckets
+        'http://localhost:4200',
+        'http://localhost:3000',
+      ];
+      break;
+
     case 'development':
     default:
       baseOrigins = [
@@ -47,6 +61,39 @@ const getAllowedOrigins = () => {
   }
 
   return [...new Set([...baseOrigins, ...extraOrigins])];
+};
+
+/**
+ * Port of a URL, normalized so the scheme's default port compares equal to an
+ * omitted one (WHATWG URL already reports default ports as '').
+ */
+const effectivePort = (url) => url.port || (url.protocol === 'https:' ? '443' : url.protocol === 'http:' ? '80' : '');
+
+/**
+ * Match an origin against an allowed entry, supporting a single `*.` wildcard
+ * in the hostname (e.g., `https://*.jouster.org`). Protocol and port must match
+ * for both wildcard and exact entries.
+ */
+const originMatches = (originUrl, allowed) => {
+  // Wildcard entry: substitute a placeholder label so it parses as a URL, then
+  // compare protocol + port exactly and the hostname by suffix.
+  if (allowed.includes('*.')) {
+    const allowedUrl = new URL(allowed.replace('*.', 'wildcard.'));
+    const suffix = allowedUrl.hostname.slice('wildcard'.length); // '.jouster.org'
+    return (
+      originUrl.protocol === allowedUrl.protocol &&
+      effectivePort(originUrl) === effectivePort(allowedUrl) &&
+      (originUrl.hostname.endsWith(suffix) || originUrl.hostname === suffix.slice(1))
+    );
+  }
+
+  // Exact entry: compare protocol + hostname + port.
+  const allowedUrl = new URL(allowed);
+  return (
+    originUrl.protocol === allowedUrl.protocol &&
+    originUrl.hostname === allowedUrl.hostname &&
+    effectivePort(originUrl) === effectivePort(allowedUrl)
+  );
 };
 
 /**
@@ -65,14 +112,7 @@ const corsOptions = {
     try {
       const originUrl = new URL(origin);
 
-      const isAllowed = allowedOrigins.some(allowed => {
-        const allowedUrl = new URL(allowed);
-        return (
-          originUrl.protocol === allowedUrl.protocol &&
-          originUrl.hostname === allowedUrl.hostname &&
-          originUrl.port === allowedUrl.port
-        );
-      });
+      const isAllowed = allowedOrigins.some((allowed) => originMatches(originUrl, allowed));
 
       if (isAllowed) {
         callback(null, true);
@@ -129,4 +169,5 @@ module.exports = {
   corsOptions,
   getAllowedOrigins,
   handleCorsError,
+  originMatches,
 };

@@ -1,5 +1,8 @@
 # Release Process: v1.0.0 - Full Production Release
 
+> **Historical.** This plan predates the move to trunk-based development and refers to the retired
+> `develop` branch. See [Release Process](./RELEASE-PROCESS.md) for the current process.
+
 **Current Version**: v0.0.2  
 **Target Version**: v1.0.0  
 **Release Date**: November 11, 2025  

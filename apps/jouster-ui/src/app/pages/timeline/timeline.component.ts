@@ -1,11 +1,45 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewEncapsulation } from '@angular/core';
+import {
+  Component, OnInit, OnDestroy, AfterViewInit, ViewChild, ViewEncapsulation, inject, ElementRef, HostListener,
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import * as L from 'leaflet';
-import { LifeMapService, LifeMapEntry } from '../../services/life-map.service';
+import { LifeMapService, LifeMapEntry, LifeMapEntryInput, GeocodeResult } from '../../services/life-map.service';
+import { AuthService } from '../../services/auth.service';
 import { TimelineSliderComponent } from '../../components/timeline-slider/timeline-slider.component';
 import { PageTitleComponent } from '../../components/page-title/page-title.component';
 import { SearchableSelectComponent } from '@jouster/shared/ui';
+import { buildEntryPopupHtml, buildFallbackPopupHtml } from './map-popup';
+import { parseCalendarDate, toDateInputValue } from './calendar-date';
+
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), ' +
+  '[tabindex]:not([tabindex="-1"])';
+
+/**
+ * Raw image size limit. Base64 inflates uploads by ~4/3, so 4 MiB stays under the
+ * 6 MB Lambda synchronous payload limit. Keep in sync with the backend MAX_IMAGE_BYTES.
+ */
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+
+/** Editable form model backing the add/edit entry panel. */
+interface EntryFormModel {
+  title: string;
+  description: string;
+  date: string;
+  category: string;
+  lat: number | null;
+  lng: number | null;
+  locationName: string;
+  street: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
+  tags: string;
+  images: string[];
+}
 
 @Component({
   selector: 'jstr-timeline',
@@ -17,6 +51,7 @@ import { SearchableSelectComponent } from '@jouster/shared/ui';
 })
 export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild(TimelineSliderComponent) sliderComponent?: TimelineSliderComponent;
+  @ViewChild('entryFormPanel') private entryFormPanel?: ElementRef<HTMLElement>;
 
   public currentDate = new Date();
   /** Birth date — slider minimum. Source: dev-tools/scripts/insert-life-events.js */
@@ -38,9 +73,38 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   public sortOrder: 'asc' | 'desc' = 'asc';
   private mapInitialized = false;
 
-  constructor(private lifeMapService: LifeMapService) {}
+  // ----- Authenticated editing state -----
+  public isAuthenticated = false;
+  private authSub?: Subscription;
+
+  public showEntryForm = false;
+  public editingId: string | null = null;
+  public saving = false;
+  public formError = '';
+  public entryForm: EntryFormModel = this.emptyForm();
+
+  public geocodeQuery = '';
+  public geocodeResults: GeocodeResult[] = [];
+  public geocoding = false;
+  public pickingLocation = false;
+  /** Image uploads still in flight for the current draft; saving is blocked until they settle. */
+  public pendingUploads = 0;
+  /** Incremented whenever a draft is opened or closed so late upload results can be discarded. */
+  private formSession = 0;
+  /** Element focused before the editor opened, restored when it closes. */
+  private formTrigger: HTMLElement | null = null;
+
+  private readonly lifeMapService = inject(LifeMapService);
+  private readonly authService = inject(AuthService);
 
   public ngOnInit() {
+    this.authSub = this.authService.authenticated$.subscribe((authed) => {
+      this.isAuthenticated = authed;
+      // If the session ends while the editor is open, close it.
+      if (!authed && this.showEntryForm) {
+        this.closeForm();
+      }
+    });
     this.loadEntries();
   }
 
@@ -49,6 +113,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   public ngOnDestroy() {
+    this.authSub?.unsubscribe();
     if (this.map) {
       this.map.remove();
     }
@@ -58,7 +123,9 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
    * Load entries from DynamoDB via the backend API.
    */
   private loadEntries(): void {
-    this.isLoading = true;
+    // Only show the loading state on the first load: it removes the map container
+    // from the DOM, which would orphan an already-initialized Leaflet map on refresh.
+    this.isLoading = !this.mapInitialized;
     this.errorMessage = '';
 
     this.lifeMapService.getEntries().subscribe({
@@ -109,6 +176,9 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
         attribution: '&copy; OpenStreetMap contributors'
       }).addTo(this.map);
 
+      // Allow picking a location by clicking the map while editing an entry.
+      this.map.on('click', (e: L.LeafletMouseEvent) => this.onMapClick(e));
+
       // Force size recalculation after DOM settles
       setTimeout(() => {
         if (this.map) {
@@ -150,7 +220,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     const validEntries = this.entries
       .filter(e => e.location?.lat != null && e.location?.lng != null
         && !(e.location.lat === 0 && e.location.lng === 0))
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => parseCalendarDate(b.date).getTime() - parseCalendarDate(a.date).getTime());
 
     return validEntries.find(e => e.category === 'residence')
       || validEntries[0]
@@ -226,14 +296,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
       const icon = this.createCategoryIcon(entry.category);
       const marker = L.marker(latLng, { icon }).addTo(this.map);
 
-      const dateStr = new Date(entry.date).toLocaleDateString();
-      marker.bindPopup(`
-        <div class="map-popup">
-          <h4>${entry.title}</h4>
-          <p>${entry.description?.slice(0, 150) || ''}${entry.description?.length > 150 ? '...' : ''}</p>
-          <small>${dateStr} — ${entry.location.city || ''}, ${entry.location.state || ''}</small>
-        </div>
-      `);
+      marker.bindPopup(buildEntryPopupHtml(entry));
 
       // Store marker by entry ID for direct lookup
       this.markerMap.set(entry.id, marker);
@@ -255,12 +318,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
       const fallbackCity = this.fallbackEntry?.location?.city || '';
       const fallbackState = this.fallbackEntry?.location?.state || '';
       const locationStr = [fallbackCity, fallbackState].filter(Boolean).join(', ');
-      marker.bindPopup(`
-        <div class="map-popup">
-          <h4>${fallbackTitle}</h4>
-          <small>${locationStr || 'No entries in the selected date range'}</small>
-        </div>
-      `);
+      marker.bindPopup(buildFallbackPopupHtml(fallbackTitle, locationStr));
       this.map.setView(latLng, 10);
     }
   }
@@ -285,10 +343,10 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Date range filter (driven by the timeline slider)
     if (this.sliderStartDate) {
-      result = result.filter(e => new Date(e.date) >= this.sliderStartDate!);
+      result = result.filter(e => parseCalendarDate(e.date) >= this.sliderStartDate!);
     }
     if (this.sliderEndDate) {
-      result = result.filter(e => new Date(e.date) <= this.sliderEndDate!);
+      result = result.filter(e => parseCalendarDate(e.date) <= this.sliderEndDate!);
     }
 
     // Approximate dates toggle
@@ -298,7 +356,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
 
     // Sort by date
     result.sort((a, b) => {
-      const diff = new Date(a.date).getTime() - new Date(b.date).getTime();
+      const diff = parseCalendarDate(a.date).getTime() - parseCalendarDate(b.date).getTime();
       return this.sortOrder === 'asc' ? diff : -diff;
     });
 
@@ -357,7 +415,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
     if (candidates.length === 0) return;
 
     // Check if any candidates fall outside current slider range
-    const dates = candidates.map(e => new Date(e.date));
+    const dates = candidates.map(e => parseCalendarDate(e.date));
     const minDate = new Date(Math.min(...dates.map(d => d.getTime())));
     const maxDate = new Date(Math.max(...dates.map(d => d.getTime())));
 
@@ -446,10 +504,10 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   private dateFilteredEntries(): LifeMapEntry[] {
     let result = [...this.entries];
     if (this.sliderStartDate) {
-      result = result.filter(e => new Date(e.date) >= this.sliderStartDate!);
+      result = result.filter(e => parseCalendarDate(e.date) >= this.sliderStartDate!);
     }
     if (this.sliderEndDate) {
-      result = result.filter(e => new Date(e.date) <= this.sliderEndDate!);
+      result = result.filter(e => parseCalendarDate(e.date) <= this.sliderEndDate!);
     }
     if (!this.showApproximate) {
       result = result.filter(e => !e.tags?.includes('date-approximate'));
@@ -459,7 +517,7 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
 
   public getMostActiveYear(): string {
     if (this.entries.length === 0) return 'N/A';
-    const years = this.entries.map(e => new Date(e.date).getFullYear()).filter(y => !isNaN(y));
+    const years = this.entries.map(e => parseCalendarDate(e.date).getFullYear()).filter(y => !isNaN(y));
     const counts: Record<number, number> = {};
     years.forEach(y => counts[y] = (counts[y] || 0) + 1);
     const best = Object.entries(counts).reduce((a, b) => a[1] > b[1] ? a : b);
@@ -469,11 +527,294 @@ export class TimelineComponent implements OnInit, AfterViewInit, OnDestroy {
   public getDateRange(): string {
     if (this.entries.length === 0) return 'N/A';
     const years = this.entries
-      .map(e => new Date(e.date).getFullYear())
+      .map(e => parseCalendarDate(e.date).getFullYear())
       .filter(y => !isNaN(y));
     if (years.length === 0) return 'N/A';
     const first = Math.min(...years);
     const last = Math.max(...years);
     return `${first} – ${last}`;
+  }
+
+  /** Calendar-day Date for template display (avoids UTC-midnight shifting west of UTC). */
+  public calendarDate(value: string): Date {
+    return parseCalendarDate(value);
+  }
+
+  // ===================== Authenticated editing =====================
+
+  /** Category options for the entry form (derived from the color palette). */
+  public categoryOptions(): string[] {
+    return Object.keys(this.categoryColors);
+  }
+
+  private emptyForm(): EntryFormModel {
+    return {
+      title: '', description: '', date: '', category: 'personal',
+      lat: null, lng: null,
+      locationName: '', street: '', city: '', state: '', zip: '', country: '',
+      tags: '', images: [],
+    };
+  }
+
+  public openAddForm(): void {
+    this.editingId = null;
+    this.entryForm = this.emptyForm();
+    this.openForm();
+  }
+
+  public openEditForm(entry: LifeMapEntry): void {
+    this.editingId = entry.id;
+    this.entryForm = {
+      title: entry.title,
+      description: entry.description || '',
+      date: toDateInputValue(entry.date),
+      category: entry.category,
+      lat: entry.location?.lat ?? null,
+      lng: entry.location?.lng ?? null,
+      locationName: entry.location?.name || '',
+      street: entry.location?.street || '',
+      city: entry.location?.city || '',
+      state: entry.location?.state || '',
+      zip: entry.location?.zip || '',
+      country: entry.location?.country || '',
+      tags: (entry.tags || []).join(', '),
+      images: [...(entry.images || [])],
+    };
+    this.openForm();
+  }
+
+  /** Shared open logic: start a fresh draft session and move focus into the dialog. */
+  private openForm(): void {
+    this.formSession++;
+    this.saving = false;
+    this.pendingUploads = 0;
+    this.pickingLocation = false;
+    this.geocodeQuery = '';
+    this.geocodeResults = [];
+    this.formError = '';
+    if (!this.showEntryForm) {
+      this.formTrigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    }
+    this.showEntryForm = true;
+    this.focusFormSoon();
+  }
+
+  /** Focus the first field once Angular has rendered the dialog. */
+  private focusFormSoon(selector = FOCUSABLE_SELECTOR): void {
+    setTimeout(() => {
+      const target = this.entryFormPanel?.nativeElement.querySelector<HTMLElement>(selector)
+        ?? this.entryFormPanel?.nativeElement.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      target?.focus();
+    });
+  }
+
+  /** Close the form only when the backdrop itself was clicked (not the form body). */
+  public onOverlayClick(event: Event): void {
+    if (event.target === event.currentTarget && !this.pickingLocation) {
+      this.closeForm();
+    }
+  }
+
+  /**
+   * Escape cancels map picking first, then closes the editor. Bound at document level
+   * so it works even when focus is on the map or the trigger rather than inside the dialog.
+   */
+  @HostListener('document:keydown.escape')
+  public onEscape(): void {
+    if (!this.showEntryForm) return;
+    if (this.pickingLocation) {
+      this.cancelPickLocation();
+    } else {
+      this.closeForm();
+    }
+  }
+
+  /** Keep Tab / Shift+Tab focus cycling inside the editor dialog. */
+  public onFormKeydown(event: KeyboardEvent): void {
+    if (event.key !== 'Tab' || !this.entryFormPanel) return;
+    const focusable = Array.from(
+      this.entryFormPanel.nativeElement.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+    );
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !this.entryFormPanel.nativeElement.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !this.entryFormPanel.nativeElement.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  public closeForm(): void {
+    this.formSession++;
+    this.pendingUploads = 0;
+    this.showEntryForm = false;
+    this.pickingLocation = false;
+    this.editingId = null;
+    this.geocodeResults = [];
+    const trigger = this.formTrigger;
+    this.formTrigger = null;
+    if (trigger?.isConnected) {
+      setTimeout(() => trigger.focus());
+    }
+  }
+
+  /** Resolve the address box to candidate coordinates via the backend. */
+  public runGeocode(): void {
+    const q = this.geocodeQuery.trim();
+    if (q.length < 2) return;
+    this.geocoding = true;
+    this.formError = '';
+    this.lifeMapService.geocode(q).subscribe({
+      next: (results) => { this.geocodeResults = results; this.geocoding = false; },
+      error: () => { this.geocoding = false; this.formError = 'Geocoding failed. Try a map click instead.'; },
+    });
+  }
+
+  public selectGeocodeResult(r: GeocodeResult): void {
+    this.entryForm.lat = r.lat;
+    this.entryForm.lng = r.lng;
+    if (!this.entryForm.city) this.entryForm.city = r.city;
+    if (!this.entryForm.state) this.entryForm.state = r.state;
+    if (!this.entryForm.country) this.entryForm.country = r.country;
+    if (!this.entryForm.locationName) this.entryForm.locationName = r.displayName;
+    this.geocodeResults = [];
+    if (this.map) this.map.setView([r.lat, r.lng], 12);
+  }
+
+  /**
+   * Toggle "click the map to set coordinates" mode. While picking, the dialog is
+   * hidden and its backdrop lets clicks through to the map; the draft is preserved.
+   */
+  public togglePickLocation(): void {
+    if (this.pickingLocation) {
+      this.cancelPickLocation();
+      return;
+    }
+    this.pickingLocation = true;
+    document.getElementById('timeline-map')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  public cancelPickLocation(): void {
+    this.pickingLocation = false;
+    this.focusFormSoon('.pick-location-btn');
+  }
+
+  private onMapClick(e: L.LeafletMouseEvent): void {
+    if (!this.pickingLocation || !this.showEntryForm) return;
+    this.entryForm.lat = +e.latlng.lat.toFixed(6);
+    this.entryForm.lng = +e.latlng.lng.toFixed(6);
+    this.cancelPickLocation();
+  }
+
+  /** Read the chosen file, upload it, and attach the returned filename to the same draft. */
+  public onImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    if (file.size > MAX_IMAGE_BYTES) {
+      this.formError = `Images must be ${MAX_IMAGE_BYTES / (1024 * 1024)} MB or smaller.`;
+      input.value = '';
+      return;
+    }
+    const session = this.formSession;
+    const isCurrent = () => session === this.formSession;
+    this.pendingUploads++;
+    const settle = () => { if (isCurrent()) this.pendingUploads = Math.max(0, this.pendingUploads - 1); };
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (!isCurrent()) return;
+      const dataUrl = reader.result as string;
+      this.lifeMapService.uploadImage(dataUrl).subscribe({
+        next: (filename) => {
+          if (isCurrent()) this.entryForm.images.push(filename);
+          settle();
+        },
+        error: () => {
+          if (isCurrent()) this.formError = 'Image upload failed.';
+          settle();
+        },
+      });
+    };
+    reader.onerror = () => {
+      if (isCurrent()) this.formError = 'Could not read the image file.';
+      settle();
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
+  }
+
+  public removeImage(filename: string): void {
+    this.entryForm.images = this.entryForm.images.filter(f => f !== filename);
+  }
+
+  public saveEntry(): void {
+    this.formError = '';
+    if (this.pendingUploads > 0) {
+      this.formError = 'Please wait for image uploads to finish before saving.';
+      return;
+    }
+    const f = this.entryForm;
+    if (!f.title.trim() || !f.date || f.lat == null || f.lng == null) {
+      this.formError = 'Title, date, and a location (use address lookup or click the map) are required.';
+      return;
+    }
+
+    const input: LifeMapEntryInput = {
+      title: f.title.trim(),
+      description: f.description.trim(),
+      // Same storage format as before (UTC midnight), read back as a calendar date.
+      date: `${f.date}T00:00:00.000Z`,
+      category: f.category,
+      location: {
+        lat: f.lat,
+        lng: f.lng,
+        name: f.locationName.trim() || f.city.trim() || 'Location',
+        street: f.street.trim() || undefined,
+        city: f.city.trim() || undefined,
+        state: f.state.trim() || undefined,
+        zip: f.zip.trim() || undefined,
+        country: f.country.trim() || undefined,
+      },
+      tags: f.tags.split(',').map(t => t.trim()).filter(Boolean),
+      images: f.images,
+    };
+
+    this.saving = true;
+    const session = this.formSession;
+    const op = this.editingId
+      ? this.lifeMapService.updateEntry(this.editingId, input)
+      : this.lifeMapService.createEntry(input);
+
+    op.subscribe({
+      next: () => {
+        this.loadEntries();
+        // A late response must not close or reset a draft opened after this save started.
+        if (session !== this.formSession) return;
+        this.saving = false;
+        this.closeForm();
+      },
+      error: (err) => {
+        if (session !== this.formSession) return;
+        this.saving = false;
+        this.formError = 'Save failed. ' + (err?.error?.message || '');
+      },
+    });
+  }
+
+  public deleteEntry(entry: LifeMapEntry, event?: Event): void {
+    event?.stopPropagation();
+    if (!confirm(`Delete "${entry.title}"? This cannot be undone.`)) return;
+    this.lifeMapService.deleteEntry(entry.id).subscribe({
+      next: () => {
+        if (this.selectedEntry?.id === entry.id) this.selectedEntry = null;
+        this.loadEntries();
+      },
+      error: (err) => { this.errorMessage = 'Delete failed. ' + (err?.error?.message || ''); },
+    });
   }
 }

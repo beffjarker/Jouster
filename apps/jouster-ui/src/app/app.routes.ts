@@ -37,6 +37,11 @@ export const appRoutes: Route[] = [
     loadComponent: () => import('./pages/contact/contact.component').then(m => m.ContactComponent),
   },
   {
+    path: 'jouster-quest',
+    data: routeData('/jouster-quest'),
+    loadComponent: () => import('./pages/jouster-quest/jouster-quest.component').then(m => m.JousterQuestComponent),
+  },
+  {
     path: 'fibonacci',
     data: routeData('/fibonacci'),
     loadComponent: () => import('./pages/fibonacci/fibonacci.component').then(m => m.FibonacciComponent),
@@ -67,6 +72,7 @@ export const appRoutes: Route[] = [
   },
   {
     path: 'conversation-history',
+    data: routeData('/conversation-history'),
     loadComponent: () => import('./pages/conversation-history/conversation-history.component').then(m => m.ConversationHistoryComponent),
     canActivate: [authGuard],
   },

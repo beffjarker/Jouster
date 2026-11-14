@@ -76,6 +76,24 @@ export const PAGE_REGISTRY: PageConfig[] = [
     isPublic: false,
   },
   {
+    path: '/conversation-history',
+    title: 'Conversations',
+    icon: '💬',
+    description: 'AI conversation history',
+    showTitleOnPage: true,
+    requiresAuth: true,
+    isPublic: false,
+  },
+  {
+    path: '/jouster-quest',
+    title: 'Jouster Quest',
+    icon: '🐉',
+    description: 'Retro top-down RPG',
+    showTitleOnPage: true,
+    requiresAuth: false,
+    isPublic: true,
+  },
+  {
     path: '/about',
     title: 'About',
     icon: 'ℹ️',
@@ -100,6 +118,22 @@ export const PAGE_REGISTRY: PageConfig[] = [
  */
 export function getPageConfig(path: string): PageConfig | undefined {
   return PAGE_REGISTRY.find(p => p.path === path);
+}
+
+/**
+ * True when a router URL (query string and fragment ignored) is a page that requires auth,
+ * including its child paths.
+ */
+export function isPrivatePath(url: string): boolean {
+  // Drop query/fragment, then Angular matrix params (`/timeline;year=2020`) from each segment.
+  const path = url
+    .split(/[?#]/)[0]
+    .split('/')
+    .map((segment) => segment.split(';')[0])
+    .join('/');
+  return PAGE_REGISTRY.some(
+    (page) => page.requiresAuth && (path === page.path || path.startsWith(`${page.path}/`)),
+  );
 }
 
 /**

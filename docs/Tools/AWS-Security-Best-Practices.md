@@ -118,7 +118,7 @@ Create separate IAM users for different purposes:
    ```cmd
    git rm --cached aws/credentials
    git commit -m "security: remove exposed credentials"
-   git push origin develop
+   git push origin main
    ```
 
 3. **Check for unauthorized activity**

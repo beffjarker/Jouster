@@ -78,8 +78,10 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Branch Strategy
 
-- `main` - Production-ready code, protected branch
-- `develop` - Integration branch for features
+We use **trunk-based development**: `main` is the only long-lived branch. Every merge to `main` is
+built once and deployed to QA, then that same build is promoted to staging and production.
+
+- `main` - Trunk; always releasable
 - `feature/*` - Feature branches (e.g., `feature/timeline-improvements`)
 - `bugfix/*` - Bug fix branches (e.g., `bugfix/experiment-loading`)
 - `hotfix/*` - Critical production fixes
@@ -87,9 +89,9 @@ By participating in this project, you agree to maintain a respectful and inclusi
 ### Creating a Feature Branch
 
 ```bash
-# Start from develop
-git checkout develop
-git pull origin develop
+# Start from main
+git checkout main
+git pull origin main
 
 # Create feature branch
 git checkout -b feature/your-feature-name
@@ -111,12 +113,12 @@ git push origin feature/your-feature-name
 
 ### Before Submitting
 
-1. **Update from develop**
+1. **Update from main**
    ```bash
-   git checkout develop
-   git pull origin develop
+   git checkout main
+   git pull origin main
    git checkout feature/your-feature-name
-   git rebase develop
+   git rebase main
    ```
 
 2. **Run Tests**

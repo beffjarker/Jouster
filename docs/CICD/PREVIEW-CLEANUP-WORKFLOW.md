@@ -46,7 +46,6 @@ on:
     types: [closed]  # Triggers on both merge and close
     branches:
       - main
-      - develop
 ```
 
 ### Cleanup Steps
@@ -191,7 +190,7 @@ The preview environment for PR #11 has been successfully deleted.
 
 ### Automatic Testing
 The workflow will automatically run when:
-- Any PR targeting `main` or `develop` is closed
+- Any PR targeting `main` is closed
 - The PR was previously deployed with a preview environment
 
 ### Manual Testing

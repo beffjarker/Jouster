@@ -1,0 +1,28 @@
+version: '3.8'
+services:
+  nx-remote-cache:
+    image: cimg/node:16
+    container_name: nx-remote-cache
+    volumes:
+      - ./nx-remote-cache:/cache
+    environment:
+      - NX_CACHE_DIRECTORY=/cache
+    ports:
+      - "3142:3142"
+
+  verdaccio:
+    image: verdaccio/verdaccio
+    container_name: verdaccio-npm-mirror
+    volumes:
+      - ./verdaccio-storage:/verdaccio/storage
+      - ./verdaccio-config:/verdaccio/conf
+    ports:
+      - "4873:4873"
+
+  nginx-static-model-mirror:
+    image: nginx:latest
+    container_name: nginx-static-model-mirror
+    volumes:
+      - ./static-models:/usr/share/nginx/html
+    ports:
+      - "8080:80"

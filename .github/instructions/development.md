@@ -100,7 +100,7 @@ git commit -m "docs(readme): update setup instructions"
 ### 5. Create Pull Request
 
 - Push branch to GitHub
-- Create PR against `develop` branch
+- Create PR against `main` (trunk-based; there is no `develop` branch)
 - Fill out PR template
 - Link related issues/tickets
 - Request code review
@@ -280,7 +280,7 @@ app.use((err, req, res, next) => {
 Located in `.github/workflows/`:
 
 - **ci.yml** - Run on all PRs (lint, test, build)
-- **cd.yml** - Deploy on merge to main/develop
+- **qa-deploy.yml** - Build once and deploy to QA on merge to `main`; promote to staging/production with the promote workflows
 - **security.yml** - Dependency scanning, security checks
 
 ### Pre-commit Hooks

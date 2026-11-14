@@ -1,0 +1,201 @@
+export type InputAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'cancel' | 'map' | 'mute' | 'items' | 'equip';
+
+/** Keyboard `code` → game action. The page's controls list is checked against this (see `CONTROLS`). */
+export const KEY_BINDINGS: ReadonlyArray<readonly [string, InputAction]> = [
+  ['ArrowUp', 'up'],
+  ['KeyW', 'up'],
+  ['ArrowDown', 'down'],
+  ['KeyS', 'down'],
+  ['ArrowLeft', 'left'],
+  ['KeyA', 'left'],
+  ['ArrowRight', 'right'],
+  ['KeyD', 'right'],
+  ['KeyZ', 'confirm'],
+  ['Enter', 'confirm'],
+  ['Space', 'confirm'],
+  ['KeyX', 'cancel'],
+  ['Escape', 'cancel'],
+  ['Backspace', 'cancel'],
+  ['KeyM', 'map'],
+  ['KeyN', 'mute'],
+  ['KeyI', 'items'],
+  ['KeyE', 'equip'],
+];
+
+const ACTION_BY_CODE = new Map<string, InputAction>(KEY_BINDINGS);
+
+/** Minimal event-target shape so the input can be attached to `window` or a test double. */
+export interface KeyEventSource {
+  addEventListener(type: string, listener: (event: Event) => void): void;
+  removeEventListener(type: string, listener: (event: Event) => void): void;
+}
+
+/** A point on the logical screen (game units, not CSS or canvas pixels). */
+export interface PointerPoint {
+  readonly x: number;
+  readonly y: number;
+}
+
+/** Latest mouse / touch position; `down` while a button or finger is pressed. */
+export interface PointerState extends PointerPoint {
+  readonly down: boolean;
+}
+
+/**
+ * Keyboard input mapped to game actions.
+ *
+ * - `isDown` = held this frame (movement).
+ * - `wasPressed` = pressed since the last `endFrame` (menus). Auto-repeat counts as a press for
+ *   direction keys so menu cursors can scroll.
+ * - `typed` = printable characters and `Backspace`/`Enter`/`Escape` codes for text entry.
+ * - `tap` / `pointer` = mouse and touch, fed by the host through `pointerDown`/`pointerMove`/`pointerUp` in
+ *   logical screen coordinates; `press`/`release` let on-screen buttons drive actions directly.
+ */
+export class InputManager {
+  private readonly down = new Set<InputAction>();
+  private readonly pressed = new Set<InputAction>();
+  private readonly typedKeys: string[] = [];
+  private pointerState: PointerState | null = null;
+  private tapPoint: PointerPoint | null = null;
+  private pointerMoved = false;
+  private presses = 0;
+  private attached = false;
+
+  private readonly onKeyDown = (event: Event): void => this.handleKeyDown(event as KeyboardEvent);
+  private readonly onKeyUp = (event: Event): void => this.handleKeyUp(event as KeyboardEvent);
+  private readonly onBlur = (): void => this.reset();
+
+  constructor(private readonly source: KeyEventSource) {}
+
+  public attach(): void {
+    if (this.attached) {
+      return;
+    }
+    this.source.addEventListener('keydown', this.onKeyDown);
+    this.source.addEventListener('keyup', this.onKeyUp);
+    this.source.addEventListener('blur', this.onBlur);
+    this.attached = true;
+  }
+
+  public detach(): void {
+    this.source.removeEventListener('keydown', this.onKeyDown);
+    this.source.removeEventListener('keyup', this.onKeyUp);
+    this.source.removeEventListener('blur', this.onBlur);
+    this.attached = false;
+    this.reset();
+  }
+
+  public isDown(action: InputAction): boolean {
+    return this.down.has(action);
+  }
+
+  public wasPressed(action: InputAction): boolean {
+    return this.pressed.has(action);
+  }
+
+  /** Keys typed since the last frame (single characters, or `Backspace`/`Enter`/`Escape`). */
+  public get typed(): readonly string[] {
+    return this.typedKeys;
+  }
+
+  /** Where the pointer went down since the last frame (a click or tap), or null. */
+  public get tap(): PointerPoint | null {
+    return this.tapPoint;
+  }
+
+  /** Latest pointer position and button state, or null before any mouse / touch input. */
+  public get pointer(): PointerState | null {
+    return this.pointerState;
+  }
+
+  /** Counts pointer presses, so a scene can tell whether the button held now is the one it saw go down. */
+  public get pointerPresses(): number {
+    return this.presses;
+  }
+
+  /** True when the pointer moved (hover or drag) since the last frame. */
+  public get pointerMovedThisFrame(): boolean {
+    return this.pointerMoved;
+  }
+
+  /** Mouse button / finger down at a logical screen point; it counts as a tap for this frame. */
+  public pointerDown(x: number, y: number): void {
+    this.pointerState = { x, y, down: true };
+    this.presses++;
+    this.tapPoint = this.tapPoint ?? { x, y };
+    this.pointerMoved = true;
+  }
+
+  public pointerMove(x: number, y: number): void {
+    this.pointerState = { x, y, down: this.pointerState?.down ?? false };
+    this.pointerMoved = true;
+  }
+
+  /** Button / finger released (or the pointer was cancelled). */
+  public pointerUp(x?: number, y?: number): void {
+    const prev = this.pointerState;
+    this.pointerState = prev || x !== undefined ? { x: x ?? prev?.x ?? 0, y: y ?? prev?.y ?? 0, down: false } : null;
+  }
+
+  /** Presses an action as if its key went down (on-screen buttons, mouse wheel, right click). */
+  public press(action: InputAction): void {
+    this.pressed.add(action);
+    this.down.add(action);
+  }
+
+  public release(action: InputAction): void {
+    this.down.delete(action);
+  }
+
+  /** Clears per-frame state; call once at the end of every update. */
+  public endFrame(): void {
+    this.pressed.clear();
+    this.typedKeys.length = 0;
+    this.tapPoint = null;
+    this.pointerMoved = false;
+  }
+
+  public reset(): void {
+    this.down.clear();
+    if (this.pointerState) {
+      this.pointerState = { ...this.pointerState, down: false };
+    }
+    this.endFrame();
+  }
+
+  private handleKeyDown(event: KeyboardEvent): void {
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+    const action = ACTION_BY_CODE.get(event.code);
+    if (event.key.length === 1 || ['Backspace', 'Enter', 'Escape'].includes(event.key)) {
+      if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+        this.typedKeys.push(event.key);
+      }
+    }
+    if (!action) {
+      return;
+    }
+    event.preventDefault();
+    const isDirection = action === 'up' || action === 'down' || action === 'left' || action === 'right';
+    if (!event.repeat || isDirection) {
+      this.pressed.add(action);
+    }
+    this.down.add(action);
+  }
+
+  private handleKeyUp(event: KeyboardEvent): void {
+    const action = ACTION_BY_CODE.get(event.code);
+    if (action) {
+      this.down.delete(action);
+    }
+  }
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  const el = target as { tagName?: string; isContentEditable?: boolean } | null;
+  if (!el || typeof el.tagName !== 'string') {
+    return false;
+  }
+  return el.isContentEditable === true || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName);
+}

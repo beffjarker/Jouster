@@ -12,6 +12,8 @@
 
 const express = require('express');
 const bcrypt = require('bcrypt');
+const { SESSION_COOKIE_NAME } = require('../config/session');
+const { isSessionAuthenticated } = require('../middleware/auth-guard');
 const router = express.Router();
 
 /**
@@ -50,13 +52,24 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    // Set session as authenticated
-    req.session.authenticated = true;
-    req.session.authenticatedAt = new Date().toISOString();
+    // Regenerate the session ID on privilege elevation to prevent session fixation.
+    return req.session.regenerate((regenErr) => {
+      if (regenErr) {
+        console.error('Session regeneration error:', regenErr.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Internal server error',
+        });
+      }
 
-    return res.json({
-      success: true,
-      message: 'Authenticated',
+      // Set session as authenticated
+      req.session.authenticated = true;
+      req.session.authenticatedAt = new Date().toISOString();
+
+      return res.json({
+        success: true,
+        message: 'Authenticated',
+      });
     });
   } catch (error) {
     console.error('Login error:', error.message);
@@ -81,7 +94,7 @@ router.post('/logout', (req, res) => {
       });
     }
 
-    res.clearCookie('jstr.sid');
+    res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
     return res.json({
       success: true,
       message: 'Logged out',
@@ -94,7 +107,7 @@ router.post('/logout', (req, res) => {
  * Check if the current session is authenticated.
  */
 router.get('/verify', (req, res) => {
-  if (req.session && req.session.authenticated === true) {
+  if (isSessionAuthenticated(req)) {
     return res.json({
       success: true,
       authenticated: true,

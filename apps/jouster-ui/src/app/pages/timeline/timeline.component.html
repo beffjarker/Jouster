@@ -2,6 +2,99 @@
   <jstr-page-title></jstr-page-title>
   <p class="current-datetime">{{ currentDate | date:'EEEE, MMMM d, y — h:mm a' }}</p>
 
+  <!-- Authenticated editing toolbar -->
+  <div class="edit-toolbar" *ngIf="isAuthenticated">
+    <button class="add-entry-btn" (click)="openAddForm()">+ Add Entry</button>
+  </div>
+
+  <!-- Add/Edit Entry Form (authenticated only) -->
+  <div class="entry-form-overlay" *ngIf="isAuthenticated && showEntryForm" [class.picking]="pickingLocation"
+       role="dialog" aria-modal="true" aria-labelledby="entry-form-title"
+       (click)="onOverlayClick($event)">
+    <div class="pick-location-hint" *ngIf="pickingLocation" role="status">
+      Click the map to set this entry's location.
+      <button type="button" (click)="cancelPickLocation()">Cancel (Esc)</button>
+    </div>
+    <div class="entry-form" #entryFormPanel [hidden]="pickingLocation" (keydown)="onFormKeydown($event)">
+      <h3 id="entry-form-title">{{ editingId ? 'Edit Entry' : 'Add Entry' }}</h3>
+
+      <label>Title *
+        <input type="text" [(ngModel)]="entryForm.title" maxlength="200" placeholder="Event title">
+      </label>
+
+      <label>Date *
+        <input type="date" [(ngModel)]="entryForm.date">
+      </label>
+
+      <label>Category
+        <select [(ngModel)]="entryForm.category">
+          <option *ngFor="let c of categoryOptions()" [value]="c">{{ c | titlecase }}</option>
+        </select>
+      </label>
+
+      <label>Description
+        <textarea [(ngModel)]="entryForm.description" rows="3" maxlength="5000"
+                  placeholder="What happened..."></textarea>
+      </label>
+
+      <!-- Location: address lookup OR click-the-map -->
+      <div class="form-location">
+        <div class="geocode-row">
+          <input type="text" [(ngModel)]="geocodeQuery" placeholder="Search an address..."
+                 (keydown.enter)="runGeocode(); $event.preventDefault()">
+          <button type="button" (click)="runGeocode()" [disabled]="geocoding">
+            {{ geocoding ? '…' : 'Find' }}
+          </button>
+          <button type="button" class="pick-location-btn" [class.active]="pickingLocation"
+                  (click)="togglePickLocation()">
+            {{ pickingLocation ? 'Click the map…' : 'Pick on map' }}
+          </button>
+        </div>
+        <ul class="geocode-results" *ngIf="geocodeResults.length">
+          <li *ngFor="let r of geocodeResults" tabindex="0"
+              (click)="selectGeocodeResult(r)" (keydown.enter)="selectGeocodeResult(r)">{{ r.displayName }}</li>
+        </ul>
+        <div class="coords" *ngIf="entryForm.lat !== null && entryForm.lng !== null">
+          📍 {{ entryForm.lat }}, {{ entryForm.lng }}
+        </div>
+        <div class="address-grid">
+          <input type="text" [(ngModel)]="entryForm.city" placeholder="City">
+          <input type="text" [(ngModel)]="entryForm.state" placeholder="State">
+          <input type="text" [(ngModel)]="entryForm.country" placeholder="Country">
+        </div>
+      </div>
+
+      <label>Tags (comma-separated)
+        <input type="text" [(ngModel)]="entryForm.tags" placeholder="travel, family">
+      </label>
+
+      <!-- Images -->
+      <div class="form-images">
+        <label class="image-upload-label">
+          Add image
+          <input type="file" accept="image/png,image/jpeg,image/svg+xml" (change)="onImageSelected($event)">
+        </label>
+        <p class="upload-status" *ngIf="pendingUploads > 0" role="status">
+          Uploading {{ pendingUploads }} image{{ pendingUploads === 1 ? '' : 's' }}…
+        </p>
+        <ul class="image-list" *ngIf="entryForm.images.length">
+          <li *ngFor="let img of entryForm.images">
+            {{ img }} <button type="button" (click)="removeImage(img)">✕</button>
+          </li>
+        </ul>
+      </div>
+
+      <p class="form-error" *ngIf="formError">{{ formError }}</p>
+
+      <div class="form-actions">
+        <button type="button" class="cancel-btn" (click)="closeForm()">Cancel</button>
+        <button type="button" class="save-btn" (click)="saveEntry()" [disabled]="saving || pendingUploads > 0">
+          {{ saving ? 'Saving…' : (editingId ? 'Update' : 'Create') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Loading State -->
   <div class="loading-state" *ngIf="isLoading">
     <p>Loading entries...</p>
@@ -118,7 +211,7 @@
               {{ entry.category | titlecase }}
             </span>
           </div>
-          <p class="event-date">{{ entry.date | date:'mediumDate' }}</p>
+          <p class="event-date">{{ calendarDate(entry.date) | date:'mediumDate' }}</p>
           <p class="event-location" *ngIf="entry.location?.city">
             📍 {{ entry.location.city }}, {{ entry.location.state }}
           </p>
@@ -136,6 +229,8 @@
 
           <div class="event-actions">
             <button (click)="viewOnMap(entry); $event.stopPropagation()" class="view-map-btn">Map</button>
+            <button *ngIf="isAuthenticated" (click)="openEditForm(entry); $event.stopPropagation()" class="edit-btn">Edit</button>
+            <button *ngIf="isAuthenticated" (click)="deleteEntry(entry, $event)" class="delete-btn">Delete</button>
           </div>
         </div>
       </div>
@@ -158,7 +253,7 @@
                 {{ fallbackEntry.category | titlecase }}
               </span>
             </div>
-            <p class="event-date">{{ fallbackEntry.date | date:'mediumDate' }}</p>
+            <p class="event-date">{{ calendarDate(fallbackEntry.date) | date:'mediumDate' }}</p>
             <p class="event-location" *ngIf="fallbackEntry.location?.city">
               📍 {{ fallbackEntry.location.city }}, {{ fallbackEntry.location.state }}
             </p>
