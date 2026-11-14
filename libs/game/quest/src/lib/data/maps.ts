@@ -1,8 +1,9 @@
 import { Facing, TileDef, TileMap } from '@jouster/game/engine';
 import { GameState, companionBenched, companionPresent } from '../state/game-state';
 import { COMPANION_SLOTS, CompanionSlot, companionRestSpot } from './companions';
-import { SOUTH_WEAPON_STOCK } from './equipment';
-import { SOUTH_ARMOR_STOCK } from './gear';
+import { NORTH_WEAPON_STOCK, SOUTH_WEAPON_STOCK } from './equipment';
+import { NORTH_LANDMARKS, generateFrostPeaks } from './frostpeaks-gen';
+import { NORTH_ARMOR_STOCK, SOUTH_ARMOR_STOCK } from './gear';
 import { LANDMARKS, generateOverworld } from './overworld-gen';
 import { SOUTH_LANDMARKS, generateSouthlands } from './southlands-gen';
 
@@ -91,7 +92,7 @@ export interface MapEvent {
   id: string;
 }
 
-export type Backdrop = 'field' | 'forest' | 'hills' | 'cave' | 'desert' | 'marsh';
+export type Backdrop = 'field' | 'forest' | 'hills' | 'cave' | 'desert' | 'marsh' | 'snow';
 
 export interface MapDef {
   id: string;
@@ -389,12 +390,12 @@ const MIRE_SHRINE_ROWS = [
   '######################',
 ];
 
-function shrineLegend(wall: string, floor: string): TileDef[] {
+function shrineLegend(wall: string, floor: string, encounterTableId = 'shrine', water = 'caveWater'): TileDef[] {
   return [
     { char: '#', id: wall, solid: true },
     { char: 't', id: 'torch', solid: true },
-    { char: '_', id: floor, solid: false, encounterTableId: 'shrine' },
-    { char: '~', id: 'caveWater', solid: true },
+    { char: '_', id: floor, solid: false, encounterTableId },
+    { char: '~', id: water, solid: true },
     { char: 'E', id: 'caveExit', solid: false },
   ];
 }
@@ -402,9 +403,86 @@ function shrineLegend(wall: string, floor: string): TileDef[] {
 /** Items sold in Sandhollow (Act II). */
 export const SANDHOLLOW_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'phoenixFeather'];
 
+// --- Frost Peaks (64x48, generated from a fixed seed) - Act III ----------------------------
+
+const FROSTPEAKS_LEGEND: TileDef[] = [
+  { char: '.', id: 'snow', solid: false, encounterTableId: 'snowfield' },
+  { char: 'd', id: 'drifts', solid: false, encounterTableId: 'snowfield' },
+  { char: 'f', id: 'snowPine', solid: false, encounterTableId: 'pines' },
+  { char: ':', id: 'snowRoad', solid: false, encounterTableId: 'snowfield' },
+  { char: '^', id: 'glacier', solid: true },
+  { char: '~', id: 'iceWater', solid: true },
+  { char: 'i', id: 'frozenLake', solid: false, encounterTableId: 'snowfield' },
+  { char: 'F', id: 'town', solid: false },
+  { char: 'R', id: 'roostEntrance', solid: false },
+  { char: 'N', id: 'pass', solid: false },
+];
+
+// --- Frostgate (27x15) ---------------------------------------------------------------------
+
+const FROSTGATE_ROWS = [
+  'TTTTTTTTTTTTTTTTTTTTTTTTTTT',
+  'TgggggggggggggggggggggggggT',
+  'Tg#####g#####g#####g#####gT',
+  'Tg#kwb#g#PwP#g#WwW#g#AwA#gT',
+  'Tg#ccc#g#ccc#g#ccc#g#ccc#gT',
+  'Tg_______________________gT',
+  'Tggggu_______________vggggT',
+  'Tggg_________f_________gggT',
+  'Tggg_______j___j_______gggT',
+  'Tgggg_________________ggggT',
+  'Tg####gggg_______gggg####gT',
+  'Tg####gggg_______gggg####gT',
+  'TTgggggggg_______ggggggggTT',
+  'TTTTTTTTTTTTEETTTTTTTTTTTTT',
+  'TTTTTTTTTTTTTTTTTTTTTTTTTTT',
+];
+
+/** Mountain town: snow-laden pines and snow instead of trees and grass, a campfire for a fountain. */
+const SNOW_TOWN_LEGEND: TileDef[] = [
+  ...TOWN_LEGEND.map((t) => (t.char === 'T' ? { ...t, id: 'snowPine' } : t.char === 'g' ? { ...t, id: 'snow' } : t)),
+  { char: 'f', id: 'campfire@cobble', solid: true },
+  { char: 'j', id: 'stool@cobble', solid: false },
+];
+
+// --- Wyvern Roost (22x16) ------------------------------------------------------------------
+
+const WYVERN_ROOST_ROWS = [
+  '######################',
+  '#######________#######',
+  '######t________t######',
+  '#######________#######',
+  '##########__##########',
+  '##___~~____________~##',
+  '##_#######_######_####',
+  '##_#t####___####t_####',
+  '##_######_~_#####_####',
+  '##_____________~~____#',
+  '#######_######__###_##',
+  '###t###_####t#__###_##',
+  '###________~~_______##',
+  '##########_###########',
+  '##########E###########',
+  '######################',
+];
+
+/** Items sold in Frostgate (Act III). */
+export const FROSTGATE_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'phoenixFeather'];
+
 const kingLines = (s: GameState): string[] => {
+  if (s.flags['actThreeComplete']) {
+    return [
+      'KING ALDRIC: Dragonbane is forged from the three seals. Only Vyrmorth remains.',
+      'Rest and ready yourselves, heroes. The dragon\'s lair awaits.',
+    ];
+  }
   if (s.flags['actTwoComplete']) {
-    return ['KING ALDRIC: The south is at peace. Rest, hero - the dragon Vyrmorth will not sleep forever.'];
+    return s.flags['wyvernMatriarchDefeated']
+      ? []
+      : [
+          'KING ALDRIC: The northern pass beyond Aldmere is open to you now.',
+          'Frostgate lies in the Frost Peaks. Its people say a Wyvern Matriarch guards the last seal in her roost.',
+        ];
   }
   if (s.flags['actOneComplete']) {
     const left = [
@@ -439,7 +517,10 @@ const {
   wolfDen: DEN_AT,
   lakeshore: LAKE_AT,
   southPass: PASS_AT,
+  northPass: NORTH_PASS_AT,
 } = LANDMARKS;
+
+const { pass: FROST_PASS_AT, frostgate: FROSTGATE_AT, wyvernRoost: ROOST_AT } = NORTH_LANDMARKS;
 
 const { pass: SOUTH_PASS_AT, sandhollow: SANDHOLLOW_AT, sunShrine: SUN_AT, mireShrine: MIRE_AT } = SOUTH_LANDMARKS;
 
@@ -464,6 +545,16 @@ const BASE_MAPS: MapDef[] = [
           requires: 'actOneComplete',
           lockedLines: ['The southern pass is barred by order of King Aldric.', 'Only the hero of Aldmere may pass.'],
         },
+        {
+          x: NORTH_PASS_AT.x,
+          y: NORTH_PASS_AT.y,
+          toMap: 'frostpeaks',
+          toX: FROST_PASS_AT.x,
+          toY: FROST_PASS_AT.y - 1,
+          facing: 'up',
+          requires: 'actTwoComplete',
+          lockedLines: ['Snow chokes the northern pass, and the guard will not let you through.', 'Free the Southlands first.'],
+        },
       ],
       npcs: [
         {
@@ -477,6 +568,18 @@ const BASE_MAPS: MapDef[] = [
             s.flags['actOneComplete']
               ? ['GUARD: The king says you may pass. The Southlands lie beyond - sand to the west, marsh to the east.']
               : ['GUARD: None may cross the southern pass without the king\'s leave.', 'Deal with the goblins first, then speak to King Aldric.'],
+        },
+        {
+          id: 'northGuard',
+          x: NORTH_PASS_AT.x + 1,
+          y: NORTH_PASS_AT.y + 1,
+          spriteId: 'guard',
+          facing: 'left',
+          role: 'talk',
+          lines: (s) =>
+            s.flags['actTwoComplete']
+              ? ['GUARD: The northern pass is open. Wrap up warm - the Frost Peaks bite, and wyverns hunt the skies.']
+              : ['GUARD: The northern pass is closed. Ice trolls come down from the peaks every winter.', 'Only the king can give you leave.'],
         },
         bossNpc(
           'giantToad',
@@ -832,6 +935,104 @@ const BASE_MAPS: MapDef[] = [
           defeatFlag: 'marshWitchDefeated',
           lines: ['MARSH WITCH: Another fool from the north? The mire will have your bones, little hero!'],
           victory: ['The Marsh Witch shrieks and dissolves into black water. The shrine falls silent.'],
+        }),
+      ],
+      events: [],
+      outsideTile: '#',
+      backdrop: 'cave',
+      fog: true,
+    },
+  {
+      id: 'frostpeaks',
+      name: 'The Frost Peaks',
+      rows: generateFrostPeaks(),
+      legend: FROSTPEAKS_LEGEND,
+      warps: [
+        { x: FROST_PASS_AT.x, y: FROST_PASS_AT.y, toMap: 'overworld', toX: NORTH_PASS_AT.x, toY: NORTH_PASS_AT.y + 1, facing: 'down' },
+        { x: FROSTGATE_AT.x, y: FROSTGATE_AT.y, toMap: 'frostgate', toX: 12, toY: 12, facing: 'up' },
+        { x: ROOST_AT.x, y: ROOST_AT.y, toMap: 'wyvernRoost', toX: 10, toY: 13, facing: 'up' },
+      ],
+      npcs: [],
+      events: [],
+      outsideTile: '^',
+      backdrop: 'snow',
+      fog: true,
+    },
+  {
+      id: 'frostgate',
+      name: 'Frostgate',
+      rows: FROSTGATE_ROWS,
+      legend: SNOW_TOWN_LEGEND,
+      warps: [
+        { x: 12, y: 13, toMap: 'frostpeaks', toX: FROSTGATE_AT.x, toY: FROSTGATE_AT.y + 1, facing: 'down' },
+        { x: 13, y: 13, toMap: 'frostpeaks', toX: FROSTGATE_AT.x, toY: FROSTGATE_AT.y + 1, facing: 'down' },
+      ],
+      npcs: [
+        { id: 'frostInn', x: 4, y: 3, spriteId: 'innkeeper', facing: 'down', role: 'inn' },
+        { id: 'frostItems', x: 10, y: 3, spriteId: 'merchant', facing: 'down', role: 'itemShop', stock: FROSTGATE_ITEM_STOCK },
+        { id: 'frostSmith', x: 16, y: 3, spriteId: 'smith', facing: 'down', role: 'weaponShop', stock: NORTH_WEAPON_STOCK },
+        { id: 'frostArmorer', x: 22, y: 3, spriteId: 'guard', facing: 'down', role: 'armorShop', stock: NORTH_ARMOR_STOCK },
+        {
+          id: 'frostElder',
+          x: 6,
+          y: 8,
+          spriteId: 'elder',
+          facing: 'down',
+          role: 'talk',
+          wander: true,
+          lines: (s) =>
+            s.flags['wyvernMatriarchDefeated']
+              ? ['ELDER: The skies are quiet at last. Take the third seal to King Aldric, hero.']
+              : [
+                  'ELDER: The last of the old seals lies in the Wyvern Roost, high in the north-east crags.',
+                  'The Matriarch nests on it. Follow the road north from the gate and do not stray onto thin ice.',
+                ],
+        },
+        {
+          id: 'frostScout',
+          x: 18,
+          y: 11,
+          spriteId: 'villager',
+          facing: 'left',
+          role: 'talk',
+          lines: () => [
+            'SCOUT: Trolls and yetis shrug off frost, but fire sends them running.',
+            'Wyverns fear the storm - lightning brings them down. Our smith\'s frost-forged blades are the best in the land.',
+          ],
+        },
+        {
+          id: 'frostChild',
+          x: 20,
+          y: 8,
+          spriteId: 'child',
+          facing: 'down',
+          role: 'talk',
+          wander: true,
+          lines: () => ['The frost mages hate the fire and holy light. Mama sings to keep them away.'],
+        },
+      ],
+      signs: [
+        { x: 2, y: 4, kind: 'inn' },
+        { x: 8, y: 4, kind: 'item' },
+        { x: 14, y: 4, kind: 'weapon' },
+        { x: 20, y: 4, kind: 'armor' },
+      ],
+      events: [],
+      outsideTile: 'T',
+      backdrop: 'snow',
+    },
+  {
+      id: 'wyvernRoost',
+      name: 'Wyvern Roost',
+      rows: WYVERN_ROOST_ROWS,
+      legend: shrineLegend('iceWall', 'iceFloor', 'roost', 'iceWater'),
+      warps: [{ x: 10, y: 14, toMap: 'frostpeaks', toX: ROOST_AT.x, toY: ROOST_AT.y + 1, facing: 'down' }],
+      npcs: [
+        bossNpc('wyvernMatriarch', 11, 2, 'wyvernMatriarch', {
+          monsterIds: ['wyvernMatriarch', 'wyvern'],
+          defeatFlag: 'wyvernMatriarchDefeated',
+          lines: ['A vast white wyvern rises from her nest of bones, the third seal glinting beneath her. She shrieks!'],
+          victory: ['The Wyvern Matriarch falls from the crag. You take the third seal from her nest.'],
         }),
       ],
       events: [],

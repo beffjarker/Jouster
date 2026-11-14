@@ -130,6 +130,58 @@ const GEAR_LIST: GearDef[] = [
     description: 'A wall of oak and bronze.',
   },
   { id: 'scarabAmulet', name: 'Scarab Amulet', slot: 'accessory', tier: 3, bonus: { def: 2, hp: 8 }, price: 220, description: 'A blue beetle in gold.' },
+  // --- Tier 4: Frostgate (Act III) -------------------------------------------------------------
+  {
+    id: 'auroraRobe',
+    name: 'Aurora Robe',
+    slot: 'armor',
+    tier: 4,
+    bonus: { def: 5, mag: 4 },
+    classes: ['wizard', 'cleric'],
+    price: 440,
+    description: 'Fur-lined silk that glows faintly. Wizards and clerics.',
+  },
+  {
+    id: 'snowcatLeather',
+    name: 'Snowcat Leather',
+    slot: 'armor',
+    tier: 4,
+    bonus: { def: 6, agi: 3 },
+    classes: ['rogue', 'ranger'],
+    price: 460,
+    description: 'Pale hide, silent on snow. Rogues and rangers.',
+  },
+  {
+    id: 'frostMail',
+    name: 'Frost Mail',
+    slot: 'armor',
+    tier: 4,
+    bonus: { def: 7, hp: 6 },
+    classes: ['warrior', 'paladin', 'cleric', 'ranger'],
+    price: 480,
+    description: 'Cold-hammered rings over wool.',
+  },
+  {
+    id: 'glacierPlate',
+    name: 'Glacier Plate',
+    slot: 'armor',
+    tier: 4,
+    bonus: { def: 9, hp: 12 },
+    classes: HEAVY,
+    price: 640,
+    description: 'Blue-white plate. Warriors and paladins.',
+  },
+  {
+    id: 'wyvernShield',
+    name: 'Wyvern Shield',
+    slot: 'shield',
+    tier: 4,
+    bonus: { def: 4, hp: 6 },
+    classes: HEAVY,
+    price: 380,
+    description: 'Faced with wyvern scale.',
+  },
+  { id: 'frostCharm', name: 'Frost Charm', slot: 'accessory', tier: 4, bonus: { def: 3, hp: 12 }, price: 360, description: 'A snowflake in clear quartz.' },
 ];
 
 export const GEAR: ReadonlyMap<string, GearDef> = new Map(GEAR_LIST.map((g) => [g.id, g]));
@@ -138,6 +190,8 @@ export const GEAR: ReadonlyMap<string, GearDef> = new Map(GEAR_LIST.map((g) => [
 export const ARMOR_SHOP_STOCK: readonly string[] = GEAR_LIST.filter((g) => g.tier <= 2).map((g) => g.id);
 /** Tier-3 gear ids sold by Sandhollow's armorer (Act II). */
 export const SOUTH_ARMOR_STOCK: readonly string[] = GEAR_LIST.filter((g) => g.tier === 3).map((g) => g.id);
+/** Tier-4 gear ids sold by Frostgate's armorer (Act III). */
+export const NORTH_ARMOR_STOCK: readonly string[] = GEAR_LIST.filter((g) => g.tier === 4).map((g) => g.id);
 
 export function gearDef(id: string): GearDef {
   const g = GEAR.get(id);

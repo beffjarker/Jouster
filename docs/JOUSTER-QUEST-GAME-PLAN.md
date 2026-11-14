@@ -1482,7 +1482,76 @@ across any `counter`, `altar` or `jailBars` tile (`talkAcross`).
 - The balance simulator still uses `resolveRound`, which chooses every party action at the start of the
   round. Both modes share the same action and AI code.
 
+## 19. Act III: the Frost Peaks (implemented)
+
+Goal: the third act of the story (§6), playable after Act II, with the same balance rules (§4.6) and art
+density (§16.10).
+
+### 19.1 Getting there
+
+- A **northern pass** at the top of the Greenwood Vale map, reached by a road from Aldmere, leads to the Frost
+  Peaks. Its warp `requires` `actTwoComplete`; until then it shows locked lines. A guard (`northGuard`) explains
+  the rule.
+- King Aldric's Act II ending now points the hero north.
+
+### 19.2 Maps
+
+| Map | Size | Notes |
+| --- | --- | --- |
+| The Frost Peaks | 64×48 | Generated from a fixed seed (`data/frostpeaks-gen.ts`): snowfields, drifts, snowy pines, frozen lakes and icy water, ringed by glaciers. Roads are carved by the same cheapest-path search, so every landmark is reachable. |
+| Frostgate | 27×15 | Snow town: inn, item shop, smith (tier-4 weapons), armorer (tier-4 armor) and townsfolk with hints. |
+| Wyvern Roost | 22×16 | Ice cavern in the north-east peaks. Boss: **Wyvern Matriarch** with a wyvern escort. |
+
+All three places show on the world map (M), and the quest log tracks the Matriarch.
+
+### 19.3 Monsters and encounters
+
+| Monster | Where | Notes |
+| --- | --- | --- |
+| Ice Troll | pines, roost | Slow and tough |
+| Yeti | snowfield, pines | |
+| Wyvern | snowfield, roost | Fast |
+| Frost Mage | pines, roost | Robed humanoid |
+| Wyvern Matriarch | Wyvern Roost boss | 360 HP before boss scaling |
+
+New encounter tables: `snowfield`, `pines` and `roost`. Battles on snow tiles use a new **snow** backdrop.
+Fights inside the roost use the cave backdrop.
+
+### 19.4 Gear
+
+Tier 4 is sold in Frostgate:
+
+- Weapons: Frostbrand, Glacier Blade, Aurora Staff, Rime Mace, Icicle Daggers and Wolfsbane Knife.
+- Armor: Aurora Robe, Snowcat Leather, Frost Mail and Glacier Plate.
+- Shield: Wyvern Shield.
+- Accessory: Frost Charm.
+
+The catalogue test allows up to +12 HP and +9 for any other stat.
+
+### 19.5 Balance (checked in `balance.spec.ts`)
+
+- Every class wins at least 90% of solo snowfield, pines and roost fights at level 13 with tier-4 gear.
+- Every class beats the Matriarch and her escort solo at least 60% of the time at level 15 with tier-4 gear.
+- Every three-class party beats them at least 70% of the time at level 13.
+- Snowfield fights from level 11 to 14 earn enough gold for the most expensive tier-4 weapon.
+
+### 19.6 Ending Act III
+
+Once the Matriarch is slain, King Aldric:
+
+- sets `actThreeComplete` and `dragonbaneForged`;
+- gives 900 gold;
+- shows "END OF ACT III".
+
+### 19.7 Art
+
+Every Act III asset is procedural, at the §16.10 density:
+
+- Tiles: snow (3 variants), drifts, snow road, snow pine, glacier, animated icy water, frozen lake, the roost
+  entrance (icicles and bones), and ice walls and floors. Ice walls cast shadows.
+- Monsters: new painters for the ice troll, yeti, wyvern (the Matriarch reuses its shape with her own palette)
+  and frost mage.
+
 ### 17.8 Next
 
-- Act III: Frost Peaks (§6), the third seal and Dragonbane.
-- The finale: Vyrmorth's lair.
+- The finale: Vyrmorth's lair. Dragonbane (`dragonbaneForged`) is the key to wounding the dragon.

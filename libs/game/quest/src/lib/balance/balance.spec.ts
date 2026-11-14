@@ -1,6 +1,6 @@
 import { ClassId, createRng, statBudget, totalXpForLevel } from '@jouster/game/engine';
 import { CLASS_ORDER, classDef } from '../data/classes';
-import { ACT_TWO_BOSS_IDS, ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
+import { ACT_THREE_BOSS_IDS, ACT_TWO_BOSS_IDS, ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
 import { ITEMS, WEAPONS } from '../data/equipment';
 import { pickEncounter } from '@jouster/game/engine';
 import { DEFAULT_GOLD_CHANCE, PartyMember, createMember, grantXp, memberToCombatant } from '../state/party';
@@ -268,6 +268,59 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     const fightsNeeded = (totalXpForLevel(11) - totalXpForLevel(8)) / (xp / fights);
     const tier3Price = Math.max(...[...WEAPONS.values()].filter((w) => w.tier === 3).map((w) => w.price));
     expect(fightsNeeded * (gold / fights)).toBeGreaterThanOrEqual(tier3Price);
+  });
+
+  // --- Act III: the Frost Peaks (plan 19) ------------------------------------------------------
+  const actThreeKit = { herb: 8, tonic: 2, potion: 2 };
+
+  it('places the Wyvern Matriarch in the Wyvern Roost', () => {
+    const bosses = mapDef('wyvernRoost').npcs.flatMap((n) => (n.boss ? [n.boss.monsterIds[0]] : []));
+    expect(bosses).toEqual([...ACT_THREE_BOSS_IDS]);
+  });
+
+  const northCases = CLASS_ORDER.flatMap((id) => ['snowfield', 'pines', 'roost'].map((t) => [id, t] as const));
+  it.each(northCases)('%s wins >= 90%% of solo %s fights at level 13 with tier-4 gear', (id, tableId) => {
+    const table = ENCOUNTER_TABLES.get(tableId) ?? fail();
+    const hero = geared(createMember('h', 'Hero', id, 13), 4);
+    const stats = runMany(N, (i) => simulateFight([hero], pickEncounter(table, createRng(41000 + i), SOLO_MAX_ENEMIES), actThreeKit, createRng(42000 + i)));
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.9);
+  });
+
+  const roostFights = mapDef('wyvernRoost').npcs.flatMap((n) => (n.boss ? [n.boss.monsterIds] : []));
+  const roostSolo = CLASS_ORDER.flatMap((id) => roostFights.map((fight) => [id, fight.join('+'), fight] as const));
+  it.each(roostSolo)('%s solo beats %s >= 60%% at level 15 with tier-4 gear', (id, _name, fight) => {
+    const hero = geared(createMember('h', 'Hero', id, 15), 4);
+    const stats = runMany(N, (i) =>
+      simulateFight([hero], [...fight], actThreeKit, createRng(43000 + i), { bossHpScale: BOSS_HP_SCALE[0] }),
+    );
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.6);
+  });
+
+  const roostTrios = trios.flatMap((t) => roostFights.map((fight) => [...t, fight.join('+'), fight] as const));
+  it.each(roostTrios)('a %s + %s + %s party at level 13 beats %s >= 70%%', (a, b, c, _name, fight) => {
+    const party = [a, b, c].map((cls, i) => geared(createMember(`m${i}`, `M${i}`, cls, 13), 4));
+    const stats = runMany(N, (i) =>
+      simulateFight(party, [...fight], { herb: 4, potion: 2 }, createRng(44000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
+    );
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
+  });
+
+  it('snowfield fights from level 11 to 14 pay for a tier-4 weapon (plan 19)', () => {
+    const table = ENCOUNTER_TABLES.get('snowfield') ?? fail();
+    const rng = createRng(79);
+    let xp = 0;
+    let gold = 0;
+    const fights = 2000;
+    for (let i = 0; i < fights; i++) {
+      pickEncounter(table, rng, SOLO_MAX_ENEMIES).forEach((id) => {
+        const m = MONSTERS.get(id) ?? fail();
+        xp += m.xp;
+        gold += m.gold * (m.goldChance ?? DEFAULT_GOLD_CHANCE);
+      });
+    }
+    const fightsNeeded = (totalXpForLevel(14) - totalXpForLevel(11)) / (xp / fights);
+    const tier4Price = Math.max(...[...WEAPONS.values()].filter((w) => w.tier === 4).map((w) => w.price));
+    expect(fightsNeeded * (gold / fights)).toBeGreaterThanOrEqual(tier4Price);
   });
 });
 function fail(): never {

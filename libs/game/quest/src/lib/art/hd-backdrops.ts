@@ -17,6 +17,7 @@ export const BACKDROP_COLORS: ReadonlyMap<Backdrop, BackdropColors> = new Map<Ba
   ['cave', ['#0a080e', '#1e1822', '#463830', '#3a2e28', '#241c1c']],
   ['desert', ['#3a6ab8', '#f0d8a8', '#e0c07a', '#d0a860', '#a8603a']],
   ['marsh', ['#3a4a5a', '#a8b8a0', '#4a5a30', '#3a4a26', '#2a3a20']],
+  ['snow', ['#3a5a8a', '#c8d8ec', '#e4ecf6', '#d4e0ee', '#4a5a72']],
 ]);
 
 /** Paint units per logical pixel (matching the tiles' and sprites' 2x paint space). */
@@ -79,6 +80,24 @@ function conifer(p: Paint, x: number, base: number, h: number, color: Color, see
     const ty = base - h * (0.2 + 0.7 * hash(seed, i, 3));
     p.flat(seg(tx, ty, tx - h * 0.06, ty + h * 0.04, 0.2), tone(color, 1.5), 0.7);
   }
+}
+
+/** Snow resting on each tier of a {@link conifer} of height `h`. */
+function snowLoad(p: Paint, x: number, base: number, h: number, seed: number): void {
+  const w = h * 0.42;
+  for (let i = 0; i < 4; i++) {
+    const top = base - h + i * h * 0.22;
+    const half = w * (0.45 + i * 0.2);
+    const y = top + h * 0.3;
+    p.fill(poly([x - half * 0.85, y, x - half * 0.3, y - h * 0.12, x + half * 0.2, y - h * 0.1, x + half * 0.7, y]), '#eef4fc', {
+      bevel: 0,
+      rim: true,
+      rimShade: -1,
+      dither: 0.6,
+      seed: seed + i,
+    });
+  }
+  p.fill(poly([x - w * 0.12, base - h * 0.98, x, base - h - 1, x + w * 0.12, base - h * 0.9]), '#ffffff', { bevel: 0 });
 }
 
 function roundTree(p: Paint, x: number, base: number, r: number, color: Color, seed: number): void {
@@ -151,8 +170,8 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
   const ridgeTop: number[] = [];
   for (let fx = 0; fx <= p.width; fx++) {
     const u = (fx + 0.5) / s - 0.5;
-    const tall = kind === 'hills' ? 70 : kind === 'desert' ? 34 : kind === 'marsh' ? 26 : 42;
-    ridgeTop.push(HZ - tall - ridge(u, 1.7, kind === 'hills' ? 34 : kind === 'marsh' ? 10 : 20));
+    const tall = kind === 'hills' || kind === 'snow' ? 70 : kind === 'desert' ? 34 : kind === 'marsh' ? 26 : 42;
+    ridgeTop.push(HZ - tall - ridge(u, 1.7, kind === 'hills' || kind === 'snow' ? 34 : kind === 'marsh' ? 10 : 20));
   }
   const data = p.data;
   const lerp = (x: Rgb, y: Rgb, t: number): Rgb => [x[0] + (y[0] - x[0]) * t, x[1] + (y[1] - x[1]) * t, x[2] + (y[2] - x[2]) * t];
@@ -204,7 +223,9 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
             (speck > 0.93 ? 0.3 : speck < 0.07 ? -0.3 : 0);
           const band = Math.max(0, Math.min(4, Math.floor(shade * 4 + 0.5 + md * 0.8)));
           let rc = scaled(ridgeRgb, 0.66 + band * 0.13);
-          if (kind === 'hills' && rTop < HZ - 82 && mv < rTop + 5 + hash(mu, 0, 37) * 5) {
+          if (kind === 'snow' && (mv < rTop + 9 + hash(mu, 0, 37) * 8 || hash(mu >> 1, mv >> 1, 38) > 0.62 - lit * 0.3)) {
+            rc = lerp(rc, snow, band >= 2 ? 0.92 : 0.72);
+          } else if (kind === 'hills' && rTop < HZ - 82 && mv < rTop + 5 + hash(mu, 0, 37) * 5) {
             rc = lerp(rc, snow, band >= 2 ? 0.9 : 0.7);
           }
           const hazeAmt = cave ? 0 : Math.max(0, (HZ - v) / 120) * 0.25;
@@ -301,6 +322,22 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
       }
       p.flat(ell(x, HZ - h * 0.5, 14, 5), '#c8d0c0', 0.12);
     }
+  } else if (kind === 'snow') {
+    // A rolling snowfield ridge lined with snow-laden pines.
+    const back = mix(scenery, skyLow, 0.45);
+    const drift = (x: number): number => HZ - 6 - ridge(x, 5.3, 9);
+    const pts: number[] = [-2, HZ + 2];
+    for (let x = -2; x <= W + 2; x += 4) {
+      pts.push(x, drift(x));
+    }
+    pts.push(W + 2, HZ + 2);
+    p.fill(poly(pts), mix(far, skyLow, 0.3), { grad: 0.8, tex: 0.5, seed: 11, rim: true, rimShade: -1, dither: 0.8 });
+    for (let x = -10; x < W + 20; x += 17) {
+      const tx = x + hash(x, 1, 48) * 9;
+      const h = 30 + hash(x, 2, 48) * 24;
+      conifer(p, tx, drift(tx) + 4, h, back, x + 2000);
+      snowLoad(p, tx, drift(tx) + 4, h, x);
+    }
   } else if (kind === 'forest') {
     const back = mix(scenery, skyLow, 0.35);
     for (let x = -10; x < W + 20; x += 15) {
@@ -346,6 +383,19 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
       } else {
         p.flat(seg(x, y, x + (r - 0.75) * 30 * sc, y + 2 * sc, 0.25), tone(near, -2.5), 0.8);
       }
+    } else if (kind === 'snow' && r < 0.45) {
+      // Wind-carved drift lines with a bright lip and a blue shadow.
+      p.flat(seg(x - 4 * sc, y, x + 4 * sc, y - 0.6 * sc, 0.25 * sc), '#a8bcd8', 0.6);
+      p.flat(seg(x - 4 * sc, y - 0.7 * sc, x + 4 * sc, y - 1.3 * sc, 0.2 * sc), '#ffffff', 0.7);
+    } else if (kind === 'snow' && r < 0.6) {
+      // A rock poking through the snow, capped white.
+      rock(p, x, y, 1.4 + sc * 2.4, '#6a7488', i);
+      p.flat(ell(x - 0.3 * sc, y - (1.4 + sc * 2.4) * 0.75, (1.4 + sc * 2.4) * 0.6, 0.6 + sc * 0.4), '#f4f8ff', 0.95);
+    } else if (kind === 'snow' && r < 0.7) {
+      grassTuft(p, x, y, sc * 0.8, '#8a8a6a', i);
+    } else if (kind === 'snow') {
+      p.spot(x, y, '#ffffff');
+      p.spot(x + sc, y - sc, '#d8e4f4');
     } else if (kind === 'desert' && r < 0.55) {
       p.flat(seg(x - 3 * sc, y, x + 3 * sc, y - 0.5 * sc, 0.2), tone(near, -2), 0.5);
       p.flat(seg(x - 3 * sc, y - 0.6 * sc, x + 3 * sc, y - 1.1 * sc, 0.15), tone(near, 2), 0.5);
@@ -379,6 +429,17 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
       p.flat(seg(x - rx * 0.6, y - 1, x - rx * 0.1, y - 1, 0.2), '#a8c0a0', 0.5);
       for (let j = 0; j < 3; j++) {
         p.fill(ell(x + (hash(i, j, 63) - 0.5) * rx * 1.2, y + (hash(j, i, 64) - 0.5) * rx * 0.2, 2.2, 1), '#5a8a3a', { bevel: 0, rim: true });
+      }
+    }
+  }
+  if (kind === 'snow') {
+    // Drifting snowflakes in front of everything.
+    for (let i = 0; i < 70; i++) {
+      const x = hash(i, 1, 66) * W;
+      const y = hash(i, 2, 66) * H;
+      p.spot(x, y, '#ffffff');
+      if (hash(i, 3, 66) > 0.6) {
+        p.spot(x + 1, y, '#e8f0fc');
       }
     }
   }

@@ -65,8 +65,10 @@ const REVIVE_PRICE_PER_LEVEL = 5;
 const KING_GIFT = 50;
 const ACT_ONE_REWARD = 200;
 const ACT_TWO_REWARD = 500;
+const ACT_THREE_REWARD = 900;
 const DESERT_TILES = new Set(['sand', 'dunes', 'sandRoad', 'cactus']);
 const MARSH_TILES = new Set(['marsh', 'mireTree', 'boardwalk', 'bog']);
+const SNOW_TILES = new Set(['snow', 'drifts', 'snowRoad', 'snowPine', 'frozenLake']);
 const COMPANION_READY = 'I owe you. Shall I come along?';
 
 function rewardText(reward: { gold: number; items?: Record<string, number> }): string {
@@ -710,6 +712,9 @@ export class WorldScene implements Scene {
     if (id && MARSH_TILES.has(id)) {
       return 'marsh';
     }
+    if (id && SNOW_TILES.has(id)) {
+      return 'snow';
+    }
     return this.map.backdrop;
   }
 
@@ -852,7 +857,21 @@ export class WorldScene implements Scene {
         `KING ALDRIC: The Sand Wyrm and the Marsh Witch, both fallen! ${hero}, the south is free.`,
         `Take these ${ACT_TWO_REWARD} gold pieces, and the thanks of every road from Aldmere to Sandhollow.`,
         'The witch spoke of Vyrmorth before she fell. The dragon gathers its strength in the north.',
-        '- END OF ACT II - Thank you for playing! The world remains open to explore.',
+        'The guard at the northern pass beyond Aldmere will now let you through to the Frost Peaks.',
+        '- END OF ACT II - The Frost Peaks await.',
+      ]);
+      return;
+    }
+    if (s.flags['wyvernMatriarchDefeated'] && s.flags['actTwoComplete'] && !s.flags['actThreeComplete']) {
+      s.flags['actThreeComplete'] = true;
+      s.flags['dragonbaneForged'] = true;
+      s.gold += ACT_THREE_REWARD;
+      audio.play('victory');
+      say(stack, audio, [
+        `KING ALDRIC: The Wyvern Matriarch is slain and the third seal is ours! ${hero}, you have done the impossible.`,
+        `Take these ${ACT_THREE_REWARD} gold pieces. My smiths have forged the three seals into one blade: Dragonbane.`,
+        'With it, Vyrmorth can be wounded at last. The dragon waits in its lair beneath the northern peaks.',
+        '- END OF ACT III - Thank you for playing! The finale is coming soon.',
       ]);
       return;
     }
