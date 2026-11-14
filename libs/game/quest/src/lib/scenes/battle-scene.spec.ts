@@ -16,11 +16,14 @@ interface BattleInternals {
   gone: Set<string>;
 }
 
-function setup(extraMembers = 0): { scene: BattleScene; internals: BattleInternals; driver: InputDriver; onEnd: jest.Mock } {
+function setup(
+  extraMembers = 0,
+  art: Partial<Art> = { characterAction: () => undefined },
+): { scene: BattleScene; internals: BattleInternals; driver: InputDriver; onEnd: jest.Mock } {
   const ctx: GameContext = {
     stack: new SceneStack(),
     audio: { play: jest.fn(), toggleMute: jest.fn(), muted: false, dispose: jest.fn() } as never,
-    art: {} as Art,
+    art: art as Art,
     rng: createRng(3),
     storage: memoryStorage(),
     state: newGameState('TEST', 'warrior'),
@@ -181,6 +184,56 @@ describe('BattleScene', () => {
     t.playAct({ type: 'act', actorId: hero.id, act: 'cast', targetId: enemy.id });
     expect(internals.motions.get(hero.id)?.kind).toBe('hop');
     expect(t.shots.length).toBe(1);
+  });
+
+  it('plays LPC attack and cast poses in place of the hop, and drops them when they finish', () => {
+    const characterAction = jest.fn((id: string, action: string) =>
+      id === 'warrior' && action === 'attack' ? ({} as never) : undefined,
+    );
+    const { internals, driver } = setup(0, { characterAction });
+    const t = internals as unknown as BattleInternals & {
+      poses: Map<string, { action: string; dur: number }>;
+      playAct(fx: { type: 'act'; actorId: string; act: string; targetId?: string; melee?: boolean; effect?: string }): void;
+      animate(dt: number): void;
+    };
+    driver.run(2);
+    const hero = internals.battle.party[0];
+    const enemy = internals.battle.enemies[0];
+    t.playAct({ type: 'act', actorId: hero.id, act: 'attack', targetId: enemy.id, melee: true, effect: 'damage' });
+    expect(t.poses.get(hero.id)).toEqual(expect.objectContaining({ action: 'attack', dur: 0.6 }));
+    expect(internals.motions.get(hero.id)?.kind).toBe('lunge');
+    t.animate(0.61);
+    expect(t.poses.has(hero.id)).toBe(false);
+
+    // A warrior has no cast pose, so a spell keeps the hop.
+    t.playAct({ type: 'act', actorId: hero.id, act: 'cast', targetId: enemy.id });
+    expect(t.poses.has(hero.id)).toBe(false);
+    expect(internals.motions.get(hero.id)?.kind).toBe('hop');
+
+    // Defending, items and enemy turns never pose.
+    t.playAct({ type: 'act', actorId: hero.id, act: 'defend' });
+    t.playAct({ type: 'act', actorId: enemy.id, act: 'attack', targetId: hero.id, melee: true });
+    expect(t.poses.size).toBe(0);
+    expect(characterAction).toHaveBeenCalledWith('warrior', 'attack', 0);
+  });
+
+  it('casts with a pose and skips the hop when the caster has one', () => {
+    const { internals, driver } = setup(0, { characterAction: () => ({}) as never });
+    const t = internals as unknown as BattleInternals & {
+      poses: Map<string, { action: string; dur: number }>;
+      playAct(fx: { type: 'act'; actorId: string; act: string; targetId?: string; effect?: string }): void;
+    };
+    driver.run(2);
+    const hero = internals.battle.party[0];
+    const enemy = internals.battle.enemies[0];
+    internals.motions.clear();
+    t.playAct({ type: 'act', actorId: hero.id, act: 'cast', targetId: enemy.id, effect: 'damage' });
+    expect(t.poses.get(hero.id)).toEqual(expect.objectContaining({ action: 'cast', dur: 0.6 }));
+    expect(internals.motions.has(hero.id)).toBe(false);
+    // Buffing an ally is not an attack.
+    t.poses.clear();
+    t.playAct({ type: 'act', actorId: hero.id, act: 'skill', targetId: hero.id, effect: 'buff' });
+    expect(t.poses.has(hero.id)).toBe(false);
   });
 
   it('greys out full-HP allies for heals and will not use a heal on them', () => {

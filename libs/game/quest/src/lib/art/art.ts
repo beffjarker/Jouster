@@ -21,6 +21,9 @@ export const SHADOW_W = 32;
 export { SHADOW_CASTERS, WALKWAY_TILES, castsShadow, decorTopOf, walkwayMask } from './hd-tiles';
 import { LPC_CELL, LpcSheetId, lpcGroundCell, lpcTileFor } from './lpc-manifest';
 import {
+  LPC_ACTIONS,
+  LPC_ACTION_CELL,
+  LPC_ACTION_ORIGIN,
   LPC_CHARACTER_CELL,
   LPC_CHARACTER_FACINGS,
   LPC_CHARACTER_ROWS,
@@ -74,6 +77,16 @@ export function tileAnchor(image: Sized, scale = 1): { x: number; y: number } {
 
 /** Every humanoid look id (classes and NPCs); each has a row in the LPC `characters.png`. */
 export const CHARACTER_LOOK_IDS: readonly string[] = [...LOOKS.keys()];
+
+/** Battle pose of a playable class: its weapon attack (slash, thrust or bow shot) or a spell cast. */
+export type CharacterAction = 'attack' | 'cast';
+
+/** One frame of a {@link CharacterAction}, offset (logical px) from where the matching `character` frame goes. */
+export interface CharacterPose {
+  sprite: HTMLCanvasElement;
+  offsetX: number;
+  offsetY: number;
+}
 
 // --- Monsters ---------------------------------------------------------------------------------
 
@@ -378,6 +391,25 @@ export class Art {
 
   private lpcCharacterRow(spriteId: string): number | undefined {
     return this.sheets?.get('characters') ? LPC_CHARACTER_ROWS.get(spriteId) : undefined;
+  }
+
+  /**
+   * Frame of a class's battle pose (facing right) at `progress` (0 to 1) through it. Draw the sprite at the
+   * `character` frame's top-left plus the offset (times the draw scale) so the body stays put while the weapon
+   * swings out. Undefined without LPC sheets or for looks without that pose; keep the normal frame then.
+   */
+  public characterAction(spriteId: string, action: CharacterAction, progress: number): CharacterPose | undefined {
+    const pose = this.sheets?.get('actions') ? LPC_ACTIONS.get(`${spriteId}:${action}`) : undefined;
+    if (!pose) {
+      return undefined;
+    }
+    const step = Math.min(pose.frames - 1, Math.max(0, Math.floor(progress * pose.frames)));
+    const { width, height } = LPC_ACTION_CELL;
+    const sprite = this.cached(`lpcact:${spriteId}:${action}:${step}`, () =>
+      this.sheetSprite('actions', step * width, pose.row * height, width, height),
+    );
+    const d = imageDensity(sprite);
+    return { sprite, offsetX: -LPC_ACTION_ORIGIN.x / d, offsetY: -LPC_ACTION_ORIGIN.y / d };
   }
 
   private lpcCharacter(spriteId: string, row: number, facing: Facing, step: number): HTMLCanvasElement {

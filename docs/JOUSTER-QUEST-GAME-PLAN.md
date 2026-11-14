@@ -1305,8 +1305,8 @@ avoids laying out sprites twice.
    LPC as default. Done.
 4b2. HD procedural art (16.8): original art redrawn natively at 2? density. Done.
 4c. Next: LPC objects (trees, mountains, town and cave markers), art for the giant toad (the wolf and Alpha Wolf
-   are done, see 16.7), attack and cast animations from the ULPC slash / spellcast rows, animated slime and bat
-   frames.
+   are done, see 16.7), ~~attack and cast animations from the ULPC slash / spellcast rows~~ (done, §29), animated
+   slime and bat frames.
 5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the LPC
    spike review.
 6. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
@@ -1661,8 +1661,8 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~Smoother walking.~~ Done in §23.
 - ~~Status curing at the chapel (§12 deferred list).~~ Done in §28 (poison, with Antidote and Heal cures).
 - ~~A Cypress smoke test for `/jouster-quest`.~~ Done in §27.
-- ~~LPC wolf art~~ Done in 16.7 (wolf ×3, Alpha Wolf). Still open: giant toad (no suitable LPC art found) and
-  LPC attack animations (16.4 item 4c).
+- ~~LPC wolf art~~ Done in 16.7 (wolf ×3, Alpha Wolf). ~~LPC attack animations (16.4 item 4c).~~ Done in §29.
+  Still open: giant toad (no suitable LPC art found), LPC objects, animated slime and bat frames.
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
   play-testing confirms parties find Act II/III too easy.
 
@@ -1919,3 +1919,31 @@ Tests (`poison.spec.ts`): poisoning from venomous monsters only, round damage an
 ("But nothing happens." on a healthy ally) and revive cures, carrying poison in and out of battle, field drain,
 inn rest, save validation, field-menu restores, and that every item shop sells Antidotes. Manual: let a Southlands
 scorpion poison someone, walk a few steps, then try the chapel's CURE, an Antidote and Heal.
+
+## 29. Attack and cast animations (implemented)
+
+Party members now swing, thrust, shoot and cast with the ULPC action rows instead of only stepping in or hopping
+(16.4 item 4c).
+
+| Class | Attack (and damaging skills at enemies) | Spells |
+| --- | --- | --- |
+| Warrior, Paladin, Cleric, Rogue | Slash, 6 frames (oversize weapon layers where the weapon has them) | Paladin and Cleric: spellcast, 7 frames |
+| Wizard | Staff thrust, 8 frames | Spellcast, 7 frames |
+| Ranger | Bow shot, 13 frames (Aimed Shot and Volley too) | none |
+
+- **Sheet:** `build-lpc-sprites.py` composites each class's east-facing action row from the same layers and
+  recolours as its walk sheet into `actions.png` (one row per class and action, 72×60 cells cropped to the union
+  of all poses). `LPC_ACTIONS`, `LPC_ACTION_CELL` and `LPC_ACTION_ORIGIN` in the generated TS give each row's
+  frame count and the offset that keeps the body where the standing frame draws it. Layers with no ULPC animation
+  (the gnarled staff, arming sword and mace have no spellcast) are skipped and reported, so those weapons are
+  sheathed while casting.
+- **Timing:** a melee pose plays over the 0.6 s lunge, so the weapon connects on the frame the hit lands (0.32 s).
+  Ranged attacks and spells play in place over 0.5 s / 0.6 s and replace the hop; projectiles keep their old timing.
+- **Fallbacks:** NPC and enemy turns, Defend, items and support skills keep the old motion. Without the LPC sheets
+  (procedural art), `Art.characterAction()` returns nothing and battles look as before.
+
+Tests: `lpc-sprites.spec.ts` checks that every class has an attack pose, the casters have a cast pose, rows and
+frames fit inside `actions.png`, credits list it, and that `characterAction` steps through frames with the right
+crop and offset. `battle-scene.spec.ts` checks that attacks and spells start a pose that ends with its duration,
+that classes without a pose keep the hop, and that enemies, Defend and ally buffs never pose. Manual: fight with
+each class (or a full party) and watch the swing, thrust, shot and cast frames line up with the damage numbers.

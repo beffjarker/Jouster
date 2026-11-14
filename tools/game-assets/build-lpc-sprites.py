@@ -11,6 +11,7 @@ Wolf are recoloured from "[LPC] Wolf Animation" on OpenGameArt. Downloads are ca
 Outputs:
   apps/jouster-ui/public/game-assets/lpc/characters.png   one row per look, cols = facing x frame
   apps/jouster-ui/public/game-assets/lpc/monsters.png     one cell per small monster look
+  apps/jouster-ui/public/game-assets/lpc/actions.png      one row per class battle pose (attack/cast), facing right
   apps/jouster-ui/public/game-assets/lpc/CREDITS.md       the generated section between markers
   libs/game/quest/src/lib/art/lpc-sprites.generated.ts    row and cell maps used by Art
 
@@ -191,6 +192,22 @@ BEASTS = {
     'alphaWolf': [(0.15, (0.6, 0.0), (255, 208, 32))],
 }
 
+# Battle poses for the playable classes (plan 16.4 item 4c), facing right like the party: the class weapon's
+# attack animation and, for spell casters, `spellcast`. Weapons with oversized custom animations (frames
+# bigger than 64 px, base frames centred in them) are composited on a POSE_CANVAS square, then every pose frame
+# is cropped to one shared box for actions.png.
+POSE_FACING = 'right'
+POSES = {
+    'warrior': {'attack': 'slash'},
+    'wizard': {'attack': 'thrust', 'cast': 'spellcast'},
+    'paladin': {'attack': 'slash', 'cast': 'spellcast'},
+    'cleric': {'attack': 'slash', 'cast': 'spellcast'},
+    'rogue': {'attack': 'slash'},
+    'ranger': {'attack': 'shoot'},
+}
+OVERSIZE = {'slash_128': ('slash', 128), 'slash_oversize': ('slash', 192), 'thrust_oversize': ('thrust', 192)}
+POSE_CANVAS = 192
+
 
 # ---------------------------------------------------------------------------------------------------------
 def fetch(url: str, rel: str) -> bytes:
@@ -242,6 +259,23 @@ def recolor(img: Image.Image, src: list, dst: list) -> Image.Image:
     return img
 
 
+def spec_variant(spec: str | None) -> str | None:
+    return spec[2:].replace(' ', '_') if spec and spec.startswith('v:') else None
+
+
+def apply_spec(img: Image.Image, spec: str | None, d: dict) -> Image.Image:
+    """Recolours a layer image per a '<material>:[<from>>]<to>' spec (variant specs are pre-coloured files)."""
+    if spec and not spec.startswith('v:'):
+        material, colours = spec.split(':', 1)
+        src_name, dst_name = colours.split('>') if '>' in colours else (None, colours)
+        if src_name is None:
+            base = (d.get('recolors') or {}).get('base')
+            src_name = base.split('.')[-1] if base else material_base(material)
+        if src_name != dst_name:
+            img = recolor(img, palette(material, src_name), palette(material, dst_name))
+    return img
+
+
 def layer_images(def_path: str, spec: str | None, body: str, used: set[str]) -> list[tuple[int, Image.Image]]:
     d = definition(def_path)
     out = []
@@ -253,7 +287,7 @@ def layer_images(def_path: str, spec: str | None, body: str, used: set[str]) -> 
         if not path:
             continue
         path = path.rstrip('/')
-        variant = spec[2:].replace(' ', '_') if spec and spec.startswith('v:') else None
+        variant = spec_variant(spec)
         if custom:
             rel = f'{path}/{variant}.png'
         elif variant:
@@ -266,19 +300,87 @@ def layer_images(def_path: str, spec: str | None, body: str, used: set[str]) -> 
             continue  # this layer has no walk art (e.g. a bow's walk lives in its walk_128 layer)
         if custom:
             img = shrink_128(img)
-        if spec and not spec.startswith('v:'):
-            material, colours = spec.split(':', 1)
-            src_name, dst_name = colours.split('>') if '>' in colours else (None, colours)
-            if src_name is None:
-                base = (d.get('recolors') or {}).get('base')
-                src_name = base.split('.')[-1] if base else material_base(material)
-            if src_name != dst_name:
-                img = recolor(img, palette(material, src_name), palette(material, dst_name))
+        img = apply_spec(img, spec, d)
         used.add(f'{path}/{"walk_128" if custom else "walk"}.png')
         out.append((int(layer.get('zPos', 0)), img))
     if not out:
         sys.exit(f'{def_path}: no walk layer for body {body!r}')
     return out
+
+
+def pose_layers(def_path: str, spec: str | None, body: str, anim: str, used: set[str],
+                missing: list[str]) -> list[tuple[int, list[Image.Image]]]:
+    """
+    One definition's layers for `anim`, facing POSE_FACING: (zPos, frames on POSE_CANVAS squares). A weapon with
+    an oversized custom animation for `anim` uses only those layers; otherwise each plain layer contributes its
+    `<anim>` sheet if it has one (layers without it are listed in `missing`).
+    """
+    d = definition(def_path)
+    layers = [(k, layer) for k, layer in d.items() if k.startswith('layer_')]
+    oversize = [(k, layer) for k, layer in layers if OVERSIZE.get(layer.get('custom_animation'), ('',))[0] == anim]
+    chosen = oversize or [(k, layer) for k, layer in layers if not layer.get('custom_animation')]
+    variant = spec_variant(spec)
+    out = []
+    for key, layer in chosen:
+        path = (layer.get(body) or layer.get('male') or '').rstrip('/')
+        if not path:
+            continue
+        custom = layer.get('custom_animation')
+        if custom:
+            rel, size, credit = f'{path}/{variant}.png', OVERSIZE[custom][1], f'{path}/{custom}.png'
+        else:
+            rel = f'{path}/{anim}/{variant}.png' if variant else f'{path}/{anim}.png'
+            size, credit = FRAME, f'{path}/{anim}.png'
+        try:
+            img = Image.open(io.BytesIO(ulpc('spritesheets/' + rel))).convert('RGBA')
+        except FileNotFoundError:
+            missing.append(f'{anim}: {def_path} {key}')
+            continue
+        row = ROWS[POSE_FACING]
+        if img.height < (row + 1) * size:
+            missing.append(f'{anim}: {def_path} {key} (no {POSE_FACING} row)')
+            continue
+        strip = apply_spec(img.crop((0, row * size, img.width, (row + 1) * size)), spec, d)
+        off = (POSE_CANVAS - size) // 2
+        frames = []
+        for c in range(strip.width // size):
+            cell = Image.new('RGBA', (POSE_CANVAS, POSE_CANVAS))
+            cell.paste(strip.crop((c * size, 0, (c + 1) * size, size)), (off, off))
+            frames.append(cell)
+        used.add(credit)
+        out.append((int(layer.get('zPos', 0)), frames))
+    return out
+
+
+def pose_frames(name: str, anim: str, used: set[str], missing: list[str]) -> list[Image.Image]:
+    look = LOOKS[name]
+    layers = []
+    for def_path, spec in look['items']:
+        layers += pose_layers(def_path, spec, look['body'], anim, used, missing)
+    layers.sort(key=lambda zl: zl[0])
+    count = len(layers[0][1])
+    for _, fs in layers:
+        if len(fs) != count:
+            missing.append(f'{anim}: {name} layer has {len(fs)} frames, body has {count}')
+    frames = []
+    for i in range(count):
+        cell = Image.new('RGBA', (POSE_CANVAS, POSE_CANVAS))
+        for _, fs in layers:
+            if i < len(fs):
+                cell.alpha_composite(fs[i])
+        frames.append(cell)
+    return frames
+
+
+def pose_box(frames: list[Image.Image]) -> tuple[int, int, int, int]:
+    """Union bounding box of pose frames, on even pixels (the art is drawn at density 2)."""
+    left, top, right, bottom = POSE_CANVAS, POSE_CANVAS, 0, 0
+    for f in frames:
+        bb = f.getbbox()
+        if bb:
+            left, top = min(left, bb[0]), min(top, bb[1])
+            right, bottom = max(right, bb[2]), max(bottom, bb[3])
+    return left - left % 2, top - top % 2, right + right % 2, bottom + bottom % 2
 
 
 def shrink_128(img: Image.Image) -> Image.Image:
@@ -416,12 +518,28 @@ def main() -> None:
             i += 1
     monsters.save(os.path.join(OUT_DIR, 'monsters.png'), optimize=True)
 
-    write_ts(names, cw, ch, small_keys)
+    missing: list[str] = []
+    poses = {f'{name}:{action}': pose_frames(name, anim, used, missing)
+             for name, actions in POSES.items() for action, anim in actions.items()}
+    abox = pose_box([f for fs in poses.values() for f in fs])
+    aw, ah = abox[2] - abox[0], abox[3] - abox[1]
+    actions = Image.new('RGBA', (aw * max(len(fs) for fs in poses.values()), ah * len(poses)))
+    for row, fs in enumerate(poses.values()):
+        for col, img in enumerate(fs):
+            actions.paste(img.crop(abox), (col * aw, row * ah))
+    actions.save(os.path.join(OUT_DIR, 'actions.png'), optimize=True)
+    origin = (POSE_CANVAS // 2 - FRAME // 2 + box[0] - abox[0], POSE_CANVAS // 2 - FRAME // 2 + box[1] - abox[1])
+    for line in missing:
+        print(f'  pose layer skipped: {line}')
+
+    write_ts(names, cw, ch, small_keys, (aw, ah), origin, {k: len(fs) for k, fs in poses.items()})
     write_credits(credits_for(used))
-    print(f'characters.png {characters.size} ({len(names)} rows, cell {cw}x{ch}); monsters.png {monsters.size}')
+    print(f'characters.png {characters.size} ({len(names)} rows, cell {cw}x{ch}); monsters.png {monsters.size}; '
+          f'actions.png {actions.size} ({len(poses)} rows, cell {aw}x{ah}, origin {origin})')
 
 
-def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str]) -> None:
+def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str], acell: tuple[int, int],
+             origin: tuple[int, int], poses: dict[str, int]) -> None:
     looks = [n for n in names if ':' not in n]
     humanoid = [n for n in names if ':' in n]
     lines = [
@@ -451,6 +569,17 @@ def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str]) -> None:
         *[f"  ['{k}', {{ sheet: 'monsters' as const, index: {i} }}]," for i, k in enumerate(small_keys)],
         ']);',
         '',
+        '/** Real-pixel size of one `actions.png` cell (a battle pose frame, facing right). */',
+        f'export const LPC_ACTION_CELL = {{ width: {acell[0]}, height: {acell[1]} }} as const;',
+        '',
+        '/** Real-pixel offset of the `characters.png` cell inside an `actions.png` cell (the body lines up). */',
+        f'export const LPC_ACTION_ORIGIN = {{ x: {origin[0]}, y: {origin[1]} }} as const;',
+        '',
+        '/** `actions.png` row and frame count per `look:action` (action `attack` or `cast`). */',
+        'export const LPC_ACTIONS: ReadonlyMap<string, { row: number; frames: number }> = new Map([',
+        *[f"  ['{k}', {{ row: {i}, frames: {n} }}]," for i, (k, n) in enumerate(poses.items())],
+        ']);',
+        '',
     ]
     with open(TS_OUT, 'w', newline='\n', encoding='utf-8') as f:
         f.write('\n'.join(lines))
@@ -467,6 +596,8 @@ def write_credits(rows: list[dict]) -> None:
         '',
         '`characters.png` is composited, recoloured and cropped from layers of the',
         f'[Universal LPC Spritesheet Character Generator]({ULPC_REPO}) and is distributed under **CC-BY-SA 3.0**.',
+        '`actions.png` (the playable classes\' battle attack and spell poses) is built the same way from the same',
+        'generator\'s slash, thrust, shoot and spellcast layers.',
         'Each layer is available under the licences listed below (CC0, CC-BY, OGA-BY, CC-BY-SA and/or GPL).',
         '',
         f'`monsters.png` crops and hue-shifts `slime.png` and `bat.png` from the [LPC Base Assets]({BASE_ASSETS_PAGE})',
@@ -476,7 +607,7 @@ def write_credits(rows: list[dict]) -> None:
         'by Stephen Challener (Redshrike), commissioned by William Thompson (William.Thompsonj),',
         'CC-BY 3.0 / CC-BY 4.0 / OGA-BY 3.0 / GPL 2.0 / GPL 3.0.',
         '',
-        '| Layer (walk.png) | Authors | Licenses | Source |',
+        '| Layer file | Authors | Licenses | Source |',
         '| --- | --- | --- | --- |',
     ]
     for r in rows:

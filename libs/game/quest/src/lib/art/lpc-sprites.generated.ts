@@ -60,3 +60,22 @@ export const LPC_MONSTERS: ReadonlyMap<string, { sheet: 'characters' | 'monsters
   ['bat:1', { sheet: 'monsters' as const, index: 7 }],
   ['bat:2', { sheet: 'monsters' as const, index: 8 }],
 ]);
+
+/** Real-pixel size of one `actions.png` cell (a battle pose frame, facing right). */
+export const LPC_ACTION_CELL = { width: 72, height: 60 } as const;
+
+/** Real-pixel offset of the `characters.png` cell inside an `actions.png` cell (the body lines up). */
+export const LPC_ACTION_ORIGIN = { x: -8, y: -6 } as const;
+
+/** `actions.png` row and frame count per `look:action` (action `attack` or `cast`). */
+export const LPC_ACTIONS: ReadonlyMap<string, { row: number; frames: number }> = new Map([
+  ['warrior:attack', { row: 0, frames: 6 }],
+  ['wizard:attack', { row: 1, frames: 8 }],
+  ['wizard:cast', { row: 2, frames: 7 }],
+  ['paladin:attack', { row: 3, frames: 6 }],
+  ['paladin:cast', { row: 4, frames: 7 }],
+  ['cleric:attack', { row: 5, frames: 6 }],
+  ['cleric:cast', { row: 6, frames: 7 }],
+  ['rogue:attack', { row: 7, frames: 6 }],
+  ['ranger:attack', { row: 8, frames: 13 }],
+]);
