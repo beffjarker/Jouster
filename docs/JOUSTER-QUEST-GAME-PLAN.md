@@ -1304,8 +1304,9 @@ avoids laying out sprites twice.
 4b. LPC characters and monsters (16.7): build script, generated sheets and layout, credits, sprite anchoring,
    LPC as default. Done.
 4b2. HD procedural art (16.8): original art redrawn natively at 2? density. Done.
-4c. Next: LPC objects (trees, mountains, town and cave markers), art for wolf / alpha wolf / giant toad,
-   attack and cast animations from the ULPC slash / spellcast rows, animated slime and bat frames.
+4c. Next: LPC objects (trees, mountains, town and cave markers), art for the giant toad (the wolf and Alpha Wolf
+   are done, see 16.7), attack and cast animations from the ULPC slash / spellcast rows, animated slime and bat
+   frames.
 5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the LPC
    spike review.
 6. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
@@ -1317,7 +1318,7 @@ avoids laying out sprites twice.
   hair, clothes, armour, weapon), and writes:
   - `public/game-assets/lpc/characters.png`: 64?64 cells; one row per look (6 classes + 12 NPC looks), columns =
     4 facings ? 2 walk steps; then rows for the humanoid monsters (goblin ?3, skeleton ?3, Goblin King, goblin
-    chief, bone captain) in a single left-facing frame.
+    chief, bone captain) in a single left-facing frame; then the wolf ×3 and Alpha Wolf (see below).
   - `public/game-assets/lpc/monsters.png`: 32 px cells for slime ?6 and bat ?3 (LPC Base Assets, hue-shifted
     per variant), facing left.
   - `art/lpc-sprites.generated.ts` (layout constants) and a generated section of `CREDITS.md` that lists every
@@ -1329,7 +1330,13 @@ avoids laying out sprites twice.
   `fitScale(img, box)` scales any sprite into a battle or portrait box, so procedural 16 px and LPC 32 px art
   share the same call sites. `left` is a real frame (LPC) or a mirrored copy (procedural); scenes no longer flip.
 - **Monsters face left** because the party stands on the left in battle. Variants keep their stats; only art
-  changes. Wolf, alpha wolf and giant toad have no suitable LPC art yet and stay procedural.
+  changes. The giant toad has no suitable LPC art yet and stays procedural (the only LPC frog on OpenGameArt is a
+  humanoid "Frogman" with a trident).
+- **Wolves:** the wolf and Alpha Wolf use the left-facing standing frame of "[LPC] Wolf Animation" (Redshrike,
+  commissioned by William.Thompsonj; CC-BY 3.0/4.0, OGA-BY 3.0, GPL 2.0/3.0), a 64×32 frame stood on the bottom
+  of a 64×64 cell so battle and map placement need no special case. The build script recolours it per look to
+  match the procedural palettes: grey (red eyes), brown (as drawn), white (blue eyes) and a dark, gold-eyed
+  Alpha Wolf. The sheet also has bite / run / howl rows for later attack animations.
 - **Default art:** LPC is the default (the `?art=classic` opt-out was later removed, see §26). Sheets still
   load non-blockingly, with procedural fallback if a sheet fails.
 - **Known limitation:** ULPC has no child hair, so the child NPC is bald.
@@ -1355,8 +1362,8 @@ upscaled by EPX.
   robes, armour and weapons are layered; `left` is the mirrored `right` frame. Monsters (slime shapes, bat, wolf,
   giant toad, skeleton, goblins, Goblin King) use 64×64 cells facing left; variants keep their colours.
   Shop signs are 32×32 real.
-- **Modes:** the game uses LPC sheets plus the HD art for object overlays, monsters without LPC art (wolf, alpha
-  wolf, giant toad, bone captain) and shop signs. Until the sheets load (or if they fail) everything is HD art.
+- **Modes:** the game uses LPC sheets plus the HD art for object overlays, monsters without LPC art (giant
+  toad, Act II/III monsters) and shop signs. Until the sheets load (or if they fail) everything is HD art.
   The `?art=classic` HD-only mode was removed in §26.
 - **Walls vs floors:** town floors must read apart from walls at a glance. Floors are warm (classic sandstone cobble; LPC taupe flagstones instead of the grey cobble), walls stay cool grey brick, and every wall / cave-rock tile (`SHADOW_CASTERS`) drops a soft shadow onto the tile below it. Further options if more contrast is needed: a lit top cap on walls, a 3/4 front face where a wall meets floor, or darker wall tops.
 - **Unchanged:** UI, colours, variants and animation frame counts. The engine's EPX
@@ -1654,7 +1661,8 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~Smoother walking.~~ Done in §23.
 - ~~Status curing at the chapel (§12 deferred list).~~ Done in §28 (poison, with Antidote and Heal cures).
 - ~~A Cypress smoke test for `/jouster-quest`.~~ Done in §27.
-- LPC wolf and toad art with attack animations (16.4 item 4c).
+- ~~LPC wolf art~~ Done in 16.7 (wolf ×3, Alpha Wolf). Still open: giant toad (no suitable LPC art found) and
+  LPC attack animations (16.4 item 4c).
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
   play-testing confirms parties find Act II/III too easy.
 

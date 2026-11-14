@@ -148,8 +148,19 @@ describe('Art sprites', () => {
 
   it('keeps procedural monsters that have no LPC art yet', () => {
     const art = new Art(fakeSheets());
-    expect(LPC_MONSTERS.has('wolf:0')).toBe(false);
-    expect(spriteSize(art.monster('wolf'))).toEqual({ width: TILE * 2, height: TILE * 2 });
+    expect(LPC_MONSTERS.has('giantToad:0')).toBe(false);
+    expect(spriteSize(art.monster('giantToad'))).toEqual({ width: TILE * 2, height: TILE * 2 });
+  });
+
+  it('draws every wolf look, and the Alpha Wolf, from its own LPC frame', () => {
+    const art = new Art(fakeSheets());
+    const keys = ['wolf:0', 'wolf:1', 'wolf:2', 'alphaWolf:0'];
+    const rows = keys.map((k) => LPC_MONSTERS.get(k));
+    rows.forEach((m) => expect(m?.sheet).toBe('characters'));
+    expect(new Set(rows.map((m) => m?.index)).size).toBe(keys.length);
+    expect(spriteSize(art.monster('wolf', 2))).toEqual({ width: LPC_CHARACTER_CELL.width / 2, height: LPC_CHARACTER_CELL.height / 2 });
+    expect(art.monster('wolf', 2)).not.toBe(art.monster('wolf', 0));
+    expect(spriteSize(art.monster('alphaWolf')).width).toBe(LPC_CHARACTER_CELL.width / 2);
   });
 
   it('mirrors procedural right-facing art for left, so callers never flip', () => {

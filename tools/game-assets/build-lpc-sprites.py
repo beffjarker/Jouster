@@ -4,8 +4,9 @@ Builds Jouster Quest's LPC character and monster sheets (game plan 16.7).
 
 Characters are composited from layers of the Universal LPC Spritesheet Character Generator
 (https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator), recoloured with its
-palette definitions. Slime and bat come from the 2012 "LPC Base Assets" pack on OpenGameArt. Downloads are
-cached under tmp/lpc-cache (gitignored).
+palette definitions. Slime and bat come from the 2012 "LPC Base Assets" pack on OpenGameArt; the wolf and Alpha
+Wolf are recoloured from "[LPC] Wolf Animation" on OpenGameArt. Downloads are cached under tmp/lpc-cache
+(gitignored).
 
 Outputs:
   apps/jouster-ui/public/game-assets/lpc/characters.png   one row per look, cols = facing x frame
@@ -37,6 +38,8 @@ ULPC = 'https://raw.githubusercontent.com/LiberatedPixelCup/Universal-LPC-Sprite
 ULPC_REPO = 'https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator'
 BASE_ASSETS = 'https://opengameart.org/sites/default/files/lpc_base_assets.zip'
 BASE_ASSETS_PAGE = 'https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles'
+WOLF_SHEET = 'https://opengameart.org/sites/default/files/wolfsheet1.png'
+WOLF_PAGE = 'https://opengameart.org/content/lpc-wolf-animation'
 
 FRAME = 64
 # walk.png rows by facing. The sheet keeps every walk column: 0 is the standing pose and 1-8 the walk cycle
@@ -179,6 +182,15 @@ SMALL_CELL = 32
 SMALL_COL = 0  # standing frame
 SMALL_ROW = 1  # facing left (rows: up, left, down, right)
 
+# Beasts from "[LPC] Wolf Animation": the left-facing standing frame (64x32 at x 320, y 256 of the sheet),
+# stood on the bottom of a 64x64 characters.png cell. Looks: (saturation scale, value curve, eye colour),
+# matching the procedural palettes (grey, brown and white wolf; dark, gold-eyed Alpha Wolf).
+WOLF_FRAME = (320, 256, 384, 288)
+BEASTS = {
+    'wolf': [(0.12, (1.1, 0.0), (255, 64, 64)), (1.0, (1.0, 0.0), (255, 64, 64)), (0.08, (1.3, 0.25), (64, 160, 255))],
+    'alphaWolf': [(0.15, (0.6, 0.0), (255, 208, 32))],
+}
+
 
 # ---------------------------------------------------------------------------------------------------------
 def fetch(url: str, rel: str) -> bytes:
@@ -313,6 +325,35 @@ def hue_shift(img: Image.Image, degrees: int) -> Image.Image:
     return img
 
 
+def tint(img: Image.Image, sat: float, value: tuple[float, float], eye: tuple[int, int, int]) -> Image.Image:
+    """Scales saturation, maps value through `v * a + b`, and repaints the (green) eye pixels `eye`."""
+    img = img.copy()
+    px = img.load()
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b, a = px[x, y]
+            if a == 0:
+                continue
+            h, s, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            if 0.3 <= h <= 0.6 and s > 0.2:
+                px[x, y] = (*eye, a)
+                continue
+            r2, g2, b2 = colorsys.hsv_to_rgb(h, s * sat, min(1.0, v * value[0] + value[1]))
+            px[x, y] = (round(r2 * 255), round(g2 * 255), round(b2 * 255), a)
+    return img
+
+
+def beast_frames() -> dict[str, Image.Image]:
+    wolf = Image.open(io.BytesIO(fetch(WOLF_SHEET, 'wolf/wolfsheet1.png'))).convert('RGBA').crop(WOLF_FRAME)
+    out = {}
+    for mid, looks in BEASTS.items():
+        for v, (sat, value, eye) in enumerate(looks):
+            cell = Image.new('RGBA', (FRAME, FRAME))
+            cell.paste(tint(wolf, sat, value, eye), (0, FRAME - wolf.height))
+            out[f'{mid}:{v}'] = cell
+    return out
+
+
 def crop_box(frames: list[Image.Image]) -> tuple[int, int, int, int]:
     """Union bounding box, made symmetric around the frame centre and ending at the frame bottom."""
     left, top, right = FRAME, FRAME, 0
@@ -349,6 +390,8 @@ def main() -> None:
     char_frames = {name: [frame(s, f, c) for f in FACINGS for c in STEP_COLS] for name, s in sheets.items()}
     for key, s in monster_sheets.items():
         char_frames[key] = [frame(s, MONSTER_FACING, STEP_COLS[0])]
+    for key, img in beast_frames().items():
+        char_frames[key] = [img]
     box = crop_box([f for fs in char_frames.values() for f in fs])
     cw, ch = box[2] - box[0], box[3] - box[1]
     cols = len(FACINGS) * len(STEP_COLS)
@@ -428,6 +471,10 @@ def write_credits(rows: list[dict]) -> None:
         '',
         f'`monsters.png` crops and hue-shifts `slime.png` and `bat.png` from the [LPC Base Assets]({BASE_ASSETS_PAGE})',
         'by Charles Sanchez (CharlesGabriel), CC-BY-SA 3.0 / GPL 3.0.',
+        '',
+        f'The wolf and Alpha Wolf rows of `characters.png` recolour a frame of [[LPC] Wolf Animation]({WOLF_PAGE})',
+        'by Stephen Challener (Redshrike), commissioned by William Thompson (William.Thompsonj),',
+        'CC-BY 3.0 / CC-BY 4.0 / OGA-BY 3.0 / GPL 2.0 / GPL 3.0.',
         '',
         '| Layer (walk.png) | Authors | Licenses | Source |',
         '| --- | --- | --- | --- |',
