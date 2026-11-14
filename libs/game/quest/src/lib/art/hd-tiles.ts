@@ -1217,6 +1217,838 @@ function mireFloor(p: Paint, _f = 0, variant = 0): void {
   }
 }
 
+// --- Furniture and decor (composite `object@floor` tiles) ---------------------------------------
+
+const OAK = '#8a5a2e';
+const DARK_OAK = '#5a3a1e';
+const IRON = '#4e4e5a';
+const STEEL = '#b8bcc8';
+const GOLD = '#d8a838';
+const BRASS = '#c8963a';
+const LINEN = '#ece4d2';
+const BOOKS = ['#8a2a2a', '#2a4a8a', '#2a6a3a', '#7a5a2a', '#5a2a6a', '#a8783a', '#3a3a4a', '#6a8a9a'];
+
+/** Wood with dark grain streaks running across (or, with `vertical`, down) the shape. */
+function woodFill(p: Paint, s: Shape, base: Color, seed: number, vertical = false, gap = 2.2): void {
+  p.fill(s, base, vertical ? { gradX: 0.7, tex: 0.25, seed } : { grad: 0.7, tex: 0.25, seed });
+  const from = vertical ? s.x0 : s.y0;
+  const to = vertical ? s.x1 : s.y1;
+  for (let i = 0, a = from + gap * 0.6; a < to - 0.4; a += gap, i++) {
+    const wob = (hash(i, 1, seed) - 0.5) * 0.8;
+    const line = vertical ? seg(a, s.y0, a + wob, s.y1, 0.2) : seg(s.x0, a, s.x1, a + wob, 0.2);
+    p.flat(clip(line, s), tone(base, -1), 0.55);
+    if (hash(i, 2, seed) < 0.5) {
+      const k = from + hash(i, 3, seed) * (to - from);
+      const knot = vertical ? ell(a + 0.6, s.y0 + hash(i, 4, seed) * (s.y1 - s.y0), 0.5, 0.9) : ell(k, a + 0.6, 0.9, 0.5);
+      p.flat(clip(knot, s), tone(base, -2), 0.6);
+    }
+  }
+}
+
+/** Small round rivet or nail head. */
+function rivet(p: Paint, x: number, y: number, color: Color = IRON, r = 0.55): void {
+  p.fill(ell(x, y, r), color, { sphere: true, bevel: 0, dither: 0 });
+  p.spot(x - r * 0.4, y - r * 0.4, tone(color, 2));
+}
+
+/** A candle with a small flame whose top is at `top`; `lean` sways the flame. */
+function candle(p: Paint, x: number, top: number, bottom: number, lean = 0): void {
+  p.fill(box(x - 0.9, top, 1.8, bottom - top), '#f4ecd8', { gradX: 1, bevel: 0, dither: 0 });
+  p.spot(x + 0.5, top + 1.2, '#d8ccb0');
+  p.fill(ell(x + lean * 0.4, top - 1.7, 0.95, 1.7), '#ff9a30', { bevel: 0, dither: 0 });
+  p.fill(ell(x + lean * 0.2, top - 1.2, 0.45, 0.95), '#fff6c8', { bevel: 0, dither: 0 });
+}
+
+/** Warm radial glow centred on (cx, cy). */
+function glow(p: Paint, cx: number, cy: number, r: number, color: Color, amount: number): void {
+  fine(p, (x, y, fx, fy) => {
+    const d = Math.hypot(x - cx, y - cy) / r;
+    if (d < 1) {
+      p.fpx(fx, fy, color, (1 - d) ** 1.8 * amount);
+    }
+  });
+}
+
+/** Wall hanging: a royal red banner with gold trim and a crown. */
+function banner(p: Paint): void {
+  const cloth = '#a82828';
+  p.flat(box(10, 5, 14, 22), '#140c24', 0.25);
+  p.fill(seg(6.5, 3.5, 25.5, 3.5, 0.8), DARK_OAK, { bevel: 0 });
+  [6.5, 25.5].forEach((x) => p.fill(ell(x, 3.5, 1.4), GOLD, { sphere: true, bevel: 0, dither: 0 }));
+  [10.5, 21.5].forEach((x) => p.fill(ell(x, 4.4, 0.9, 1.1), GOLD, { bevel: 0, dither: 0 }));
+  const flag = poly([9, 4.5, 23, 4.5, 23, 27.5, 16, 23.5, 9, 27.5]);
+  p.fill(flag, cloth, { gradX: 1.2, tex: 0.25, seed: 61 });
+  [11.8, 16.4, 20.6].forEach((x, i) => p.flat(clip(seg(x, 5, x + (i - 1) * 0.3, 27, 0.5), flag), tone(cloth, -1), 0.65));
+  [13.6, 18.4].forEach((x) => p.flat(clip(seg(x, 5, x, 25, 0.35), flag), tone(cloth, 1), 0.55));
+  const trim = cut(flag, poly([10.2, 4.5, 21.8, 4.5, 21.8, 25.4, 16, 22, 10.2, 25.4]));
+  p.fill(trim, GOLD, { bevel: 0, dither: 0, grad: 0.6 });
+  const crown = poly([12.4, 16, 12.4, 10.6, 14.2, 12.6, 16, 9.4, 17.8, 12.6, 19.6, 10.6, 19.6, 16]);
+  p.fill(crown, GOLD, { grad: 1, dither: 0 });
+  [
+    [12.4, 10.4],
+    [16, 9.2],
+    [19.6, 10.4],
+  ].forEach(([x, y]) => p.fill(ell(x, y, 0.75), '#fff0a0', { bevel: 0, dither: 0 }));
+  p.fill(ell(16, 13.8, 1), '#3a7ad8', { sphere: true, bevel: 0, dither: 0 });
+  [13.8, 18.2].forEach((x) => p.fill(ell(x, 14.4, 0.6), '#c83030', { sphere: true, bevel: 0, dither: 0 }));
+  p.flat(box(12.4, 16.4, 7.2, 1), tone(GOLD, -1));
+  [18.5, 20].forEach((y) => p.flat(box(14, y, 4, 0.5), tone(GOLD, -1), 0.8));
+}
+
+/** Gilded royal throne with a tufted red velvet back; wide enough that its arms show beside a seated king. */
+function throne(p: Paint): void {
+  shadow(p, 16, 29.5, 15, 2.5);
+  const frame = '#c8952e';
+  const velvet = '#8a1a2e';
+  // The tall back and its crest continue in the tile above (see throneTop).
+  p.fill(box(3, -1, 26, 21), frame, { gradX: 1, tex: 0.2, seed: 62 });
+  p.fill(box(6, -1, 20, 20), velvet, { sphere: true, sphereAmount: 0.5, tex: 0.2, seed: 63 });
+  [4, 12].forEach((y) =>
+    [10, 16, 22].forEach((x) => {
+      p.flat(seg(x, y - 1.2, x, y + 1.2, 0.18), tone(velvet, -1), 0.6);
+      p.fill(ell(x, y, 0.55), GOLD, { sphere: true, bevel: 0, dither: 0 });
+    }),
+  );
+  p.fill(box(3, 18.5, 26, 6), velvet, { grad: 0.8, tex: 0.2, seed: 64 });
+  p.flat(box(3.5, 18.7, 25, 0.6), tone(velvet, 2), 0.7);
+  p.fill(box(3, 24, 26, 2.8), frame, { grad: 0.6 });
+  [8, 16, 24].forEach((x) => p.fill(ell(x, 25.4, 0.8), '#c83030', { sphere: true, bevel: 0, dither: 0 }));
+  [0.4, 27.4].forEach((x) => {
+    p.fill(box(x, 13, 4.2, 14), frame, { gradX: 0.8, tex: 0.2, seed: 66 });
+    p.fill(ell(x + 2.1, 13.2, 2.6, 1.6), frame, { sphere: true, bevel: 0 });
+    p.fill(ell(x + 2.1, 13, 1, 0.9), '#3ac8e8', { sphere: true, bevel: 0, dither: 0 });
+  });
+  [4, 26].forEach((x) => p.fill(box(x, 26.5, 2.5, 3.3), tone(frame, -1), { gradX: 0.6 }));
+}
+
+/** A goblin's throne of lashed logs, side skulls and a fur seat. */
+function crudeThrone(p: Paint): void {
+  shadow(p, 16, 29.5, 15, 2.5);
+  const wood = '#6a4a2a';
+  CRUDE_LOGS.forEach((x, i) => p.fill(box(x, -1, 4.4, 23), wood, { gradX: 1, tex: 0.4, seed: 65 + i }));
+  [6, 14].forEach((y) => {
+    p.fill(box(1.5, y, 29, 1.3), '#b89a5a', { grad: 0.6, bevel: 0 });
+    [5, 10, 15, 20, 25].forEach((x) => p.flat(seg(x, y, x + 0.8, y + 1.3, 0.2), '#7a6234'));
+  });
+  const fur = '#8a6a48';
+  p.fill(ell(16, 22.5, 14, 4.8), fur, { sphere: true, tex: 0.6, seed: 70 });
+  for (let i = 0; i < 60; i++) {
+    const x = 2.5 + hash(i, 1, 70) * 27;
+    const y = 18.5 + hash(i, 2, 70) * 8;
+    if (ell(16, 22.5, 13.5, 4.5).test(x, y)) {
+      p.flat(seg(x, y, x + (hash(i, 3, 70) - 0.5) * 1.6, y + 1, 0.18), tone(fur, hash(i, 4, 70) < 0.5 ? -2 : 1), 0.8);
+    }
+  }
+  [4, 25].forEach((x) => p.fill(box(x, 25.5, 3, 4.5), tone(wood, -1), { gradX: 0.8 }));
+}
+
+/** Left edges of the lashed logs of {@link crudeThrone} and {@link crudeThroneTop}. */
+const CRUDE_LOGS = [1.8, 6.4, 11, 15.6, 20.2, 24.8];
+
+/** Small horned skull centred on (`x`, `y`). */
+function hornedSkull(p: Paint, x: number, y: number): void {
+  [
+    [x - 2.2, y - 0.6, x - 4.6, y - 3.8, x - 3.2, y - 3.6, x - 1, y - 1.6],
+    [x + 2.2, y - 0.6, x + 4.6, y - 3.8, x + 3.2, y - 3.6, x + 1, y - 1.6],
+  ].forEach((pts) => p.fill(poly(pts), '#ece2c4', { grad: 0.8, bevel: 0 }));
+  p.fill(ell(x, y, 2.6, 2.3), '#e8dcc0', { sphere: true });
+  p.fill(box(x - 1.6, y + 1.2, 3.2, 1.6), '#d8ccac', { bevel: 0 });
+  [x - 1, x + 1].forEach((ex) => p.fill(ell(ex, y + 0.2, 0.7, 0.8), '#1a1210', { bevel: 0, dither: 0 }));
+  [x - 1.1, x - 0.1, x + 0.9].forEach((tx) => p.flat(box(tx, y + 2.2, 0.4, 0.5), '#1a1210'));
+}
+
+/** Tall arched back and crest of {@link throne}, drawn over the tile above so it rises behind the seated king. */
+function throneTop(p: Paint): void {
+  const frame = '#c8952e';
+  const velvet = '#8a1a2e';
+  p.fill(poly([3, 33, 3, 9, 8, 5, 16, 3, 24, 5, 29, 9, 29, 33]), frame, { gradX: 1, tex: 0.2, seed: 62 });
+  p.fill(poly([6, 33, 6, 10.5, 10, 7.6, 16, 6, 22, 7.6, 26, 10.5, 26, 33]), velvet, {
+    sphere: true,
+    sphereAmount: 0.4,
+    tex: 0.2,
+    seed: 63,
+  });
+  [12, 20, 28].forEach((y) =>
+    [10, 16, 22].forEach((x) => {
+      p.flat(seg(x, y - 1.2, x, y + 1.2, 0.18), tone(velvet, -1), 0.6);
+      p.fill(ell(x, y, 0.55), GOLD, { sphere: true, bevel: 0, dither: 0 });
+    }),
+  );
+  p.fill(poly([16, -1, 18, 2, 16, 5, 14, 2]), GOLD, { grad: 0.8, bevel: 0 });
+  p.fill(ell(16, 4, 1.5, 1.7), '#3ac8e8', { sphere: true, bevel: 0, dither: 0 });
+  p.spot(15.5, 3.4, '#ffffff');
+  [3, 29].forEach((x) => {
+    p.fill(ell(x, 8.4, 2), frame, { sphere: true, bevel: 0 });
+    p.fill(ell(x, 5.8, 0.9, 1.4), GOLD, { sphere: true, bevel: 0, dither: 0 });
+  });
+}
+
+/** Log tips and horned skulls of {@link crudeThrone}, drawn over the tile above it. */
+function crudeThroneTop(p: Paint): void {
+  const wood = '#6a4a2a';
+  CRUDE_LOGS.forEach((x, i) => {
+    const top = 4 + Math.abs(2.5 - i) * 1.6 + (i % 2) * 1.2;
+    p.fill(box(x, top, 4.4, 33 - top), wood, { gradX: 1, tex: 0.4, seed: 65 + i });
+    p.fill(ell(x + 2.2, top, 2.2, 1), tone(wood, 1), { bevel: 0 });
+    p.flat(ell(x + 2.2, top, 1.2, 0.5), tone(wood, -1));
+  });
+  [16, 27].forEach((y) => {
+    p.fill(box(1.5, y, 29, 1.3), '#b89a5a', { grad: 0.6, bevel: 0 });
+    [5, 10, 15, 20, 25].forEach((x) => p.flat(seg(x, y, x + 0.8, y + 1.3, 0.2), '#7a6234'));
+  });
+  hornedSkull(p, 4, 12);
+  hornedSkull(p, 28, 12);
+  hornedSkull(p, 16, 4.5);
+}
+
+/** Tall brass candelabra with three lit candles. */
+function candles(p: Paint): void {
+  glow(p, 16, 6, 13, '#ffc860', 0.3);
+  shadow(p, 16, 29.3, 6.5, 1.6);
+  p.fill(poly([16, 24, 9.5, 29.6, 12, 29.6, 16, 26.6, 20, 29.6, 22.5, 29.6]), BRASS, {});
+  p.fill(box(15, 10, 2, 15), BRASS, { gradX: 1 });
+  [14, 19.5].forEach((y) => p.fill(ell(16, y, 1.8, 1), BRASS, { sphere: true, bevel: 0 }));
+  p.fill(seg(9, 11, 23, 11, 0.7), BRASS, { bevel: 0 });
+  p.fill(seg(9, 11, 9, 9, 0.6), BRASS, { bevel: 0 });
+  p.fill(seg(23, 11, 23, 9, 0.6), BRASS, { bevel: 0 });
+  [
+    [9, 5.5],
+    [16, 3.5],
+    [23, 5.5],
+  ].forEach(([x, top]) => {
+    p.fill(ell(x, 9.3, 2, 0.9), BRASS, { sphere: true, bevel: 0, dither: 0 });
+    candle(p, x, top, 9);
+  });
+}
+
+/** Potted fern in a terracotta pot. */
+function plant(p: Paint): void {
+  shadow(p, 16, 29, 7.5, 2);
+  const leaf = '#3a8a3a';
+  const fronds = 11;
+  const order = [...Array(fronds).keys()].sort((a, b) => Math.abs(b - (fronds - 1) / 2) - Math.abs(a - (fronds - 1) / 2));
+  order.forEach((i) => {
+    const a = -Math.PI * 0.94 + (i / (fronds - 1)) * Math.PI * 0.88;
+    const len = 8 + hash(i, 1, 71) * 4 - Math.abs(i - (fronds - 1) / 2) * 0.3;
+    const tx = 16 + Math.cos(a) * len;
+    const ty = 18 + Math.sin(a) * len;
+    const mx = (16 + tx) / 2;
+    const my = (18 + ty) / 2;
+    const nx = -Math.sin(a) * 1.9;
+    const ny = Math.cos(a) * 1.9;
+    const k = Math.abs(i - (fronds - 1) / 2) > 3 ? -1 : hash(i, 2, 71) < 0.5 ? 0 : 1;
+    p.fill(poly([16, 18.5, mx + nx, my + ny, tx, ty, mx - nx, my - ny]), shadeOf(leaf, k), { bevel: 1, dither: 0.2 });
+    p.flat(seg(16, 18.5, tx, ty, 0.18), tone(leaf, k + 1), 0.7);
+  });
+  const pot = '#b0583a';
+  p.fill(poly([10.2, 19.5, 21.8, 19.5, 20.4, 28.8, 11.6, 28.8]), pot, { gradX: 1.2, tex: 0.2, seed: 72 });
+  p.fill(box(9.4, 18, 13.2, 2.6), pot, { grad: 0.8, shade: 0.5 });
+  p.flat(box(11, 23.4, 10, 0.5), tone(pot, -1), 0.7);
+  [13, 16, 19].forEach((x) => p.fill(ell(x, 25.4, 0.6), tone(pot, 1), { bevel: 0, dither: 0 }));
+}
+
+/** Frame shared by shelves: dark wood case with a recessed back. */
+function shelfCase(p: Paint, seed: number): void {
+  shadow(p, 16, 30.6, 14.5, 1.4);
+  woodFill(p, box(2, 1, 28, 30), DARK_OAK, seed, true, 4);
+  p.fill(box(3.6, 2.6, 24.8, 26.8), tone(DARK_OAK, -2), { bevel: 0, tex: 0.2, seed });
+  p.flat(box(3.6, 2.6, 24.8, 0.8), '#0a0606', 0.6);
+}
+
+/** One shelf board whose top is at `y`. */
+function shelfBoard(p: Paint, y: number): void {
+  p.fill(box(2.6, y, 26.8, 1.6), OAK, { grad: 0.8, bevel: 0 });
+  p.flat(box(3.6, y + 1.6, 24.8, 0.8), '#0a0606', 0.45);
+}
+
+/** Bookcase packed with books, plus the odd candle or skull. */
+function bookshelf(p: Paint): void {
+  shelfCase(p, 73);
+  [10.6, 19.8, 29].forEach((yb, row) => {
+    let x = 3.8;
+    let i = row * 40;
+    while (x < 27.6) {
+      const n = hash(i, 1, 73);
+      if (n < 0.06 && x < 23) {
+        p.fill(ell(x + 2, yb - 2, 2.1, 1.9), '#e8dcc0', { sphere: true, bevel: 0 });
+        [x + 1.3, x + 2.7].forEach((ex) => p.fill(ell(ex, yb - 2, 0.5, 0.6), '#1a1210', { bevel: 0, dither: 0 }));
+        x += 4.4;
+      } else if (n < 0.1 && x < 24.5) {
+        p.fill(ell(x + 1.6, yb - 1.2, 1.7, 1.2), '#5a7a8a', { sphere: true, bevel: 0 });
+        p.fill(box(x + 1, yb - 3.6, 1.2, 1.4), '#5a7a8a', { bevel: 0, dither: 0 });
+        x += 3.6;
+      } else {
+        const w = Math.min(27.8 - x, 1.2 + hash(i, 2, 73) * 1.4);
+        const h = 5 + hash(i, 3, 73) * 2.6;
+        const lean = hash(i, 4, 73) < 0.1 && x > 6;
+        const col = BOOKS[Math.floor(hash(i, 5, 73) * BOOKS.length)];
+        const book = lean ? poly([x, yb, x + w, yb, x + w + 1.8, yb - h, x + 1.8, yb - h]) : box(x, yb - h, w, h);
+        p.fill(book, col, { gradX: 0.8, bevel: 0, dither: 0 });
+        if (!lean && w > 1.5) {
+          p.flat(box(x + 0.2, yb - h + 1, w - 0.4, 0.4), GOLD, 0.8);
+          p.flat(box(x + 0.2, yb - 1.6, w - 0.4, 0.4), GOLD, 0.6);
+        }
+        p.flat(box(x + w - 0.15, yb - h, 0.15, h), '#0a0606', 0.6);
+        x += w + (lean ? 1.8 : 0.1);
+      }
+      i++;
+    }
+    shelfBoard(p, yb);
+  });
+}
+
+/** Apothecary shelf of coloured potions, jars and a mortar. */
+function potionShelf(p: Paint): void {
+  shelfCase(p, 74);
+  const liquids = ['#d83a3a', '#3a7ad8', '#3ac85a', '#c858d8', '#e8c040', '#40c8c8'];
+  [10.6, 19.8, 29].forEach((yb, row) => {
+    for (let i = 0; i < 4; i++) {
+      const x = 6.2 + i * 6.3 + (hash(i, row, 74) - 0.5) * 1.4;
+      const col = liquids[Math.floor(hash(i, row + 9, 74) * liquids.length)];
+      const kind = hash(i, row + 20, 74);
+      if (kind < 0.55) {
+        const r = 1.9 + hash(i, row + 30, 74) * 0.5;
+        p.fill(ell(x, yb - r, r, r), '#d8e8f0', { sphere: true, bevel: 0, dither: 0 });
+        p.fill(clip(ell(x, yb - r, r - 0.4, r - 0.4), box(x - r, yb - r * 1.1, r * 2, r * 2)), col, {
+          sphere: true,
+          bevel: 0,
+          dither: 0,
+        });
+        p.fill(box(x - 0.6, yb - r * 2 - 2, 1.2, 2.2), '#d8e8f0', { bevel: 0, dither: 0 });
+        p.fill(box(x - 0.7, yb - r * 2 - 2.8, 1.4, 1), '#a87a4a', { bevel: 0, dither: 0 });
+        p.spot(x - r * 0.45, yb - r * 1.4, '#ffffff');
+      } else if (kind < 0.85) {
+        p.fill(box(x - 1.6, yb - 5, 3.2, 5), '#c8d8e0', { gradX: 1, bevel: 0, dither: 0 });
+        p.fill(box(x - 1.3, yb - 3.6, 2.6, 3.4), col, { gradX: 1, bevel: 0, dither: 0 });
+        p.fill(box(x - 1.9, yb - 5.6, 3.8, 1), '#6a4a2a', { bevel: 0, dither: 0 });
+        p.spot(x - 1, yb - 4.4, '#ffffff');
+      } else {
+        p.fill(ell(x, yb - 1.4, 2.3, 1.6), '#9a948a', { sphere: true, bevel: 0 });
+        p.flat(ell(x, yb - 2.6, 1.8, 0.5), '#4a4640');
+        p.fill(seg(x + 0.4, yb - 2.8, x + 1.8, yb - 5.2, 0.4), '#bab4a8', { bevel: 0, dither: 0 });
+      }
+    }
+    shelfBoard(p, yb);
+  });
+}
+
+/** Stone altar draped in white with a chalice, a holy book and candles. */
+function altar(p: Paint): void {
+  glow(p, 24, 4, 9, '#ffd880', 0.25);
+  shadow(p, 16, 29.5, 15, 2);
+  const stone = '#a8a49a';
+  const front = box(3, 13, 26, 15.5);
+  p.fill(front, stone, { grad: 0.8, tex: 0.3, seed: 75 });
+  [17.5, 22.5].forEach((y) => p.flat(clip(box(3, y, 26, 0.4), front), tone(stone, -2), 0.7));
+  [8, 24].forEach((x) => p.flat(box(x, 17.9, 0.4, 4.6), tone(stone, -2), 0.7));
+  p.fill(box(2.5, 7, 27, 6.2), LINEN, { grad: 0.5, bevel: 0 });
+  p.fill(box(2.5, 13, 27, 3.2), LINEN, { grad: 0.8 });
+  const runner = poly([11, 13, 21, 13, 21, 25.5, 16, 27.5, 11, 25.5]);
+  p.fill(runner, '#3a4aa8', { gradX: 0.6, bevel: 0 });
+  p.fill(cut(runner, poly([12, 13, 20, 13, 20, 24.8, 16, 26.5, 12, 24.8])), GOLD, { bevel: 0, dither: 0 });
+  p.fill(ell(16, 19, 2.6), GOLD, { sphere: true, bevel: 0 });
+  [0, 1, 2, 3].forEach((i) => {
+    const a = (i * Math.PI) / 4;
+    p.flat(seg(16 - Math.cos(a) * 4, 19 - Math.sin(a) * 4, 16 + Math.cos(a) * 4, 19 + Math.sin(a) * 4, 0.25), GOLD);
+  });
+  p.flat(box(2.5, 15.6, 27, 0.6), GOLD, 0.8);
+  p.fill(poly([5.2, 7.8, 8.6, 7.8, 8, 4.8, 7.6, 3.8, 6.2, 3.8, 5.8, 4.8]), GOLD, { gradX: 1, bevel: 0 });
+  p.fill(box(6.5, 7.8, 0.9, 2.4), GOLD, { bevel: 0, dither: 0 });
+  p.fill(ell(6.9, 10.3, 2, 0.7), GOLD, { bevel: 0, dither: 0 });
+  p.fill(poly([11.2, 8, 16, 7.2, 16, 11.4, 11.6, 11.8]), '#f8f0dc', { gradX: 0.6, bevel: 0 });
+  p.fill(poly([16, 7.2, 20.8, 8, 20.4, 11.8, 16, 11.4]), '#e8dcc4', { gradX: 0.6, bevel: 0 });
+  [8.6, 9.6, 10.6].forEach((y) => {
+    p.flat(seg(12.4, y, 15.2, y - 0.3, 0.15), '#7a7060', 0.7);
+    p.flat(seg(16.8, y - 0.3, 19.6, y, 0.15), '#7a7060', 0.7);
+  });
+  p.flat(seg(16, 7.2, 16, 11.4, 0.2), '#a8783a');
+  p.flat(seg(16.4, 11.4, 16.4, 13.6, 0.3), '#c83030');
+  candle(p, 23.5, 4.5, 10);
+  candle(p, 26.5, 6, 10.4);
+}
+
+/** Wooden church pew seen from behind. */
+function pew(p: Paint): void {
+  shadow(p, 16, 29.6, 15.5, 1.5);
+  [3.5, 26.5].forEach((x) => p.fill(box(x, 22, 2, 7), DARK_OAK, { gradX: 0.8 }));
+  woodFill(p, box(1, 14, 30, 7), OAK, 76, false, 2.4);
+  p.fill(box(1, 20.5, 30, 2.4), tone(OAK, -1), { grad: 0.6 });
+  woodFill(p, box(1, 5.5, 30, 8.5), OAK, 77, false, 2.8);
+  p.fill(box(0.5, 4, 31, 2.2), OAK, { grad: 1, shade: 0.5 });
+  p.flat(box(1, 13.6, 30, 0.8), '#0a0606', 0.5);
+  [1, 30].forEach((x) => p.fill(box(x - 0.5, 4, 1.5, 19), DARK_OAK, { gradX: 0.8, bevel: 0 }));
+  [8, 16, 24].forEach((x) => p.flat(seg(x, 6.5, x, 13, 0.25), tone(OAK, -2), 0.7));
+}
+
+/** Upright barrel with iron hoops and a lid. */
+function barrel(p: Paint): void {
+  shadow(p, 16, 29.3, 10.5, 2.2);
+  const wood = '#94622e';
+  const body = clip(ell(16, 18, 10.6, 12.5), box(5, 7.5, 22, 21.8));
+  p.fill(body, wood, { sphere: true, sphereAmount: 0.7, tex: 0.2, seed: 78 });
+  [9.2, 12.6, 16, 19.4, 22.8].forEach((x) => {
+    const bow = (x - 16) * 0.08;
+    p.flat(clip(union(seg(x - bow, 7.5, x + bow, 18, 0.22), seg(x + bow, 18, x - bow, 29.3, 0.22)), body), tone(wood, -2), 0.7);
+  });
+  [11, 25].forEach((y) => {
+    p.fill(clip(box(4, y, 24, 1.8), body), IRON, { grad: 0.8, bevel: 0 });
+    [7, 25].forEach((x) => rivet(p, x, y + 0.9, IRON, 0.4));
+  });
+  p.fill(ell(16, 7.6, 8.6, 3), tone(wood, 0.5), { tex: 0.3, seed: 79 });
+  p.flat(cut(ell(16, 7.6, 8.6, 3), ell(16, 7.8, 7.4, 2.3)), tone(wood, -2), 0.8);
+  [13.5, 18.5].forEach((x) => p.flat(seg(x, 5.8, x, 9.5, 0.18), tone(wood, -1), 0.7));
+}
+
+/** Ale keg on a wooden cradle, end-on with a brass tap. */
+function keg(p: Paint): void {
+  shadow(p, 16, 29.4, 13, 1.8);
+  [6, 24].forEach((x) => p.fill(box(x, 22, 2.4, 7.5), DARK_OAK, { gradX: 0.8 }));
+  p.fill(box(3.5, 25, 25, 2), DARK_OAK, { grad: 0.6 });
+  const wood = '#a06a32';
+  const face = ell(16, 14.5, 11, 11);
+  p.fill(face, wood, { sphere: true, sphereAmount: 0.5, tex: 0.25, seed: 80 });
+  [10, 13.4, 16.8, 20.2].forEach((x) => p.flat(clip(seg(x, 3, x, 26, 0.2), face), tone(wood, -2), 0.7));
+  p.fill(cut(face, ell(16, 14.5, 9.4, 9.4)), IRON, { sphere: true, bevel: 0 });
+  p.flat(cut(ell(16, 14.5, 9.4, 9.4), ell(16, 14.5, 8.8, 8.8)), tone(wood, -3), 0.8);
+  [0, 1, 2, 3, 4, 5].forEach((i) => {
+    const a = (i * Math.PI) / 3 + 0.3;
+    rivet(p, 16 + Math.cos(a) * 10.2, 14.5 + Math.sin(a) * 10.2, IRON, 0.4);
+  });
+  p.fill(box(14.8, 18, 2.4, 2.6), BRASS, { gradX: 1, bevel: 0 });
+  p.fill(poly([15.2, 20.6, 16.8, 20.6, 16.6, 23.6, 15.4, 23.6]), BRASS, { gradX: 1, bevel: 0 });
+  p.fill(box(13.5, 17, 5, 1.2), BRASS, { grad: 0.6, bevel: 0 });
+  p.fill(ell(16, 24.6, 0.5, 0.7), '#e8a830', { bevel: 0, dither: 0 });
+}
+
+/** Nailed wooden crate with a diagonal brace. */
+function crate(p: Paint): void {
+  shadow(p, 16, 29.6, 13.5, 1.8);
+  const wood = '#b07e40';
+  woodFill(p, box(4, 5.5, 24, 6), tone(wood, 1), 81, true, 3);
+  const front = box(4, 11.5, 24, 17.5);
+  woodFill(p, front, wood, 82, false, 4.4);
+  const brace = clip(seg(6.5, 26.5, 25.5, 14, 1.3), front);
+  p.fill(brace, tone(wood, -1), { bevel: 1, dither: 0 });
+  [box(4, 11.5, 2.6, 17.5), box(25.4, 11.5, 2.6, 17.5), box(4, 11.5, 24, 2.4), box(4, 26.6, 24, 2.4)].forEach((s) =>
+    p.fill(s, tone(wood, -0.5), { grad: 0.6, bevel: 1, dither: 0 }),
+  );
+  [
+    [5.3, 12.7],
+    [26.7, 12.7],
+    [5.3, 27.8],
+    [26.7, 27.8],
+    [5.3, 20],
+    [26.7, 20],
+  ].forEach(([x, y]) => rivet(p, x, y, '#5a5a62', 0.45));
+  p.flat(box(4, 11.2, 24, 0.5), tone(wood, -3));
+}
+
+/** Two tied burlap grain sacks with a little spilled grain. */
+function sacks(p: Paint): void {
+  shadow(p, 16, 29.2, 13.5, 2);
+  const burlap = '#c8a870';
+  const sack = (cx: number, cy: number, rx: number, ry: number, seed: number): void => {
+    const body = union(ell(cx, cy, rx, ry), ell(cx, cy + ry * 0.35, rx * 1.05, ry * 0.7));
+    p.fill(body, burlap, { sphere: true, tex: 0.5, seed });
+    fine(p, (x, y, fx, fy) => {
+      if (body.test(x - 0.5, y - 0.5) && (fx + fy * 3) % 5 === 0) {
+        p.fpx(fx, fy, tone(burlap, -1), 0.35);
+      }
+    });
+    const neck = poly([cx - 1.6, cy - ry + 0.6, cx + 1.6, cy - ry + 0.6, cx + 1, cy - ry - 1.6, cx - 1, cy - ry - 1.6]);
+    p.fill(neck, burlap, { gradX: 0.8, bevel: 0 });
+    p.fill(box(cx - 1.8, cy - ry - 0.2, 3.6, 0.9), '#7a5a32', { bevel: 0, dither: 0 });
+    p.fill(poly([cx - 1.4, cy - ry - 1.6, cx - 2.4, cy - ry - 3.4, cx + 2.4, cy - ry - 3.4, cx + 1.4, cy - ry - 1.6]), burlap, {
+      bevel: 0,
+    });
+    p.flat(seg(cx - 2, cy + 0.5, cx + 2, cy - 0.5, 0.3), tone(burlap, -2), 0.6);
+  };
+  sack(11, 18, 6.5, 7.5, 83);
+  sack(21.5, 20.5, 6, 6.5, 84);
+  for (let i = 0; i < 9; i++) {
+    p.fill(ell(14 + hash(i, 1, 85) * 6, 27.5 + hash(i, 2, 85) * 2, 0.45, 0.3), '#e8d088', { bevel: 0, dither: 0 });
+  }
+}
+
+/** Rectangular tavern table with a mug, a plate of food and a candle stub. */
+function table(p: Paint): void {
+  shadow(p, 16, 29.4, 14.5, 2);
+  [4.5, 25.5].forEach((x) => p.fill(box(x, 18, 2.2, 11), DARK_OAK, { gradX: 0.8 }));
+  woodFill(p, box(1.5, 8.5, 29, 10.5), '#a8743c', 86, false, 2.6);
+  p.fill(box(1.5, 18.5, 29, 2.4), tone('#a8743c', -1), { grad: 0.6 });
+  p.flat(box(1.5, 20.9, 29, 0.6), '#0a0606', 0.6);
+  p.fill(ell(17.5, 13.5, 4.5, 2.2), '#e8e0d0', { sphere: true, sphereAmount: 0.5, bevel: 0 });
+  p.flat(ell(17.5, 13.3, 3.2, 1.4), '#d0c8b8');
+  p.fill(ell(16.5, 13, 2, 1.1), '#c8883a', { sphere: true, bevel: 0 });
+  p.flat(seg(15.4, 12.8, 17.4, 12.4, 0.15), '#8a5a22');
+  p.fill(ell(19.4, 13.6, 1.2), '#c83030', { sphere: true, bevel: 0, dither: 0 });
+  p.spot(19, 13.1, '#ffffff');
+  p.fill(box(6.5, 9, 3.6, 4.6), '#8a6a4a', { gradX: 1, bevel: 0 });
+  [10.3, 12].forEach((y) => p.flat(box(6.5, y, 3.6, 0.35), IRON));
+  p.fill(cut(ell(10.6, 11.4, 1.4, 1.4), ell(10.6, 11.4, 0.6, 0.6)), '#8a6a4a', { bevel: 0, dither: 0 });
+  p.fill(ell(8.3, 9, 1.9, 0.8), '#f8f0d8', { sphere: true, bevel: 0, dither: 0 });
+  p.fill(ell(26, 12.2, 1.6, 0.7), '#c8c0a8', { bevel: 0, dither: 0 });
+  candle(p, 26, 9.6, 12);
+}
+
+/** Round three-legged stool (walkable). */
+function stool(p: Paint): void {
+  shadow(p, 16, 25, 7, 1.6);
+  [
+    [11, 24],
+    [21, 24],
+    [16, 25],
+  ].forEach(([x, y]) => p.fill(seg(16 + (x - 16) * 0.5, 18, x, y, 0.7), DARK_OAK, { bevel: 0 }));
+  p.fill(ell(16, 17, 6.5, 3), OAK, { sphere: true, sphereAmount: 0.6, tex: 0.3, seed: 87 });
+  p.flat(cut(ell(16, 17, 6.5, 3), ell(16, 16.6, 6.2, 2.6)), tone(OAK, -2), 0.8);
+  p.flat(seg(12, 16.6, 19, 16.2, 0.18), tone(OAK, -1), 0.6);
+}
+
+/** Inn bed with a quilt, sheet, pillow and posts. */
+function bed(p: Paint): void {
+  shadow(p, 16, 30.2, 13.5, 1.4);
+  woodFill(p, box(3.5, 1.5, 25, 7), DARK_OAK, 88, true, 3);
+  [4.2, 27.8].forEach((x) => p.fill(ell(x, 1.8, 1.6), DARK_OAK, { sphere: true, bevel: 0 }));
+  p.fill(box(4.5, 5, 23, 24), LINEN, { grad: 0.4, bevel: 0 });
+  p.fill(ell(16, 8.5, 7.5, 2.8), '#f8f4ec', { sphere: true, sphereAmount: 0.6 });
+  p.flat(seg(10, 8.6, 22, 8.6, 0.2), '#d8d0c0', 0.7);
+  const quilt = box(4.5, 13, 23, 15);
+  const a = '#3a5aa8';
+  const b = '#c8a040';
+  fine(p, (x, y, fx, fy) => {
+    if (quilt.test(x - 0.5, y - 0.5)) {
+      const cell = (Math.floor((x - 4.5) / 4) + Math.floor((y - 13) / 4)) % 2;
+      const seam = (x - 4.5) % 4 < 0.4 || (y - 13) % 4 < 0.4;
+      const fold = Math.sin((x - 4.5) * 0.9) * 0.3 - (y - 13) / 30;
+      p.fpx(fx, fy, seam ? tone(cell ? a : b, -2) : tone(cell ? a : b, Math.round(fold + dither(fx, fy) * 0.6)));
+    }
+  });
+  p.fill(box(4.5, 12, 23, 2), '#f8f4ec', { grad: 0.6, bevel: 0 });
+  [box(3, 5, 1.6, 25), box(27.4, 5, 1.6, 25)].forEach((s) => p.fill(s, DARK_OAK, { gradX: 0.8, bevel: 0 }));
+  woodFill(p, box(3, 27.5, 26, 2.5), DARK_OAK, 89, false, 3);
+}
+
+/** Wall rack of swords, a spear and an axe. */
+function weaponRack(p: Paint): void {
+  shadow(p, 16, 30.2, 14.5, 1.4);
+  [3, 26.5].forEach((x) => woodFill(p, box(x, 3, 2.5, 27), DARK_OAK, 90, true, 3));
+  [6, 24].forEach((y) => woodFill(p, box(2, y, 28, 2), OAK, 91, false, 4));
+  const sword = (x: number, len: number): void => {
+    p.fill(poly([x - 0.9, 21, x - 0.9, 21 - len, x, 20 - len - 1.4, x + 0.9, 21 - len, x + 0.9, 21]), STEEL, {
+      gradX: 1,
+      bevel: 0,
+    });
+    p.flat(seg(x, 20.5, x, 21.5 - len, 0.18), tone(STEEL, -2), 0.8);
+    p.fill(seg(x - 2.6, 21.6, x + 2.6, 21.6, 0.6), BRASS, { bevel: 0 });
+    p.fill(box(x - 0.6, 22.2, 1.2, 4), '#5a3a22', { bevel: 0, dither: 0 });
+    [23, 24.4].forEach((y) => p.flat(box(x - 0.6, y, 1.2, 0.3), '#3a2414'));
+    p.fill(ell(x, 27, 1.1), BRASS, { sphere: true, bevel: 0, dither: 0 });
+  };
+  sword(8, 15);
+  sword(12.6, 12);
+  p.fill(seg(18, 4, 18, 29, 0.55), OAK, { bevel: 0 });
+  p.fill(poly([18, 0.6, 19.4, 4.4, 18, 6, 16.6, 4.4]), STEEL, { gradX: 1, bevel: 0 });
+  p.fill(box(17.2, 6, 1.6, 1.2), '#5a3a22', { bevel: 0, dither: 0 });
+  p.fill(seg(23, 9, 23, 29, 0.6), OAK, { bevel: 0 });
+  p.fill(poly([23, 9, 27.4, 7.4, 28.2, 11, 27.4, 14.6, 23, 13]), STEEL, { gradX: 1, bevel: 1 });
+  p.flat(seg(27.6, 7.8, 28, 14, 0.3), '#f0f4ff', 0.8);
+}
+
+/** Armor stand wearing a plumed helm and plate. */
+function armorStand(p: Paint): void {
+  shadow(p, 16, 29.6, 8.5, 1.8);
+  p.fill(box(10, 27.4, 12, 2), DARK_OAK, { grad: 0.6 });
+  p.fill(box(15.2, 22, 1.6, 6), DARK_OAK, { gradX: 0.8, bevel: 0 });
+  p.fill(poly([10.6, 20, 21.4, 20, 22.4, 25.2, 9.6, 25.2]), tone(STEEL, -1), { gradX: 1 });
+  [22.4, 23.8].forEach((y) => p.flat(seg(10, y, 22, y, 0.2), tone(STEEL, -3), 0.7));
+  const chest = poly([9.6, 10, 22.4, 10, 21.4, 19, 16, 21.4, 10.6, 19]);
+  p.fill(chest, STEEL, { sphere: true, sphereAmount: 0.8 });
+  p.flat(seg(16, 10.5, 16, 20.5, 0.25), tone(STEEL, -2), 0.6);
+  p.flat(seg(13, 12, 12.4, 16, 0.4), '#ffffff', 0.5);
+  [9.2, 22.8].forEach((x) => p.fill(ell(x, 11, 3.2, 2.4), STEEL, { sphere: true }));
+  p.fill(box(10.6, 18.6, 10.8, 1.5), '#6a4422', { grad: 0.5, bevel: 0 });
+  p.fill(box(15, 18.4, 2, 1.9), GOLD, { bevel: 0, dither: 0 });
+  p.fill(ell(16, 6, 4.2, 4.4), STEEL, { sphere: true });
+  p.fill(box(12.2, 7, 7.6, 0.9), '#14141c', { bevel: 0, dither: 0 });
+  p.flat(seg(16, 7.9, 16, 10, 0.3), tone(STEEL, -2));
+  p.fill(poly([16, 1.8, 18, 0.4, 22, 1, 23.5, 4, 19, 3]), '#c83030', { grad: 0.8, bevel: 0 });
+}
+
+/** Anvil on a stump with a glowing bar and a hammer. */
+function anvil(p: Paint): void {
+  glow(p, 15, 10, 8, '#ff8030', 0.3);
+  shadow(p, 16, 29.6, 11.5, 2);
+  const stump = '#7a5232';
+  woodFill(p, box(9, 19, 14, 10), stump, 92, true, 2.4);
+  p.fill(ell(16, 19.2, 7, 2), tone(stump, 1), { bevel: 0 });
+  p.flat(cut(ell(16, 19.2, 5, 1.4), ell(16, 19.2, 4, 1)), tone(stump, -1), 0.7);
+  const iron = '#5a5a66';
+  const body = poly([6, 11, 26, 11, 26, 13.4, 22, 14.4, 20.4, 16.4, 21.4, 19.6, 10.6, 19.6, 11.6, 16.4, 10, 14.4, 6, 13.4]);
+  p.fill(body, iron, { grad: 1 });
+  p.fill(poly([6, 11, 1.8, 11.8, 6, 13.4]), iron, { grad: 0.8 });
+  p.flat(box(6, 11, 20, 0.6), tone(iron, 2));
+  p.fill(seg(11, 10.2, 19, 10.2, 0.6), '#ff8030', { bevel: 0, dither: 0 });
+  p.flat(seg(12, 10, 18, 10, 0.25), '#fff0a0');
+  p.fill(seg(24, 28.5, 28.5, 19.5, 0.6), OAK, { bevel: 0 });
+  p.fill(seg(26.6, 18, 30, 20, 1.3), iron, { bevel: 1 });
+}
+
+/** Stone fireplace with a crackling fire (two frames) and a few things on the mantel. */
+function hearth(p: Paint, frame: number): void {
+  const stone = '#8a8078';
+  const body = box(1, 3, 30, 27.5);
+  p.fill(body, stone, { tex: 0.25, seed: 93 });
+  fine(p, (x, y, fx, fy) => {
+    if (!body.test(x - 0.5, y - 0.5)) {
+      return;
+    }
+    const row = Math.floor((y - 3) / 4.5);
+    const ly = (y - 3) % 4.5;
+    const lx = (x + (row % 2) * 3.5) % 7;
+    if (ly < 0.5 || lx < 0.5) {
+      p.fpx(fx, fy, tone(stone, -2));
+    } else if (ly < 1 || lx < 1) {
+      p.fpx(fx, fy, tone(stone, 1), 0.5);
+    }
+  });
+  woodFill(p, box(0, 7, 32, 3), OAK, 94, false, 3);
+  p.flat(box(0, 10, 32, 0.8), '#0a0606', 0.5);
+  p.fill(poly([4, 7, 6.5, 7, 6.5, 3.6, 5.2, 2.8, 4, 3.6]), '#7a8a9a', { gradX: 1, bevel: 0 });
+  candle(p, 26.5, 3.2, 7, frame);
+  const mouth = union(box(7, 15, 18, 15.5), ell(16, 15, 9, 4.5));
+  p.fill(mouth, '#1a100c', { bevel: 0 });
+  fine(p, (x, y, fx, fy) => {
+    if (mouth.test(x - 0.5, y - 0.5)) {
+      const d = Math.hypot(x - 16, (y - 28) * 1.2) / 13;
+      if (d < 1) {
+        p.fpx(fx, fy, '#ff7a20', (1 - d) ** 1.4 * 0.75);
+      }
+    }
+  });
+  p.fill(seg(9.5, 28, 22.5, 26, 1.4), '#5a3a1e', { bevel: 1 });
+  p.fill(seg(9.5, 26, 22.5, 28, 1.4), '#6a4422', { bevel: 1 });
+  [
+    [9.5, 28],
+    [22.5, 28],
+  ].forEach(([x, y]) => p.fill(ell(x, y, 1.3), '#c89a5a', { bevel: 0, dither: 0 }));
+  const lean = frame === 0 ? 0 : 1.2;
+  [
+    [12.5, 20, 2.4],
+    [16, 16.5, 3.2],
+    [19.5, 19.5, 2.4],
+  ].forEach(([x, top, w], i) => {
+    const l = i === 1 ? lean : -lean * 0.6;
+    p.fill(poly([x + l, top, x + w, top + 5, x + w * 0.8, 27, x - w * 0.8, 27, x - w, top + 5]), '#e8641c', {
+      grad: 1.2,
+      bevel: 0,
+      dither: 0.3,
+    });
+    p.fill(ell(x + l * 0.5, 24.5, w * 0.55, 3), '#ffb040', { bevel: 0 });
+    p.fill(ell(x, 25.5, w * 0.3, 1.6), '#fff4c0', { bevel: 0 });
+  });
+  [
+    [13, 15],
+    [18.5, 13.5],
+    [15, 12.5],
+  ].forEach(([x, y]) => p.spot(x + lean, y - frame, '#ffd060'));
+}
+
+/** Woven rug with a medallion and fringe (walkable). */
+function rug(p: Paint): void {
+  const red = '#8a2a3a';
+  const body = box(3, 6, 26, 20);
+  p.fill(body, red, { bevel: 0, tex: 0.15, seed: 95 });
+  p.fill(cut(box(4.6, 7.6, 22.8, 16.8), box(6.4, 9.4, 19.2, 13.2)), '#c89a4a', { bevel: 0, dither: 0 });
+  fine(p, (x, y, fx, fy) => {
+    if (cut(box(4.6, 7.6, 22.8, 16.8), box(6.4, 9.4, 19.2, 13.2)).test(x - 0.5, y - 0.5) && (fx + fy) % 6 < 2) {
+      p.fpx(fx, fy, '#6a1a2a');
+    }
+  });
+  p.fill(poly([16, 10.2, 23, 16, 16, 21.8, 9, 16]), '#2a3a6a', { bevel: 0, dither: 0 });
+  p.fill(poly([16, 12.6, 20, 16, 16, 19.4, 12, 16]), '#c89a4a', { bevel: 0, dither: 0 });
+  p.fill(ell(16, 16, 1.4), red, { bevel: 0, dither: 0 });
+  for (let x = 3.6; x < 29; x += 1.2) {
+    p.flat(seg(x, 4.4, x, 6, 0.2), '#e8d8b0');
+    p.flat(seg(x, 26, x, 27.6, 0.2), '#e8d8b0');
+  }
+}
+
+/** Banded treasure chest. */
+function chest(p: Paint): void {
+  shadow(p, 16, 29.3, 12.5, 2);
+  const wood = '#8a5228';
+  woodFill(p, box(5, 15, 22, 13.5), wood, 96, true, 3.6);
+  const lid = union(box(5, 10, 22, 5.5), clip(ell(16, 10.5, 11, 4), box(5, 6, 22, 5)));
+  woodFill(p, lid, tone(wood, 1), 97, true, 3.6);
+  [8, 22].forEach((x) => {
+    p.fill(clip(box(x, 6, 2, 22.5), union(lid, box(5, 15, 22, 13.5))), IRON, { gradX: 0.8, bevel: 0 });
+    [9, 13, 18, 23, 27].forEach((y) => rivet(p, x + 1, y, IRON, 0.35));
+  });
+  p.fill(box(5, 14.6, 22, 1.4), IRON, { grad: 0.6, bevel: 0 });
+  p.fill(box(13.8, 13.6, 4.4, 5.2), GOLD, { grad: 0.8 });
+  p.fill(ell(16, 15.6, 0.6), '#1a1210', { bevel: 0, dither: 0 });
+  p.flat(box(15.7, 15.8, 0.6, 1.6), '#1a1210');
+}
+
+/** A row of iron cell bars set into the floor (talk across them). */
+function jailBars(p: Paint): void {
+  for (let x = 2; x < 32; x += 4) {
+    p.flat(seg(x + 1.2, 29.5, x + 3.4, 31.8, 0.5), '#0a0806', 0.3);
+  }
+  p.fill(box(0, 1, 32, 2.2), IRON, { grad: 0.8 });
+  p.fill(box(0, 26.8, 32, 2.4), IRON, { grad: 0.8 });
+  for (let x = 2; x < 32; x += 4) {
+    p.fill(box(x - 0.8, 1, 1.6, 28.2), IRON, { gradX: 1.2, bevel: 0 });
+    p.flat(box(x - 0.6, 1, 0.4, 28), tone(IRON, 2), 0.7);
+  }
+  p.fill(box(0, 13.6, 32, 1.6), IRON, { grad: 0.8, bevel: 0 });
+  for (let x = 2; x < 32; x += 4) {
+    [2.1, 14.4, 28].forEach((y) => rivet(p, x, y, IRON, 0.5));
+  }
+  for (let i = 0; i < 14; i++) {
+    const x = 2 + Math.floor(hash(i, 1, 98) * 8) * 4 + (hash(i, 2, 98) - 0.5);
+    const y = 3 + hash(i, 3, 98) * 24;
+    p.flat(ell(x, y, 0.5, 0.8), '#8a4a2a', 0.8);
+  }
+}
+
+/** A skull and scattered bones (walkable). */
+function bones(p: Paint): void {
+  const bone = '#e8dcc0';
+  const long = (ax: number, ay: number, bx: number, by: number): void => {
+    p.flat(seg(ax + 0.4, ay + 0.6, bx + 0.4, by + 0.6, 0.8), '#0a0806', 0.25);
+    p.fill(seg(ax, ay, bx, by, 0.6), bone, { bevel: 0, dither: 0 });
+    [
+      [ax, ay],
+      [bx, by],
+    ].forEach(([x, y]) => p.fill(ell(x, y, 1), bone, { sphere: true, bevel: 0, dither: 0 }));
+  };
+  long(5, 22, 13, 25);
+  long(20, 26, 27, 21);
+  long(8, 9, 11, 15);
+  [0, 1, 2].forEach((i) => p.fill(seg(22 + i * 1.6, 9, 24 + i * 1.6, 14, 0.4), bone, { bevel: 0, dither: 0 }));
+  shadow(p, 17, 19.5, 4.5, 1.4);
+  p.fill(ell(16.5, 15.5, 3.6, 3.2), bone, { sphere: true });
+  p.fill(box(14.4, 17.2, 4.2, 2), tone(bone, -1), { bevel: 0 });
+  [15.2, 17.8].forEach((x) => p.fill(ell(x, 15.6, 0.9, 1), '#1a1210', { bevel: 0, dither: 0 }));
+  p.flat(poly([16.5, 16.8, 17.1, 17.8, 15.9, 17.8]), '#1a1210');
+  [14.9, 15.9, 16.9, 17.9].forEach((x) => p.flat(box(x, 18.6, 0.4, 0.6), '#1a1210'));
+}
+
+/** Heap of gold coins with a few gems. */
+function goldPile(p: Paint): void {
+  glow(p, 16, 20, 13, '#ffe080', 0.18);
+  shadow(p, 16, 26, 12, 3);
+  p.fill(union(ell(16, 21, 11, 5.5), ell(15, 17, 7, 5), ell(18, 14.5, 4, 3)), GOLD, { sphere: true, tex: 0.3, seed: 99 });
+  for (let i = 0; i < 46; i++) {
+    const x = 6 + hash(i, 1, 99) * 20;
+    const y = 12 + hash(i, 2, 99) * 14;
+    if (union(ell(16, 21, 10.6, 5), ell(15, 17, 6.6, 4.6), ell(18, 14.5, 3.6, 2.6)).test(x, y)) {
+      const lit = (y - 12) / 14 + (x - 6) / 40 < 0.7;
+      p.fill(ell(x, y, 1, 0.6), tone(GOLD, lit ? 1 : -1), { bevel: 0, dither: 0 });
+      p.flat(ell(x, y + 0.3, 0.8, 0.25), tone(GOLD, -2), 0.6);
+    }
+  }
+  [
+    [11, 21, '#d83040'],
+    [20, 18, '#3a8ad8'],
+    [15, 14, '#40c860'],
+  ].forEach(([x, y, c]) => {
+    p.fill(poly([+x, +y - 1.2, +x + 1, +y, +x, +y + 1.2, +x - 1, +y]), c as string, { bevel: 0, dither: 0 });
+    p.spot(+x - 0.3, +y - 0.4, '#ffffff');
+  });
+  p.fill(box(23, 22, 4, 4), '#6a4a2a', { grad: 0.6 });
+  p.fill(ell(25, 22, 2, 0.8), GOLD, { bevel: 0, dither: 0 });
+}
+
+/** Goblin campfire in a ring of stones (two frames). */
+function campfire(p: Paint, frame: number): void {
+  glow(p, 16, 18, 16, '#ff9a40', 0.32);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    const x = 16 + Math.cos(a) * 8.5;
+    const y = 21 + Math.sin(a) * 4.5;
+    p.fill(ell(x, y, 1.9, 1.4), '#7a7068', { sphere: true, bevel: 0 });
+  }
+  p.flat(ell(16, 21, 6.5, 3), '#1a1210');
+  p.fill(seg(10.5, 23, 21.5, 19.5, 1.3), '#5a3a1e', { bevel: 1 });
+  p.fill(seg(10.5, 19.5, 21.5, 23, 1.3), '#6a4422', { bevel: 1 });
+  const lean = frame === 0 ? 0 : 1.2;
+  p.fill(poly([16 + lean, 6, 20.5, 14, 20, 21, 12, 21, 11.5, 14]), '#e8641c', { grad: 1.3, bevel: 0, dither: 0.3 });
+  p.fill(poly([16 + lean * 0.6, 10, 18.8, 15, 18.4, 21, 13.6, 21, 13.2, 15]), '#ffa030', { grad: 1, bevel: 0 });
+  p.fill(ell(16, 18.5, 1.8, 2.6), '#fff4c0', { bevel: 0 });
+  [
+    [12, 5],
+    [19.5, 3.5],
+    [15, 2],
+  ].forEach(([x, y]) => p.spot(x + lean, y + frame, '#ffd060'));
+}
+
+/** Straw bedding (walkable). */
+function straw(p: Paint): void {
+  const hay = '#d8b860';
+  const patch = union(ell(16, 17, 12, 8), ell(10, 13, 6, 4), ell(22, 21, 6, 4));
+  p.fill(patch, hay, { tex: 0.5, seed: 100, bevel: 0 });
+  for (let i = 0; i < 90; i++) {
+    const x = 4 + hash(i, 1, 100) * 24;
+    const y = 8 + hash(i, 2, 100) * 18;
+    if (patch.test(x, y)) {
+      const a = hash(i, 3, 100) * Math.PI;
+      const l = 1.2 + hash(i, 4, 100) * 1.8;
+      p.flat(seg(x, y, x + Math.cos(a) * l, y + Math.sin(a) * l * 0.6, 0.18), tone(hay, hash(i, 5, 100) < 0.5 ? -2 : 1));
+    }
+  }
+}
+
+interface DecorDef {
+  draw: Draw;
+  /** Outline the object (default true). */
+  outline?: boolean;
+}
+
+/**
+ * Furniture and knick-knacks painted over a floor tile: tile id `object@floor` (e.g. `barrel@wood`) is the
+ * floor tile's ground with the named object on top.
+ */
+const DECOR: ReadonlyMap<string, DecorDef> = new Map<string, DecorDef>([
+  ['banner', { draw: banner }],
+  ['throne', { draw: throne }],
+  ['crudeThrone', { draw: crudeThrone }],
+  ['candles', { draw: candles }],
+  ['plant', { draw: plant }],
+  ['bookshelf', { draw: bookshelf }],
+  ['potionShelf', { draw: potionShelf }],
+  ['altar', { draw: altar }],
+  ['pew', { draw: pew }],
+  ['barrel', { draw: barrel }],
+  ['keg', { draw: keg }],
+  ['crate', { draw: crate }],
+  ['sacks', { draw: sacks }],
+  ['table', { draw: table }],
+  ['stool', { draw: stool }],
+  ['bed', { draw: bed }],
+  ['weaponRack', { draw: weaponRack }],
+  ['armorStand', { draw: armorStand }],
+  ['anvil', { draw: anvil }],
+  ['hearth', { draw: hearth }],
+  ['rug', { draw: rug }],
+  ['chest', { draw: chest }],
+  ['jailBars', { draw: jailBars }],
+  ['bones', { draw: bones }],
+  ['goldPile', { draw: goldPile }],
+  ['campfire', { draw: campfire }],
+  ['straw', { draw: straw }],
+]);
+
+/** Decor objects that flicker (two animation frames). */
+export const ANIMATED_DECOR: ReadonlySet<string> = new Set(['hearth', 'campfire']);
+
+/** Splits a composite decor tile id `object@floor` into its parts (null for a plain tile id). */
+export function decorParts(id: string): { decor: string; floor: string } | null {
+  const at = id.indexOf('@');
+  return at < 0 ? null : { decor: id.slice(0, at), floor: id.slice(at + 1) };
+}
+
 /** Every procedural tile at native resolution (see {@link paintTile}). */
 export const HD_TILES: ReadonlyMap<string, HdTile> = new Map<string, HdTile>([
   ['grass', { ground: grass }],
@@ -1284,7 +2116,8 @@ export const HD_TILES: ReadonlyMap<string, HdTile> = new Map<string, HdTile>([
  * tile or no object).
  */
 export function paintTile(id: string, frame: number, variant: number, withGround = true): Paint | null {
-  const t = HD_TILES.get(id);
+  const parts = decorParts(id);
+  const t: HdTile | undefined = parts ? composite(parts.decor, parts.floor) : HD_TILES.get(id);
   if (!t || (!withGround && !t.object)) {
     return null;
   }
@@ -1305,6 +2138,42 @@ export function paintTile(id: string, frame: number, variant: number, withGround
 
 /** Tall solid tiles (town walls, cave rock) that cast a short shadow onto the tile below them. */
 export const SHADOW_CASTERS: ReadonlySet<string> = new Set(['wall', 'rock', 'torch', 'sunWall', 'mireWall']);
+
+/** True when tile `id` (or the floor under a decor tile such as `banner@wall`) is a {@link SHADOW_CASTERS} tile. */
+export function castsShadow(id: string): boolean {
+  return SHADOW_CASTERS.has(decorParts(id)?.floor ?? id);
+}
+
+/** The floor tile's ground (variant 0) with decor object `decor` on top; undefined if either is unknown. */
+function composite(decor: string, floor: string): HdTile | undefined {
+  const d = DECOR.get(decor);
+  const f = HD_TILES.get(floor);
+  if (!d || !f?.ground) {
+    return undefined;
+  }
+  const ground = f.ground;
+  return { ground: (p, frame) => ground(p, frame, 0), object: d.draw, outline: d.outline };
+}
+
+/** Painters for the upper part of tall decor, which rises into the tile above the decor tile. */
+const DECOR_TOPS: ReadonlyMap<string, (p: Paint) => void> = new Map([
+  ['throne', throneTop],
+  ['crudeThrone', crudeThroneTop],
+]);
+
+/** Decor id of tile `id` when it is tall decor with a top drawn in the tile above (see {@link paintDecorTop}). */
+export function decorTopOf(id: string): string | null {
+  const decor = decorParts(id)?.decor;
+  return decor && DECOR_TOPS.has(decor) ? decor : null;
+}
+
+/** Transparent tile holding the upper part of tall decor `decor`, drawn over the tile above it. */
+export function paintDecorTop(decor: string): Paint {
+  const layer = new Paint(S, S, F);
+  DECOR_TOPS.get(decor)?.(layer);
+  layer.outline();
+  return layer;
+}
 
 /** Paint-unit rows of the soft shadow a {@link SHADOW_CASTERS} tile drops onto the top of the tile below it. */
 export const WALL_SHADOW_ROWS = 10;

@@ -2,7 +2,16 @@ import { MAPS } from '../data/maps';
 import { CHARACTER_LOOK_IDS, TILE_VARIANT_COUNTS } from './art';
 import { HD_MONSTER_SHAPES, HD_SPRITE, LOOKS, paintHumanoid, paintMonster } from './hd-characters';
 import { ART_SCALE, Paint } from './hd-paint';
-import { HD_TILE, HD_TILES, SHADOW_CASTERS, WALL_SHADOW_ROWS, paintTile, paintWallShadow } from './hd-tiles';
+import {
+  HD_TILE,
+  HD_TILES,
+  SHADOW_CASTERS,
+  WALL_SHADOW_ROWS,
+  decorTopOf,
+  paintDecorTop,
+  paintTile,
+  paintWallShadow,
+} from './hd-tiles';
 
 /** Real (stored) pixels per tile and per sprite edge. */
 const T = HD_TILE * ART_SCALE;
@@ -125,5 +134,23 @@ describe('HD characters and monsters', () => {
     const blue = Array.from(paintMonster('slime', new Map([['g', '#3a8ae8']])).data).join();
     const red = Array.from(paintMonster('slime', new Map([['g', '#e04848']])).data).join();
     expect(blue).not.toBe(red);
+  });
+});
+
+describe('tall decor', () => {
+  it('gives thrones a top drawn in the tile above and nothing else', () => {
+    expect(decorTopOf('throne@carpet')).toBe('throne');
+    expect(decorTopOf('crudeThrone@caveFloor')).toBe('crudeThrone');
+    expect(decorTopOf('barrel@wood')).toBeNull();
+    expect(decorTopOf('carpet')).toBeNull();
+  });
+
+  it('paints a visible throne back over a transparent tile', () => {
+    ['throne', 'crudeThrone'].forEach((decor) => {
+      const top = paintDecorTop(decor);
+      expect(top.width).toBe(T);
+      expect(opaque(top)).toBeGreaterThan(T * T * 0.3);
+      expect(opaque(top)).toBeLessThan(T * T);
+    });
   });
 });

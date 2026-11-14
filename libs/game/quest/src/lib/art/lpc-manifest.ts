@@ -73,6 +73,11 @@ export const LPC_TILES: ReadonlyMap<string, LpcTile> = new Map<string, LpcTile>(
   ['caveWater', { ground: [t(13, 3), t(13, 5), t(14, 5)] }],
 ]);
 
+/** LPC ground for tile `id`; a decor tile `object@floor` uses its floor's ground. */
+export function lpcTileFor(id: string): LpcTile | undefined {
+  return LPC_TILES.get(id) ?? LPC_TILES.get(id.slice(id.indexOf('@') + 1));
+}
+
 /** Deterministic ground-variant seed for the tile at (x, y), independent of the procedural variant. */
 export function groundVariant(x: number, y: number): number {
   let h = Math.imul(x + 11, 2246822519) ^ Math.imul(y + 7, 3266489917);

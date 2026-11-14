@@ -10,13 +10,13 @@ import {
   rollEncounter,
   scaledEncounterRate,
 } from '@jouster/game/engine';
-import { SHADOW_CASTERS, TILE, tileAnchor, tileVariant } from '../art/art';
+import { TILE, castsShadow, decorTopOf, tileAnchor, tileVariant } from '../art/art';
 import { groundVariant } from '../art/lpc-manifest';
 import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { ARMOR_SHOP_STOCK } from '../data/gear';
-import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, SIGN_TEXT, Warp, mapDef, mapHasEncounters } from '../data/maps';
+import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, SIGN_TEXT, Warp, mapDef, mapHasEncounters, talkAcross } from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
 import {
   CAVE_FOG_RADIUS,
@@ -335,7 +335,7 @@ export class WorldScene implements Scene {
       if (x + d.x === goal.x && y + d.y === goal.y) {
         return dir;
       }
-      const counter = this.tiles.tileAt(x + d.x, y + d.y)?.id === 'counter';
+      const counter = talkAcross(this.tiles.tileAt(x + d.x, y + d.y)?.id);
       if (goal.talk && counter && x + d.x * 2 === goal.x && y + d.y * 2 === goal.y) {
         return dir;
       }
@@ -402,8 +402,12 @@ export class WorldScene implements Scene {
         const id = tileId(tx, ty);
         const variant = tileVariant(this.map.id, id, tx, ty);
         r.draw(this.ctx.art.tile(id, frame, variant, groundVariant(tx, ty)), tx * TILE - camX, ty * TILE - camY);
-        if (!SHADOW_CASTERS.has(id) && SHADOW_CASTERS.has(tileId(tx, ty - 1))) {
+        if (!castsShadow(id) && castsShadow(tileId(tx, ty - 1))) {
           r.draw(this.ctx.art.wallShadow(), tx * TILE - camX, ty * TILE - camY);
+        }
+        const top = decorTopOf(tileId(tx, ty + 1));
+        if (top) {
+          r.draw(this.ctx.art.decorTop(top), tx * TILE - camX, ty * TILE - camY);
         }
       }
     }
@@ -748,7 +752,7 @@ export class WorldScene implements Scene {
     const leader = this.walkers[0];
     const d = FACING_DELTA[leader.facing];
     let npc = this.npcAt(leader.x + d.x, leader.y + d.y);
-    if (!npc && this.tiles.tileAt(leader.x + d.x, leader.y + d.y)?.id === 'counter') {
+    if (!npc && talkAcross(this.tiles.tileAt(leader.x + d.x, leader.y + d.y)?.id)) {
       npc = this.npcAt(leader.x + d.x * 2, leader.y + d.y * 2);
     }
     if (!npc) {

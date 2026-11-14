@@ -130,29 +130,47 @@ const OVERWORLD_LEGEND: TileDef[] = [
   { char: 'P', id: 'pass', solid: false },
 ];
 
-// --- Aldmere (24x18) -----------------------------------------------------------------------
+// --- Aldmere (34x30) -----------------------------------------------------------------------
+// North: castle (throne), garden, chapel. Middle: item shop, smithy, armorer - keepers stand
+// behind their counters. South: tavern (bar) and inn (front desk + bedroom). Exit at the bottom.
 
 const ALDMERE_ROWS = [
-  'TTTTTTTTTTTTTTTTTTTTTTTT',
-  'T########gggg########TTT',
-  'T#rrrrrr#gggg#wwwwww#gTT',
-  'T#rrrrrr#g__g#wwwwww#gTT',
-  'T#rrrrrr#g__g#wwwwww#ggT',
-  'T#rrrrrr#g__g#wwwwww#ggT',
-  'T###rr###g__g###ww###ggT',
-  'Tgg_rr__________ww__gggT',
-  'Tg_________~~_______###T',
-  'Tg_________~~_______cw#T',
-  'Tgg_________________###T',
-  'T##########_###########T',
-  'T#www##www#_#wwww##www#T',
-  'T#ccc##ccc#_#wwww##ccc#T',
-  'T__________g##ww##_____T',
-  'Tg____________________gT',
-  'TTTTTTTTTTEETTTTTTTTTTTT',
-  'TTTTTTTTTTTTTTTTTTTTTTTT',
+  'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
+  'T##N#N#N#N##TTTTTTTTTT#########ggT',
+  'T#C__rYr__C#gggggggggg#BKwrwKB#ggT',
+  'T#p__rrr__p#gggggggggg#wwwLwww#ggT',
+  'T#___rrr___#gggg__gggg#nnwrwnn#ggT',
+  'T#___rrr___#gggg__gggg#nnwrwnn#ggT',
+  'T####rrr####gggg__gggg###wrw###ggT',
+  'Tu______________________________vT',
+  'T________________________________T',
+  'T_#########_#########_#########__T',
+  'T_#PPxPPbP#_#RR_H_RR#_#AwAXAwA#__T',
+  'T_#bwwwwwx#_#a_____v#_#qwwwwwx#__T',
+  'T_#ccccccc#_#ccccccc#_#ccccccc#__T',
+  'T_#xwwwwwq#_#_______#_#wwwwwww#__T',
+  'T_#wwwwwww#_#u_____v#_#Awwwwwq#__T',
+  'T_####w####_####_####_####w####__T',
+  'Tp______________________________pT',
+  'T_______________~~_______________T',
+  'T_______________~~_______________T',
+  'T________________________________T',
+  'T_###############_#############__T',
+  'T_#kbkkbkqwwwHwB#_#BwXwq#dwdwd#__T',
+  'T_#wwwwwwcwwwwww#_#wwwww#wwwww#__T',
+  'T_#ccccccwwhthww#_#ccccc#xwwwq#__T',
+  'T_#wwwwwwwwwwwww#_#wwwwwwwwwww#__T',
+  'T_#xwhthwwwwhthb#_#qwowq#wwdwd#__T',
+  'T_#######w#######_###w#########__T',
+  'T________________________________T',
+  'TTTTTTTTTTTTTTTTEETTTTTTTTTTTTTTTT',
+  'TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT',
 ];
 
+/**
+ * Town tiles. Furniture uses composite `object@floor` ids (see `decorParts` in the art): the
+ * object is painted over the floor tile. Thrones, stools and rugs can be walked on.
+ */
 const TOWN_LEGEND: TileDef[] = [
   { char: 'T', id: 'tree', solid: true },
   { char: '#', id: 'wall', solid: true },
@@ -163,6 +181,32 @@ const TOWN_LEGEND: TileDef[] = [
   { char: 'c', id: 'counter', solid: true },
   { char: '~', id: 'fountain', solid: true },
   { char: 'E', id: 'cobble', solid: false },
+  { char: 'N', id: 'banner@wall', solid: true },
+  { char: 'Y', id: 'throne@carpet', solid: false },
+  { char: 'C', id: 'candles@cobble', solid: true },
+  { char: 'K', id: 'candles@wood', solid: true },
+  { char: 'p', id: 'plant@cobble', solid: true },
+  { char: 'q', id: 'plant@wood', solid: true },
+  { char: 'B', id: 'bookshelf@wood', solid: true },
+  { char: 'L', id: 'altar@wood', solid: true },
+  { char: 'n', id: 'pew@wood', solid: true },
+  { char: 'P', id: 'potionShelf@wood', solid: true },
+  { char: 'b', id: 'barrel@wood', solid: true },
+  { char: 'u', id: 'barrel@cobble', solid: true },
+  { char: 'x', id: 'crate@wood', solid: true },
+  { char: 'v', id: 'crate@cobble', solid: true },
+  { char: 'S', id: 'sacks@wood', solid: true },
+  { char: 'k', id: 'keg@wood', solid: true },
+  { char: 't', id: 'table@wood', solid: true },
+  { char: 'h', id: 'stool@wood', solid: false },
+  { char: 'd', id: 'bed@wood', solid: true },
+  { char: 'R', id: 'weaponRack@cobble', solid: true },
+  { char: 'W', id: 'weaponRack@wood', solid: true },
+  { char: 'A', id: 'armorStand@wood', solid: true },
+  { char: 'a', id: 'anvil@cobble', solid: true },
+  { char: 'H', id: 'hearth@cobble', solid: true },
+  { char: 'o', id: 'rug@wood', solid: false },
+  { char: 'X', id: 'chest@wood', solid: true },
 ];
 
 // --- Brookhollow (22x15) -------------------------------------------------------------------
@@ -171,7 +215,7 @@ const BROOKHOLLOW_ROWS = [
   'TTTTTTTTTTTTTTTTTTTTTT',
   'TggggggggggggggggggggT',
   'Tg#####gggggggg#####gT',
-  'Tg#www#gggggggg#www#gT',
+  'Tg#bwk#gggggggg#PwP#gT',
   'Tg#ccc#gggg_ggg#ccc#gT',
   'Tg__________________gT',
   'Tgggggg___~~___ggggggT',
@@ -185,29 +229,33 @@ const BROOKHOLLOW_ROWS = [
   'TTTTTTTTTTTTTTTTTTTTTT',
 ];
 
-// --- Goblin Cave (28x20) -------------------------------------------------------------------
+// --- Goblin Cave (30x22) -------------------------------------------------------------------
+// The tunnel from the entrance (bottom-left) forks: north to the Jailer's den, east to the
+// treasure nook and the throne room. The prisoner's cell sits behind the Goblin King's throne.
 
 const CAVE_ROWS = [
-  '##t####################t####',
-  '#____################______#',
-  '#____###~~~####t#####______#',
-  '#__#_______________________#',
-  '#__###~~~~###########______#',
-  '#__###~~~~############____##',
-  '#__#########################',
-  '#__###t#####################',
-  '#___________########_______#',
-  '#__########_########_#t###_#',
-  '#__########_________######_#',
-  '#__##########_###t##~~~~##_#',
-  '#__##########______________#',
-  '#__#########################',
-  '#____#######################',
-  '#____#######################',
-  '##__t#######################',
-  '##__########################',
-  '##E_########################',
-  '############################',
+  '#####t###############t########',
+  '##ss,,,xx#########ss,,,,b#####',
+  '##,,,,,,u#########,,,,,,s#####',
+  '##s,,,,,,#######t#=======#t###',
+  '##,,,,,,,#######g,,,,Y,,,,g###',
+  '##b,,,,,b#######,,,,,,,,,,,###',
+  '##__############,f,,,,,,,f,###',
+  '##__############b,,,,,,,,,u###',
+  '##__###############t#,#t######',
+  '##__##t#####t#######__########',
+  '##____________________#____g##',
+  '##__________________________t#',
+  '##__####_____##########_____##',
+  '##___###_~~~_t#########x__gb##',
+  '#t___###__~__#################',
+  '##___#########################',
+  '##__##########################',
+  '##__##########################',
+  '##__##########################',
+  '##__##########################',
+  '##E_##########################',
+  '##############################',
 ];
 
 // --- Wolf Den (20x14) ----------------------------------------------------------------------
@@ -242,6 +290,16 @@ const CAVE_LEGEND: TileDef[] = [
   { char: '_', id: 'caveFloor', solid: false, encounterTableId: 'cave' },
   { char: '~', id: 'caveWater', solid: true },
   { char: 'E', id: 'caveExit', solid: false },
+  // Lit rooms (throne room, cell, jailer's den): no random encounters.
+  { char: ',', id: 'caveFloor', solid: false },
+  { char: 'Y', id: 'crudeThrone@caveFloor', solid: false },
+  { char: '=', id: 'jailBars@caveFloor', solid: true },
+  { char: 's', id: 'straw@caveFloor', solid: false },
+  { char: 'b', id: 'bones@caveFloor', solid: true },
+  { char: 'g', id: 'goldPile@caveFloor', solid: true },
+  { char: 'f', id: 'campfire@caveFloor', solid: true },
+  { char: 'x', id: 'crate@caveFloor', solid: true },
+  { char: 'u', id: 'barrel@caveFloor', solid: true },
 ];
 
 // --- Southlands (64x48, generated from a fixed seed) - Act II ------------------------------
@@ -270,7 +328,7 @@ const SANDHOLLOW_ROWS = [
   'TTTTTTTTTTTTTTTTTTTTTTTTTTT',
   'TgggggggggggggggggggggggggT',
   'Tg#####g#####g#####g#####gT',
-  'Tg#www#g#www#g#www#g#www#gT',
+  'Tg#kwb#g#PwP#g#WwW#g#AwA#gT',
   'Tg#ccc#g#ccc#g#ccc#g#ccc#gT',
   'Tg_______________________gT',
   'Tggggg_______________gggggT',
@@ -390,8 +448,8 @@ const BASE_MAPS: MapDef[] = [
       rows: OVERWORLD_ROWS,
       legend: OVERWORLD_LEGEND,
       warps: [
-        { x: ALDMERE_AT.x, y: ALDMERE_AT.y, toMap: 'aldmere', toX: 10, toY: 15, facing: 'up' },
-        { x: CAVE_AT.x, y: CAVE_AT.y, toMap: 'goblinCave', toX: 2, toY: 17, facing: 'up' },
+        { x: ALDMERE_AT.x, y: ALDMERE_AT.y, toMap: 'aldmere', toX: 16, toY: 27, facing: 'up' },
+        { x: CAVE_AT.x, y: CAVE_AT.y, toMap: 'goblinCave', toX: 2, toY: 19, facing: 'up' },
         { x: BROOK_AT.x, y: BROOK_AT.y, toMap: 'brookhollow', toX: 10, toY: 12, facing: 'up' },
         { x: DEN_AT.x, y: DEN_AT.y, toMap: 'wolfDen', toX: 8, toY: 11, facing: 'up' },
         {
@@ -459,14 +517,14 @@ const BASE_MAPS: MapDef[] = [
       rows: ALDMERE_ROWS,
       legend: TOWN_LEGEND,
       warps: [
-        { x: 10, y: 16, toMap: 'overworld', toX: ALDMERE_AT.x, toY: ALDMERE_AT.y + 1, facing: 'down' },
-        { x: 11, y: 16, toMap: 'overworld', toX: ALDMERE_AT.x, toY: ALDMERE_AT.y + 1, facing: 'down' },
+        { x: 16, y: 28, toMap: 'overworld', toX: ALDMERE_AT.x, toY: ALDMERE_AT.y + 1, facing: 'down' },
+        { x: 17, y: 28, toMap: 'overworld', toX: ALDMERE_AT.x, toY: ALDMERE_AT.y + 1, facing: 'down' },
       ],
       npcs: [
-        { id: 'king', x: 4, y: 2, spriteId: 'king', facing: 'down', role: 'king', lines: kingLines },
+        { id: 'king', x: 6, y: 2, spriteId: 'king', facing: 'down', role: 'king', lines: kingLines },
         {
           id: 'guardL',
-          x: 2,
+          x: 4,
           y: 5,
           spriteId: 'guard',
           facing: 'right',
@@ -475,7 +533,7 @@ const BASE_MAPS: MapDef[] = [
         },
         {
           id: 'guardR',
-          x: 7,
+          x: 8,
           y: 5,
           spriteId: 'guard',
           facing: 'left',
@@ -485,16 +543,16 @@ const BASE_MAPS: MapDef[] = [
               ? ['GUARD: You beat the Goblin King? The king will want to hear of it!']
               : ['GUARD: Goblins burned Thornwick, south-east of here. Terrible business.'],
         },
-        { id: 'priest', x: 16, y: 3, spriteId: 'priest', facing: 'down', role: 'church' },
-        { id: 'itemShop', x: 3, y: 12, spriteId: 'merchant', facing: 'down', role: 'itemShop' },
-        { id: 'weaponShop', x: 8, y: 12, spriteId: 'smith', facing: 'down', role: 'weaponShop' },
-        // Armorer's stall in the east plaza; talk to him across the counter at (20,9).
-        { id: 'armorShop', x: 21, y: 9, spriteId: 'guard', facing: 'left', role: 'armorShop' },
-        { id: 'innkeeper', x: 20, y: 12, spriteId: 'innkeeper', facing: 'down', role: 'inn' },
+        // The priest stands behind the altar; keepers stand behind their counters (talk across them).
+        { id: 'priest', x: 26, y: 2, spriteId: 'priest', facing: 'down', role: 'church' },
+        { id: 'itemShop', x: 6, y: 11, spriteId: 'merchant', facing: 'down', role: 'itemShop' },
+        { id: 'weaponShop', x: 16, y: 11, spriteId: 'smith', facing: 'down', role: 'weaponShop' },
+        { id: 'armorShop', x: 26, y: 11, spriteId: 'guard', facing: 'down', role: 'armorShop' },
+        { id: 'innkeeper', x: 21, y: 22, spriteId: 'innkeeper', facing: 'down', role: 'inn' },
         {
           id: 'barkeep',
-          x: 13,
-          y: 12,
+          x: 6,
+          y: 22,
           spriteId: 'villager',
           facing: 'down',
           role: 'talk',
@@ -503,7 +561,7 @@ const BASE_MAPS: MapDef[] = [
         {
           id: 'oldMan',
           x: 6,
-          y: 9,
+          y: 8,
           spriteId: 'elder',
           facing: 'down',
           role: 'talk',
@@ -515,8 +573,8 @@ const BASE_MAPS: MapDef[] = [
         },
         {
           id: 'child',
-          x: 17,
-          y: 9,
+          x: 16,
+          y: 4,
           spriteId: 'child',
           facing: 'down',
           role: 'talk',
@@ -525,8 +583,8 @@ const BASE_MAPS: MapDef[] = [
         },
         {
           id: 'woman',
-          x: 21,
-          y: 15,
+          x: 24,
+          y: 17,
           spriteId: 'villager',
           facing: 'left',
           role: 'talk',
@@ -535,13 +593,13 @@ const BASE_MAPS: MapDef[] = [
         },
       ],
       signs: [
-        { x: 3, y: 6, kind: 'castle' },
-        { x: 15, y: 6, kind: 'chapel' },
-        { x: 3, y: 11, kind: 'item' },
-        { x: 8, y: 11, kind: 'weapon' },
-        { x: 13, y: 14, kind: 'tavern' },
-        { x: 20, y: 11, kind: 'inn' },
-        { x: 21, y: 8, kind: 'armor' },
+        { x: 4, y: 6, kind: 'castle' },
+        { x: 24, y: 6, kind: 'chapel' },
+        { x: 5, y: 15, kind: 'item' },
+        { x: 15, y: 15, kind: 'weapon' },
+        { x: 25, y: 15, kind: 'armor' },
+        { x: 8, y: 26, kind: 'tavern' },
+        { x: 20, y: 26, kind: 'inn' },
       ],
       events: [],
       outsideTile: 'T',
@@ -552,31 +610,26 @@ const BASE_MAPS: MapDef[] = [
       name: 'Goblin Cave',
       rows: CAVE_ROWS,
       legend: CAVE_LEGEND,
-      warps: [{ x: 2, y: 18, toMap: 'overworld', toX: CAVE_AT.x, toY: CAVE_AT.y + 1, facing: 'down' }],
+      warps: [{ x: 2, y: 20, toMap: 'overworld', toX: CAVE_AT.x, toY: CAVE_AT.y + 1, facing: 'down' }],
       npcs: [
-        bossNpc('goblinKing', 23, 2, 'goblinKingNpc', {
+        bossNpc('goblinKing', 21, 4, 'goblinKingNpc', {
           monsterIds: ['goblinKing'],
           defeatFlag: 'bossDefeated',
           lines: ['GOBLIN KING: Hrrah! More soft little heroes from Aldmere!', 'I will grind your bones for my throne!'],
           victory: [
             'The Goblin King falls! The cave trembles as his warband scatters.',
-            'Behind the throne, someone calls out from a cell...',
+            'Behind the throne, someone rattles the bars of a cell...',
             'Return to King Aldric with the news.',
           ],
         }),
-        bossNpc(
-          'goblinChief',
-          23,
-          8,
-          'goblinChief',
-          {
-            monsterIds: ['goblinChief', 'goblin'],
-            defeatFlag: 'goblinChiefDefeated',
-            lines: ['GOBLIN JAILER: The king is dead? Then the prisoner AND the gold are mine!'],
-            victory: ['The Goblin Jailer drops a heavy iron key.'],
-          },
-          (s) => s.flags['bossDefeated'] === true && s.quests['cave'] === 'active',
-        ),
+        // The Jailer guards his den off the north tunnel from the start, so the key can be won
+        // before or after the king falls.
+        bossNpc('goblinChief', 5, 3, 'goblinChief', {
+          monsterIds: ['goblinChief', 'goblin'],
+          defeatFlag: 'goblinChiefDefeated',
+          lines: ["GOBLIN JAILER: Intruder! Nobody touches the king's prisoner!"],
+          victory: ['The Goblin Jailer drops a heavy iron key... it must open a cell deeper in the cave.'],
+        }),
       ],
       events: [],
       outsideTile: '#',
@@ -817,5 +870,13 @@ export function mapHasEncounters(def: MapDef): boolean {
   return def.legend.some((t) => t.encounterTableId !== undefined);
 }
 
+/** Tiles you can talk across to an NPC standing behind them: shop counters, the chapel altar and cell bars. */
+const TALK_ACROSS: ReadonlySet<string> = new Set(['counter', 'altar', 'jailBars']);
+
+/** True when the player can talk to an NPC two tiles away across tile `tileId` (e.g. `counter`, `altar@wood`). */
+export function talkAcross(tileId: string | undefined): boolean {
+  return tileId !== undefined && TALK_ACROSS.has(tileId.split('@')[0]);
+}
+
 /** Where the party wakes up after a defeat (in front of the inn counter). */
-export const INN_RESPAWN = { mapId: 'aldmere', x: 20, y: 14, facing: 'up' as Facing };
+export const INN_RESPAWN = { mapId: 'aldmere', x: 21, y: 24, facing: 'up' as Facing };

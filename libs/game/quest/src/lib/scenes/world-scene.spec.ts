@@ -86,19 +86,19 @@ describe('cameraAxis', () => {
 
 describe('WorldScene', () => {
   it('walks one tile per step and blocks on solid tiles', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
     h.hold('up', STEP_TIME + 0.02);
     h.run(0.3);
     expect(h.state.y).toBe(4);
     expect(h.state.steps).toBe(1);
     h.hold('up', 2);
     h.run(0.3);
-    // The king (4,2) blocks the way.
+    // The king on his throne (6,2) blocks the way.
     expect(h.state.y).toBe(3);
   });
 
   it('receives the quest and gold from the king once', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 3, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 3, facing: 'up' });
     h.tap('confirm');
     expect(h.ctx.stack.top?.id).toBe('message');
     expect(h.state.flags['metKing']).toBe(true);
@@ -111,7 +111,7 @@ describe('WorldScene', () => {
   });
 
   it('reads a town sign when facing it', () => {
-    const h = setup({ mapId: 'aldmere', x: 3, y: 10, facing: 'down' });
+    const h = setup({ mapId: 'aldmere', x: 5, y: 16, facing: 'up' });
     h.tap('confirm');
     expect(h.ctx.stack.top?.id).toBe('message');
     const pages = (h.ctx.stack.top as unknown as { pages: string[][] }).pages.flat().join(' ');
@@ -132,7 +132,7 @@ describe('WorldScene', () => {
   });
 
   it('only recruits a companion after the first boss and their side quest', () => {
-    const h = setup({ mapId: 'aldmere', x: 15, y: 13, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 11, y: 24, facing: 'right' });
     const rolled = h.state.companions['tavern'];
     // Before the Goblin King falls companions only chat.
     h.tap('confirm');
@@ -191,7 +191,7 @@ describe('WorldScene', () => {
   });
 
   it('ends Act II with a reward once both shrine bosses are slain (plan 17)', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 3, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 3, facing: 'up' });
     Object.assign(h.state.flags, { metKing: true, bossDefeated: true, actOneComplete: true, sandWyrmDefeated: true });
     h.tap('confirm');
     h.confirmUntilWorld();
@@ -249,13 +249,13 @@ describe('WorldScene', () => {
   });
 
   it('opens the field menu on cancel', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
     h.tap('cancel');
     expect(h.ctx.stack.top?.id).toBe('field-menu');
   });
 
   it('opens the menu straight on EQUIP with E and equips armor from the bag', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
     h.state.inventory['leatherArmor'] = 1;
     h.tap('equip');
     expect(h.ctx.stack.top?.id).toBe('field-menu');
@@ -268,13 +268,13 @@ describe('WorldScene', () => {
   });
 
   it('opens the menu with I', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
     h.tap('items');
     expect(h.ctx.stack.top?.id).toBe('field-menu');
   });
 
   it('closes the menu with the key that opened it, even from a submenu', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
     h.tap('items');
     h.tap('confirm'); // herb -> who?
     h.tap('items');
@@ -286,7 +286,7 @@ describe('WorldScene', () => {
   });
 
   it('only closes on the opening key (other menu keys keep it open)', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
     h.tap('items');
     h.tap('equip');
     expect(h.ctx.stack.top?.id).toBe('field-menu');
@@ -299,7 +299,7 @@ describe('WorldScene', () => {
   });
 
   it('buys armor from the Aldmere armorer and equips it now', () => {
-    const h = setup({ mapId: 'aldmere', x: 19, y: 9, facing: 'right', gold: 500 });
+    const h = setup({ mapId: 'aldmere', x: 26, y: 13, facing: 'up', gold: 500 });
     const tapUntil = (id: string): void => {
       for (let i = 0; i < 12 && h.ctx.stack.top?.id !== id; i++) {
         h.tap('confirm');
@@ -315,7 +315,7 @@ describe('WorldScene', () => {
   });
 
   it('spends the caster MP when healing from the field menu', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
     h.state.party[0] = createMember('hero', 'TEST', 'warrior');
     h.state.companions['thornwick'] = { name: 'Sera', classId: 'cleric' };
     h.state.flags['bossDefeated'] = true;
@@ -429,14 +429,14 @@ describe('WorldScene', () => {
 
   it('keeps cave sight fixed, with one extra tile near a wall torch', () => {
     const width = mapDef('goblinCave').rows[0].length;
-    const dark = setup({ mapId: 'goblinCave', x: 13, y: 10, facing: 'right' });
+    const dark = setup({ mapId: 'goblinCave', x: 3, y: 18, facing: 'right' });
     const darkBits = dark.state.explored['goblinCave'];
-    expect(isExplored(darkBits, width, 13 + CAVE_FOG_RADIUS, 10)).toBe(true);
-    expect(isExplored(darkBits, width, 13 + CAVE_FOG_RADIUS + 1, 10)).toBe(false);
-    const lit = setup({ mapId: 'goblinCave', x: 3, y: 17, facing: 'right' });
+    expect(isExplored(darkBits, width, 3 + CAVE_FOG_RADIUS, 18)).toBe(true);
+    expect(isExplored(darkBits, width, 3 + CAVE_FOG_RADIUS + 1, 18)).toBe(false);
+    const lit = setup({ mapId: 'goblinCave', x: 3, y: 14, facing: 'right' });
     const litBits = lit.state.explored['goblinCave'];
-    expect(isExplored(litBits, width, 3 + CAVE_FOG_RADIUS + 1, 17)).toBe(true);
-    expect(isExplored(litBits, width, 3 + CAVE_FOG_RADIUS + 2, 17)).toBe(false);
+    expect(isExplored(litBits, width, 3 + CAVE_FOG_RADIUS + 1, 14)).toBe(true);
+    expect(isExplored(litBits, width, 3 + CAVE_FOG_RADIUS + 2, 14)).toBe(false);
   });
 
   it('lets the Bone Captain rise after an inn rest during the Thornwick quest', () => {
@@ -493,41 +493,41 @@ describe('WorldScene', () => {
 
 describe('WorldScene mouse and touch', () => {
   it('maps screen points to tiles and back', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
     const p = h.world.tileToScreen(6, 3);
     expect(h.world.tileAtScreen(p.x, p.y)).toEqual({ x: 6, y: 3 });
   });
 
   it('walks to a tapped floor tile, then clears the goal', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
-    h.tapTile(4, 3);
-    expect(h.world.goal).toMatchObject({ x: 4, y: 3, mode: 'stand', talk: false });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
+    h.tapTile(6, 3);
+    expect(h.world.goal).toMatchObject({ x: 6, y: 3, mode: 'stand', talk: false });
     h.run(1);
-    expect({ x: h.state.x, y: h.state.y }).toEqual({ x: 4, y: 3 });
+    expect({ x: h.state.x, y: h.state.y }).toEqual({ x: 6, y: 3 });
     expect(h.world.goal).toBeNull();
   });
 
   it('walks up to a tapped NPC and talks to them', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'down' });
-    // The king stands at (4,2).
-    h.tapTile(4, 2);
-    expect(h.world.goal).toMatchObject({ x: 4, y: 2, mode: 'face', talk: true });
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'down' });
+    // The king sits on his throne at (6,2).
+    h.tapTile(6, 2);
+    expect(h.world.goal).toMatchObject({ x: 6, y: 2, mode: 'face', talk: true });
     h.run(1.5);
-    expect({ x: h.state.x, y: h.state.y }).toEqual({ x: 4, y: 3 });
+    expect({ x: h.state.x, y: h.state.y }).toEqual({ x: 6, y: 3 });
     expect(h.state.facing).toBe('up');
     expect(h.ctx.stack.top?.id).toBe('message');
   });
 
   it('drops the tap goal when a direction key is pressed', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 5, facing: 'up' });
-    h.tapTile(4, 3);
+    const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
+    h.tapTile(6, 3);
     h.tap('down');
     expect(h.world.goal).toBeNull();
   });
 
   it('tapping the hero checks the tile in front, like confirm', () => {
-    const h = setup({ mapId: 'aldmere', x: 4, y: 3, facing: 'up' });
-    h.tapTile(4, 3);
+    const h = setup({ mapId: 'aldmere', x: 6, y: 3, facing: 'up' });
+    h.tapTile(6, 3);
     expect(h.ctx.stack.top?.id).toBe('message');
   });
 });

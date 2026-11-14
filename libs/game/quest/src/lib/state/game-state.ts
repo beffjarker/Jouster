@@ -88,7 +88,7 @@ export function newGameState(heroName: string, classId: ClassId, rng: Rng = crea
     explored: {},
     quests: {},
     mapId: 'aldmere',
-    x: 4,
+    x: 6,
     y: 5,
     facing: 'up',
     steps: 0,
