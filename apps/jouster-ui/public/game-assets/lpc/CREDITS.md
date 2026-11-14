@@ -32,6 +32,10 @@ Each layer is available under the licences listed below (CC0, CC-BY, OGA-BY, CC-
 `monsters.png` crops and hue-shifts `slime.png` and `bat.png` from the [LPC Base Assets](https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles)
 by Charles Sanchez (CharlesGabriel), CC-BY-SA 3.0 / GPL 3.0.
 
+The wolf and Alpha Wolf rows of `characters.png` recolour a frame of [[LPC] Wolf Animation](https://opengameart.org/content/lpc-wolf-animation)
+by Stephen Challener (Redshrike), commissioned by William Thompson (William.Thompsonj),
+CC-BY 3.0 / CC-BY 4.0 / OGA-BY 3.0 / GPL 2.0 / GPL 3.0.
+
 | Layer (walk.png) | Authors | Licenses | Source |
 | --- | --- | --- | --- |
 | `beards/beard/basic/walk.png` | JaidynReiman,Carlo Enrico Victoria (Nemisys)  | CC-BY-SA 3.0,GPL 3.0  | <https://opengameart.org/content/lpc-white-beard> |
