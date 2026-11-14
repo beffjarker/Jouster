@@ -54,12 +54,20 @@ export function chooseAction(battle: Battle, actor: Combatant, inventory: Record
 
   const hurt = allies.filter(isAlive).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
   const threat = Math.max(...enemies.map((e) => e.atk));
-  const lowThreshold = Math.max(0.35, Math.min(0.6, (threat * 1.3) / Math.max(1, hurt.maxHp)));
+  // Several enemies hitting the same frail hero add up, so also weigh their combined damage.
+  const combined = enemies.reduce((sum, e) => sum + Math.max(1, e.atk - hurt.def / 2), 0);
+  const lowThreshold = Math.max(0.35, Math.min(0.6, (Math.max(threat * 1.3, combined * 1.5)) / Math.max(1, hurt.maxHp)));
   if (hurt.hp / hurt.maxHp < lowThreshold) {
     if (has('heal')) {
       return { kind: 'ability', actorId: actor.id, abilityId: 'heal', targetId: hurt.id };
     }
-    if ((inventory['herb'] ?? 0) > 0) {
+    const herbs = inventory['herb'] ?? 0;
+    const potions = inventory['potion'] ?? 0;
+    const missing = hurt.maxHp - hurt.hp;
+    if (potions > 0 && (herbs === 0 || missing >= (ITEMS.get('potion')?.amount ?? 70) * 0.8)) {
+      return { kind: 'item', actorId: actor.id, itemId: 'potion', targetId: hurt.id };
+    }
+    if (herbs > 0) {
       return { kind: 'item', actorId: actor.id, itemId: 'herb', targetId: hurt.id };
     }
   }
@@ -69,6 +77,14 @@ export function chooseAction(battle: Battle, actor: Combatant, inventory: Record
     return { kind: 'ability', actorId: actor.id, abilityId: 'protect', targetId: actor.id };
   }
   if (boss && canHealSpell && actor.mp < healMp && (inventory['tonic'] ?? 0) > 0) {
+    return { kind: 'item', actorId: actor.id, itemId: 'tonic', targetId: actor.id };
+  }
+  // A caster whose spells are its main damage drinks a Tonic once it can no longer cast them.
+  const spellCosts = actor.abilityIds
+    .map((id) => ABILITIES.get(id))
+    .filter((d): d is AbilityDef => !!d && d.effect === 'damage' && d.damageType === 'magical')
+    .map((d) => d.mpCost);
+  if (spellCosts.length > 0 && actor.mp < Math.min(...spellCosts) && (inventory['tonic'] ?? 0) > 0) {
     return { kind: 'item', actorId: actor.id, itemId: 'tonic', targetId: actor.id };
   }
 
@@ -103,6 +119,11 @@ export interface FightResult {
   rounds: number;
   /** Whether each party member (same order as `members`) is still standing at the end. */
   alive: boolean[];
+  /** HP / MP left for each member at the end (lets callers chain fights without an inn). */
+  hp: number[];
+  mp: number[];
+  /** Consumables left over. */
+  inventory: Record<string, number>;
 }
 
 export interface FightOptions {
@@ -134,7 +155,14 @@ export function simulateFight(
     const actions = party.filter(isAlive).map((c) => chooseAction(battle, c, inv));
     battle.resolveRound(actions);
   }
-  return { outcome: battle.outcome, rounds: battle.round, alive: party.map(isAlive) };
+  return {
+    outcome: battle.outcome,
+    rounds: battle.round,
+    alive: party.map(isAlive),
+    hp: party.map((c) => c.hp),
+    mp: party.map((c) => c.mp),
+    inventory: inv,
+  };
 }
 
 export interface FightStats {

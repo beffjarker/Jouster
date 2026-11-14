@@ -141,6 +141,40 @@ The Cleric is the hardest class to start with, so it sets the minimum viable pow
 - **Expected difference:** fights last about 1.5–2× longer than for a Warrior. The Cleric uses more MP but fewer
   potions.
 
+### 4.4b The Wizard playing alone (second reference case)
+
+The Wizard is the frailest class: lowest HP and DEF, no healing, and no MP regeneration on the road. It sets the
+floor for **staying power**, where the Cleric sets the floor for damage.
+
+- **Staff:** Attack with ATK 6 + staff 3 still kills a Slime in 2 rounds and a Goblin in ≤4, so the Wizard never
+  runs dry of damage. *Arcane Strike* (1 MP) adds MAG/2 to a staff blow.
+- **Fire / Ice** (3 MP) hit single foes and their weaknesses; **Bolt** (6 MP) hits every enemy. Spells clear most
+  random fights in 1.5–2 rounds, faster than a Warrior.
+- **Growth (revision 4):** +5 HP and +5 MP per level (was +4 HP / +6 MP; same budget). The simulator showed the
+  solo Wizard dying in Act II with 40–60 unspent MP: two Act II enemies (ATK 19–20) took half of a level-10
+  Wizard's 56 HP per round, faster than Herbs could restore. Moving one point of growth from MP to HP fixes this
+  without making bosses trivial (+4 HP / +6 MP: Marsh Witch 71%; +6 HP / +4 MP: Goblin King 95%, overshooting).
+- **Simulator policy (revision 4):** the auto-player now judges danger by the combined damage of all enemies,
+  uses Potions, and lets a caster with no Heal drink a Tonic once it can no longer cast. The chained-fight check
+  also tops HP up to 60% with Heal or items between fights, as a careful player would.
+- **Measured (solo, 400 fights per row; "L−1" = one level under):**
+
+| Stage | Level / gear | Wizard win | Avg rounds | L−1 win | Warrior win |
+| --- | --- | --- | --- | --- | --- |
+| Greenwood | 3 / starting | 100% | 1.5 | 100% | 100% |
+| Goblin King | 6 / tier 2 | 91% | 5.5 | 76% | 98% |
+| Mini-bosses (4 fights) | 7 / tier 2 | 83–100% | 3.6–4.5 | 61–100% | 100% |
+| Desert, Marsh, Shrine | 10 / tier 3 | 99–100% | 1.8–2.2 | 97–100% | 100% |
+| Sand Wyrm / Marsh Witch | 12 / tier 3 | 93% / 74% | 8.8 / 6.6 | 94% / 56% | 100% |
+| Snowfield, Pines, Roost | 13 / tier 4 | 100% | 1.4–1.8 | 99–100% | 100% |
+| Wyvern Matriarch | 15 / tier 4 | 99% | 6.1 | 97% | 100% |
+
+- **Fights in a row without an inn** (average of 60 runs, capped at 25): Greenwood 14, Desert 10, Marsh 8,
+  **Shrine 4.7**, Snowfield 21, Pines 15, Roost 15. The Warrior and Cleric reach the cap almost everywhere.
+- **Still to watch:** the Shrine (an area-level-11 table) and the Marsh Witch are the Wizard's thinnest spots. If
+  play-testing agrees, options are a little more Wizard DEF from armor (a tier-3 robe), cheaper Bolt (6→5 MP),
+  or slightly weaker Wraiths. The balance spec guards these numbers (section 4.6).
+
 ### 4.5 Help for solo play (before the first companion)
 
 - While the hero is alone, random encounters have **at most 2 enemies**. Since no one can join before the Goblin
@@ -164,6 +198,8 @@ The Cleric is the hardest class to start with, so it sets the minimum viable pow
 | Solo hero at level 6 with shop gear against the Goblin King, every class (revision 3: the real path) | ≥ 60%, aim 65–80% |
 | Solo hero at level 7 with tier-2 gear against each side-quest mini-boss fight, every class (revision 3) | ≥ 60% |
 | Level-6 hero + a newly joined companion (join level 3) in Forest/Hills (16.1) | ≥ 90% wins; ally reaches level 4 in ≤ 15 fights on average |
+| Solo Wizard at every checkpoint above plus each Act II/III area and boss (4.4b) | ≥ 70% at the expected level, ≥ 50% one level under, avg rounds ≤ 1.5× the Warrior's |
+| Solo Wizard fights in a row without an inn, on items and field regen (4.4b) | ≥ 10 in Greenwood, ≥ 4 in every later area |
 
 If a class misses a target, tune its numbers in `game-quest` data files (growth curve, weapon stats, skill costs)
 instead of changing the engine.

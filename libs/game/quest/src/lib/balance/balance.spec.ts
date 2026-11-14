@@ -3,7 +3,7 @@ import { CLASS_ORDER, classDef } from '../data/classes';
 import { ACT_THREE_BOSS_IDS, ACT_TWO_BOSS_IDS, ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
 import { ITEMS, WEAPONS } from '../data/equipment';
 import { pickEncounter } from '@jouster/game/engine';
-import { DEFAULT_GOLD_CHANCE, PartyMember, createMember, grantXp, memberToCombatant } from '../state/party';
+import { DEFAULT_GOLD_CHANCE, PartyMember, applyFieldRegen, createMember, grantXp, memberToCombatant } from '../state/party';
 import { STARTING_GOLD, companionJoinLevel } from '../state/game-state';
 import { ABILITIES } from '../data/abilities';
 import { expectedDamage, runMany, simulateFight } from './simulator';
@@ -321,6 +321,150 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     const fightsNeeded = (totalXpForLevel(14) - totalXpForLevel(11)) / (xp / fights);
     const tier4Price = Math.max(...[...WEAPONS.values()].filter((w) => w.tier === 4).map((w) => w.price));
     expect(fightsNeeded * (gold / fights)).toBeGreaterThanOrEqual(tier4Price);
+  });
+});
+
+// --- The Wizard playing alone (plan 4.4b) -------------------------------------------------------
+// The Wizard is the frailest class (lowest HP/DEF, no healing, no field MP regen), so it is the
+// second reference case next to the Cleric: every checkpoint of the solo path, one level under it,
+// and how many fights in a row it lasts before it must rest.
+interface Stage {
+  name: string;
+  level: number;
+  tier: number;
+  /** Consumables carried; undefined = the class's starting kit. */
+  kit?: Record<string, number>;
+  fight(rng: ReturnType<typeof createRng>): string[];
+  bossHpScale?: number;
+}
+
+const fromTable = (id: string): ((rng: ReturnType<typeof createRng>) => string[]) => {
+  const t = ENCOUNTER_TABLES.get(id) ?? fail();
+  return (rng) => pickEncounter(t, rng, SOLO_MAX_ENEMIES);
+};
+const tableStage = (id: string, level: number, tier: number, kit?: Record<string, number>): Stage => ({
+  name: id,
+  level,
+  tier,
+  kit,
+  fight: fromTable(id),
+});
+/** Every boss fight placed on the given maps (minus excluded leads), as solo stages. */
+const bossStages = (maps: string[], level: number, tier: number, kit: Record<string, number>, skip: string[] = []): Stage[] =>
+  maps
+    .flatMap((id) => mapDef(id).npcs)
+    .flatMap((n) => (n.boss && !skip.includes(n.boss.monsterIds[0]) ? [n.boss.monsterIds] : []))
+    .map((ids) => ({ name: ids.join('+'), level, tier, kit, fight: () => [...ids], bossHpScale: BOSS_HP_SCALE[0] }));
+const soloKitI = { herb: 6, tonic: 1 };
+const soloKitII = { herb: 8, tonic: 2 };
+const soloKitIII = { herb: 8, tonic: 2, potion: 2 };
+const STAGES: Stage[] = [
+  tableStage('greenwood', 3, 1),
+  { name: 'goblinKing', level: 6, tier: 2, kit: soloKitI, fight: () => ['goblinKing'], bossHpScale: BOSS_HP_SCALE[0] },
+  ...bossStages(['overworld', 'goblinCave', 'wolfDen'], 7, 2, soloKitI, ['goblinKing']),
+  ...['desert', 'marsh', 'shrine'].map((id) => tableStage(id, 10, 3, soloKitII)),
+  ...bossStages(['sunShrine', 'mireShrine'], 12, 3, soloKitII),
+  ...['snowfield', 'pines', 'roost'].map((id) => tableStage(id, 13, 4, soloKitIII)),
+  ...bossStages(['wyvernRoost'], 15, 4, soloKitIII),
+];
+
+function hero(classId: ClassId, level: number, tier: number): PartyMember {
+  const m = createMember('h', 'Hero', classId, level);
+  return tier === 1 ? m : tier === 2 ? tier2(m) : geared(m, tier);
+}
+
+function stageStats(classId: ClassId, stage: Stage, levelOffset = 0): { winRate: number; avgRounds: number } {
+  const m = hero(classId, stage.level + levelOffset, stage.tier);
+  const kit = stage.kit ?? startKit(classId);
+  return runMany(N, (i) =>
+    simulateFight([m], stage.fight(createRng(51000 + i)), kit, createRng(52000 + i), { bossHpScale: stage.bossHpScale }),
+  );
+}
+
+/** Fights won in a row (no inn, field regen between fights) before the first loss, capped at `cap`. */
+function streak(classId: ClassId, stage: Stage, seed: number, cap = 25): number {
+  const m = hero(classId, stage.level, stage.tier);
+  const rng = createRng(seed);
+  let inv = { ...(stage.kit ?? startKit(classId)) };
+  let steps = 0;
+  for (let won = 0; won < cap; won++) {
+    const r = simulateFight([m], stage.fight(rng), inv, rng, { bossHpScale: stage.bossHpScale });
+    if (r.outcome !== 'victory') {
+      return won;
+    }
+    m.hp = r.hp[0];
+    m.mp = r.mp[0];
+    inv = r.inventory;
+    fieldTopUp(m, inv);
+    // About 16 steps between random encounters (4 grace steps + ~1/12 per step after).
+    for (let s = 0; s < 16; s++) {
+      applyFieldRegen(m, ++steps, true);
+    }
+  }
+  return cap;
+}
+
+/** What a careful player does between fights: patch HP up to 60% (Heal spell first, then Herbs, then Potions). */
+function fieldTopUp(m: PartyMember, inv: Record<string, number>): void {
+  const c = memberToCombatant(m);
+  const healCost = ABILITIES.get('heal')?.mpCost ?? 3;
+  const canHeal = c.abilityIds.includes('heal');
+  while (m.hp < c.maxHp * 0.6) {
+    if (canHeal && m.mp >= healCost * 2) {
+      m.mp -= healCost;
+      m.hp += 10 + c.mag * 2;
+    } else if ((inv['herb'] ?? 0) > 0) {
+      inv['herb']--;
+      m.hp += ITEMS.get('herb')?.amount ?? 25;
+    } else if ((inv['potion'] ?? 0) > 0) {
+      inv['potion']--;
+      m.hp += ITEMS.get('potion')?.amount ?? 70;
+    } else {
+      break;
+    }
+  }
+  m.hp = Math.min(m.hp, c.maxHp);
+}
+
+function avgStreak(classId: ClassId, stage: Stage): number {
+  const runs = 60;
+  let total = 0;
+  for (let r = 0; r < runs; r++) {
+    total += streak(classId, stage, 61000 + r);
+  }
+  return total / runs;
+}
+
+describe('Jouster Quest: the Wizard playing alone (plan 4.4b)', () => {
+  const pct = (x: number): string => `${(x * 100).toFixed(0)}%`;
+  const report: string[] = [];
+  afterAll(() => {
+    if (process.env['BALANCE_REPORT']) {
+       
+      console.log(report.join('\n'));
+    }
+  });
+
+  it.each(STAGES.map((s) => [s.name, s.level, s] as const))('wins %s at level %i >= 70%%, and >= 50%% one level under', (_n, _l, stage) => {
+    const at = stageStats('wizard', stage);
+    const under = stageStats('wizard', stage, -1);
+    const warrior = stageStats('warrior', stage);
+    report.push(
+      `${stage.name.padEnd(24)} L${stage.level} wizard ${pct(at.winRate)} ${at.avgRounds.toFixed(1)}r, L-1 ${pct(under.winRate)}; ` +
+        `warrior ${pct(warrior.winRate)} ${warrior.avgRounds.toFixed(1)}r`,
+    );
+    expect(at.winRate).toBeGreaterThanOrEqual(0.7);
+    expect(under.winRate).toBeGreaterThanOrEqual(0.5);
+    // Glass cannon: never slower than the Warrior by more than 1.5x.
+    expect(at.avgRounds).toBeLessThanOrEqual(warrior.avgRounds * 1.5);
+  });
+
+  // Plan 4.4b: enough staying power to cross an area (or a shrine) between inns.
+  const areas = STAGES.filter((s) => !s.bossHpScale);
+  it.each(areas.map((s) => [s.name, s] as const))('wins %s fights in a row on items and field regen alone', (_n, stage) => {
+    const avg = avgStreak('wizard', stage);
+    report.push(`${stage.name.padEnd(24)} streak ${avg.toFixed(1)} fights (cap 25)`);
+    expect(avg).toBeGreaterThanOrEqual(stage.level <= 3 ? 10 : 4);
   });
 });
 function fail(): never {
