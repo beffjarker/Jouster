@@ -8,7 +8,11 @@ export interface Scene {
   enter?(): void;
   exit?(): void;
   update(dt: number, input: InputManager): void;
-  render(r: Renderer): void;
+  /**
+   * `ahead` is the real time in seconds since this scene's last update (see `GameLoop`); it is only
+   * non-zero for the top scene while it is running, so frozen scenes under an overlay stay still.
+   */
+  render(r: Renderer, ahead?: number): void;
   /** When true, the scene below is rendered first (e.g. menus over the world). */
   readonly overlay?: boolean;
   /**
@@ -94,13 +98,14 @@ export class SceneStack {
     this.top?.update(dt, input);
   }
 
-  public render(r: Renderer): void {
+  public render(r: Renderer, ahead = 0): void {
     let start = this.stack.length - 1;
     while (start > 0 && this.stack[start].overlay) {
       start--;
     }
+    const topAhead = this.pending ? 0 : ahead;
     for (let i = Math.max(0, start); i < this.stack.length; i++) {
-      this.stack[i].render(r);
+      this.stack[i].render(r, i === this.stack.length - 1 ? topAhead : 0);
     }
     if (this.pending) {
       r.fade(1 - Math.max(0, this.fadeOut) / FADE_TIME);

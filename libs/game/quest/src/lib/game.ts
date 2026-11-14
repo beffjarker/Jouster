@@ -99,7 +99,7 @@ export class JousterQuestGame {
     };
     this.loop = new GameLoop(
       (dt) => this.update(dt),
-      () => this.render(),
+      (ahead) => this.render(ahead),
       options.scheduler ?? animationFrameScheduler,
     );
     if (options.pointer !== false) {
@@ -199,8 +199,8 @@ export class JousterQuestGame {
     }
   }
 
-  private render(): void {
+  private render(ahead: number): void {
     this.renderer.clear('#000000');
-    this.ctx.stack.render(this.renderer);
+    this.ctx.stack.render(this.renderer, ahead);
   }
 }

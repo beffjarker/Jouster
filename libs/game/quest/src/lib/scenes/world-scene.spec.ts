@@ -62,10 +62,10 @@ function setup(place: Partial<GameState>, alwaysEncounter = false): Harness {
 }
 
 /** An overworld grass tile with more grass to its right (for encounter tests). */
-function grassRun(): { x: number; y: number } {
+function grassRun(length = 3): { x: number; y: number } {
   const rows = mapDef('overworld').rows;
   for (let y = 0; y < rows.length; y++) {
-    const x = rows[y].indexOf('...');
+    const x = rows[y].indexOf('.'.repeat(length));
     if (x > 0) {
       return { x, y };
     }
@@ -83,6 +83,10 @@ describe('cameraAxis', () => {
   it('follows the leader on maps larger than the view', () => {
     expect(cameraAxis(800, 60, 480)).toBe(800 - (480 - 16) / 2);
   });
+
+  it('follows the leader without rounding, so the leader holds still on screen mid-step', () => {
+    expect(cameraAxis(800.3, 60, 480)).toBeCloseTo(800.3 - (480 - 16) / 2);
+  });
 });
 
 describe('WorldScene', () => {
@@ -96,7 +100,7 @@ describe('WorldScene', () => {
 
   it('walks one tile per step and blocks on solid tiles', () => {
     const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
-    h.hold('up', STEP_TIME + 0.02);
+    h.hold('up', STEP_TIME);
     h.run(0.3);
     expect(h.state.y).toBe(4);
     expect(h.state.steps).toBe(1);
@@ -175,7 +179,7 @@ describe('WorldScene', () => {
 
   it('warps between maps', () => {
     const h = setup({ mapId: 'overworld', x: LANDMARKS.aldmere.x, y: LANDMARKS.aldmere.y + 1, facing: 'up' });
-    h.hold('up', STEP_TIME + 0.02);
+    h.hold('up', STEP_TIME);
     h.run(1);
     expect(h.state.mapId).toBe('aldmere');
     expect(h.ctx.stack.top).not.toBe(h.world);
@@ -185,7 +189,7 @@ describe('WorldScene', () => {
   it('bars the southern pass until Act I is complete (plan 17)', () => {
     const at = { mapId: 'overworld', x: LANDMARKS.southPass.x, y: LANDMARKS.southPass.y - 1, facing: 'down' as const };
     const locked = setup(at);
-    locked.hold('down', STEP_TIME + 0.02);
+    locked.hold('down', STEP_TIME);
     locked.run(1);
     expect(locked.state.mapId).toBe('overworld');
     expect(locked.ctx.stack.top?.id).toBe('message');
@@ -194,7 +198,7 @@ describe('WorldScene', () => {
 
     const open = setup(at);
     open.state.flags['actOneComplete'] = true;
-    open.hold('down', STEP_TIME + 0.02);
+    open.hold('down', STEP_TIME);
     open.run(1);
     expect(open.state.mapId).toBe('southlands');
   });
@@ -217,7 +221,7 @@ describe('WorldScene', () => {
   it('bars the northern pass until Act II is complete (plan 19)', () => {
     const at = { mapId: 'overworld', x: LANDMARKS.northPass.x, y: LANDMARKS.northPass.y + 1, facing: 'up' as const };
     const locked = setup(at);
-    locked.hold('up', STEP_TIME + 0.02);
+    locked.hold('up', STEP_TIME);
     locked.run(1);
     expect(locked.state.mapId).toBe('overworld');
     expect(locked.ctx.stack.top?.id).toBe('message');
@@ -226,7 +230,7 @@ describe('WorldScene', () => {
 
     const open = setup(at);
     open.state.flags['actTwoComplete'] = true;
-    open.hold('up', STEP_TIME + 0.02);
+    open.hold('up', STEP_TIME);
     open.run(1);
     expect(open.state.mapId).toBe('frostpeaks');
   });
@@ -261,7 +265,7 @@ describe('WorldScene', () => {
   it('fights in the snow outdoors in the Frost Peaks but in the cave inside the roost (plan 19)', () => {
     const backdropAfterStep = (place: Partial<GameState>, dir: InputAction): string | undefined => {
       const h = setup({ ...place, stepsSinceBattle: 50 }, true);
-      h.hold(dir, STEP_TIME + 0.02);
+      h.hold(dir, STEP_TIME);
       h.run(1);
       expect(h.ctx.stack.top?.id).toBe('battle');
       expect(h.ctx.stack.music).toBe('battle');
@@ -276,14 +280,14 @@ describe('WorldScene', () => {
     const { emberPass } = NORTH_LANDMARKS;
     const at = { mapId: 'frostpeaks', x: emberPass.x, y: emberPass.y + 1, facing: 'up' as const };
     const locked = setup(at);
-    locked.hold('up', STEP_TIME + 0.02);
+    locked.hold('up', STEP_TIME);
     locked.run(1);
     expect(locked.state.mapId).toBe('frostpeaks');
     expect(locked.ctx.stack.top?.id).toBe('message');
 
     const open = setup(at);
     open.state.flags['dragonbaneForged'] = true;
-    open.hold('up', STEP_TIME + 0.02);
+    open.hold('up', STEP_TIME);
     open.run(1);
     expect(open.state.mapId).toBe('embermountains');
   });
@@ -350,7 +354,7 @@ describe('WorldScene', () => {
     const y = rows.findIndex((r, i) => i > 2 && r.indexOf('...') > 0);
     const x = rows[y].indexOf('...');
     const h = setup({ mapId: 'embermountains', x, y, facing: 'right', stepsSinceBattle: 50 }, true);
-    h.hold('right', STEP_TIME + 0.02);
+    h.hold('right', STEP_TIME);
     h.run(1);
     expect(h.ctx.stack.top?.id).toBe('battle');
     expect((h.ctx.stack.top as unknown as { options: { backdrop: string } }).options.backdrop).toBe('volcano');
@@ -359,7 +363,7 @@ describe('WorldScene', () => {
   it('fights on desert sand outdoors but in the cave inside the shrines (plan 17)', () => {
     const backdropAfterStep = (place: Partial<GameState>, dir: InputAction): string | undefined => {
       const h = setup({ ...place, stepsSinceBattle: 50 }, true);
-      h.hold(dir, STEP_TIME + 0.02);
+      h.hold(dir, STEP_TIME);
       h.run(1);
       expect(h.ctx.stack.top?.id).toBe('battle');
       return (h.ctx.stack.top as unknown as { options: { backdrop: string } }).options.backdrop;
@@ -371,14 +375,14 @@ describe('WorldScene', () => {
 
   it('starts a random battle on encounter tiles', () => {
     const h = setup({ mapId: 'overworld', ...grassRun(), facing: 'right', stepsSinceBattle: 50 }, true);
-    h.hold('right', STEP_TIME + 0.02);
+    h.hold('right', STEP_TIME);
     h.run(1);
     expect(h.ctx.stack.top?.id).toBe('battle');
   });
 
   it('plays a battle through to the end and returns to the world', () => {
     const h = setup({ mapId: 'overworld', ...grassRun(), facing: 'right', stepsSinceBattle: 50 }, true);
-    h.hold('right', STEP_TIME + 0.02);
+    h.hold('right', STEP_TIME);
     h.run(1);
     h.ctx.rng = createRng(5);
     for (let i = 0; i < 600 && h.ctx.stack.top?.id !== 'world'; i++) {
@@ -514,7 +518,7 @@ describe('WorldScene', () => {
     expect(isExplored(bits(), width, start.x, start.y)).toBe(true);
     expect(isExplored(bits(), width, start.x + SUNNY_SIGHT_RADIUS, start.y)).toBe(true);
     expect(isExplored(bits(), width, edge, start.y)).toBe(false);
-    h.hold('right', STEP_TIME + 0.02);
+    h.hold('right', STEP_TIME);
     h.run(0.3);
     expect(isExplored(bits(), width, edge, start.y)).toBe(true);
     expect(isExplored(bits(), width, start.x + 30, start.y)).toBe(false);
@@ -529,7 +533,7 @@ describe('WorldScene', () => {
         rates.push(p);
         return false;
       };
-      h.hold('right', STEP_TIME + 0.02);
+      h.hold('right', STEP_TIME);
       h.run(0.3);
       return rates[rates.length - 1];
     };
@@ -576,6 +580,16 @@ describe('WorldScene', () => {
     expect(sky.skyFade).toBeLessThan(1);
     h.run(SKY_FADE_SECONDS);
     expect(sky.skyFade).toBe(1);
+  });
+
+  it('chains held steps without pausing at each tile', () => {
+    const start = grassRun(12);
+    const h = setup({ mapId: 'overworld', ...start, facing: 'right' });
+    const steps = h.state.steps;
+    // 96 updates at 60 Hz: a pause of one update per tile would only finish 8 steps.
+    h.hold('right', STEP_TIME * 10);
+    expect(h.state.steps).toBe(steps + 9);
+    expect(h.state.x).toBe(start.x + 10);
   });
 
   it('keeps cave sight fixed, with one extra tile near a wall torch', () => {
@@ -635,7 +649,7 @@ describe('WorldScene', () => {
 
   it('marks the Thornwick ruins when visited', () => {
     const h = setup({ mapId: 'overworld', x: LANDMARKS.thornwick.x - 1, y: LANDMARKS.thornwick.y, facing: 'right' });
-    h.hold('right', STEP_TIME + 0.02);
+    h.hold('right', STEP_TIME);
     h.run(0.2);
     expect(h.state.flags['sawRuins']).toBe(true);
     expect(h.ctx.stack.top?.id).toBe('message');

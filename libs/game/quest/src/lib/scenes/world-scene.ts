@@ -104,14 +104,16 @@ const FOG_EDGE = 'rgba(7,6,12,0.7)';
 
 /**
  * Camera offset on one axis. A map narrower (or shorter) than the view is centred and stays still, with the
- * map's outside tile (forest around towns, rock around caves) filling the border; larger maps follow the leader.
+ * map's outside tile (forest around towns, rock around caves) filling the border; larger maps follow the leader
+ * exactly (not rounded), so the leader holds still on screen while the renderer snaps the scrolling world to
+ * real pixels.
  */
 export function cameraAxis(leaderPx: number, mapTiles: number, viewPx: number): number {
   const mapPx = mapTiles * TILE;
   if (mapPx <= viewPx) {
     return Math.round((mapPx - viewPx) / 2);
   }
-  return Math.round(leaderPx - (viewPx - TILE) / 2);
+  return leaderPx - (viewPx - TILE) / 2;
 }
 
 /**
@@ -128,6 +130,8 @@ export interface WalkGoal {
 interface NpcRuntime extends Walker {
   def: NpcDef;
   moveT: number;
+  /** Steps taken, so the walk cycle alternates feet. */
+  strides: number;
   wanderTimer: number;
 }
 
@@ -143,6 +147,8 @@ export class WorldScene implements Scene {
   private readonly pending: Array<() => void> = [];
   private moving = false;
   private moveT = 1;
+  /** Progress past the end of the last step, carried into the next one so continuous walking never stalls. */
+  private stepCarry = 0;
   private time = 0;
   private idle = 0;
   private nameTimer = 2.5;
@@ -179,6 +185,7 @@ export class WorldScene implements Scene {
       fromY: def.y,
       facing: def.facing,
       moveT: 1,
+      strides: 0,
       wanderTimer: 1 + ctx.rng.next() * 2,
     }));
     this.reveal();
@@ -238,11 +245,21 @@ export class WorldScene implements Scene {
       this.walkGoal = null;
     }
     if (this.moving) {
-      this.moveT = Math.min(1, this.moveT + dt / STEP_TIME);
-      if (this.moveT >= 1) {
-        this.moving = false;
-        this.finishStep();
+      const t = this.moveT + dt / STEP_TIME;
+      this.moveT = Math.min(1, t);
+      if (t < 1) {
+        return;
       }
+      this.moving = false;
+      this.finishStep();
+      // Unless the step opened a dialog, battle or warp, take the next step in this same update with the
+      // overshoot carried over; waiting an update would freeze the party for a tick at every tile.
+      if (this.ctx.stack.top !== this || this.ctx.stack.transitioning || this.pending.length > 0) {
+        return;
+      }
+      this.stepCarry = Math.min(t - 1, 0.99);
+      this.walk(input, 0);
+      this.stepCarry = 0;
       return;
     }
     if (input.wasPressed('confirm')) {
@@ -267,6 +284,11 @@ export class WorldScene implements Scene {
       this.ctx.stack.push(new MapScene(this.ctx));
       return;
     }
+    this.walk(input, dt);
+  }
+
+  /** Steps with a held direction key, else toward the tap-to-walk goal. */
+  private walk(input: InputManager, dt: number): void {
     const dir = DIRECTIONS.find((d) => input.isDown(d));
     if (dir) {
       this.idle = 0;
@@ -285,11 +307,11 @@ export class WorldScene implements Scene {
     return this.walkGoal;
   }
 
-  /** Camera offset in logical units (top-left of the view in map space). */
-  private camera(): { x: number; y: number } {
+  /** Camera offset in logical units (top-left of the view in map space), with the party `t` into its step. */
+  private camera(t = this.moveT): { x: number; y: number } {
     const leader = this.walkers[0];
-    const lx = this.lerp(leader.fromX, leader.x, this.moveT) * TILE;
-    const ly = this.lerp(leader.fromY, leader.y, this.moveT) * TILE;
+    const lx = this.lerp(leader.fromX, leader.x, t) * TILE;
+    const ly = this.lerp(leader.fromY, leader.y, t) * TILE;
     return { x: cameraAxis(lx, this.tiles.width, SCREEN_W), y: cameraAxis(ly, this.tiles.height, SCREEN_H) };
   }
 
@@ -396,8 +418,13 @@ export class WorldScene implements Scene {
     this.tryMove(step);
   }
 
-  public render(r: Renderer): void {
-    const { x: camX, y: camY } = this.camera();
+  /**
+   * Draws the world. `ahead` is how far real time has run past the last fixed update; walkers are drawn that far
+   * into their step so movement stays smooth on high refresh-rate screens and with uneven frame timing.
+   */
+  public render(r: Renderer, ahead = 0): void {
+    const t = this.moving ? Math.min(1, this.moveT + ahead / STEP_TIME) : this.moveT;
+    const { x: camX, y: camY } = this.camera(t);
     const frame = Math.floor(this.time * 2) % 2;
     const startX = Math.floor(camX / TILE);
     const startY = Math.floor(camY / TILE);
@@ -439,29 +466,35 @@ export class WorldScene implements Scene {
     this.npcs
       .filter((n) => this.npcVisible(n) && this.explored(n.x, n.y))
       .forEach((n) => {
-        const px = this.lerp(n.fromX, n.x, n.moveT) * TILE - camX;
-        const py = this.lerp(n.fromY, n.y, n.moveT) * TILE - camY;
-        const f = n.moveT < 1 ? Math.floor(n.moveT * 2) % 2 : frame;
+        const nt = n.moveT < 1 ? Math.min(1, n.moveT + ahead / NPC_STEP_TIME) : 1;
+        const px = this.lerp(n.fromX, n.x, nt) * TILE - camX;
+        const py = this.lerp(n.fromY, n.y, nt) * TILE - camY;
         const spriteId = n.def.sprite?.(this.state) ?? n.def.spriteId;
         const humanoid = this.ctx.art.isCharacter(spriteId) || n.def.role === 'companion';
         sprites.push({
           y: py,
           draw: () => {
-            const sprite = humanoid ? this.ctx.art.character(spriteId, n.facing, f) : this.ctx.art.monster(spriteId);
+            const sprite = !humanoid
+              ? this.ctx.art.monster(spriteId)
+              : n.moveT < 1
+              ? this.ctx.art.characterWalk(spriteId, n.facing, ((n.strides % 2) + nt) / 2)
+              : this.ctx.art.character(spriteId, n.facing, frame);
             const a = tileAnchor(sprite);
             r.draw(sprite, px - a.x, py - a.y - (!humanoid && frame ? 1 : 0));
           },
         });
       });
-    const walkFrame = this.moving ? Math.floor(this.moveT * 2 + this.state.steps) % 2 : frame;
+    const walkPhase = ((this.state.steps % 2) + t) / 2;
     this.walkers.forEach((w, i) => {
       const member = this.state.party[i];
       if (!member) {
         return;
       }
-      const px = this.lerp(w.fromX, w.x, this.moveT) * TILE - camX;
-      const py = this.lerp(w.fromY, w.y, this.moveT) * TILE - camY;
-      const sprite = this.ctx.art.character(member.classId, w.facing, walkFrame);
+      const px = this.lerp(w.fromX, w.x, t) * TILE - camX;
+      const py = this.lerp(w.fromY, w.y, t) * TILE - camY;
+      const sprite = this.moving
+        ? this.ctx.art.characterWalk(member.classId, w.facing, walkPhase)
+        : this.ctx.art.character(member.classId, w.facing, frame);
       const a = tileAnchor(sprite);
       sprites.push({
         y: py + (i === 0 ? 0.5 : -i * 0.01),
@@ -598,7 +631,7 @@ export class WorldScene implements Scene {
     this.state.y = ny;
     this.reveal();
     this.moving = true;
-    this.moveT = 0;
+    this.moveT = this.stepCarry;
   }
 
   private finishStep(): void {
@@ -702,6 +735,7 @@ export class WorldScene implements Scene {
         n.x = nx;
         n.y = ny;
         n.moveT = 0;
+        n.strides++;
       }
     });
   }
