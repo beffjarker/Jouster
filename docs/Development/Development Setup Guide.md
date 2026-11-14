@@ -56,6 +56,27 @@
 3. **Development**: `npm start` 
 4. **Backend**: `cd backend && npm start`
 
+## 🚢 Deploying (GitHub Actions)
+
+Deployments are not run locally. Merging triggers them, and releases are promoted with GitHub Actions:
+
+- Push or merge to `develop`: deploys to **QA** (http://qa.jouster.org)
+- Push or merge to `main`: deploys to **GREEN / staging** (https://stg.jouster.org). The deployed commit is in `/build-info.json`.
+- **Promote Frontend: Staging → Production**: copies staging to **BLUE / production** (https://jouster.org). This is manual and needs approval.
+- **Rollback Frontend Production**: restores a previous production snapshot
+
+Optional local tooling for triggering and monitoring workflows:
+
+1. Install the [GitHub CLI](https://cli.github.com/) and run `gh auth login`
+2. Promote with a dry run first:
+   `gh workflow run promote-frontend-production.yml -f confirm=promote -f dry_run=true`
+3. Then promote: `gh workflow run promote-frontend-production.yml -f confirm=promote`
+4. Roll back if needed: `gh workflow run rollback-frontend-production.yml -f confirm=rollback`
+   (add `-f snapshot=<id>` to choose a specific snapshot)
+5. Follow progress with `gh run watch`, then approve the `production` deployment in the Actions tab
+
+Full details: [GitHub Actions Structure](../CICD/GITHUB-ACTIONS-STRUCTURE.md)
+
 ## 🔗 Related Documentation
 
 - [[System Architecture Overview]] - Technical architecture

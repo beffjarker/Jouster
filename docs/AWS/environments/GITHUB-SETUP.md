@@ -45,6 +45,21 @@ git push -u origin main
 | `AWS_ACCESS_KEY_ID` | Your AWS access key |
 | `AWS_SECRET_ACCESS_KEY` | Your AWS secret key |
 
+**Production promotion (optional settings):**
+
+The **Promote Frontend: Staging → Production** and **Rollback Frontend Production** workflows use the
+secrets above unless you configure an OIDC role. Optional settings:
+
+| Name | Kind | Purpose |
+|------|------|---------|
+| `AWS_PROD_FRONTEND_ROLE_ARN` | Secret | OIDC role used instead of the access keys |
+| `PROD_FRONTEND_BUCKET` | Variable | Override the auto-discovered production bucket |
+| `PROD_CLOUDFRONT_DISTRIBUTION_ID` | Variable | Override the auto-discovered CloudFront distribution |
+| `FRONTEND_RELEASES_BUCKET` | Variable | Snapshot bucket (default `jouster-org-releases`) |
+
+These workflows run in the `production` environment (**Settings** → **Environments**), which requires reviewer
+approval. See [GitHub Actions Structure](../../CICD/GITHUB-ACTIONS-STRUCTURE.md) for the IAM permissions required.
+
 **How to get AWS credentials:**
 ```bash
 # View your AWS credentials

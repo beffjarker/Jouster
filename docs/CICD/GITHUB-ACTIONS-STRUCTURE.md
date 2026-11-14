@@ -65,11 +65,13 @@ Promotion copies the exact staging build into that bucket; it does not rebuild.
 
 1. Confirm stg.jouster.org is good. `http://stg.jouster.org/build-info.json` shows the deployed commit.
 2. Run **Promote Frontend: Staging → Production** with `confirm` = `promote`.
-   Run with `dry_run` = `true` first to see the S3 diff without changing anything.
+   Run with `dry_run` = `true` first to see the S3 diff without changing anything. Dry runs are titled
+   "(dry run)" in the run list and show a warning banner, because nothing is deployed.
 3. The workflow then:
    1. snapshots current production to `s3://jouster-org-releases/frontend/<timestamp>-pre-promote-<sha>/`
-   2. publishes the staging build
-   3. invalidates CloudFront
+   2. publishes the staging build. `*.html` and `build-info.json` get `Cache-Control: no-cache, no-store,
+      must-revalidate` so browsers always fetch the latest app shell.
+   3. clears the CloudFront cache (`/*` invalidation) and waits for it to finish
    4. checks that `https://jouster.org/index.html` matches the staging copy
 
 ### Roll back

@@ -1,4 +1,5 @@
-name: 'Promote Frontend: Staging â†’ Production'
+name: 'Promote Frontend: Staging → Production'
+run-name: "Promote stg → prod${{ inputs.dry_run && ' (dry run)' || '' }}"
 
 # Blue/green promotion: copies the artifact already running on stg.jouster.org (GREEN)
 # to the jouster.org origin bucket (BLUE). Current production is snapshotted first so
@@ -35,7 +36,7 @@ env:
 
 jobs:
   promote:
-    name: Promote stg.jouster.org â†’ jouster.org
+    name: Promote stg.jouster.org → jouster.org
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -83,7 +84,11 @@ jobs:
           echo "sha=$(jq -r '.sha // "unknown"' <<<"$INFO")" >> "$GITHUB_OUTPUT"
 
       - name: Planned changes
-        run: bash "$RELEASE" diff "s3://${STAGING_BUCKET}"
+        run: |
+          bash "$RELEASE" diff "s3://${STAGING_BUCKET}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "::warning title=Dry run::Nothing was deployed. Re-run with dry_run unchecked to promote."
+          fi
 
       - name: Snapshot current production (BLUE)
         id: snapshot
@@ -97,7 +102,8 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: bash "$RELEASE" publish "s3://${STAGING_BUCKET}"
 
-      - name: Invalidate CloudFront
+      - name: Clear CloudFront cache (invalidate /*)
+        id: invalidate
         if: ${{ !inputs.dry_run }}
         run: bash "$RELEASE" invalidate
 
@@ -114,14 +120,20 @@ jobs:
         if: always()
         run: |
           {
-            echo "## Frontend promotion: stg.jouster.org â†’ jouster.org"
+            echo "## Frontend promotion: stg.jouster.org → jouster.org"
             echo ""
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "> [!WARNING]"
+              echo "> **Dry run: nothing was deployed.** Re-run with \`dry_run\` unchecked to promote."
+              echo ""
+            fi
             echo "| | |"
             echo "|---|---|"
             echo "| Mode | ${{ inputs.dry_run && 'dry run' || 'live' }} |"
             echo "| Staging build SHA | \`${{ steps.staging.outputs.sha }}\` |"
             echo "| Production bucket | \`${PROD_BUCKET:-?}${PROD_PREFIX:-}\` |"
             echo "| CloudFront | \`${PROD_DISTRIBUTION_ID:-?}\` |"
+            echo "| Cache cleared | ${{ steps.invalidate.outcome == 'success' && 'yes' || 'no' }} |"
             echo "| Rollback snapshot | \`${{ steps.snapshot.outputs.id || 'none' }}\` |"
             echo "| Result | ${{ job.status }} |"
             echo ""

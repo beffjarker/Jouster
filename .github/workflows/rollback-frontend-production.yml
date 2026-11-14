@@ -1,6 +1,7 @@
 name: 'Rollback Frontend Production'
+run-name: "Rollback prod${{ inputs.dry_run && ' (dry run)' || '' }}"
 
-# Restores jouster.org from a snapshot taken by "Promote Frontend: Staging â†’ Production".
+# Restores jouster.org from a snapshot taken by "Promote Frontend: Staging → Production".
 # The current production contents are snapshotted first, so a rollback can itself be undone.
 
 on:
@@ -83,11 +84,18 @@ jobs:
         id: target
         env:
           REQUESTED: ${{ inputs.snapshot }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           SNAPSHOTS=$(bash "$RELEASE" list)
           echo "Available snapshots (oldest first):"
           echo "${SNAPSHOTS:-  (none)}"
-          [ -n "$SNAPSHOTS" ] || { echo "::error::No snapshots in s3://${RELEASES_BUCKET}/frontend/"; exit 1; }
+          if [ -z "$SNAPSHOTS" ]; then
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "::notice::No snapshots yet in s3://${RELEASES_BUCKET}/frontend/ (one is created by each live promote)"
+              exit 0
+            fi
+            echo "::error::No snapshots in s3://${RELEASES_BUCKET}/frontend/"; exit 1
+          fi
           if [ -z "$REQUESTED" ]; then
             ID=$(tail -n1 <<<"$SNAPSHOTS")
           elif grep -qxF -- "$REQUESTED" <<<"$SNAPSHOTS"; then
@@ -100,7 +108,12 @@ jobs:
           echo "uri=s3://${RELEASES_BUCKET}/frontend/${ID}" >> "$GITHUB_OUTPUT"
 
       - name: Planned changes
-        run: bash "$RELEASE" diff "${{ steps.target.outputs.uri }}"
+        if: steps.target.outputs.uri != ''
+        run: |
+          bash "$RELEASE" diff "${{ steps.target.outputs.uri }}"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "::warning title=Dry run::Nothing was restored. Re-run with dry_run unchecked to roll back."
+          fi
 
       - name: Snapshot current production
         id: snapshot
@@ -111,7 +124,8 @@ jobs:
         if: ${{ !inputs.dry_run }}
         run: bash "$RELEASE" publish "${{ steps.target.outputs.uri }}"
 
-      - name: Invalidate CloudFront
+      - name: Clear CloudFront cache (invalidate /*)
+        id: invalidate
         if: ${{ !inputs.dry_run }}
         run: bash "$RELEASE" invalidate
 
@@ -125,11 +139,17 @@ jobs:
           {
             echo "## Frontend rollback"
             echo ""
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "> [!WARNING]"
+              echo "> **Dry run: nothing was restored.** Re-run with \`dry_run\` unchecked to roll back."
+              echo ""
+            fi
             echo "| | |"
             echo "|---|---|"
             echo "| Mode | ${{ inputs.dry_run && 'dry run' || 'live' }} |"
             echo "| Restored snapshot | \`${{ steps.target.outputs.id || 'none' }}\` |"
             echo "| Pre-rollback snapshot | \`${{ steps.snapshot.outputs.id || 'none' }}\` |"
             echo "| Production bucket | \`${PROD_BUCKET:-?}${PROD_PREFIX:-}\` |"
+            echo "| Cache cleared | ${{ steps.invalidate.outcome == 'success' && 'yes' || 'no' }} |"
             echo "| Result | ${{ job.status }} |"
           } >> "$GITHUB_STEP_SUMMARY"
