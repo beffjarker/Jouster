@@ -10,7 +10,7 @@ import {
   createRng,
   timeSeed,
 } from '@jouster/game/engine';
-import { Art, ArtStyle } from './art/art';
+import { Art } from './art/art';
 import { loadLpcSheets } from './art/sheet-loader';
 import { musicTrack } from './data/music';
 import { GameContext } from './scenes/context';
@@ -30,18 +30,11 @@ export interface JousterQuestOptions {
   scheduler?: FrameScheduler;
   seed?: number;
   /**
-   * Art style: `classic` (procedural only; the default when omitted) or `lpc`, which loads the LPC sheets in
-   * the background and switches tiles, characters and monsters over once they arrive (procedural art until
-   * then, or if loading fails). The page passes {@link artStyleFromQuery}, which defaults to `lpc`.
+   * Folder URL of the LPC sheets; defaults to `game-assets/lpc/`. The sheets load in the background and tiles,
+   * characters and monsters switch over once they arrive. Procedural art is drawn until then (or if loading
+   * fails) and always fills in whatever the sheets do not cover.
    */
-  art?: ArtStyle;
-  /** Folder URL of the LPC sheets; defaults to `game-assets/lpc/`. */
   lpcAssetBase?: string;
-}
-
-/** Reads the art style from the page URL query: LPC sheet art unless it asks for `?art=classic`. */
-export function artStyleFromQuery(search: string): ArtStyle {
-  return new URLSearchParams(search).get('art') === 'classic' ? 'classic' : 'lpc';
 }
 
 /** Size and position of the canvas on the page, as returned by `getBoundingClientRect`. */
@@ -105,11 +98,9 @@ export class JousterQuestGame {
     if (options.pointer !== false) {
       this.wirePointer(canvas);
     }
-    if (options.art === 'lpc') {
-      loadLpcSheets(options.lpcAssetBase)
-        .then((sheets) => this.ctx.art.useSheets(sheets))
-        .catch(() => undefined);
-    }
+    loadLpcSheets(options.lpcAssetBase)
+      .then((sheets) => this.ctx.art.useSheets(sheets))
+      .catch(() => undefined);
   }
 
   public get context(): GameContext {

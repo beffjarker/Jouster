@@ -176,15 +176,15 @@ describe('sheet loader', () => {
   });
 });
 
-describe('Art style', () => {
-  it('is classic until sheets are supplied, and can switch back', () => {
+describe('Art sheets', () => {
+  it('is procedural until sheets are supplied, and can switch back', () => {
     const art = new Art();
-    expect(art.style).toBe('classic');
+    expect(art.hasSheets).toBe(false);
     const sheets = new Map<LpcSheetId, CanvasImageSource>();
     art.useSheets(sheets);
-    expect(art.style).toBe('lpc');
+    expect(art.hasSheets).toBe(true);
     art.useSheets(null);
-    expect(art.style).toBe('classic');
+    expect(art.hasSheets).toBe(false);
   });
 
   it('draws sheet tiles at 4x density (2x upscaled LPC cell) and caches per ground cell', () => {
@@ -195,11 +195,11 @@ describe('Art style', () => {
     expect(art.tile('grass', 0, 0, 1)).not.toBe(a);
   });
 
-  it('drops cached tiles when the style changes', () => {
+  it('drops cached tiles when the sheets arrive', () => {
     const art = new Art();
-    const classic = art.tile('grass');
+    const procedural = art.tile('grass');
     art.useSheets(new Map<LpcSheetId, CanvasImageSource>());
-    expect(art.tile('grass')).not.toBe(classic);
+    expect(art.tile('grass')).not.toBe(procedural);
   });
 
   it('keeps the fountain and torch floor cell steady across animation frames, but ripples water', () => {

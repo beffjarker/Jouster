@@ -293,9 +293,6 @@ function mirrored(source: HTMLCanvasElement): HTMLCanvasElement {
   return setImageDensity(canvas, imageDensity(source));
 }
 
-/** Art style toggle (`?art=` on the page): procedural only, or LPC sheets with procedural fallback. */
-export type ArtStyle = 'classic' | 'lpc';
-
 /**
  * Lazily rendered and cached 2x-density art (tiles, humanoid sprites, monster sprites).
  * With sheets (see {@link useSheets}) tiles listed in `LPC_TILES` use LPC ground art drawn 1:1,
@@ -310,12 +307,12 @@ export class Art {
     this.sheets = sheets ?? null;
   }
 
-  /** Which style is in use right now. */
-  public get style(): ArtStyle {
-    return this.sheets ? 'lpc' : 'classic';
+  /** True once LPC sheets are in use; until then (or if they failed to load) everything is procedural. */
+  public get hasSheets(): boolean {
+    return this.sheets !== null;
   }
 
-  /** Switches to sheet art (or back to procedural with `null`) and drops cached art. */
+  /** Switches to sheet art (or back to procedural only with `null`, e.g. in tests) and drops cached art. */
   public useSheets(sheets: ArtSheets | null): void {
     this.sheets = sheets;
     this.cache.clear();
