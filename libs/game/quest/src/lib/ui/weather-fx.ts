@@ -10,11 +10,31 @@ const SEASON_TINT: Readonly<Record<Season, string | undefined>> = {
   winter: 'rgba(228,238,255,0.3)',
 };
 
-/** Tints the outdoor ground for the season (draw after tiles, before sprites). */
-export function drawSeasonTint(r: Renderer, season: Season): void {
+/**
+ * Scales a colour's opacity by `strength` (0..1), so effects can fade in and out without touching the canvas
+ * alpha. Accepts `rgba(r,g,b,a)` and `#rrggbb`.
+ */
+export function fadeColor(color: string, strength: number): string {
+  if (strength >= 1) {
+    return color;
+  }
+  const s = Math.max(0, strength);
+  const rgba = /^rgba\(([^,]+),([^,]+),([^,]+),([^)]+)\)$/.exec(color.replace(/\s/g, ''));
+  if (rgba) {
+    return `rgba(${rgba[1]},${rgba[2]},${rgba[3]},${(parseFloat(rgba[4]) * s).toFixed(3)})`;
+  }
+  const hex = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(color);
+  if (hex) {
+    return `rgba(${parseInt(hex[1], 16)},${parseInt(hex[2], 16)},${parseInt(hex[3], 16)},${s.toFixed(3)})`;
+  }
+  return color;
+}
+
+/** Tints the outdoor ground for the season (draw after tiles, before sprites). `strength` fades it in or out. */
+export function drawSeasonTint(r: Renderer, season: Season, strength = 1): void {
   const tint = SEASON_TINT[season];
-  if (tint) {
-    r.fillRect(0, 0, SCREEN_W, SCREEN_H, tint);
+  if (tint && strength > 0) {
+    r.fillRect(0, 0, SCREEN_W, SCREEN_H, fadeColor(tint, strength));
   }
 }
 
@@ -137,7 +157,15 @@ function clouds(
 // --- Rain, snow and lightning ---------------------------------------------------------------
 
 /** Rain streaks with per-drop length, speed and shade, a swaying wind angle and splashes. */
-function rain(r: Renderer, time: number, cam: WeatherCamera, count: number, speed: number, heavy: boolean): void {
+function rain(
+  r: Renderer,
+  time: number,
+  cam: WeatherCamera,
+  count: number,
+  speed: number,
+  heavy: boolean,
+  strength: number,
+): void {
   const wind = (heavy ? -0.35 : -0.18) + Math.sin(time * 0.4) * 0.08;
   const span = SCREEN_H + 24;
   for (let i = 0; i < count; i++) {
@@ -152,7 +180,7 @@ function rain(r: Renderer, time: number, cam: WeatherCamera, count: number, spee
     r.fillRect(x + dx, y + Math.ceil(len / 2), 1, Math.floor(len / 2), color);
   }
   // Splashes: short-lived rings at fixed-but-shuffled spots on the ground.
-  const splashes = heavy ? 26 : 16;
+  const splashes = Math.round((heavy ? 26 : 16) * strength);
   for (let i = 0; i < splashes; i++) {
     const period = 0.45 + rand(i, 25) * 0.5;
     const cycle = Math.floor((time + rand(i, 26) * period) / period);
@@ -195,7 +223,7 @@ function snow(r: Renderer, time: number, cam: WeatherCamera, count: number, spee
 }
 
 /** Irregular lightning: a jagged bolt with a branch plus a screen flash, a few times a minute. */
-function lightning(r: Renderer, time: number): void {
+function lightning(r: Renderer, time: number, strength: number): void {
   const period = 4.5;
   const k = Math.floor(time / period);
   if (rand(k, 40) > 0.6) {
@@ -206,7 +234,8 @@ function lightning(r: Renderer, time: number): void {
   if (!lit) {
     return;
   }
-  r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(255,255,255,0.35)');
+  const bolt = fadeColor('#fffbe0', strength);
+  r.fillRect(0, 0, SCREEN_W, SCREEN_H, fadeColor('rgba(255,255,255,0.35)', strength));
   let x = 40 + rand(k, 42) * (SCREEN_W - 80);
   let y = 0;
   const end = SCREEN_H * (0.45 + rand(k, 43) * 0.3);
@@ -214,13 +243,13 @@ function lightning(r: Renderer, time: number): void {
   while (y < end) {
     const nx = x + (rand(k * 31 + seg, 44) - 0.5) * 14;
     const h = 6 + rand(k * 31 + seg, 45) * 8;
-    r.fillRect(Math.min(x, nx), y, Math.abs(nx - x) + 2, 2, '#fffbe0');
-    r.fillRect(nx, y, 2, h, '#fffbe0');
+    r.fillRect(Math.min(x, nx), y, Math.abs(nx - x) + 2, 2, bolt);
+    r.fillRect(nx, y, 2, h, bolt);
     if (seg === 2) {
       let bx = nx;
       for (let b = 0; b < 3; b++) {
         bx += 5 + rand(k + b, 46) * 4;
-        r.fillRect(bx, y + h + b * 6, 1, 6, 'rgba(255,250,220,0.8)');
+        r.fillRect(bx, y + h + b * 6, 1, 6, fadeColor('rgba(255,250,220,0.8)', strength));
       }
     }
     x = nx;
@@ -232,37 +261,51 @@ function lightning(r: Renderer, time: number): void {
 /**
  * Draws the weather over the outdoor scene (call before the fog of war and HUD). Clouds, fog banks, rain, snow and
  * splashes are anchored to the world through `cam`; the tint and lightning flash stay screen-wide.
+ * `strength` (0..1) fades the weather in or out: tints and clouds grow more opaque while rain and snow thicken
+ * drop by drop, so a change of weather rolls in instead of popping.
  */
-export function drawWeather(r: Renderer, kind: WeatherKind, time: number, cam: WeatherCamera = { x: 0, y: 0 }): void {
+export function drawWeather(
+  r: Renderer,
+  kind: WeatherKind,
+  time: number,
+  cam: WeatherCamera = { x: 0, y: 0 },
+  strength = 1,
+): void {
+  const s = Math.min(1, strength);
+  if (s <= 0) {
+    return;
+  }
+  const tint = (color: string): void => r.fillRect(0, 0, SCREEN_W, SCREEN_H, fadeColor(color, s));
+  const n = (count: number): number => Math.round(count * s);
   switch (kind) {
     case 'cloudy':
-      r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(30,40,60,0.12)');
-      clouds(r, time, cam, 5, '#141a2c', 0.22, false, 9);
+      tint('rgba(30,40,60,0.12)');
+      clouds(r, time, cam, 5, '#141a2c', 0.22 * s, false, 9);
       break;
     case 'rain':
-      r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(30,40,70,0.2)');
-      clouds(r, time, cam, 4, '#101626', 0.18, false, 14);
-      rain(r, time, cam, 80, 220, false);
+      tint('rgba(30,40,70,0.2)');
+      clouds(r, time, cam, 4, '#101626', 0.18 * s, false, 14);
+      rain(r, time, cam, n(80), 220, false, s);
       break;
     case 'storm':
-      r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(15,20,40,0.32)');
-      clouds(r, time, cam, 5, '#080c18', 0.25, false, 24);
-      rain(r, time, cam, 130, 320, true);
-      lightning(r, time);
+      tint('rgba(15,20,40,0.32)');
+      clouds(r, time, cam, 5, '#080c18', 0.25 * s, false, 24);
+      rain(r, time, cam, n(130), 320, true, s);
+      lightning(r, time, s);
       break;
     case 'snow':
-      r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(200,210,230,0.1)');
-      clouds(r, time, cam, 3, '#2a3040', 0.12, false, 6);
-      snow(r, time, cam, 70, 22, 0);
+      tint('rgba(200,210,230,0.1)');
+      clouds(r, time, cam, 3, '#2a3040', 0.12 * s, false, 6);
+      snow(r, time, cam, n(70), 22, 0);
       break;
     case 'blizzard':
-      r.fillRect(0, 0, SCREEN_W, SCREEN_H, `rgba(225,232,245,${(0.3 + Math.sin(time * 0.9) * 0.06).toFixed(3)})`);
-      clouds(r, time, cam, 5, '#f0f4ff', 0.3, true, -60);
-      snow(r, time, cam, 170, 90, -140);
+      tint(`rgba(225,232,245,${(0.3 + Math.sin(time * 0.9) * 0.06).toFixed(3)})`);
+      clouds(r, time, cam, 5, '#f0f4ff', 0.3 * s, true, -60);
+      snow(r, time, cam, n(170), 90, -140);
       break;
     case 'fog':
-      r.fillRect(0, 0, SCREEN_W, SCREEN_H, 'rgba(205,210,220,0.26)');
-      clouds(r, time, cam, 8, '#eef0f4', 0.35, true, 7);
+      tint('rgba(205,210,220,0.26)');
+      clouds(r, time, cam, 8, '#eef0f4', 0.35 * s, true, 7);
       break;
     default:
       break;

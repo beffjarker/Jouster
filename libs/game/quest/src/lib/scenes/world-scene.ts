@@ -91,7 +91,10 @@ interface Walker {
 }
 
 const FOG = '#07060c';
-const FOG_DIM = 'rgba(7,6,12,0.5)';
+const FOG_DIM_ALPHA = 0.5;
+const FOG_DIM = `rgba(7,6,12,${FOG_DIM_ALPHA})`;
+/** Seconds a change of weather or season takes to fade from the old sky to the new one. */
+export const SKY_FADE_SECONDS = 3;
 const FOG_EDGE = 'rgba(7,6,12,0.7)';
 
 /**
@@ -142,6 +145,9 @@ export class WorldScene implements Scene {
   private readonly torches: ReadonlyArray<{ x: number; y: number }>;
   private toast = '';
   private toastTimer = 0;
+  /** The sky being faded out after a weather or season change; `skyFade` runs 0..1 toward the current sky. */
+  private skyFrom: { weather: WeatherKind; season: Season } | null = null;
+  private skyFade = 1;
   private walkGoal: WalkGoal | null = null;
   /** Pointer press that started the current walk; dragging while it is held steers the party. */
   private steerPress = -1;
@@ -208,6 +214,7 @@ export class WorldScene implements Scene {
 
   public update(dt: number, input: InputManager): void {
     this.time += dt;
+    this.skyFade = Math.min(1, this.skyFade + dt / SKY_FADE_SECONDS);
     this.nameTimer = Math.max(0, this.nameTimer - dt);
     this.toastTimer = Math.max(0, this.toastTimer - dt);
     const next = this.pending.shift();
@@ -400,8 +407,15 @@ export class WorldScene implements Scene {
         }
       }
     }
+    const season = seasonAt(this.state.steps);
+    const from = this.outdoors && this.skyFade < 1 ? this.skyFrom : null;
     if (this.outdoors) {
-      drawSeasonTint(r, seasonAt(this.state.steps));
+      if (from && from.season !== season) {
+        drawSeasonTint(r, from.season, 1 - this.skyFade);
+        drawSeasonTint(r, season, this.skyFade);
+      } else {
+        drawSeasonTint(r, season);
+      }
     }
     const windy = this.outdoors && (this.weather === 'storm' || this.weather === 'blizzard');
     (this.map.signs ?? []).forEach((s, i) => {
@@ -444,7 +458,13 @@ export class WorldScene implements Scene {
     this.renderGoal(r, camX, camY);
     sprites.sort((a, b) => a.y - b.y).forEach((s) => s.draw());
     if (this.outdoors) {
-      drawWeather(r, this.weather, this.time, { x: camX, y: camY });
+      const cam = { x: camX, y: camY };
+      if (from && from.weather !== this.weather) {
+        drawWeather(r, from.weather, this.time, cam, 1 - this.skyFade);
+        drawWeather(r, this.weather, this.time, cam, this.skyFade);
+      } else {
+        drawWeather(r, this.weather, this.time, cam);
+      }
     }
     if (this.map.fog) {
       this.renderFog(r, startX, startY, camX, camY);
@@ -475,6 +495,9 @@ export class WorldScene implements Scene {
   /** Unexplored tiles are black (dithered at the edge); explored tiles out of sight are dimmed. */
   private renderFog(r: Renderer, startX: number, startY: number, camX: number, camY: number): void {
     const radius = this.sightRadius;
+    // While the weather changes, the dim ring past the party's sight fades between the old and new radius.
+    const fromRadius =
+      this.outdoors && this.skyFade < 1 && this.skyFrom ? weatherSightRadius(this.skyFrom.weather) : radius;
     const half = TILE / 2;
     for (let ty = startY; ty <= startY + SCREEN_H / TILE + 1; ty++) {
       for (let tx = startX; tx <= startX + SCREEN_W / TILE + 1; tx++) {
@@ -490,8 +513,15 @@ export class WorldScene implements Scene {
           } else {
             r.fillRect(sx, sy, TILE, TILE, FOG);
           }
-        } else if (!inSight(tx - this.state.x, ty - this.state.y, radius)) {
-          r.fillRect(sx, sy, TILE, TILE, FOG_DIM);
+        } else {
+          const outNow = !inSight(tx - this.state.x, ty - this.state.y, radius);
+          const outBefore = !inSight(tx - this.state.x, ty - this.state.y, fromRadius);
+          if (outNow && outBefore) {
+            r.fillRect(sx, sy, TILE, TILE, FOG_DIM);
+          } else if (outNow || outBefore) {
+            const dim = outNow ? this.skyFade : 1 - this.skyFade;
+            r.fillRect(sx, sy, TILE, TILE, `rgba(7,6,12,${(FOG_DIM_ALPHA * dim).toFixed(3)})`);
+          }
         }
       }
     }
@@ -591,6 +621,10 @@ export class WorldScene implements Scene {
   private announceSky(season: Season, weather: WeatherKind): void {
     const nextSeason = seasonAt(this.state.steps);
     const next = this.weather;
+    if (nextSeason !== season || next !== weather) {
+      this.skyFrom = { weather, season };
+      this.skyFade = 0;
+    }
     if (nextSeason !== season) {
       this.showToast(`${SEASON_NAMES[nextSeason]} has come.`);
     } else if (next !== weather) {

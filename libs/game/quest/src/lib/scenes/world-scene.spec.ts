@@ -10,7 +10,7 @@ import { createMember } from '../state/party';
 import { SUNNY_SIGHT_RADIUS, weatherAt, weatherSeed, weatherSightRadius } from '../state/weather';
 import { InputDriver } from '../testing/input-driver';
 import { GameContext } from './context';
-import { STEP_TIME, WorldScene, cameraAxis } from './world-scene';
+import { SKY_FADE_SECONDS, STEP_TIME, WorldScene, cameraAxis } from './world-scene';
 
 interface Harness {
   ctx: GameContext;
@@ -404,6 +404,27 @@ describe('WorldScene', () => {
     const width = mapDef('overworld').rows[0].length;
     expect(isExplored(h.state.explored['overworld'], width, start.x + radius, start.y)).toBe(true);
     expect(isExplored(h.state.explored['overworld'], width, start.x + radius + 1, start.y)).toBe(false);
+  });
+
+  it('fades the sky from the old weather to the new one instead of switching at once', () => {
+    const start = grassRun();
+    const probe = newGameState('TEST', 'cleric');
+    const seed = weatherSeed(probe);
+    let steps = 39;
+    while (weatherAt(steps, seed) === weatherAt(steps + 1, seed)) {
+      steps += 40;
+    }
+    const before = weatherAt(steps, seed);
+    const h = setup({ ...probe, mapId: 'overworld', ...start, facing: 'right', steps });
+    const sky = h.world as unknown as { skyFade: number; skyFrom: { weather: string } | null };
+    expect(sky.skyFade).toBe(1);
+    h.hold('right', STEP_TIME * 1.2);
+    expect(h.state.steps).toBe(steps + 1);
+    expect(sky.skyFrom?.weather).toBe(before);
+    expect(sky.skyFade).toBeGreaterThan(0);
+    expect(sky.skyFade).toBeLessThan(1);
+    h.run(SKY_FADE_SECONDS);
+    expect(sky.skyFade).toBe(1);
   });
 
   it('keeps cave sight fixed, with one extra tile near a wall torch', () => {
