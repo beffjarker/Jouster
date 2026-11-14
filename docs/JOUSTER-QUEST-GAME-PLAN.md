@@ -296,7 +296,7 @@ instead of changing the engine.
   ```
 
 - **Elements:** Fire, Ice, Lightning, Holy, Dark; each monster has weaknesses and resistances (×1.5 / ×0.5).
-- **Status effects:** Poison, Sleep, Silence, Defend (½ damage for one turn).
+- **Status effects:** Poison (built in §28), Sleep, Silence, Defend (½ damage for one turn).
 - **Enemy AI:** weighted action tables per monster, plus simple rules (for example, heal when HP < 30%).
 - **Run:** success chance based on party AGI vs. enemy AGI; not allowed in boss fights.
 - **Rewards:** XP split among surviving members, gold, and a chance of an item drop.
@@ -464,7 +464,7 @@ NPCs with hints and side quests
 - Field menu opens with X/Esc (not Space); Space is an extra confirm key. `M` opens the world map, `N` toggles sound.
 - Keyboard input is only read while the game canvas has focus.
 - Full parties may beat the trio balance targets slightly; solo and duo targets are enforced by the simulator.
-- Armor/shield/accessory slots (built in 15.4); status-curing at the chapel is deferred. Music loops are built in §22.
+- Armor/shield/accessory slots (built in 15.4); status-curing at the chapel is built in §28. Music loops are built in §22.
 
 ---
 
@@ -1652,7 +1652,7 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~The finale: Vyrmorth's lair.~~ Done in §21.
 - ~~Music loops.~~ Done in §22.
 - ~~Smoother walking.~~ Done in §23.
-- Status curing at the chapel (§12 deferred list).
+- ~~Status curing at the chapel (§12 deferred list).~~ Done in §28 (poison, with Antidote and Heal cures).
 - ~~A Cypress smoke test for `/jouster-quest`.~~ Done in §27.
 - LPC wolf and toad art with attack animations (16.4 item 4c).
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
@@ -1890,3 +1890,24 @@ and a repeated Enter would land in the next scene.
 
 Run it with `npx nx e2e jouster-ui-e2e`, or against a running `nx serve jouster-ui` with
 `npx cypress run --project apps/jouster-ui-e2e`.
+
+## 28. Poison and cures (implemented)
+
+Poison is the first lasting status effect. It gives the chapel something to cure and makes Antidotes worth buying.
+
+| Rule | Detail |
+| --- | --- |
+| Sources | A landed melee hit from a venomous monster: Scorpion 30%, Marsh Witch 25%, Wyvern and Wyvern Matriarch 20%. Act I has none, so solo play before the unlock is unchanged (§20). |
+| In battle | At the end of each round a poisoned member loses `max(1, floor(maxHp / 12))` HP. Poison never knocks anyone out: it stops at 1 HP ("X is weakened by poison."). |
+| In the field | Lasts after battle. A poisoned member loses 1 HP every 4 steps on any map (never below 1) and gets no walking HP regen; MP regen is unchanged. |
+| Cures | **Heal** (cleric, paladin) also cures, even at full HP; **Antidote** (10 g, every item shop); the chapel's new **CURE** option (5 g per poisoned member); resting at the inn, a revive, a KO, or waking after defeat. |
+| Display | `PSN` replaces the level and the HP bar turns purple in the party status; the status page says POISONED. Battle shows a purple damage float and "CURE" sparkles. |
+| Saves | `PartyMember.poisoned` is optional; save version 4 is unchanged and older saves load as unpoisoned. |
+
+The balance simulator models poison inside each battle but does not carry it between simulated fights; the
+4.4 targets still pass.
+
+Tests (`poison.spec.ts`): poisoning from venomous monsters only, round damage and the 1 HP floor, Heal, Antidote
+("But nothing happens." on a healthy ally) and revive cures, carrying poison in and out of battle, field drain,
+inn rest, save validation, field-menu restores, and that every item shop sells Antidotes. Manual: let a Southlands
+scorpion poison someone, walk a few steps, then try the chapel's CURE, an Antidote and Heal.

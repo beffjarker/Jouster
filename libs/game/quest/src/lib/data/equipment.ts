@@ -264,6 +264,16 @@ const ITEM_LIST: ItemDef[] = [
     usableInBattle: true,
     usableInField: true,
   },
+  {
+    id: 'antidote',
+    name: 'Antidote',
+    description: 'Cures poison.',
+    effect: 'curePoison',
+    amount: 0,
+    price: 10,
+    usableInBattle: true,
+    usableInField: true,
+  },
 ];
 
 export const ITEMS: ReadonlyMap<string, ItemDef> = new Map(ITEM_LIST.map((i) => [i.id, i]));
@@ -277,4 +287,4 @@ export const NORTH_WEAPON_STOCK: readonly string[] = WEAPON_LIST.filter((w) => w
 /** Tier-5 weapons sold by Emberwatch's smith (finale). */
 export const EMBER_WEAPON_STOCK: readonly string[] = WEAPON_LIST.filter((w) => w.tier === 5).map((w) => w.id);
 /** Item ids sold in Aldmere's item shop. */
-export const ITEM_SHOP_STOCK: readonly string[] = ['herb', 'tonic', 'phoenixFeather'];
+export const ITEM_SHOP_STOCK: readonly string[] = ['herb', 'tonic', 'antidote', 'phoenixFeather'];

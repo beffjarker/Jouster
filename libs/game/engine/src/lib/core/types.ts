@@ -80,6 +80,8 @@ export interface AbilityDef {
   buff?: BuffDef;
   /** Fraction of max HP restored by revive effects. */
   revivePercent?: number;
+  /** Heals that also cure poison (Heal). */
+  curesPoison?: boolean;
 }
 
 export interface LearnedAbility {
@@ -145,17 +147,19 @@ export interface MonsterDef {
   actions: MonsterAction[];
   drops: MonsterDrop[];
   critChance?: number;
+  /** Chance (0–1) that a landed basic attack poisons the target. */
+  poisonChance?: number;
   spriteId: string;
 }
 
-export type ItemEffect = 'healHp' | 'healMp' | 'revive';
+export type ItemEffect = 'healHp' | 'healMp' | 'revive' | 'curePoison';
 
 export interface ItemDef {
   id: string;
   name: string;
   description: string;
   effect: ItemEffect;
-  /** HP/MP restored, or fraction of max HP for revive. */
+  /** HP/MP restored, or fraction of max HP for revive (unused by curePoison). */
   amount: number;
   price: number;
   usableInBattle: boolean;

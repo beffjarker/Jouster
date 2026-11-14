@@ -1,5 +1,5 @@
 import { TILE, fitScale } from '../art/art';
-import { InputAction, InputManager, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
+import { InputAction, InputManager, ItemEffect, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { classDef } from '../data/classes';
 import { ITEMS, WEAPONS } from '../data/equipment';
@@ -18,7 +18,7 @@ import {
   unequipSlot,
 } from '../state/equipment';
 import { GameState, addItem } from '../state/game-state';
-import { PartyMember, memberAbilities, memberStats, memberToCombatant } from '../state/party';
+import { PartyMember, memberAbilities, memberStats, memberToCombatant, setPoisoned } from '../state/party';
 import {
   COLORS,
   ListMenu,
@@ -197,13 +197,13 @@ export class FieldMenuScene implements Scene {
     return this.mode === 'magic' ? ABILITIES.get(id)?.description : undefined;
   }
 
-  private openMembers(mode: FieldMode, effect?: 'healHp' | 'healMp' | 'revive'): void {
+  private openMembers(mode: FieldMode, effect?: ItemEffect, cures = false): void {
     this.mode = mode;
     this.sub = new ListMenu(
       this.state.party.map((m) => ({
         label: m.name.toUpperCase(),
         right: classDef(m.classId).name.toUpperCase(),
-        enabled: effect === undefined || canRestore(m, effect),
+        enabled: effect === undefined || canRestore(m, effect, cures),
       })),
       this.ctx.audio,
     );
@@ -351,10 +351,12 @@ export class FieldMenuScene implements Scene {
       case 'magicWho':
         this.openSpells(this.state.party[index]);
         return;
-      case 'magic':
+      case 'magic': {
         this.spellId = this.subIds[index];
-        this.openMembers('magicWho2', ABILITIES.get(this.spellId)?.effect === 'revive' ? 'revive' : 'healHp');
+        const spell = ABILITIES.get(this.spellId);
+        this.openMembers('magicWho2', spell?.effect === 'revive' ? 'revive' : 'healHp', !!spell?.curesPoison);
         return;
+      }
       case 'magicWho2':
         this.castSpell(this.state.party[index]);
         return;
@@ -390,7 +392,7 @@ export class FieldMenuScene implements Scene {
     }
     const amount =
       def.effect === 'revive' ? def.revivePercent ?? 0.25 : healAmount(memberToCombatant(caster), this.ctx.rng, def.power, def.magScale ?? 2);
-    const msg = applyRestore(target, def.effect === 'revive' ? 'revive' : 'healHp', amount);
+    const msg = applyRestore(target, def.effect === 'revive' ? 'revive' : 'healHp', amount, !!def.curesPoison);
     if (!msg) {
       say(this.ctx.stack, this.ctx.audio, ['It would have no effect.']);
       return;
@@ -410,6 +412,9 @@ export class FieldMenuScene implements Scene {
     r.draw(portrait, x + 8, 14, { scale: fitScale(portrait, TILE * 2) });
     r.text(m.name.toUpperCase(), x + 44, 16, COLORS.gold);
     r.text(`${cls.name.toUpperCase()} L${m.level}`, x + 44, 28);
+    if (m.poisoned && m.hp > 0) {
+      r.text('POISONED', x + 44, 38, COLORS.poison);
+    }
     const next = m.level >= MAX_LEVEL ? '-' : String(Math.max(0, totalXpForLevel(m.level + 1) - m.xp));
     const rows: Array<[string, string]> = [
       ['HP', `${m.hp}/${s.hp}`],
@@ -452,8 +457,11 @@ function statDelta(before: Stats, after: Stats): string {
   return `${k.toUpperCase()}${d > 0 ? '+' : ''}${d}`;
 }
 
-/** True when a restore effect would do something for this member (used to grey out targets). */
-export function canRestore(target: PartyMember, effect: 'healHp' | 'healMp' | 'revive'): boolean {
+/**
+ * True when a restore effect would do something for this member (used to grey out targets). `cures` marks heals
+ * that also cure poison (Heal), so a poisoned member at full HP is still a valid target.
+ */
+export function canRestore(target: PartyMember, effect: ItemEffect, cures = false): boolean {
   const s = memberStats(target);
   if (effect === 'revive') {
     return target.hp <= 0;
@@ -461,29 +469,48 @@ export function canRestore(target: PartyMember, effect: 'healHp' | 'healMp' | 'r
   if (target.hp <= 0) {
     return false;
   }
-  return effect === 'healHp' ? target.hp < s.hp : target.mp < s.mp;
+  if (effect === 'curePoison') {
+    return !!target.poisoned;
+  }
+  if (effect === 'healHp') {
+    return target.hp < s.hp || (cures && !!target.poisoned);
+  }
+  return target.mp < s.mp;
 }
 
 /** Applies a restore effect to a party member; returns a message or null if it does nothing. */
-export function applyRestore(target: PartyMember, effect: 'healHp' | 'healMp' | 'revive', amount: number): string | null {
+export function applyRestore(target: PartyMember, effect: ItemEffect, amount: number, cures = false): string | null {
   const s = memberStats(target);
   if (effect === 'revive') {
     if (target.hp > 0) {
       return null;
     }
     target.hp = Math.max(1, Math.floor(s.hp * amount));
+    setPoisoned(target, false);
     return `${target.name} is revived!`;
   }
   if (target.hp <= 0) {
     return null;
   }
+  if (effect === 'curePoison') {
+    if (!target.poisoned) {
+      return null;
+    }
+    setPoisoned(target, false);
+    return `${target.name} is cured of poison.`;
+  }
   if (effect === 'healHp') {
     const gained = cappedRestore(target.hp, s.hp, amount);
-    if (gained <= 0) {
+    const cured = cures && !!target.poisoned;
+    if (gained <= 0 && !cured) {
       return null;
     }
     target.hp += gained;
-    return `${target.name} recovers ${gained} HP.`;
+    if (cured) {
+      setPoisoned(target, false);
+    }
+    const healed = gained > 0 ? `${target.name} recovers ${gained} HP.` : '';
+    return cured ? `${healed} ${target.name} is cured of poison.`.trim() : healed;
   }
   const gained = cappedRestore(target.mp, s.mp, amount);
   if (gained <= 0) {

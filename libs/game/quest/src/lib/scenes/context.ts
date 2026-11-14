@@ -25,5 +25,5 @@ export function requireState(ctx: GameContext): GameState {
 
 export function memberStatus(m: PartyMember): StatusEntry {
   const s = memberStats(m);
-  return { name: m.name, level: m.level, hp: m.hp, maxHp: s.hp, mp: m.mp, maxMp: s.mp };
+  return { name: m.name, level: m.level, hp: m.hp, maxHp: s.hp, mp: m.mp, maxMp: s.mp, poisoned: !!m.poisoned };
 }
