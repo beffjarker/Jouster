@@ -17,7 +17,7 @@ import {
   isAlive,
   wrapText,
 } from '@jouster/game/engine';
-import { SHADOW_W, fitScale, monsterVariant, spriteSize } from '../art/art';
+import { CharacterAction, SHADOW_W, fitScale, monsterVariant, spriteSize } from '../art/art';
 import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
@@ -63,6 +63,13 @@ interface Motion {
   dur: number;
   /** Lunge destination (sprite top-left) for `lunge`. */
   to?: Point;
+}
+
+/** A party member's attack or spell pose playing (LPC art only). */
+interface Pose {
+  action: CharacterAction;
+  t: number;
+  dur: number;
 }
 
 interface Shot {
@@ -156,6 +163,10 @@ const ITEM_RESTORE: Record<ItemEffect, RestoreKind | undefined> = {
   revive: undefined,
 };
 const CAST_LEAD = 0.5;
+/** A melee attack's step to the target and back; the hit lands mid-way, at the swing (FX_DELAY.act). */
+const LUNGE_TIME = 0.6;
+/** Seconds of an attack or spell pose played in place (bow shots, ranged skills and casts). */
+const POSE_TIME: Readonly<Record<CharacterAction, number>> = { attack: 0.5, cast: 0.6 };
 const FLOAT_TIME = 0.8;
 const DISSOLVE_TIME = 0.55;
 
@@ -219,6 +230,7 @@ export class BattleScene implements Scene {
   private speed = 1;
   private readonly spots = new Map<string, Spot>();
   private readonly motions = new Map<string, Motion>();
+  private readonly poses = new Map<string, Pose>();
   private readonly dying = new Map<string, number>();
   private readonly gone = new Set<string>();
   /** Cosmetic look variant per enemy (e.g. slime colour). */
@@ -791,7 +803,9 @@ export class BattleScene implements Scene {
       return;
     }
     const ranged = this.isRanged(actor);
-    if (fx.targetId && this.isMeleeAct(fx)) {
+    const melee = this.isMeleeAct(fx);
+    const posed = this.startPose(actor, fx, melee);
+    if (fx.targetId && melee) {
       const home = this.spots.get(actor.id);
       const target = this.spots.get(fx.targetId);
       if (home && target) {
@@ -801,11 +815,13 @@ export class BattleScene implements Scene {
           x: dir > 0 ? target.x - home.size * 0.6 : target.x + target.size - home.size * 0.4,
           y: target.y + target.size - home.size,
         };
-        this.motions.set(actor.id, { kind: 'lunge', t: 0, dur: 0.6, to: this.lerpPoint(home, to, 0.85) });
+        this.motions.set(actor.id, { kind: 'lunge', t: 0, dur: LUNGE_TIME, to: this.lerpPoint(home, to, 0.85) });
       }
       return;
     }
-    this.motions.set(actor.id, { kind: 'hop', t: 0, dur: 0.35 });
+    if (!posed) {
+      this.motions.set(actor.id, { kind: 'hop', t: 0, dur: 0.35 });
+    }
     if (fx.act === 'defend') {
       this.sparkle(actor.id, '#c0c8d8');
       return;
@@ -821,6 +837,34 @@ export class BattleScene implements Scene {
     targets.forEach((id) =>
       this.shots.push({ from, to: this.center(id), t: 0, dur: CAST_LEAD, color, arrow: ranged && fx.act === 'attack' }),
     );
+  }
+
+  /**
+   * Starts `actor`'s attack or spell pose for `fx` when its art has one (LPC class looks); true if it did.
+   * Melee poses last as long as the lunge so the swing lands with the hit.
+   */
+  private startPose(actor: Combatant, fx: Extract<BattleFx, { type: 'act' }>, melee: boolean): boolean {
+    const action = this.poseFor(actor, fx);
+    if (!action || !this.ctx.art.characterAction(actor.sourceId, action, 0)) {
+      return false;
+    }
+    this.poses.set(actor.id, { action, t: 0, dur: melee ? LUNGE_TIME : POSE_TIME[action] });
+    return true;
+  }
+
+  /** Party spells cast; attacks and damaging skills at enemies swing the weapon (or shoot, for rangers). */
+  private poseFor(actor: Combatant, fx: Extract<BattleFx, { type: 'act' }>): CharacterAction | undefined {
+    if (actor.side !== 'party') {
+      return undefined;
+    }
+    if (fx.act === 'cast') {
+      return 'cast';
+    }
+    const atEnemies = fx.allTargets === true || (fx.targetId !== undefined && this.combatant(fx.targetId)?.side === 'enemy');
+    if (fx.act === 'attack' || (fx.act === 'skill' && atEnemies && (fx.effect === 'damage' || fx.effect === 'steal'))) {
+      return 'attack';
+    }
+    return undefined;
   }
 
   private actColor(fx: Extract<BattleFx, { type: 'act' }>): string {
@@ -876,6 +920,12 @@ export class BattleScene implements Scene {
       m.t += dt;
       if (m.t >= m.dur && m.kind !== 'flee') {
         this.motions.delete(id);
+      }
+    });
+    this.poses.forEach((p, id) => {
+      p.t += dt;
+      if (p.t >= p.dur) {
+        this.poses.delete(id);
       }
     });
     this.dying.forEach((t, id) => {
@@ -1040,8 +1090,16 @@ export class BattleScene implements Scene {
     const frame = walking ? Math.floor(this.time * 6) % 2 : 0;
     const raw = this.ctx.art.character(c.sourceId, fleeing ? 'left' : 'right', frame);
     const scale = fitScale(raw, spot.size);
-    const sprite = this.ctx.art.sharp(raw, scale);
     const flashing = this.flash.has(c.id) && Math.floor(this.time * 20) % 2 === 0;
+    const posing = down || fleeing ? undefined : this.poses.get(c.id);
+    const action = posing && this.ctx.art.characterAction(c.sourceId, posing.action, posing.t / posing.dur);
+    if (action) {
+      const x = p.x + action.offsetX * scale;
+      const y = p.y + action.offsetY * scale;
+      r.draw(this.ctx.art.sharp(action.sprite, scale), x, y, { scale, alpha: flashing ? 0.4 : 1 });
+      return;
+    }
+    const sprite = this.ctx.art.sharp(raw, scale);
     if (down) {
       r.draw(sprite, p.x, p.y + 6, { scale, alpha: 0.35 });
       return;
