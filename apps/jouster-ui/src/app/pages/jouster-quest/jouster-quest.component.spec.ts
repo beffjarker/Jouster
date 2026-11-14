@@ -6,7 +6,7 @@ const mockStart = jest.fn();
 const mockDestroy = jest.fn();
 let mockShouldThrow = false;
 let mockLastOptions:
-  | { keySource?: EventTarget; art?: string; onSceneChange?(id: string | undefined): void }
+  | { keySource?: EventTarget; onSceneChange?(id: string | undefined): void }
   | undefined;
 
 jest.mock('@jouster/game/quest', () => ({
@@ -29,7 +29,6 @@ jest.mock('@jouster/game/quest', () => ({
     { id: 'b', label: 'B', name: 'B: menu and back', code: 'Escape', key: 'Escape' },
     { id: 'map', label: 'MAP', name: 'World map', code: 'KeyM', key: 'Unidentified' },
   ],
-  artStyleFromQuery: (search: string) => (search.includes('art=classic') ? 'classic' : 'lpc'),
   // eslint-disable-next-line @typescript-eslint/naming-convention -- mirrors the exported class name
   JousterQuestGame: jest.fn().mockImplementation((_canvas: HTMLCanvasElement, options: typeof mockLastOptions) => {
     if (mockShouldThrow) {
@@ -61,7 +60,6 @@ describe('JousterQuestComponent', () => {
     expect(canvas?.width).toBe(1920);
     expect(canvas?.height).toBe(1080);
     expect(mockLastOptions?.keySource).toBe(canvas);
-    expect(mockLastOptions?.art).toBe('lpc');
     expect(mockStart).toHaveBeenCalledTimes(1);
     spectator.fixture.destroy();
     expect(mockDestroy).toHaveBeenCalledTimes(1);

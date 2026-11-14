@@ -1,5 +1,4 @@
 export * from './lib/game';
-export type { ArtStyle } from './lib/art/art';
 export * from './lib/state/game-state';
 export * from './lib/state/party';
 export * from './lib/data/classes';

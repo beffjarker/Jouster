@@ -1329,12 +1329,12 @@ avoids laying out sprites twice.
   share the same call sites. `left` is a real frame (LPC) or a mirrored copy (procedural); scenes no longer flip.
 - **Monsters face left** because the party stands on the left in battle. Variants keep their stats; only art
   changes. Wolf, alpha wolf and giant toad have no suitable LPC art yet and stay procedural.
-- **Default art:** LPC is the default; `?art=classic` keeps the original procedural art. Sheets still load
-  non-blockingly, with procedural fallback if a sheet fails.
+- **Default art:** LPC is the default (the `?art=classic` opt-out was later removed, see §26). Sheets still
+  load non-blockingly, with procedural fallback if a sheet fails.
 - **Known limitation:** ULPC has no child hair, so the child NPC is bald.
 - **Tests:** every humanoid look has a row, every converted monster has all of its variants (and no extra ones),
   every cell is inside the shipped PNGs, credits list the sheets, anchor / fit helpers, sheet vs procedural
-  fallback, and the `?art=` switch.
+  fallback, and (until §26) the `?art=` switch.
 
 ### 16.8 HD procedural art at LPC density (implemented)
 
@@ -1354,8 +1354,9 @@ upscaled by EPX.
   robes, armour and weapons are layered; `left` is the mirrored `right` frame. Monsters (slime shapes, bat, wolf,
   giant toad, skeleton, goblins, Goblin King) use 64×64 cells facing left; variants keep their colours.
   Shop signs are 32×32 real.
-- **Modes:** `?art=classic` uses only the HD procedural art. LPC mode uses LPC sheets plus the HD art for
-  object overlays, monsters without LPC art (wolf, alpha wolf, giant toad, bone captain) and shop signs.
+- **Modes:** the game uses LPC sheets plus the HD art for object overlays, monsters without LPC art (wolf, alpha
+  wolf, giant toad, bone captain) and shop signs. Until the sheets load (or if they fail) everything is HD art.
+  The `?art=classic` HD-only mode was removed in §26.
 - **Walls vs floors:** town floors must read apart from walls at a glance. Floors are warm (classic sandstone cobble; LPC taupe flagstones instead of the grey cobble), walls stay cool grey brick, and every wall / cave-rock tile (`SHADOW_CASTERS`) drops a soft shadow onto the tile below it. Further options if more contrast is needed: a lit top cap on walls, a 3/4 front face where a wall meets floor, or darker wall tops.
 - **Unchanged:** UI, colours, variants and animation frame counts. The engine's EPX
   helpers stay (tested there) but quest no longer uses them.
@@ -1815,7 +1816,7 @@ Walking looked jerky for four reasons, all fixed:
 Tests: `GameLoop` passes the leftover time to render; `SceneStack` passes it only to the top scene; holding a
 direction for 10 step times takes 9 steps (8 with the old pause); `characterWalk` picks LPC columns 2..8 and 1
 and keeps the procedural swap. Manual: hold a direction across a long field and compare feel on 60 Hz and
-120/144 Hz screens, with and without `?art=classic`.
+120/144 Hz screens.
 
 ## 24. Polish: tile animation artifacts (implemented)
 
@@ -1853,5 +1854,15 @@ position-based variant.
 
 Tests (`hd-art.spec.ts`): masks for straight runs, corners, T-junctions, dead ends, water-only decks and 2×2
 blocks. Every pair of joined orientations meets along the same edge pixels, and 2×2 corners line up. Manual:
-follow the zigzag boardwalk across the Southlands marsh and the river bridges on the overworld, with and without
-`?art=classic`.
+follow the zigzag boardwalk across the Southlands marsh and the river bridges on the overworld.
+
+## 26. One art style: hybrid LPC + procedural (implemented)
+
+The `?art=classic` toggle (procedural art only) is removed; it was a comparison aid during the LPC spike and no
+longer worth keeping in step with the main look. The game always uses the hybrid: LPC sheets load in the
+background, and the HD procedural art draws object overlays, monsters and signs the sheets do not cover, and
+everything while the sheets load or if they fail. `JousterQuestOptions.art`, `artStyleFromQuery`, `ArtStyle` and
+`Art.style` are gone; `Art.hasSheets` reports whether sheets are in use. The procedural art itself stays, because
+the hybrid needs it.
+
+Tests: the sheet switch tests use `Art.hasSheets`; the page test no longer passes an art option.

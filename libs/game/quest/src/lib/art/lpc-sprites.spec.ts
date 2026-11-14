@@ -4,7 +4,6 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { createCanvas, setImageDensity } from '@jouster/game/engine';
-import { artStyleFromQuery } from '../game';
 import {
   Art,
   CHARACTER_LOOK_IDS,
@@ -188,14 +187,5 @@ describe('Art sprites', () => {
       step,
       stand,
     ]);
-  });
-});
-
-describe('artStyleFromQuery', () => {
-  it('defaults to LPC art and opts out with ?art=classic', () => {
-    expect(artStyleFromQuery('')).toBe('lpc');
-    expect(artStyleFromQuery('?art=lpc')).toBe('lpc');
-    expect(artStyleFromQuery('?art=classic')).toBe('classic');
-    expect(artStyleFromQuery('?seed=3&art=classic')).toBe('classic');
   });
 });

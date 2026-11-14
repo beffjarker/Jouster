@@ -20,7 +20,6 @@ import {
   TEXT_ENTRY_SCENES,
   TOUCH_BUTTONS,
   TouchButton,
-  artStyleFromQuery,
 } from '@jouster/game/quest';
 import { PageTitleComponent } from '../../components/page-title/page-title.component';
 
@@ -93,7 +92,6 @@ export class JousterQuestComponent implements AfterViewInit, OnDestroy {
       this.zone.runOutsideAngular(() => {
         this.game = new JousterQuestGame(canvas, {
           keySource: canvas,
-          art: artStyleFromQuery(window.location.search),
           onSceneChange: (id) => {
             canvas.dataset['scene'] = id ?? '';
           },
