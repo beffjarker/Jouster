@@ -86,7 +86,7 @@ const LIST: AbilityDef[] = [
   {
     id: 'heal',
     name: 'Heal',
-    description: 'Restores HP to one ally.',
+    description: 'Restores HP to one ally and cures poison.',
     category: 'magic',
     target: 'ally',
     effect: 'heal',
@@ -94,6 +94,7 @@ const LIST: AbilityDef[] = [
     cooldown: 0,
     power: 10,
     magScale: 2,
+    curesPoison: true,
   },
   {
     id: 'smite',

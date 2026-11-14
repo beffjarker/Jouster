@@ -39,7 +39,7 @@ import {
   recruitCompanion,
   saveGame,
 } from '../state/game-state';
-import { PartyMember, applyFieldRegen, restoreMember } from '../state/party';
+import { PartyMember, applyFieldRegen, restoreMember, setPoisoned } from '../state/party';
 import {
   SEASON_NAMES,
   Season,
@@ -63,6 +63,8 @@ const NPC_STEP_TIME = 0.3;
 const WANDER_RADIUS = 2;
 const INN_PRICE_PER_MEMBER = 6;
 const REVIVE_PRICE_PER_LEVEL = 5;
+/** Chapel price to cure one poisoned member (plan 28). */
+const CURE_PRICE_PER_MEMBER = 5;
 const KING_GIFT = 50;
 const ACT_ONE_REWARD = 200;
 const ACT_TWO_REWARD = 500;
@@ -642,7 +644,11 @@ export class WorldScene implements Scene {
     s.steps++;
     s.stepsSinceBattle++;
     this.announceSky(before.season, before.weather);
-    s.party.forEach((m) => applyFieldRegen(m, s.steps, mapHasEncounters(this.map)));
+    const encounterMap = mapHasEncounters(this.map);
+    const poisonTicks = s.party.filter((m) => applyFieldRegen(m, s.steps, encounterMap));
+    if (poisonTicks.length > 0) {
+      this.ctx.audio.play('hit');
+    }
     const warp = this.map.warps.find((w) => w.x === s.x && w.y === s.y);
     if (warp) {
       this.walkGoal = null;
@@ -994,13 +1000,18 @@ export class WorldScene implements Scene {
   private talkToPriest(): void {
     const { stack, audio } = this.ctx;
     const s = this.state;
-    ask(stack, audio, ['PRIEST: Welcome to the chapel, child. How may I help?'], ['REVIVE', 'SAVE', 'LEAVE'], (c) => {
-      if (c === 1) {
+    const choices = ['REVIVE', 'CURE', 'SAVE', 'LEAVE'];
+    ask(stack, audio, ['PRIEST: Welcome to the chapel, child. How may I help?'], choices, (c) => {
+      if (choices[c] === 'CURE') {
+        this.chapelCure();
+        return;
+      }
+      if (choices[c] === 'SAVE') {
         const saved = saveGame(this.ctx.storage, s);
         say(stack, audio, [saved ? 'PRIEST: Your deeds are recorded in the book of adventure.' : 'The book will not open...']);
         return;
       }
-      if (c !== 0) {
+      if (choices[c] !== 'REVIVE') {
         say(stack, audio, ['PRIEST: Go with the light.']);
         return;
       }
@@ -1023,6 +1034,31 @@ export class WorldScene implements Scene {
         audio.play('heal');
         say(stack, audio, [`${fallen.name} is revived!`]);
       });
+    });
+  }
+
+  /** Chapel CURE: clears poison from every living poisoned member for a small donation each. */
+  private chapelCure(): void {
+    const { stack, audio } = this.ctx;
+    const s = this.state;
+    const poisoned = s.party.filter((m) => m.poisoned && m.hp > 0);
+    if (poisoned.length === 0) {
+      say(stack, audio, ['PRIEST: No poison troubles your party, child.']);
+      return;
+    }
+    const price = CURE_PRICE_PER_MEMBER * poisoned.length;
+    ask(stack, audio, [`PRIEST: To draw out the poison, I ask a donation of ${price} gold.`], ['YES', 'NO'], (yes) => {
+      if (yes !== 0) {
+        return;
+      }
+      if (s.gold < price) {
+        say(stack, audio, ['PRIEST: Alas, you cannot afford the donation.']);
+        return;
+      }
+      s.gold -= price;
+      poisoned.forEach((m) => setPoisoned(m, false));
+      audio.play('heal');
+      say(stack, audio, ['The poison fades. Your party is cured!']);
     });
   }
 

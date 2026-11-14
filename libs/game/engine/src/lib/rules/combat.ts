@@ -54,6 +54,10 @@ export interface Combatant {
   goldChance?: number;
   drops: { itemId: string; chance: number }[];
   stolen: boolean;
+  /** Loses `poisonDamage` HP at the end of every round until cured (never below 1 HP). */
+  poisoned?: boolean;
+  /** Chance (0–1) that a landed basic attack poisons the target (enemies only). */
+  poisonChance?: number;
 }
 
 export const BASE_ACCURACY = 0.97;
@@ -148,6 +152,17 @@ export function healAmount(caster: Combatant, rng: Rng, power: number, magScale 
  */
 export function cappedRestore(current: number, max: number, amount: number): number {
   return Math.max(0, Math.min(max - current, Math.floor(amount)));
+}
+
+/** Poison takes 1/12 of max HP (at least 1) per battle round. */
+export const POISON_BATTLE_FRACTION = 1 / 12;
+
+/**
+ * HP poison takes this tick: `max(1, maxHp * POISON_BATTLE_FRACTION)`, but poison never knocks anyone out, so
+ * it stops at 1 HP (0 when already at 1).
+ */
+export function poisonDamage(hp: number, maxHp: number): number {
+  return Math.max(0, Math.min(hp - 1, Math.max(1, Math.floor(maxHp * POISON_BATTLE_FRACTION))));
 }
 
 /**

@@ -407,7 +407,7 @@ function shrineLegend(wall: string, floor: string, encounterTableId = 'shrine', 
 }
 
 /** Items sold in Sandhollow (Act II). */
-export const SANDHOLLOW_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'phoenixFeather'];
+export const SANDHOLLOW_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'antidote', 'phoenixFeather'];
 
 // --- Frost Peaks (64x48, generated from a fixed seed) - Act III ----------------------------
 
@@ -474,7 +474,7 @@ const WYVERN_ROOST_ROWS = [
 ];
 
 /** Items sold in Frostgate (Act III). */
-export const FROSTGATE_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'phoenixFeather'];
+export const FROSTGATE_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'antidote', 'phoenixFeather'];
 
 // --- Ember Mountains (64x48, generated from a fixed seed) - finale -------------------------
 
@@ -540,7 +540,7 @@ const VYRMORTH_LAIR_ROWS = [
 ];
 
 /** Items sold in Emberwatch (finale). */
-export const EMBERWATCH_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'phoenixFeather'];
+export const EMBERWATCH_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'antidote', 'phoenixFeather'];
 
 const kingLines = (s: GameState): string[] => {
   if (s.flags['gameComplete']) {

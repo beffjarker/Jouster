@@ -163,6 +163,7 @@ const LIST: MonsterDef[] = [
     resistances: [],
     actions: [{ action: 'attack', weight: 1 }],
     drops: [{ itemId: 'herb', chance: 0.2 }],
+    poisonChance: 0.3,
     spriteId: 'scorpion',
   },
   {
@@ -236,6 +237,7 @@ const LIST: MonsterDef[] = [
     ],
     drops: [{ itemId: 'phoenixFeather', chance: 1 }],
     critChance: 1 / 32,
+    poisonChance: 0.25,
     spriteId: 'marshWitch',
   },
   // --- Act III: the Frost Peaks -------------------------------------------------------------
@@ -261,6 +263,7 @@ const LIST: MonsterDef[] = [
     resistances: [],
     actions: [{ action: 'attack', weight: 1 }],
     drops: [{ itemId: 'tonic', chance: 0.12 }],
+    poisonChance: 0.2,
     spriteId: 'wyvern',
   },
   {
@@ -303,6 +306,7 @@ const LIST: MonsterDef[] = [
     ],
     drops: [{ itemId: 'phoenixFeather', chance: 1 }],
     critChance: 1 / 32,
+    poisonChance: 0.2,
     spriteId: 'wyvernMatriarch',
   },
   // --- Finale: the Ember Mountains ----------------------------------------------------------

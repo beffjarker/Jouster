@@ -9,6 +9,7 @@ import {
   isAlive,
   magicalHit,
   physicalHit,
+  poisonDamage,
   runChance,
 } from './combat';
 
@@ -78,6 +79,9 @@ export type BattleFx =
   | { type: 'heal'; targetId: string; amount: number; mp?: boolean }
   | { type: 'buff'; targetId: string }
   | { type: 'revive'; targetId: string }
+  /** Poison set in (`amount` 0) or ticking (`amount` HP lost). */
+  | { type: 'poison'; targetId: string; amount: number }
+  | { type: 'cure'; targetId: string }
   | { type: 'run'; success: boolean };
 
 /** A step of battle narration. `updates` lets the UI animate HP/MP as messages appear. */
@@ -385,6 +389,7 @@ export class Battle {
     if (!isAlive(target)) {
       target.buffs = [];
       target.tauntTurns = 0;
+      target.poisoned = false;
       events.push({
         text: target.side === 'enemy' ? `${target.name} is defeated!` : `${target.name} has fallen!`,
         sound: 'ko',
@@ -434,8 +439,39 @@ export class Battle {
         events.push({ text: `${target.name} dodges!`, sound: 'miss', updates: [], fx: { type: 'miss', targetId: target.id } });
       } else {
         this.damage(target, hit.damage, events, hit.crit);
+        this.tryPoison(actor, target, events);
       }
     }
+  }
+
+  /** A landed basic attack from a venomous enemy may poison a living, unpoisoned target. */
+  private tryPoison(actor: Combatant, target: Combatant, events: BattleEvent[]): void {
+    const chance = actor.poisonChance ?? 0;
+    if (chance <= 0 || !isAlive(target) || target.poisoned || !this.config.rng.chance(chance)) {
+      return;
+    }
+    target.poisoned = true;
+    events.push({
+      text: `${target.name} is poisoned!`,
+      sound: 'miss',
+      updates: [],
+      fx: { type: 'poison', targetId: target.id, amount: 0 },
+    });
+  }
+
+  /** Clears poison (Heal, Antidote); returns true when there was poison to clear. */
+  private cure(target: Combatant, events: BattleEvent[]): boolean {
+    if (!target.poisoned || !isAlive(target)) {
+      return false;
+    }
+    target.poisoned = false;
+    events.push({
+      text: `${target.name} is cured of poison.`,
+      sound: 'heal',
+      updates: [],
+      fx: { type: 'cure', targetId: target.id },
+    });
+    return true;
   }
 
   private executeAbility(actor: Combatant, abilityId: string, targetId: string | undefined, events: BattleEvent[]): void {
@@ -547,6 +583,9 @@ export class Battle {
       updates: [this.update(target)],
       fx: { type: 'heal', targetId: target.id, amount },
     });
+    if (def.curesPoison) {
+      this.cure(target, events);
+    }
   }
 
   private abilityBuff(actor: Combatant, def: AbilityDef, targetId: string | undefined, events: BattleEvent[]): void {
@@ -574,6 +613,7 @@ export class Battle {
       return;
     }
     target.hp = Math.max(1, Math.floor(target.maxHp * percent));
+    target.poisoned = false;
     events.push({
       text: `${target.name} is revived!`,
       sound: 'heal',
@@ -630,7 +670,11 @@ export class Battle {
     if (!target) {
       return;
     }
-    if (item.effect === 'healHp') {
+    if (item.effect === 'curePoison') {
+      if (!this.cure(target, events)) {
+        events.push({ text: 'But nothing happens.', updates: [] });
+      }
+    } else if (item.effect === 'healHp') {
       const amount = cappedRestore(target.hp, target.maxHp, item.amount);
       target.hp += amount;
       events.push({
@@ -682,6 +726,19 @@ export class Battle {
   }
 
   private endOfRound(events: BattleEvent[]): void {
+    this.all.forEach((c) => {
+      if (!c.poisoned || !isAlive(c)) {
+        return;
+      }
+      const amount = poisonDamage(c.hp, c.maxHp);
+      c.hp -= amount;
+      events.push({
+        text: amount > 0 ? `${c.name} takes ${amount} poison damage.` : `${c.name} is weakened by poison.`,
+        sound: 'hit',
+        updates: [this.update(c)],
+        fx: { type: 'poison', targetId: c.id, amount },
+      });
+    });
     const regenUpdates: CombatantUpdate[] = [];
     this.all.forEach((c) => {
       if (isAlive(c) && c.battleHpRegen > 0 && c.hp < c.maxHp) {

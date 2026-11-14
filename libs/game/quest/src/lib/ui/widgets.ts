@@ -22,7 +22,11 @@ export const COLORS = {
   hpLow: '#e04040',
   mp: '#4090f0',
   warn: '#ff8040',
+  poison: '#b070f0',
 };
+
+/** Short status tag shown in place of the level while a member is poisoned. */
+export const POISON_TAG = 'PSN';
 
 /** Small right-pointing triangle cursor. */
 export function drawCursor(r: Renderer, x: number, y: number, color = COLORS.text): void {
@@ -328,6 +332,8 @@ export interface StatusEntry {
   maxHp: number;
   mp: number;
   maxMp: number;
+  /** Shows a PSN tag and a purple HP bar (plan 28). */
+  poisoned?: boolean;
 }
 
 /** Party status windows, one per member, centred horizontally. */
@@ -341,10 +347,12 @@ export function drawPartyStatus(r: Renderer, entries: StatusEntry[], y: number, 
     const dead = e.hp <= 0;
     const hpColor = dead ? COLORS.hpLow : e.hp <= e.maxHp / 4 ? COLORS.warn : COLORS.text;
     r.text(e.name.slice(0, 7), x + 7, y + 6, dead ? COLORS.hpLow : COLORS.text);
-    r.textRight(`L${e.level}`, x + w - 6, y + 6, COLORS.dim);
+    const poisoned = !!e.poisoned && !dead;
+    r.textRight(poisoned ? POISON_TAG : `L${e.level}`, x + w - 6, y + 6, poisoned ? COLORS.poison : COLORS.dim);
     r.text('HP', x + 7, y + 16, hpColor);
     r.textRight(`${e.hp}/${e.maxHp}`, x + w - 6, y + 16, hpColor);
-    r.bar(x + 7, y + 25, w - 14, 2, e.maxHp ? e.hp / e.maxHp : 0, dead ? COLORS.hpLow : COLORS.hp);
+    const barColor = dead ? COLORS.hpLow : poisoned ? COLORS.poison : COLORS.hp;
+    r.bar(x + 7, y + 25, w - 14, 2, e.maxHp ? e.hp / e.maxHp : 0, barColor);
     r.text('MP', x + 7, y + 29, COLORS.text);
     r.textRight(`${e.mp}/${e.maxMp}`, x + w - 6, y + 29, COLORS.text);
     r.bar(x + 7, y + 38, w - 14, 2, e.maxMp ? e.mp / e.maxMp : 0, COLORS.mp);

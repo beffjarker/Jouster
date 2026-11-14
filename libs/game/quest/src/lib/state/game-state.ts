@@ -314,6 +314,7 @@ function isValidState(s: Partial<GameState>): s is GameState {
       CLASS_ORDER.includes(m.classId) &&
       WEAPONS.has(m.weaponId) &&
       [m.armorId, m.shieldId, m.accessoryId].every((id) => id === undefined || GEAR.has(id)) &&
+      (m.poisoned === undefined || typeof m.poisoned === 'boolean') &&
       Number.isFinite(m.level) &&
       Number.isFinite(m.hp) &&
       Number.isFinite(m.mp),

@@ -28,6 +28,8 @@ export interface PartyMember {
   armorId?: string;
   shieldId?: string;
   accessoryId?: string;
+  /** Poisoned members lose HP while walking and in battle until cured (plan 28); missing = healthy. */
+  poisoned?: boolean;
 }
 
 export function weaponDef(id: string): WeaponDef {
@@ -81,25 +83,41 @@ export function restoreMember(m: PartyMember): void {
   const s = memberStats(m);
   m.hp = s.hp;
   m.mp = s.mp;
+  delete m.poisoned;
 }
+
+/** Poisoned members lose 1 HP every this many steps on any map (never below 1 HP). */
+export const POISON_FIELD_STEP_INTERVAL = 4;
 
 /**
  * Walking regen for one step (plan 15.9/15.10): +1 HP every `fieldHpStepInterval` steps for every class and
  * +1 MP every `fieldMpStepInterval` steps for classes with that passive. Only on maps with encounters, never for
- * KO'd members and never above max.
+ * KO'd members and never above max. Poison (plan 28) blocks HP regen and instead takes 1 HP every
+ * `POISON_FIELD_STEP_INTERVAL` steps on any map, stopping at 1 HP.
+ *
+ * @returns true when poison took HP this step.
  */
-export function applyFieldRegen(m: PartyMember, steps: number, encounterMap: boolean): void {
-  if (!encounterMap || m.hp <= 0) {
-    return;
+export function applyFieldRegen(m: PartyMember, steps: number, encounterMap: boolean): boolean {
+  if (m.hp <= 0) {
+    return false;
+  }
+  let poisonTick = false;
+  if (m.poisoned && steps % POISON_FIELD_STEP_INTERVAL === 0 && m.hp > 1) {
+    m.hp -= 1;
+    poisonTick = true;
+  }
+  if (!encounterMap) {
+    return poisonTick;
   }
   const s = memberStats(m);
-  if (steps % fieldHpStepInterval(m.classId) === 0) {
+  if (!m.poisoned && steps % fieldHpStepInterval(m.classId) === 0) {
     m.hp += cappedRestore(m.hp, s.hp, 1);
   }
   const mpInterval = classDef(m.classId).passive?.fieldMpStepInterval;
   if (mpInterval && steps % mpInterval === 0) {
     m.mp += cappedRestore(m.mp, s.mp, 1);
   }
+  return poisonTick;
 }
 
 export function memberToCombatant(m: PartyMember): Combatant {
@@ -139,6 +157,7 @@ export function memberToCombatant(m: PartyMember): Combatant {
     gold: 0,
     drops: [],
     stolen: false,
+    poisoned: !!m.poisoned,
   };
 }
 
@@ -189,6 +208,7 @@ export function monstersToCombatants(defs: MonsterDef[], hpScale = 1): Combatant
       goldChance: d.goldChance ?? (d.boss ? 1 : DEFAULT_GOLD_CHANCE),
       drops: d.drops.map((x) => ({ ...x })),
       stolen: false,
+      poisonChance: d.poisonChance ?? 0,
     };
   });
 }
@@ -220,13 +240,23 @@ export function grantXp(m: PartyMember, xp: number): LevelUp | null {
   return { memberId: m.id, name: m.name, level, learned };
 }
 
-/** Copies HP/MP back from battle combatants into party members. */
+/** Copies HP/MP and poison back from battle combatants into party members. */
 export function syncFromCombatants(members: PartyMember[], combatants: Combatant[]): void {
   members.forEach((m) => {
     const c = combatants.find((x) => x.id === m.id);
     if (c) {
       m.hp = c.hp;
       m.mp = c.mp;
+      setPoisoned(m, !!c.poisoned && c.hp > 0);
     }
   });
+}
+
+/** Sets or clears poison, keeping healthy members free of the optional save field. */
+export function setPoisoned(m: PartyMember, poisoned: boolean): void {
+  if (poisoned) {
+    m.poisoned = true;
+  } else {
+    delete m.poisoned;
+  }
 }

@@ -9,6 +9,7 @@ import {
   Combatant,
   Element,
   InputManager,
+  ItemEffect,
   PointerPoint,
   Renderer,
   Scene,
@@ -23,7 +24,7 @@ import { Backdrop } from '../data/maps';
 import { BOSS_HP_SCALE, FINALE_BOSS_IDS, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
 import { GameState, addItem } from '../state/game-state';
 import { PartyMember, grantXp, memberStats, memberToCombatant, monstersToCombatants, syncFromCombatants } from '../state/party';
-import { COLORS, ListMenu, MenuItem, SCREEN_H, SCREEN_W, charsFit, drawCursor, drawHint, inRect } from '../ui/widgets';
+import { COLORS, ListMenu, MenuItem, POISON_TAG, SCREEN_H, SCREEN_W, charsFit, drawCursor, drawHint, inRect } from '../ui/widgets';
 import { GameContext, requireState } from './context';
 
 export type BattleEnd = Exclude<BattleOutcome, 'ongoing'>;
@@ -131,7 +132,28 @@ const FX_DELAY: Readonly<Record<BattleFx['type'], number>> = {
   heal: 0.5,
   buff: 0.45,
   revive: 0.5,
+  poison: 0.45,
+  cure: 0.45,
   run: 0.7,
+};
+
+/** What a targeted restore would fix, so full or healthy targets can be greyed out. */
+type RestoreKind = 'hp' | 'mp' | 'hpCure' | 'cure';
+
+/** Log line when no target needs a restore of this kind. */
+const EMPTY_TARGETS_LOG: Record<RestoreKind, string> = {
+  hp: 'Everyone has full HP.',
+  hpCure: 'Everyone has full HP.',
+  mp: 'Everyone has full MP.',
+  cure: 'No one is poisoned.',
+};
+
+/** Which restore an item performs (revives target KO'd members instead). */
+const ITEM_RESTORE: Record<ItemEffect, RestoreKind | undefined> = {
+  healHp: 'hp',
+  healMp: 'mp',
+  curePoison: 'cure',
+  revive: undefined,
 };
 const CAST_LEAD = 0.5;
 const FLOAT_TIME = 0.8;
@@ -191,7 +213,7 @@ export class BattleScene implements Scene {
   private pendingId = '';
   private targets: Combatant[] = [];
   private targetCursor = 0;
-  private targetRestore: 'hp' | 'mp' | undefined;
+  private targetRestore: RestoreKind | undefined;
   private endLines: string[] = [];
   private outcomeSound: SoundId | null = null;
   private speed = 1;
@@ -420,29 +442,42 @@ export class BattleScene implements Scene {
       if (def.target === 'self' || def.target === 'allEnemies') {
         this.pushAction({ kind: 'ability', actorId: this.actor.id, abilityId: id });
       } else {
-        this.beginTarget(this.battle.targetsFor(this.actor, def.target), def.effect === 'heal' ? 'hp' : undefined);
+        const restore = def.effect === 'heal' ? (def.curesPoison ? 'hpCure' : 'hp') : undefined;
+        this.beginTarget(this.battle.targetsFor(this.actor, def.target), restore);
       }
       return;
     }
     this.pendingKind = 'item';
     const item = ITEMS.get(id);
     const revive = item?.effect === 'revive';
-    const restore = item?.effect === 'healHp' ? 'hp' : item?.effect === 'healMp' ? 'mp' : undefined;
+    const restore = item ? ITEM_RESTORE[item.effect] : undefined;
     this.beginTarget(
       this.battle.party.filter((c) => (revive ? !isAlive(c) : isAlive(c))),
       restore,
     );
   }
 
-  /** True when a heal of this kind would do nothing for the target (full HP or MP). */
-  private isFull(c: Combatant, restore: 'hp' | 'mp' | undefined): boolean {
-    if (restore === 'hp') {
-      return c.hp >= c.maxHp;
+  /** True when a restore of this kind would do nothing for the target (full HP or MP, or not poisoned). */
+  private isFull(c: Combatant, restore: RestoreKind | undefined): boolean {
+    switch (restore) {
+      case 'hp':
+        return c.hp >= c.maxHp;
+      case 'hpCure':
+        return c.hp >= c.maxHp && !c.poisoned;
+      case 'cure':
+        return !c.poisoned;
+      case 'mp':
+        return c.mp >= c.maxMp;
+      default:
+        return false;
     }
-    return restore === 'mp' ? c.mp >= c.maxMp : false;
   }
 
-  private beginTarget(targets: Combatant[], restore?: 'hp' | 'mp'): void {
+  private fullLabel(restore: RestoreKind | undefined): string {
+    return restore === 'mp' ? 'MP FULL' : restore === 'cure' ? 'NOT POISONED' : 'HP FULL';
+  }
+
+  private beginTarget(targets: Combatant[], restore?: RestoreKind): void {
     if (targets.length === 0) {
       this.ctx.audio.play('cancel');
       return;
@@ -450,7 +485,7 @@ export class BattleScene implements Scene {
     this.targetRestore = restore;
     if (targets.every((c) => this.isFull(c, restore))) {
       this.ctx.audio.play('cancel');
-      this.log = [restore === 'mp' ? 'Everyone has full MP.' : 'Everyone has full HP.'];
+      this.log = [EMPTY_TARGETS_LOG[restore ?? 'hp']];
       return;
     }
     this.targets = targets;
@@ -715,6 +750,17 @@ export class BattleScene implements Scene {
       case 'revive':
         this.float(fx.targetId, 'UP', HEAL_COLOR);
         this.sparkle(fx.targetId, '#ffffff');
+        return;
+      case 'poison':
+        if (fx.amount > 0) {
+          this.motions.set(fx.targetId, { kind: 'shake', t: 0, dur: 0.25 });
+        }
+        this.float(fx.targetId, fx.amount > 0 ? String(fx.amount) : 'PSN', COLORS.poison);
+        this.sparkle(fx.targetId, COLORS.poison);
+        return;
+      case 'cure':
+        this.float(fx.targetId, 'CURE', HEAL_COLOR);
+        this.sparkle(fx.targetId, HEAL_COLOR);
         return;
       case 'run':
         if (fx.success) {
@@ -1111,8 +1157,10 @@ export class BattleScene implements Scene {
       r.text(c.name.slice(0, 7).toUpperCase(), x + 2, y, nameColor);
       r.textRight(`${v.hp}/${c.maxHp}`, x + 104, y, hpColor);
       r.textRight(`${v.mp}/${c.maxMp}`, x + 150, y, COLORS.text);
-      r.text(`L${m?.level ?? 1}`, x + 2, y + 9, COLORS.dim);
-      r.bar(x + 58, y + 10, 46, 2, c.maxHp ? v.hp / c.maxHp : 0, dead ? COLORS.hpLow : COLORS.hp);
+      const poisoned = !!c.poisoned && !dead;
+      r.text(poisoned ? POISON_TAG : `L${m?.level ?? 1}`, x + 2, y + 9, poisoned ? COLORS.poison : COLORS.dim);
+      const barColor = dead ? COLORS.hpLow : poisoned ? COLORS.poison : COLORS.hp;
+      r.bar(x + 58, y + 10, 46, 2, c.maxHp ? v.hp / c.maxHp : 0, barColor);
       r.bar(x + 116, y + 10, 34, 2, c.maxMp ? v.mp / c.maxMp : 0, COLORS.mp);
     });
   }
@@ -1143,7 +1191,7 @@ export class BattleScene implements Scene {
           r.text(`HP ${v.hp}/${target.maxHp}`, subX + 8, y + 32);
         }
         if (this.isFull(target, this.targetRestore)) {
-          r.text(this.targetRestore === 'mp' ? 'MP FULL' : 'HP FULL', subX + 8, y + 44, COLORS.warn);
+          r.text(this.fullLabel(this.targetRestore), subX + 8, y + 44, COLORS.warn);
         }
         r.text('ARROWS: CHOOSE', subX + 8, y + 56, COLORS.dim);
         return;
