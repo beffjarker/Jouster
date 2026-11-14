@@ -104,8 +104,9 @@ export interface BattleRewards {
 /**
  * Turn-based battle state machine.
  *
- * The UI (or the balance simulator) chooses one action per living party member, then calls
- * `resolveRound`. Enemies choose actions from their AI tables; everyone acts in initiative order.
+ * The game asks each party member for an action when their turn comes (`beginRound`, `nextActor`, `act`,
+ * `endRound`). The balance simulator chooses all party actions up front with `resolveRound`. Enemies choose
+ * actions from their AI tables; everyone acts in initiative order.
  */
 export class Battle {
   public outcome: BattleOutcome = 'ongoing';
@@ -116,6 +117,8 @@ export class Battle {
   private readonly stolenItems: string[] = [];
   private stolenGold = 0;
   private cachedRewards?: BattleRewards;
+  private turnOrder: string[] = [];
+  private current?: Combatant;
 
   constructor(party: Combatant[], enemies: Combatant[], private readonly config: BattleConfig) {
     if (party.length === 0 || enemies.length === 0) {
@@ -211,6 +214,86 @@ export class Battle {
       this.updateOutcome();
     }
 
+    if (this.outcome === 'ongoing') {
+      this.endOfRound(events);
+    }
+    return events;
+  }
+
+  /**
+   * Turn-by-turn mode: starts a round by rolling initiative for every living combatant. Then call
+   * `nextActor` and `act` for each turn (party members choose their action when their turn comes), and
+   * `endRound` when `nextActor` returns undefined.
+   */
+  public beginRound(): void {
+    if (this.outcome !== 'ongoing') {
+      return;
+    }
+    this.round++;
+    const { rng } = this.config;
+    this.turnOrder = this.all
+      .filter(isAlive)
+      .map((c) => ({ id: c.id, init: initiative(c, rng) }))
+      .sort((a, b) => b.init - a.init)
+      .map((t) => t.id);
+    this.current = undefined;
+  }
+
+  /** Whose turn it is (set by `nextActor`). */
+  public get currentActor(): Combatant | undefined {
+    return this.current;
+  }
+
+  /** Living combatants still waiting to act this round, in initiative order. */
+  public get upcoming(): Combatant[] {
+    return this.turnOrder.map((id) => this.mustFind(id)).filter(isAlive);
+  }
+
+  /**
+   * Advances to the next living combatant in this round's initiative order, or undefined when the round
+   * (or the battle) is over. A defending combatant stops defending when their next turn starts.
+   */
+  public nextActor(): Combatant | undefined {
+    this.current = undefined;
+    while (this.outcome === 'ongoing' && this.turnOrder.length > 0) {
+      const c = this.mustFind(this.turnOrder.shift() as string);
+      if (isAlive(c)) {
+        c.defending = false;
+        this.current = c;
+        return c;
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Resolves the current actor's turn. Party members pass the action they chose; enemies pick from their
+   * AI table when no action is given.
+   */
+  public act(action?: BattleAction): BattleEvent[] {
+    const actor = this.current;
+    const events: BattleEvent[] = [];
+    if (!actor || this.outcome !== 'ongoing' || !isAlive(actor)) {
+      return events;
+    }
+    const chosen = action ?? (actor.side === 'enemy' ? this.chooseEnemyAction(actor) : undefined);
+    if (!chosen || chosen.actorId !== actor.id) {
+      throw new Error(`Expected an action for ${actor.id}`);
+    }
+    if (chosen.kind === 'defend') {
+      actor.defending = true;
+    }
+    this.execute(actor, chosen, events);
+    actor.actionsTaken++;
+    this.updateOutcome();
+    this.current = undefined;
+    return events;
+  }
+
+  /** Ends a turn-by-turn round: regen, buff, cooldown and taunt timers tick down. */
+  public endRound(): BattleEvent[] {
+    const events: BattleEvent[] = [];
+    this.turnOrder = [];
     if (this.outcome === 'ongoing') {
       this.endOfRound(events);
     }
