@@ -38,6 +38,7 @@ const HILLS = 'h';
 const MOUNTAIN = '^';
 const WATER = '~';
 const BRIDGE = '=';
+const CLUE_NET = 'n';
 
 export type Grid = string[][];
 
@@ -304,5 +305,7 @@ export function generateOverworld(): string[] {
   carveRoad(g, below(thornwick), { x: southPass.x, y: southPass.y - 3 });
   g[southPass.y - 2][southPass.x] = ROAD;
   g[southPass.y - 1][southPass.x] = ROAD;
+  // The torn net that hints at the Giant Toad (lakeShore event).
+  g[lakeshore.y][lakeshore.x] = CLUE_NET;
   return g.map((row) => row.join(''));
 }

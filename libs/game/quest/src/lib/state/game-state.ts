@@ -112,6 +112,14 @@ export function companionPresent(state: GameState, companionId: string): boolean
 }
 
 /**
+ * True when the companion was in the party and left it (they now wait at their rest spot, see
+ * `companionRestSpot`, instead of where they were first found).
+ */
+export function companionBenched(state: GameState, companionId: string): boolean {
+  return companionId in state.companionProgress && !inParty(state, companionId);
+}
+
+/**
  * True when a present companion is willing to join: the Goblin King has fallen and the
  * companion's side quest is done (companions who were in the party before always rejoin).
  */

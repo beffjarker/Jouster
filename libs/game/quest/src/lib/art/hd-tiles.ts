@@ -2000,6 +2000,100 @@ function straw(p: Paint): void {
   }
 }
 
+/** A torn fishing net snagged in lakeside reeds, slick with slime (a clue tile, walkable). */
+function tornNet(p: Paint): void {
+  const reed = (x: number, h: number, lean: number, i: number): void => {
+    const c = tone('#5a7a2a', (i % 3) - 1);
+    p.fill(seg(x, 29, x + lean, 29 - h, 0.45), c, { bevel: 0, dither: 0 });
+    if (i % 2 === 0) {
+      p.fill(ell(x + lean * 0.92, 29 - h * 0.86, 0.9, 2), '#6a4220', { bevel: 0, dither: 0 });
+    }
+  };
+  [
+    [3, 17, -1.5],
+    [5, 21, 0.8],
+    [7, 14, 2],
+    [26, 19, -1],
+    [28, 23, 1.2],
+    [30, 15, -2],
+  ].forEach(([x, h, l], i) => reed(x, h, l, i));
+  shadow(p, 16, 25, 10, 2.4);
+  const node = (c: number, r: number): [number, number] => [
+    7 + c * 3.6 + (hash(c, r, 120) - 0.5) * 1.2,
+    12 + r * 3.2 + Math.sin(c * 0.9) * 1.2 + (hash(c, r, 121) - 0.5) * 0.8,
+  ];
+  const hole = ell(18.5, 19.5, 3.6, 2.8);
+  const rope = '#d8c49a';
+  const strand = (a: [number, number], b: [number, number]): void => {
+    if (hole.test((a[0] + b[0]) / 2, (a[1] + b[1]) / 2)) {
+      return;
+    }
+    p.flat(seg(a[0] + 0.3, a[1] + 0.5, b[0] + 0.3, b[1] + 0.5, 0.3), '#0a0806', 0.35);
+    p.flat(seg(a[0], a[1], b[0], b[1], 0.28), rope);
+  };
+  for (let c = 0; c <= 5; c++) {
+    for (let r = 0; r <= 4; r++) {
+      if (c < 5) strand(node(c, r), node(c + 1, r));
+      if (r < 4) strand(node(c, r), node(c, r + 1));
+    }
+  }
+  [[17, 18.2], [20, 21.4], [16.4, 21]].forEach(([x, y], i) =>
+    p.flat(seg(x, y, x + (i - 1) * 1.4, y + 1.6, 0.25), tone(rope, -1)),
+  );
+  for (let c = 0; c <= 5; c += 2) {
+    const [x, y] = node(c, 0);
+    p.fill(ell(x, y - 0.4, 1.3, 0.9), '#d86a2a', { sphere: true, bevel: 0 });
+  }
+  for (let i = 0; i < 7; i++) {
+    const x = 8 + hash(i, 1, 122) * 17;
+    const y = 13 + hash(i, 2, 122) * 12;
+    p.flat(ell(x, y, 1 + hash(i, 3, 122) * 1.4, 0.7), '#8ad04a', 0.45);
+    p.spot(x - 0.4, y - 0.2, '#e0ffb0');
+  }
+}
+
+/** The Alpha Wolf's nest: a ring of twigs and black fur around gnawed bones, with huge paw prints. */
+function boneNest(p: Paint): void {
+  const ring = ell(16, 19, 11.5, 6.5);
+  p.fill(ring, '#3a2c20', { tex: 0.5, seed: 123, bevel: 0 });
+  for (let i = 0; i < 40; i++) {
+    const a = hash(i, 1, 124) * Math.PI * 2;
+    const r = 0.75 + hash(i, 2, 124) * 0.3;
+    const x = 16 + Math.cos(a) * 11 * r;
+    const y = 19 + Math.sin(a) * 6 * r;
+    const t = a + Math.PI / 2 + (hash(i, 3, 124) - 0.5);
+    p.fill(seg(x - Math.cos(t) * 2.2, y - Math.sin(t) * 1.2, x + Math.cos(t) * 2.2, y + Math.sin(t) * 1.2, 0.35), tone('#6a4a2a', (i % 3) - 1), { bevel: 0, dither: 0 });
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.4;
+    const x = 16 + Math.cos(a) * 8.5;
+    const y = 19 + Math.sin(a) * 4.6;
+    p.fill(ell(x, y, 2, 1.2), '#1e1e24', { tex: 0.6, seed: 125 + i, bevel: 0 });
+    p.flat(seg(x - 1.4, y, x - 2.4, y - 0.8, 0.2), '#3a3a44');
+  }
+  p.flat(ell(16, 19.5, 6.5, 3.2), '#120c08', 0.7);
+  const bone = '#e8dcc0';
+  const long = (ax: number, ay: number, bx: number, by: number): void => {
+    p.fill(seg(ax, ay, bx, by, 0.55), bone, { bevel: 0, dither: 0 });
+    [
+      [ax, ay],
+      [bx, by],
+    ].forEach(([x, y]) => p.fill(ell(x, y, 0.9), bone, { sphere: true, bevel: 0, dither: 0 }));
+    p.flat(seg(ax + (bx - ax) * 0.4, ay + (by - ay) * 0.4 - 0.4, ax + (bx - ax) * 0.55, ay + (by - ay) * 0.55 - 0.4, 0.2), '#8a6a4a');
+  };
+  long(11, 20, 18, 18);
+  long(15, 22, 21, 19.5);
+  p.fill(ell(19.5, 17.6, 2.2, 1.6), bone, { sphere: true });
+  [18.8, 20.3].forEach((x) => p.flat(ell(x, 17.6, 0.5, 0.45), '#1a1210'));
+  const paw = (x: number, y: number): void => {
+    p.flat(ell(x, y + 0.8, 1.3, 1.1), '#120c08', 0.55);
+    [-1.4, -0.5, 0.5, 1.4].forEach((dx, i) => p.flat(ell(x + dx, y - 1 - (i === 1 || i === 2 ? 0.5 : 0), 0.45, 0.55), '#120c08', 0.55));
+  };
+  paw(12, 6);
+  paw(18, 3.5);
+  paw(23, 8);
+}
+
 interface DecorDef {
   draw: Draw;
   /** Outline the object (default true). */
@@ -2038,6 +2132,8 @@ const DECOR: ReadonlyMap<string, DecorDef> = new Map<string, DecorDef>([
   ['goldPile', { draw: goldPile }],
   ['campfire', { draw: campfire }],
   ['straw', { draw: straw }],
+  ['tornNet', { draw: tornNet }],
+  ['boneNest', { draw: boneNest }],
 ]);
 
 /** Decor objects that flicker (two animation frames). */

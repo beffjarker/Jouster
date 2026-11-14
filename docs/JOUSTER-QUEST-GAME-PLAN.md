@@ -1455,6 +1455,18 @@ across any `counter`, `altar` or `jailBars` tile (`talkAcross`).
 - The prisoner joins only after the king falls. If the key was won early, the quest is already done when
   the hero reaches the cell.
 
+### 18.5 Merchant access, companion homes and clue spots
+
+- Wandering NPCs never step onto a tile that could block service or a passage (`wanderBlocked`):
+  - any tile next to a `counter`, `altar` or `jailBars` tile;
+  - any tile next to a standing NPC;
+  - doorways and one-tile gaps.
+- Benched companions go to a town rest spot (`CompanionSlot.rest`), not back to where they were found.
+  The Goblin Cave prisoner and the Thornwick rogue wait at the Aldmere tavern table. A companion
+  without a rest spot goes back to its usual place.
+- Clue events have their own tiles: a torn fishing net on the lakeshore and a bone-strewn nest in the
+  Wolf Den. The Thornwick clue is already marked by the ruins.
+
 ### 17.8 Next
 
 - Act III: Frost Peaks (§6), the third seal and Dragonbane.

@@ -1,6 +1,6 @@
-import { Facing, TileDef } from '@jouster/game/engine';
-import { GameState, companionPresent } from '../state/game-state';
-import { COMPANION_SLOTS } from './companions';
+import { Facing, TileDef, TileMap } from '@jouster/game/engine';
+import { GameState, companionBenched, companionPresent } from '../state/game-state';
+import { COMPANION_SLOTS, CompanionSlot, companionRestSpot } from './companions';
 import { SOUTH_WEAPON_STOCK } from './equipment';
 import { SOUTH_ARMOR_STOCK } from './gear';
 import { LANDMARKS, generateOverworld } from './overworld-gen';
@@ -128,6 +128,7 @@ const OVERWORLD_LEGEND: TileDef[] = [
   { char: 'W', id: 'caveEntrance', solid: false },
   { char: 'V', id: 'ruins', solid: false },
   { char: 'P', id: 'pass', solid: false },
+  { char: 'n', id: 'tornNet@grass', solid: false, encounterTableId: 'greenwood' },
 ];
 
 // --- Aldmere (34x30) -----------------------------------------------------------------------
@@ -263,7 +264,7 @@ const CAVE_ROWS = [
 const DEN_ROWS = [
   '####################',
   '#######______#######',
-  '######________######',
+  '######____n___######',
   '######___~~___######',
   '#######______#######',
   '##########_#########',
@@ -282,6 +283,7 @@ const DEN_LEGEND: TileDef[] = [
   { char: '_', id: 'caveFloor', solid: false, encounterTableId: 'den' },
   { char: '~', id: 'caveWater', solid: true },
   { char: 'E', id: 'caveExit', solid: false },
+  { char: 'n', id: 'boneNest@caveFloor', solid: false, encounterTableId: 'den' },
 ];
 
 const CAVE_LEGEND: TileDef[] = [
@@ -839,19 +841,26 @@ const BASE_MAPS: MapDef[] = [
     },
 ];
 
-/** Companion NPCs wait at their slot whenever they are present (unlocked and not in the party). */
+/**
+ * Companion NPCs appear whenever they are present (unlocked and not in the party): at the slot where they are
+ * first found, or at their rest spot once they have joined and left the party again.
+ */
 function withCompanions(m: MapDef): MapDef {
-  const companions: NpcDef[] = COMPANION_SLOTS.filter((c) => c.mapId === m.id).map((c) => ({
-    id: c.id,
-    x: c.x,
-    y: c.y,
+  const npc = (c: CompanionSlot, id: string, at: { x: number; y: number; facing: Facing }, benched: boolean): NpcDef => ({
+    id,
+    x: at.x,
+    y: at.y,
     spriteId: 'villager',
     sprite: (st: GameState) => st.companions[c.id]?.classId ?? 'villager',
-    facing: 'down',
+    facing: at.facing,
     role: 'companion',
     companionId: c.id,
-    visible: (st: GameState) => companionPresent(st, c.id),
-  }));
+    visible: (st: GameState) => companionPresent(st, c.id) && (!c.rest || companionBenched(st, c.id) === benched),
+  });
+  const companions: NpcDef[] = [
+    ...COMPANION_SLOTS.filter((c) => c.mapId === m.id).map((c) => npc(c, c.id, { ...c, facing: 'down' }, false)),
+    ...COMPANION_SLOTS.filter((c) => c.rest?.mapId === m.id).map((c) => npc(c, `${c.id}Resting`, companionRestSpot(c.id), true)),
+  ];
   return { ...m, npcs: [...m.npcs, ...companions] };
 }
 
@@ -876,6 +885,34 @@ const TALK_ACROSS: ReadonlySet<string> = new Set(['counter', 'altar', 'jailBars'
 /** True when the player can talk to an NPC two tiles away across tile `tileId` (e.g. `counter`, `altar@wood`). */
 export function talkAcross(tileId: string | undefined): boolean {
   return tileId !== undefined && TALK_ACROSS.has(tileId.split('@')[0]);
+}
+
+const SIDES: ReadonlyArray<readonly [number, number]> = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+
+/**
+ * True when a wandering NPC must not step onto (x, y): the approach to a counter, altar or cell bars, the tile
+ * in front of a standing NPC (`standing` = positions of visible non-wandering NPCs), or a doorway / one-tile
+ * gap between walls. Keeps merchants, priests, kings and companions reachable.
+ */
+export function wanderBlocked(
+  tiles: Pick<TileMap, 'tileAt' | 'isSolid'>,
+  standing: ReadonlyArray<{ x: number; y: number }>,
+  x: number,
+  y: number,
+): boolean {
+  if (SIDES.some(([dx, dy]) => talkAcross(tiles.tileAt(x + dx, y + dy)?.id))) {
+    return true;
+  }
+  if (standing.some((n) => Math.abs(n.x - x) + Math.abs(n.y - y) === 1)) {
+    return true;
+  }
+  const solid = (dx: number, dy: number): boolean => tiles.isSolid(x + dx, y + dy);
+  return (solid(-1, 0) && solid(1, 0)) || (solid(0, -1) && solid(0, 1));
 }
 
 /** Where the party wakes up after a defeat (in front of the inn counter). */

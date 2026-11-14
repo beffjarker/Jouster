@@ -16,12 +16,26 @@ export interface CompanionSlot {
   y: number;
   /** Where to find the companion again, for messages ("Return to Bren in Aldmere."). */
   home: string;
+  /**
+   * Where the companion waits after leaving the party, when that differs from where they were found
+   * (e.g. the freed prisoner goes to the Aldmere tavern, not back into the cell). Defaults to the slot.
+   */
+  rest?: RestSpot;
   /** Story flag that must be set before the companion appears. */
   requiresFlag?: string;
   /** Why the companion is here (`{name}` is replaced). */
   intro: string[];
   /** Favour the companion asks before joining (offered after the Goblin King falls). */
   quest: CompanionQuest;
+}
+
+/** A place a companion waits: map, tile, the way they face and a name for messages. */
+export interface RestSpot {
+  mapId: string;
+  x: number;
+  y: number;
+  facing: 'up' | 'down' | 'left' | 'right';
+  home: string;
 }
 
 /**
@@ -83,6 +97,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
     x: 70,
     y: 53,
     home: 'the Thornwick ruins',
+    rest: { mapId: 'aldmere', x: 5, y: 25, facing: 'right', home: 'the Aldmere tavern' },
     intro: [
       '{name}: I was passing through Thornwick when the goblins came... I could not save it.',
       'They came from a cave in the north-eastern hills. Let me help you end this.',
@@ -130,6 +145,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
     x: 19,
     y: 2,
     home: 'the cell in the Goblin Cave',
+    rest: { mapId: 'aldmere', x: 7, y: 25, facing: 'left', home: 'the Aldmere tavern' },
     intro: [
       '{name}: Over here, behind the bars! The goblins caught me poking around the dragon seal.',
       'The seal IS weakening. Get me out and I will fight beside you.',
@@ -159,6 +175,12 @@ export function companionSlot(id: string): CompanionSlot {
     throw new Error(`Unknown companion slot: ${id}`);
   }
   return s;
+}
+
+/** Where a companion waits after leaving the party (their `rest` spot, or the slot they were found at). */
+export function companionRestSpot(id: string): RestSpot {
+  const s = companionSlot(id);
+  return s.rest ?? { mapId: s.mapId, x: s.x, y: s.y, facing: 'down', home: s.home };
 }
 
 export const COMPANION_NAMES: Readonly<Record<ClassId, readonly string[]>> = {
