@@ -1829,3 +1829,11 @@ object (fountain spray, torch flame) still animates.
 Tests: only water, bridge and cave water cycle ground cells; fountain, torch and cobble keep the same cell on
 both frames, both in `lpcGroundCell` and in the cell `Art.tile` draws. Manual: watch the Aldmere fountain and a
 cave torch for a few seconds. The floor under them should no longer flicker, and water should still ripple.
+
+**Seamless floors.** Plain floor tiles still showed thick double grout lines and cracks cut off at tile edges.
+The flagstone list mixed the centre of the LPC 3x3 flagstone patch with its four corner pieces. Corner pieces
+carry the patch's outer grout border, so wherever two met, the seam doubled up. Wood mixed a plank cell with
+board ends on both sides with one that has a board end on one side, and the wall mixed a brick course with the
+frame's bottom line. Each list now holds only fill cells: flagstone `t(17,27)`, wood `t(17,20)` and wall
+`o(4,13)`. A test decodes the real atlases and checks that every ground list mixes only cells with matching
+edges and no border lines on opposite sides. It fails on the old lists.
