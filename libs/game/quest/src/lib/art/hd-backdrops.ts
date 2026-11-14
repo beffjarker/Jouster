@@ -184,14 +184,31 @@ export function paintBackdrop(kind: Backdrop, width: number, height: number, hor
             c = lerp(c, sunGlow, (1 - ds / (sunR * 6)) ** 2 * 0.55 + d * 0.04);
           }
         }
-        const rTop = ridgeTop[fx];
-        if (v >= rTop) {
-          const slope = (ridgeTop[Math.min(p.width, fx + 12)] - ridgeTop[Math.max(0, fx - 12)]) * (s / 24);
-          let rc = scaled(ridgeRgb, 1 + Math.max(-0.12, Math.min(0.12, slope * 0.25)) + d * 0.04);
-          if (kind === 'hills' && v < rTop + 8 && rTop < HZ - 82) {
-            rc = lerp(rc, snow, 0.85);
+        // The far ridge is pixel art, not a gradient: one texel per paint unit, a stepped silhouette,
+        // rock grain in a few flat shade bands mixed by ordered dither, and stepped haze.
+        const mu = Math.floor(u);
+        const mv = Math.floor(v);
+        const col = Math.min(p.width, Math.max(0, Math.round((mu + 0.5) * s)));
+        const rTop = Math.floor(ridgeTop[col]);
+        if (mv >= rTop) {
+          const slope = (ridgeTop[Math.min(p.width, col + 12)] - ridgeTop[Math.max(0, col - 12)]) * (s / 24);
+          const lit = Math.max(-1, Math.min(1, slope * 1.2));
+          const md = bayer(mu, mv);
+          const grain =
+            valueNoise(u + lit * (mv - rTop) * 0.6, v * 1.7, 9, 31, NO_WRAP) * 0.45 +
+            valueNoise(u, v, 3, 33, NO_WRAP) * 0.25 +
+            hash(mu, mv, 35) * 0.3;
+          const speck = hash(mu, mv, 36);
+          const shade =
+            0.5 + lit * 0.35 + (grain - 0.5) * 1.1 + (mv - rTop < 2 ? 0.25 : 0) +
+            (speck > 0.93 ? 0.3 : speck < 0.07 ? -0.3 : 0);
+          const band = Math.max(0, Math.min(4, Math.floor(shade * 4 + 0.5 + md * 0.8)));
+          let rc = scaled(ridgeRgb, 0.66 + band * 0.13);
+          if (kind === 'hills' && rTop < HZ - 82 && mv < rTop + 5 + hash(mu, 0, 37) * 5) {
+            rc = lerp(rc, snow, band >= 2 ? 0.9 : 0.7);
           }
-          c = lerp(rc, cLow, cave ? 0 : Math.max(0, (HZ - v) / 120) * 0.25);
+          const hazeAmt = cave ? 0 : Math.max(0, (HZ - v) / 120) * 0.25;
+          c = lerp(rc, cLow, Math.max(0, Math.round(hazeAmt * 10 + md)) / 10);
         }
       } else {
         c = lerp(cFar, cNear, Math.min(1, tg * 2.5));
