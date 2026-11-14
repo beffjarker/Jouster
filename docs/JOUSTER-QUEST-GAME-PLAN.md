@@ -502,6 +502,9 @@ to the world rather than the screen (15.1).
 - Weather is rolled every 40 steps from the season's weighted table; every journey opens with clear skies.
 - A banner announces each change ("Summer has come.", "It starts to rain."). The field HUD and the `M` map
   legend show `SEASON - WEATHER` (or `UNDERGROUND` in caves).
+- Changes fade rather than pop: over 3 seconds (`SKY_FADE_SECONDS`) the old weather and season tint fade out while
+  the new ones fade in. Rain and snow thicken drop by drop, and the dimmed ring past the party's sight fades
+  between the old and new radius.
 - The Goblin Cave has wall torches (solid, animated tiles); the Wolf Den is unlit.
 - Clouds and fog banks are lumpy, rounded pixel shapes (overlapping circles with a dithered, soft edge), varied
   in size, speed and opacity. Rain drops vary in length, speed and shade, sway with the wind and splash on the

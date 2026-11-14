@@ -1,6 +1,6 @@
 import { Renderer } from '@jouster/game/engine';
 import { WeatherKind } from '../state/weather';
-import { WeatherCamera, drawWeather } from './weather-fx';
+import { WeatherCamera, drawSeasonTint, drawWeather, fadeColor } from './weather-fx';
 import { SCREEN_H, SCREEN_W } from './widgets';
 
 interface Call {
@@ -72,5 +72,36 @@ describe('world-anchored weather', () => {
   it('keeps the screen tint full-screen whatever the camera', () => {
     const calls = frame('cloudy', 1, { x: 500, y: 700 });
     expect(calls[0]).toMatchObject({ x: 0, y: 0, w: SCREEN_W, h: SCREEN_H });
+  });
+});
+
+describe('weather fading', () => {
+  const alphaOf = (color = ''): number => Number(/,([\d.]+)\)$/.exec(color)?.[1] ?? 1);
+  const draw = (kind: WeatherKind, strength: number): Call[] => {
+    const { r, calls } = recorder();
+    drawWeather(r, kind, 2, { x: 0, y: 0 }, strength);
+    return calls;
+  };
+
+  it('scales colour opacity for rgba and hex colours', () => {
+    expect(fadeColor('rgba(30,40,60,0.2)', 0.5)).toBe('rgba(30,40,60,0.100)');
+    expect(fadeColor('#ff8000', 0.25)).toBe('rgba(255,128,0,0.250)');
+    expect(fadeColor('#ff8000', 1)).toBe('#ff8000');
+  });
+
+  it('draws nothing at zero strength', () => {
+    expect(draw('storm', 0)).toEqual([]);
+    const { r, calls } = recorder();
+    drawSeasonTint(r, 'winter', 0);
+    expect(calls).toEqual([]);
+  });
+
+  it('thins the rain and lightens the tint while the weather rolls in', () => {
+    const full = draw('rain', 1);
+    const half = draw('rain', 0.5);
+    expect(alphaOf(half[0].color)).toBeCloseTo(alphaOf(full[0].color) / 2, 2);
+    const drops = (calls: Call[]): number => calls.filter((c) => c.kind === 'rect' && c.w === 1).length;
+    expect(drops(half)).toBeLessThan(drops(full) * 0.7);
+    expect(drops(half)).toBeGreaterThan(0);
   });
 });
