@@ -69,6 +69,8 @@ export type BattleFx =
       element?: Element;
       /** Ability effect (damage, heal, buff, ...) for casts and skills. */
       effect?: AbilityDef['effect'];
+      /** True for single-target physical skills (and Steal) that are delivered up close, like Attack. */
+      melee?: boolean;
     }
   | { type: 'hit'; targetId: string; amount: number; crit: boolean; element?: Element }
   | { type: 'miss'; targetId: string }
@@ -458,6 +460,10 @@ export class Battle {
         allTargets: def.target === 'allEnemies',
         element: def.element,
         effect: def.effect,
+        melee:
+          def.category === 'skill' &&
+          def.target === 'enemy' &&
+          (def.effect === 'steal' || (def.effect === 'damage' && def.damageType === 'physical')),
       },
     });
 
