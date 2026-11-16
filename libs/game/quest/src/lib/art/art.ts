@@ -422,17 +422,28 @@ export class Art {
 
   /**
    * Monster sprite; `variant` (see {@link monsterVariant}) picks an alternate colour/shape. LPC monsters
-   * face left (towards the party); humanoid ones are 32x32 logical frames, the rest one tile.
+   * face left (towards the party); humanoid ones are 32x32 logical frames, the rest one tile. Animated LPC
+   * monsters (see {@link isAnimatedMonster}) loop their frames over `time` seconds; other art ignores it.
    */
-  public monster(spriteId: string, variant = 0): HTMLCanvasElement {
+  public monster(spriteId: string, variant = 0, time = 0): HTMLCanvasElement {
     const v = variant % monsterVariantCount(spriteId);
     const lpc = LPC_MONSTERS.get(`${spriteId}:${v}`);
     if (lpc && this.sheets?.get(lpc.sheet)) {
       const { width, height } = LPC_CHARACTER_CELL;
-      return this.cached(`lpcmon:${spriteId}:${v}`, () =>
-        lpc.sheet === 'characters'
-          ? this.sheetSprite('characters', 0, lpc.index * height, width, height)
-          : this.sheetSprite('monsters', lpc.index * LPC_MONSTER_CELL, 0, LPC_MONSTER_CELL, LPC_MONSTER_CELL),
+      if (lpc.sheet === 'characters') {
+        return this.cached(`lpcmon:${spriteId}:${v}`, () =>
+          this.sheetSprite('characters', 0, lpc.index * height, width, height),
+        );
+      }
+      const frame = lpc.frames > 1 ? ((Math.floor(time * lpc.fps) % lpc.frames) + lpc.frames) % lpc.frames : 0;
+      return this.cached(`lpcmon:${spriteId}:${v}:${frame}`, () =>
+        this.sheetSprite(
+          'monsters',
+          lpc.index * LPC_MONSTER_CELL,
+          frame * LPC_MONSTER_CELL,
+          LPC_MONSTER_CELL,
+          LPC_MONSTER_CELL,
+        ),
       );
     }
     return this.cached(`mon:${spriteId}:${v}`, () => {
@@ -441,6 +452,12 @@ export class Art {
       const colors = new Map([...(MONSTER_PALETTES.get(spriteId) ?? new Map<string, string>()), ...(look.colors ?? [])]);
       return paintMonster(shape, colors).toCanvas();
     });
+  }
+
+  /** Whether {@link monster} animates this monster over time (so callers can skip their idle bob). */
+  public isAnimatedMonster(spriteId: string, variant = 0): boolean {
+    const lpc = LPC_MONSTERS.get(`${spriteId}:${variant % monsterVariantCount(spriteId)}`);
+    return !!lpc && lpc.frames > 1 && !!this.sheets?.get(lpc.sheet);
   }
 
   /**

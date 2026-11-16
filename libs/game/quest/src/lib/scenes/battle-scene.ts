@@ -1115,7 +1115,10 @@ export class BattleScene implements Scene {
     const p = this.pose(e);
     const dying = this.dying.get(e.id);
     const flashing = this.flash.has(e.id) && Math.floor(this.time * 20) % 2 === 0;
-    const bob = dying === undefined && this.motions.get(e.id) === undefined ? Math.floor(this.time * 2 + spot.x) % 2 : 0;
+    const look = this.looks.get(e.id);
+    const animated = this.ctx.art.isAnimatedMonster(def.spriteId, look);
+    const idle = dying === undefined && this.motions.get(e.id) === undefined;
+    const bob = idle && !animated ? Math.floor(this.time * 2 + spot.x) % 2 : 0;
     let alpha = flashing ? 0.35 : 1;
     if (dying !== undefined) {
       alpha = Math.max(0, dying / DISSOLVE_TIME);
@@ -1123,7 +1126,8 @@ export class BattleScene implements Scene {
       const g = this.pose(e, false);
       this.shadow(r, g.x, g.y, spot.size);
     }
-    const raw = this.ctx.art.monster(def.spriteId, this.looks.get(e.id));
+    // Offset each spot's clock so a pack of slimes or bats doesn't squash or flap in lockstep.
+    const raw = this.ctx.art.monster(def.spriteId, look, this.time + spot.x / 13);
     const scale = fitScale(raw, spot.size);
     r.draw(this.ctx.art.sharp(raw, scale), p.x, p.y - bob, { scale, alpha });
     if (dying !== undefined) {

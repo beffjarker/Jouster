@@ -35,30 +35,36 @@ export const LPC_CHARACTER_ROWS: ReadonlyMap<string, number> = new Map<string, n
 /** Real-pixel size of one `monsters.png` cell. */
 export const LPC_MONSTER_CELL = 32;
 
-/** Monster art by `spriteId:variant`: a `characters.png` row (column 0) or a `monsters.png` column. */
-export const LPC_MONSTERS: ReadonlyMap<string, { sheet: 'characters' | 'monsters'; index: number }> = new Map([
-  ['goblin:0', { sheet: 'characters' as const, index: 18 }],
-  ['goblin:1', { sheet: 'characters' as const, index: 19 }],
-  ['goblin:2', { sheet: 'characters' as const, index: 20 }],
-  ['skeleton:0', { sheet: 'characters' as const, index: 21 }],
-  ['skeleton:1', { sheet: 'characters' as const, index: 22 }],
-  ['skeleton:2', { sheet: 'characters' as const, index: 23 }],
-  ['goblinKing:0', { sheet: 'characters' as const, index: 24 }],
-  ['goblinChief:0', { sheet: 'characters' as const, index: 25 }],
-  ['boneCaptain:0', { sheet: 'characters' as const, index: 26 }],
-  ['wolf:0', { sheet: 'characters' as const, index: 27 }],
-  ['wolf:1', { sheet: 'characters' as const, index: 28 }],
-  ['wolf:2', { sheet: 'characters' as const, index: 29 }],
-  ['alphaWolf:0', { sheet: 'characters' as const, index: 30 }],
-  ['slime:0', { sheet: 'monsters' as const, index: 0 }],
-  ['slime:1', { sheet: 'monsters' as const, index: 1 }],
-  ['slime:2', { sheet: 'monsters' as const, index: 2 }],
-  ['slime:3', { sheet: 'monsters' as const, index: 3 }],
-  ['slime:4', { sheet: 'monsters' as const, index: 4 }],
-  ['slime:5', { sheet: 'monsters' as const, index: 5 }],
-  ['bat:0', { sheet: 'monsters' as const, index: 6 }],
-  ['bat:1', { sheet: 'monsters' as const, index: 7 }],
-  ['bat:2', { sheet: 'monsters' as const, index: 8 }],
+/**
+ * Monster art by `spriteId:variant`: a `characters.png` row (column 0, one frame) or a `monsters.png` column
+ * whose first `frames` rows are a looping animation played at `fps` frames per second.
+ */
+export const LPC_MONSTERS: ReadonlyMap<
+  string,
+  { sheet: 'characters' | 'monsters'; index: number; frames: number; fps: number }
+> = new Map([
+  ['goblin:0', { sheet: 'characters' as const, index: 18, frames: 1, fps: 0 }],
+  ['goblin:1', { sheet: 'characters' as const, index: 19, frames: 1, fps: 0 }],
+  ['goblin:2', { sheet: 'characters' as const, index: 20, frames: 1, fps: 0 }],
+  ['skeleton:0', { sheet: 'characters' as const, index: 21, frames: 1, fps: 0 }],
+  ['skeleton:1', { sheet: 'characters' as const, index: 22, frames: 1, fps: 0 }],
+  ['skeleton:2', { sheet: 'characters' as const, index: 23, frames: 1, fps: 0 }],
+  ['goblinKing:0', { sheet: 'characters' as const, index: 24, frames: 1, fps: 0 }],
+  ['goblinChief:0', { sheet: 'characters' as const, index: 25, frames: 1, fps: 0 }],
+  ['boneCaptain:0', { sheet: 'characters' as const, index: 26, frames: 1, fps: 0 }],
+  ['wolf:0', { sheet: 'characters' as const, index: 27, frames: 1, fps: 0 }],
+  ['wolf:1', { sheet: 'characters' as const, index: 28, frames: 1, fps: 0 }],
+  ['wolf:2', { sheet: 'characters' as const, index: 29, frames: 1, fps: 0 }],
+  ['alphaWolf:0', { sheet: 'characters' as const, index: 30, frames: 1, fps: 0 }],
+  ['slime:0', { sheet: 'monsters' as const, index: 0, frames: 4, fps: 6 }],
+  ['slime:1', { sheet: 'monsters' as const, index: 1, frames: 4, fps: 6 }],
+  ['slime:2', { sheet: 'monsters' as const, index: 2, frames: 4, fps: 6 }],
+  ['slime:3', { sheet: 'monsters' as const, index: 3, frames: 4, fps: 6 }],
+  ['slime:4', { sheet: 'monsters' as const, index: 4, frames: 4, fps: 6 }],
+  ['slime:5', { sheet: 'monsters' as const, index: 5, frames: 4, fps: 6 }],
+  ['bat:0', { sheet: 'monsters' as const, index: 6, frames: 4, fps: 10 }],
+  ['bat:1', { sheet: 'monsters' as const, index: 7, frames: 4, fps: 10 }],
+  ['bat:2', { sheet: 'monsters' as const, index: 8, frames: 4, fps: 10 }],
 ]);
 
 /** Real-pixel size of one `actions.png` cell (a battle pose frame, facing right). */

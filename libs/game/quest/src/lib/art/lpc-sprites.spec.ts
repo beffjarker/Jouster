@@ -74,8 +74,10 @@ describe('LPC sprite layout', () => {
     LPC_MONSTERS.forEach((m) => {
       if (m.sheet === 'characters') {
         rows.push(m.index);
+        expect(m.frames).toBe(1);
       } else {
         expect((m.index + 1) * LPC_MONSTER_CELL).toBeLessThanOrEqual(mons.width);
+        expect(m.frames * LPC_MONSTER_CELL).toBeLessThanOrEqual(mons.height);
       }
     });
     expect((Math.max(...rows) + 1) * LPC_CHARACTER_CELL.height).toBeLessThanOrEqual(chars.height);
@@ -189,6 +191,52 @@ describe('Art sprites', () => {
     expect(spriteSize(art.monster('wolf', 2))).toEqual({ width: LPC_CHARACTER_CELL.width / 2, height: LPC_CHARACTER_CELL.height / 2 });
     expect(art.monster('wolf', 2)).not.toBe(art.monster('wolf', 0));
     expect(spriteSize(art.monster('alphaWolf')).width).toBe(LPC_CHARACTER_CELL.width / 2);
+  });
+
+  it('animates every slime and bat look from its monsters.png column', () => {
+    ['slime', 'bat'].forEach((id) => {
+      for (let v = 0; v < monsterVariantCount(id); v++) {
+        const m = LPC_MONSTERS.get(`${id}:${v}`);
+        expect(m?.sheet).toBe('monsters');
+        expect(m?.frames).toBeGreaterThan(1);
+        expect(m?.fps).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  it('loops slime frames down the column over time, cached per frame', () => {
+    const art = new Art(fakeSheets());
+    const crop = jest.spyOn(art as unknown as { sheetSprite(...a: unknown[]): HTMLCanvasElement }, 'sheetSprite');
+    const slime = LPC_MONSTERS.get('slime:2');
+    const frames = slime?.frames ?? 0;
+    const fps = slime?.fps ?? 0;
+    const rows = Array.from({ length: frames }, (_, f) => {
+      art.monster('slime', 2, (f + 0.5) / fps);
+      const [sheet, sx, sy] = crop.mock.calls[crop.mock.calls.length - 1];
+      expect(sheet).toBe('monsters');
+      expect(sx).toBe((slime?.index ?? 0) * LPC_MONSTER_CELL);
+      return (sy as number) / LPC_MONSTER_CELL;
+    });
+    expect(rows).toEqual(Array.from({ length: frames }, (_, f) => f));
+    const at = (f: number): number => (f + 0.5) / fps;
+    expect(art.monster('slime', 2, at(0))).toBe(art.monster('slime', 2, at(frames)));
+    expect(art.monster('slime', 2, at(0))).not.toBe(art.monster('slime', 2, at(1)));
+    expect(art.monster('slime', 2, at(-1))).toBe(art.monster('slime', 2, at(frames - 1)));
+    expect(art.monster('slime', 2)).toBe(art.monster('slime', 2, at(0)));
+    expect(crop).toHaveBeenCalledTimes(frames);
+  });
+
+  it('only reports sheet monsters with several frames as animated', () => {
+    const art = new Art(fakeSheets());
+    expect(art.isAnimatedMonster('slime')).toBe(true);
+    expect(art.isAnimatedMonster('bat', 2)).toBe(true);
+    expect(art.isAnimatedMonster('goblin', 1)).toBe(false);
+    expect(art.isAnimatedMonster('wolf')).toBe(false);
+    expect(art.isAnimatedMonster('giantToad')).toBe(false);
+    expect(art.monster('wolf', 0, 0)).toBe(art.monster('wolf', 0, 3.7));
+    const procedural = new Art();
+    expect(procedural.isAnimatedMonster('slime')).toBe(false);
+    expect(procedural.monster('slime', 0, 0)).toBe(procedural.monster('slime', 0, 3.7));
   });
 
   it('mirrors procedural right-facing art for left, so callers never flip', () => {
