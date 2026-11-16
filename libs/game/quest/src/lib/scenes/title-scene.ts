@@ -6,6 +6,9 @@ import { ABILITIES } from '../data/abilities';
 import { GameState, hasSave, loadGame, newGameState } from '../state/game-state';
 import { createMember, memberStats, weaponDef } from '../state/party';
 import { COLORS, ListMenu, SCREEN_H, SCREEN_W, charsFit, inRect } from '../ui/widgets';
+import { VOLUME_ROWS, adjustVolumeRow, volumeLabel } from '../ui/volume-rows';
+import { GameContext } from './context';
+import { WorldScene } from './world-scene';
 
 /** The title and name screens were laid out for a 216-unit-tall screen; centre that block vertically. */
 const OY = Math.floor((SCREEN_H - 216) / 2);
@@ -13,18 +16,22 @@ const OY = Math.floor((SCREEN_H - 216) / 2);
 const HORIZON = 138 + OY;
 /** Blinking glints over the painted stars, clear of the moon (upper left). */
 const TWINKLES = titleTwinkles(SCREEN_W, HORIZON, 24).filter((t) => Math.hypot(t.x - SCREEN_W * 0.15, t.y - HORIZON * 0.3) > 30);
-import { GameContext } from './context';
-import { WorldScene } from './world-scene';
 
-/** Title screen: New Game / Continue. */
+const OPTIONS_INDEX = 2;
+
+/** Title screen: New Game / Continue / Options. */
 export class TitleScene implements Scene {
   public readonly id = 'title';
   public readonly music = 'title';
   private readonly menu: ListMenu;
+  private volumeMenu: ListMenu | null = null;
   private time = 0;
 
   constructor(private readonly ctx: GameContext) {
-    this.menu = new ListMenu([{ label: 'NEW GAME' }, { label: 'CONTINUE', enabled: hasSave(ctx.storage) }], ctx.audio);
+    this.menu = new ListMenu(
+      [{ label: 'NEW GAME' }, { label: 'CONTINUE', enabled: hasSave(ctx.storage) }, { label: 'OPTIONS' }],
+      ctx.audio,
+    );
     if (hasSave(ctx.storage)) {
       this.menu.cursor = 1;
     }
@@ -32,6 +39,10 @@ export class TitleScene implements Scene {
 
   public update(dt: number, input: InputManager): void {
     this.time += dt;
+    if (this.volumeMenu) {
+      this.updateVolume(input);
+      return;
+    }
     const res = this.menu.update(input);
     if (res?.kind !== 'select') {
       return;
@@ -40,11 +51,41 @@ export class TitleScene implements Scene {
       this.ctx.stack.replace(new ClassSelectScene(this.ctx), true);
       return;
     }
+    if (res.index === OPTIONS_INDEX) {
+      this.openVolume();
+      return;
+    }
     const state = loadGame(this.ctx.storage);
     if (state) {
       this.ctx.state = state;
       this.ctx.stack.replace(new WorldScene(this.ctx), true);
     }
+  }
+
+  /** Options submenu: one row per audio channel; left/right adjust it, cancel returns to the title list. */
+  private openVolume(): void {
+    this.volumeMenu = new ListMenu(
+      VOLUME_ROWS.map((row) => ({ label: row.label, right: volumeLabel(this.ctx.audio.getChannelVolume(row.channel)) })),
+      this.ctx.audio,
+    );
+  }
+
+  private updateVolume(input: InputManager): void {
+    const menu = this.volumeMenu;
+    if (!menu) {
+      return;
+    }
+    const res = menu.update(input);
+    if (res?.kind === 'cancel') {
+      this.volumeMenu = null;
+      return;
+    }
+    const row = VOLUME_ROWS[menu.cursor];
+    adjustVolumeRow(this.ctx.audio, row.channel, input);
+    menu.items[menu.cursor] = {
+      ...menu.items[menu.cursor],
+      right: volumeLabel(this.ctx.audio.getChannelVolume(row.channel)),
+    };
   }
 
   public render(r: Renderer): void {
@@ -69,6 +110,11 @@ export class TitleScene implements Scene {
       const a = tileAnchor(sprite);
       r.draw(sprite, SCREEN_W / 2 - (CLASS_ORDER.length * gap) / 2 + (gap - TILE) / 2 + i * gap - a.x, 104 + OY - a.y);
     });
+    if (this.volumeMenu) {
+      this.volumeMenu.render(r, SCREEN_W / 2 - 60, 150 + OY, 120);
+      r.textCentered('UP/DOWN ROW  LEFT/RIGHT LEVEL  X/ESC BACK', SCREEN_W / 2, SCREEN_H - 16, COLORS.dim);
+      return;
+    }
     this.menu.render(r, SCREEN_W / 2 - 44, 150 + OY, 88);
     r.textCentered('ARROWS/WASD MOVE  Z/ENTER OK  X/ESC BACK  M MAP', SCREEN_W / 2, SCREEN_H - 16, COLORS.dim);
   }

@@ -58,6 +58,30 @@ describe('title flow', () => {
   });
 });
 
+describe('title OPTIONS volume menu', () => {
+  it('opens VOLUME from the title menu and steps the highlighted channel', () => {
+    const { ctx, driver } = setup();
+    const volumes: Record<string, number> = { master: 1, music: 0.25 };
+    ctx.audio = {
+      ...ctx.audio,
+      getChannelVolume: (c: string) => volumes[c] ?? 1,
+      setChannelVolume: (c: string, v: number) => {
+        volumes[c] = Math.min(1, Math.max(0, Math.round(v * 10) / 10));
+      },
+    } as never;
+    ctx.stack.push(new TitleScene(ctx));
+    driver.tap('down');
+    driver.tap('down');
+    driver.tap('confirm');
+    driver.run(0.1);
+    driver.tap('left');
+    expect(volumes.master).toBeCloseTo(0.9);
+    driver.tap('cancel');
+    driver.run(0.1);
+    expect(ctx.stack.top?.id).toBe('title');
+  });
+});
+
 describe('name entry by mouse or touch', () => {
   const tapKey = (driver: InputDriver, value: string): void => {
     const k = NAME_KEYS.find((key) => key.value === value);
