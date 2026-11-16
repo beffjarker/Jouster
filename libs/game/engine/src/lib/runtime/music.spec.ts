@@ -223,9 +223,9 @@ describe('AudioManager channel volumes', () => {
     host.window = original;
   });
 
-  it('defaults music to 25% and every other channel to 100%', () => {
+  it('defaults music to 15% and every other channel to 100%', () => {
     const audio = new AudioManager();
-    expect(audio.getChannelVolume('music')).toBeCloseTo(0.25);
+    expect(audio.getChannelVolume('music')).toBeCloseTo(0.15);
     for (const ch of ['master', 'ambient', 'battle', 'dialogue', 'ui'] as const) {
       expect(audio.getChannelVolume(ch)).toBe(1);
     }

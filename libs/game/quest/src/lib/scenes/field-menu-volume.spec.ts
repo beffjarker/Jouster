@@ -10,7 +10,7 @@ import { FieldMenuScene } from './menu-scenes';
 function fakeAudio(): { audio: AudioManager; volumes: Record<AudioChannel, number> } {
   const volumes: Record<AudioChannel, number> = {
     master: 1,
-    music: 0.25,
+    music: 0.15,
     ambient: 1,
     battle: 1,
     dialogue: 1,
@@ -44,9 +44,9 @@ function setup(): { ctx: GameContext; driver: InputDriver; volumes: Record<Audio
 }
 
 describe('field menu VOLUME submenu', () => {
-  it('starts music at 25% and everything else at 100%', () => {
+  it('starts music at 15% and everything else at 100%', () => {
     const { volumes } = setup();
-    expect(volumes.music).toBe(0.25);
+    expect(volumes.music).toBe(0.15);
     expect(volumes.master).toBe(1);
     expect(volumes.ambient).toBe(1);
     expect(volumes.battle).toBe(1);
@@ -104,7 +104,7 @@ describe('field menu VOLUME submenu', () => {
     driver.tap('down');
     driver.tap('left');
     expect(volumes.ambient).toBeCloseTo(0.9);
-    expect(volumes.music).toBe(0.25);
+    expect(volumes.music).toBe(0.15);
     expect(volumes.master).toBe(1);
   });
 

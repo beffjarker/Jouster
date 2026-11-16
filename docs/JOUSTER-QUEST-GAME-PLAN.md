@@ -1774,7 +1774,7 @@ compositions for this game (no borrowed tunes), so no extra licence or credit is
 - `N` mutes the music as well as the SFX; unmuting resumes the current scene's track.
 - Volume channels: every sound goes through a per-channel gain bus feeding a master gain. Channels are Master,
   Music, Ambient (steps, doors), Battle (hits, magic, encounter and victory jingles), Dialogue (message page
-  advance), and UI (menu cursor, confirm, cancel, coin). Defaults are Music 25% and every other channel 100%.
+  advance), and UI (menu cursor, confirm, cancel, coin). Defaults are Music 15% and every other channel 100%.
   The title screen's OPTIONS entry (after NEW GAME and CONTINUE) and the field menu's VOLUME entry open the same
   volume list (`ui/volume-rows.ts`); up/down picks a channel and left/right adjusts it in 10% steps. Settings last
   for the session only.
@@ -1800,7 +1800,7 @@ When a battle ends, the music stops so the victory or defeat jingle plays alone,
 
 ### 22.3 Tests
 
-- Engine (`music.spec.ts`, `engine.spec.ts`): channel defaults (Music 25%, others 100%), clamping, `play` routing
+- Engine (`music.spec.ts`, `engine.spec.ts`): channel defaults (Music 15%, others 100%), clamping, `play` routing
   to the right bus, note frequencies (A4 = 440 Hz), voice parsing, lookahead
   scheduling and looping against a fake AudioContext, no restart for the same track, crossfade, catching up after
   a stall, mute and unmute, no WebAudio, and `SceneStack.music`.
