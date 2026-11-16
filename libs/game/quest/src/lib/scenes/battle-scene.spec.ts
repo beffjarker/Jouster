@@ -22,7 +22,14 @@ function setup(
 ): { scene: BattleScene; internals: BattleInternals; driver: InputDriver; onEnd: jest.Mock } {
   const ctx: GameContext = {
     stack: new SceneStack(),
-    audio: { play: jest.fn(), toggleMute: jest.fn(), muted: false, dispose: jest.fn() } as never,
+    audio: {
+      play: jest.fn(),
+      toggleMute: jest.fn(),
+      muted: false,
+      dispose: jest.fn(),
+      getChannelVolume: jest.fn(() => 1),
+      setChannelVolume: jest.fn(),
+    } as never,
     art: art as Art,
     rng: createRng(3),
     storage: memoryStorage(),

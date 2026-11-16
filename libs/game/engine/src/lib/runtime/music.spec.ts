@@ -206,3 +206,59 @@ describe('AudioManager music', () => {
   });
 });
 
+describe('AudioManager channel volumes', () => {
+  const host = globalThis as unknown as { window?: Record<string, unknown> };
+  const original = host.window;
+  const win: Record<string, unknown> = {};
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    FakeAudioContext.instances = [];
+    win['AudioContext'] = FakeAudioContext;
+    host.window = win;
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    host.window = original;
+  });
+
+  it('defaults music to 25% and every other channel to 100%', () => {
+    const audio = new AudioManager();
+    expect(audio.getChannelVolume('music')).toBeCloseTo(0.25);
+    for (const ch of ['master', 'ambient', 'battle', 'dialogue', 'ui'] as const) {
+      expect(audio.getChannelVolume(ch)).toBe(1);
+    }
+    audio.dispose();
+  });
+
+  it('clamps channel volume to the 0-1 range', () => {
+    const audio = new AudioManager();
+    audio.setChannelVolume('battle', 2);
+    expect(audio.getChannelVolume('battle')).toBe(1);
+    audio.setChannelVolume('battle', -1);
+    expect(audio.getChannelVolume('battle')).toBe(0);
+    audio.dispose();
+  });
+
+  it('applies a changed volume to the existing bus immediately', () => {
+    const audio = new AudioManager();
+    audio.playMusic(TRACK);
+    audio.setChannelVolume('music', 0.5);
+    expect(audio.getChannelVolume('music')).toBeCloseTo(0.5);
+    const musicBus = ctx().gains.find((g) => g.gain.value === 0.5);
+    expect(musicBus).toBeDefined();
+    audio.dispose();
+  });
+
+  it('routes sounds through their channel bus', () => {
+    const audio = new AudioManager();
+    audio.setChannelVolume('dialogue', 0.3);
+    audio.play('cursor', 'dialogue');
+    expect(ctx().gains.some((g) => Math.abs(g.gain.value - 0.3) < 1e-6)).toBe(true);
+    audio.dispose();
+  });
+
+  const ctx = (): FakeAudioContext => FakeAudioContext.instances[0];
+});
+
