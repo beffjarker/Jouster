@@ -7,8 +7,8 @@
 > are implemented (see [16.9](#169-mouse-and-touch-controls-implemented)). Acts II, III and the Finale are
 > implemented (see [17](#17-act-ii-the-southlands-implemented), [19](#19-act-iii-the-frost-peaks-implemented) and
 > [21](#21-finale-the-ember-mountains-implemented)). Phase 8 polish is in progress: music, smooth walking, tile
-> fixes, one art style, a smoke test, poison and LPC battle poses are implemented (§22–§29; see
-> [17.8 Next](#178-next) for what is still open).
+> fixes, one art style, a smoke test, poison, LPC battle poses and animated slimes and bats are implemented (§22–§30;
+> see [17.8 Next](#178-next) for what is still open).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -365,7 +365,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29)). Open: LPC objects, giant toad art, animated slime and bat frames, post-unlock balance (4.4c) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30)). Open: LPC objects, giant toad art, post-unlock balance (4.4c) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -1306,8 +1306,8 @@ avoids laying out sprites twice.
    LPC as default. Done.
 4b2. HD procedural art (16.8): original art redrawn natively at 2? density. Done.
 4c. Next: LPC objects (trees, mountains, town and cave markers), art for the giant toad (the wolf and Alpha Wolf
-   are done, see 16.7), ~~attack and cast animations from the ULPC slash / spellcast rows~~ (done, §29), animated
-   slime and bat frames.
+   are done, see 16.7), ~~attack and cast animations from the ULPC slash / spellcast rows~~ (done, §29), ~~animated
+   slime and bat frames~~ (done, §30).
 5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the LPC
    spike review.
 6. Verify: unit, balance and scene tests, lint, browser screenshots; push to PR #184.
@@ -1320,8 +1320,8 @@ avoids laying out sprites twice.
   - `public/game-assets/lpc/characters.png`: 64?64 cells; one row per look (6 classes + 12 NPC looks), columns =
     4 facings ? 2 walk steps; then rows for the humanoid monsters (goblin ?3, skeleton ?3, Goblin King, goblin
     chief, bone captain) in a single left-facing frame; then the wolf ×3 and Alpha Wolf (see below).
-  - `public/game-assets/lpc/monsters.png`: 32 px cells for slime ?6 and bat ?3 (LPC Base Assets, hue-shifted
-    per variant), facing left.
+  - `public/game-assets/lpc/monsters.png`: 32 px cells for slime ×6 and bat ×3 (LPC Base Assets, hue-shifted
+    per variant), facing left; one column per look, one row per animation frame (§30).
   - `art/lpc-sprites.generated.ts` (layout constants) and a generated section of `CREDITS.md` that lists every
     layer's authors and licences (CC0, CC-BY, OGA-BY, CC-BY-SA, GPL); the composited sheets are CC-BY-SA 3.0.
   - Bow walk art exists only as ULPC `walk_128` custom animations; the script centre-crops those to 64 px.
@@ -1663,7 +1663,7 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~Status curing at the chapel (§12 deferred list).~~ Done in §28 (poison, with Antidote and Heal cures).
 - ~~A Cypress smoke test for `/jouster-quest`.~~ Done in §27.
 - ~~LPC wolf art~~ Done in 16.7 (wolf ×3, Alpha Wolf). ~~LPC attack animations (16.4 item 4c).~~ Done in §29.
-  Still open: giant toad (no suitable LPC art found), LPC objects, animated slime and bat frames.
+  Still open: giant toad (no suitable LPC art found), LPC objects. ~~Animated slime and bat frames.~~ Done in §30.
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
   play-testing confirms parties find Act II/III too easy.
 
@@ -1957,3 +1957,28 @@ frames fit inside `actions.png`, credits list it, and that `characterAction` ste
 crop and offset. `battle-scene.spec.ts` checks that attacks and spells start a pose that ends with its duration,
 that classes without a pose keep the hop, and that enemies, Defend and ally buffs never pose. Manual: fight with
 each class (or a full party) and watch the swing, thrust, shot and cast frames line up with the damage numbers.
+
+## 30. Animated slime and bat (implemented)
+
+Slimes and bats used a single standing frame from the LPC Base Assets and bobbed 1 px like the procedural art.
+They now play the sheets' own left-facing frames (16.4 item 4c).
+
+| Monster | Frames (source columns, in play order) | Speed |
+| --- | --- | --- |
+| Slime ×6 looks | rest, squash, stretch, squash (0, 1, 2, 1) | 6 fps |
+| Bat ×3 looks | wing beat (0, 1, 2, 1) | 10 fps |
+
+- **Sheet:** `build-lpc-sprites.py` writes `monsters.png` with one column per look (as before) and one row per
+  frame (288×128). Row 0 is the old standing frame. `LPC_MONSTERS` entries gain `frames` and `fps`;
+  characters-sheet monsters (goblins, skeletons, wolves, bosses) have one frame. `characters.png` and
+  `actions.png` are unchanged.
+- **Drawing:** `Art.monster(spriteId, variant, time)` picks the frame from `time` (wrapping, negative times
+  included) and caches each frame. `Art.isAnimatedMonster()` tells callers to skip their 1 px idle bob. Battles
+  offset each enemy's clock by its position, so a pack of slimes doesn't squash in lockstep; world-map monster
+  NPCs animate too.
+- **Fallbacks:** procedural art and single-frame LPC monsters ignore `time` and keep the bob.
+
+Tests: `lpc-sprites.spec.ts` checks that every slime and bat look has several frames inside `monsters.png`,
+characters-sheet monsters have one, `monster()` steps down the column over time with the right crop, wraps and
+caches per frame, and that only those sheet monsters report as animated. Manual: fight slimes and giant bats on
+the Greenwood plains and in the forest, and watch them squash and flap out of step.

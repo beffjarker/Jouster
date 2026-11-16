@@ -31,7 +31,8 @@ Jouster Quest's optional `?art=lpc` tile style uses the **LPC Tile Atlas**. The 
 generator's slash, thrust, shoot and spellcast layers.
 Each layer is available under the licences listed below (CC0, CC-BY, OGA-BY, CC-BY-SA and/or GPL).
 
-`monsters.png` crops and hue-shifts `slime.png` and `bat.png` from the [LPC Base Assets](https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles)
+`monsters.png` crops, reorders and hue-shifts the left-facing frames of `slime.png` and `bat.png` from the
+[LPC Base Assets](https://opengameart.org/content/liberated-pixel-cup-lpc-base-assets-sprites-map-tiles)
 by Charles Sanchez (CharlesGabriel), CC-BY-SA 3.0 / GPL 3.0.
 
 The wolf and Alpha Wolf rows of `characters.png` recolour a frame of [[LPC] Wolf Animation](https://opengameart.org/content/lpc-wolf-animation)

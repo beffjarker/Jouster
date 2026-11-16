@@ -475,16 +475,17 @@ export class WorldScene implements Scene {
         const py = this.lerp(n.fromY, n.y, nt) * TILE - camY;
         const spriteId = n.def.sprite?.(this.state) ?? n.def.spriteId;
         const humanoid = this.ctx.art.isCharacter(spriteId) || n.def.role === 'companion';
+        const bob = !humanoid && frame && !this.ctx.art.isAnimatedMonster(spriteId) ? 1 : 0;
         sprites.push({
           y: py,
           draw: () => {
             const sprite = !humanoid
-              ? this.ctx.art.monster(spriteId)
+              ? this.ctx.art.monster(spriteId, 0, this.time)
               : n.moveT < 1
               ? this.ctx.art.characterWalk(spriteId, n.facing, ((n.strides % 2) + nt) / 2)
               : this.ctx.art.character(spriteId, n.facing, frame);
             const a = tileAnchor(sprite);
-            r.draw(sprite, px - a.x, py - a.y - (!humanoid && frame ? 1 : 0));
+            r.draw(sprite, px - a.x, py - a.y - bob);
           },
         });
       });

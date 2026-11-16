@@ -174,13 +174,14 @@ HUMANOID_MONSTERS = {
     'boneCaptain': [skeleton((PLATE, 'metal:bronze'), (CAPE, 'cloth:red'), (ARMET, 'metal:bronze'), (SWORD, 'v:gold'))],
 }
 
-# Small monsters from the LPC Base Assets: (file, hue shifts in degrees, one per variant; 0 = as drawn).
+# Small monsters from the LPC Base Assets: (file, hue shifts in degrees, one per variant (0 = as drawn),
+# animation as source columns in play order, frames per second). The slime squashes (1) and stretches (2) from
+# its resting shape (0); the bat beats its wings. monsters.png has one row per animation frame.
 SMALL_MONSTERS = {
-    'slime': ('slime.png', [0, 150, -120, -160, -70, 60]),
-    'bat': ('bat.png', [0, 140, 100]),
+    'slime': ('slime.png', [0, 150, -120, -160, -70, 60], [0, 1, 2, 1], 6),
+    'bat': ('bat.png', [0, 140, 100], [0, 1, 2, 1], 10),
 }
 SMALL_CELL = 32
-SMALL_COL = 0  # standing frame
 SMALL_ROW = 1  # facing left (rows: up, left, down, right)
 
 # Beasts from "[LPC] Wolf Animation": the left-facing standing frame (64x32 at x 320, y 256 of the sheet),
@@ -509,15 +510,18 @@ def main() -> None:
 
     with zipfile.ZipFile(io.BytesIO(fetch(BASE_ASSETS, 'lpc_base_assets.zip'))) as z:
         small_src = {mid: Image.open(io.BytesIO(z.read(f'LPC Base Assets/sprites/monsters/{file}'))).convert('RGBA')
-                     for mid, (file, _) in SMALL_MONSTERS.items()}
-    small_keys = [f'{mid}:{v}' for mid, (_, shifts) in SMALL_MONSTERS.items() for v in range(len(shifts))]
-    monsters = Image.new('RGBA', (SMALL_CELL * len(small_keys), SMALL_CELL))
+                     for mid, (file, *_) in SMALL_MONSTERS.items()}
+    small_keys = [f'{mid}:{v}' for mid, (_, shifts, *_) in SMALL_MONSTERS.items() for v in range(len(shifts))]
+    small_anims = {mid: (len(cycle), fps) for mid, (_, _, cycle, fps) in SMALL_MONSTERS.items()}
+    max_frames = max(len(cycle) for _, _, cycle, _ in SMALL_MONSTERS.values())
+    monsters = Image.new('RGBA', (SMALL_CELL * len(small_keys), SMALL_CELL * max_frames))
     i = 0
-    for mid, (_, shifts) in SMALL_MONSTERS.items():
-        cell = small_src[mid].crop((SMALL_COL * SMALL_CELL, SMALL_ROW * SMALL_CELL,
-                                    (SMALL_COL + 1) * SMALL_CELL, (SMALL_ROW + 1) * SMALL_CELL))
+    for mid, (_, shifts, cycle, _) in SMALL_MONSTERS.items():
+        cells = [small_src[mid].crop((col * SMALL_CELL, SMALL_ROW * SMALL_CELL,
+                                      (col + 1) * SMALL_CELL, (SMALL_ROW + 1) * SMALL_CELL)) for col in cycle]
         for shift in shifts:
-            monsters.paste(hue_shift(cell, shift), (i * SMALL_CELL, 0))
+            for f, cell in enumerate(cells):
+                monsters.paste(hue_shift(cell, shift), (i * SMALL_CELL, f * SMALL_CELL))
             i += 1
     monsters.save(os.path.join(OUT_DIR, 'monsters.png'), optimize=True)
 
@@ -535,14 +539,14 @@ def main() -> None:
     for line in missing:
         print(f'  pose layer skipped: {line}')
 
-    write_ts(names, cw, ch, small_keys, (aw, ah), origin, {k: len(fs) for k, fs in poses.items()})
+    write_ts(names, cw, ch, small_keys, small_anims, (aw, ah), origin, {k: len(fs) for k, fs in poses.items()})
     write_credits(credits_for(used))
     print(f'characters.png {characters.size} ({len(names)} rows, cell {cw}x{ch}); monsters.png {monsters.size}; '
           f'actions.png {actions.size} ({len(poses)} rows, cell {aw}x{ah}, origin {origin})')
 
 
-def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str], acell: tuple[int, int],
-             origin: tuple[int, int], poses: dict[str, int]) -> None:
+def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str], small_anims: dict[str, tuple[int, int]],
+             acell: tuple[int, int], origin: tuple[int, int], poses: dict[str, int]) -> None:
     looks = [n for n in names if ':' not in n]
     humanoid = [n for n in names if ':' in n]
     lines = [
@@ -566,10 +570,19 @@ def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str], acell: t
         '/** Real-pixel size of one `monsters.png` cell. */',
         f'export const LPC_MONSTER_CELL = {SMALL_CELL};',
         '',
-        '/** Monster art by `spriteId:variant`: a `characters.png` row (column 0) or a `monsters.png` column. */',
-        "export const LPC_MONSTERS: ReadonlyMap<string, { sheet: 'characters' | 'monsters'; index: number }> = new Map([",
-        *[f"  ['{n}', {{ sheet: 'characters' as const, index: {names.index(n)} }}]," for n in humanoid],
-        *[f"  ['{k}', {{ sheet: 'monsters' as const, index: {i} }}]," for i, k in enumerate(small_keys)],
+        '/**',
+        ' * Monster art by `spriteId:variant`: a `characters.png` row (column 0, one frame) or a `monsters.png` column',
+        ' * whose first `frames` rows are a looping animation played at `fps` frames per second.',
+        ' */',
+        'export const LPC_MONSTERS: ReadonlyMap<',
+        '  string,',
+        "  { sheet: 'characters' | 'monsters'; index: number; frames: number; fps: number }",
+        '> = new Map([',
+        *[f"  ['{n}', {{ sheet: 'characters' as const, index: {names.index(n)}, frames: 1, fps: 0 }}],"
+          for n in humanoid],
+        *[f"  ['{k}', {{ sheet: 'monsters' as const, index: {i}, frames: {small_anims[k.split(':')[0]][0]}, "
+          f"fps: {small_anims[k.split(':')[0]][1]} }}],"
+          for i, k in enumerate(small_keys)],
         ']);',
         '',
         '/** Real-pixel size of one `actions.png` cell (a battle pose frame, facing right). */',
@@ -603,7 +616,8 @@ def write_credits(rows: list[dict]) -> None:
         'generator\'s slash, thrust, shoot and spellcast layers.',
         'Each layer is available under the licences listed below (CC0, CC-BY, OGA-BY, CC-BY-SA and/or GPL).',
         '',
-        f'`monsters.png` crops and hue-shifts `slime.png` and `bat.png` from the [LPC Base Assets]({BASE_ASSETS_PAGE})',
+        f'`monsters.png` crops, reorders and hue-shifts the left-facing frames of `slime.png` and `bat.png` from the',
+        f'[LPC Base Assets]({BASE_ASSETS_PAGE})',
         'by Charles Sanchez (CharlesGabriel), CC-BY-SA 3.0 / GPL 3.0.',
         '',
         f'The wolf and Alpha Wolf rows of `characters.png` recolour a frame of [[LPC] Wolf Animation]({WOLF_PAGE})',
