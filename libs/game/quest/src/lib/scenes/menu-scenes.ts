@@ -1,5 +1,5 @@
 import { TILE, fitScale } from '../art/art';
-import { AudioChannel, InputAction, InputManager, ItemEffect, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
+import { InputAction, InputManager, ItemEffect, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { classDef } from '../data/classes';
 import { ITEMS, WEAPONS } from '../data/equipment';
@@ -32,6 +32,7 @@ import {
   drawPartyStatus,
   say,
 } from '../ui/widgets';
+import { VOLUME_ROWS, adjustVolumeRow, volumeLabel } from '../ui/volume-rows';
 import { GameContext, memberStatus, requireState } from './context';
 import { MapScene, questLog } from './map-scene';
 
@@ -50,19 +51,6 @@ type FieldMode =
   | 'volume';
 
 const MAIN_MENU = ['STATUS', 'ITEM', 'EQUIP', 'MAGIC', 'QUESTS', 'VOLUME', 'MAP', 'CLOSE'] as const;
-/** Volume rows in the order they appear in the VOLUME submenu, with their labels. */
-const VOLUME_ROWS: readonly { readonly channel: AudioChannel; readonly label: string }[] = [
-  { channel: 'master', label: 'MASTER' },
-  { channel: 'music', label: 'MUSIC' },
-  { channel: 'ambient', label: 'AMBIENT' },
-  { channel: 'battle', label: 'BATTLE' },
-  { channel: 'dialogue', label: 'DIALOGUE' },
-  { channel: 'ui', label: 'UI / SFX' },
-];
-/** Step (0 to 1) each left or right press changes a volume row by. */
-const VOLUME_STEP = 0.1;
-/** Formats a 0 to 1 volume as a whole-number percentage, e.g. 0.25 becomes '25%'. */
-const volumeLabel = (v: number): string => `${Math.round(v * 100)}%`;
 const SLOT_LABELS: Readonly<Record<GearSlot, string>> = {
   weapon: 'WEAPON',
   armor: 'ARMOR',
@@ -256,11 +244,7 @@ export class FieldMenuScene implements Scene {
       return;
     }
     const row = VOLUME_ROWS[menu.cursor];
-    const step = input.wasPressed('left') ? -VOLUME_STEP : input.wasPressed('right') ? VOLUME_STEP : 0;
-    if (step !== 0) {
-      this.ctx.audio.setChannelVolume(row.channel, this.ctx.audio.getChannelVolume(row.channel) + step);
-      this.ctx.audio.play('cursor');
-    }
+    adjustVolumeRow(this.ctx.audio, row.channel, input);
     menu.items[menu.cursor] = { ...menu.items[menu.cursor], right: volumeLabel(this.ctx.audio.getChannelVolume(row.channel)) };
     if (input.wasPressed('up')) {
       menu.cursor = (menu.cursor - 1 + menu.items.length) % menu.items.length;

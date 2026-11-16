@@ -1775,7 +1775,9 @@ compositions for this game (no borrowed tunes), so no extra licence or credit is
 - Volume channels: every sound goes through a per-channel gain bus feeding a master gain. Channels are Master,
   Music, Ambient (steps, doors), Battle (hits, magic, encounter and victory jingles), Dialogue (message page
   advance), and UI (menu cursor, confirm, cancel, coin). Defaults are Music 25% and every other channel 100%.
-  The field menu's Volume submenu adjusts them in 10% steps. Settings last for the session only.
+  The title screen's OPTIONS entry (after NEW GAME and CONTINUE) and the field menu's VOLUME entry open the same
+  volume list (`ui/volume-rows.ts`); up/down picks a channel and left/right adjusts it in 10% steps. Settings last
+  for the session only.
 - `Scene.music` is optional. `SceneStack.music` takes it from the topmost scene that defines it, so menus,
   dialogs and the world map keep the music underneath. An empty string means silence.
 
