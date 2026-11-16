@@ -8,7 +8,14 @@ import { NAME_KEYS, NameEntryScene, TitleScene, nameKeyAt } from './title-scene'
 function setup(): { ctx: GameContext; driver: InputDriver } {
   const ctx: GameContext = {
     stack: new SceneStack(),
-    audio: { play: jest.fn(), toggleMute: jest.fn(), muted: false, dispose: jest.fn() } as never,
+    audio: {
+      play: jest.fn(),
+      toggleMute: jest.fn(),
+      muted: false,
+      dispose: jest.fn(),
+      getChannelVolume: jest.fn(() => 1),
+      setChannelVolume: jest.fn(),
+    } as never,
     art: {} as Art,
     rng: createRng(3),
     storage: memoryStorage(),

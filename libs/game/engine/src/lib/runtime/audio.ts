@@ -17,6 +17,40 @@ export type SoundId =
   | 'door'
   | 'coin';
 
+/** Independently adjustable volume channels. Every sound and music track plays through exactly one of them. */
+export type AudioChannel = 'master' | 'music' | 'ambient' | 'battle' | 'dialogue' | 'ui';
+
+export const AUDIO_CHANNELS: readonly AudioChannel[] = ['master', 'music', 'ambient', 'battle', 'dialogue', 'ui'];
+
+/** Starting volume (0 to 1) of each channel. Music starts quieter so it sits under the sound effects. */
+export const DEFAULT_CHANNEL_VOLUMES: Readonly<Record<AudioChannel, number>> = {
+  master: 1,
+  music: 0.25,
+  ambient: 1,
+  battle: 1,
+  dialogue: 1,
+  ui: 1,
+};
+
+/** Channel each sound plays through unless the caller overrides it. */
+const SOUND_CHANNEL: Readonly<Record<SoundId, AudioChannel>> = {
+  cursor: 'ui',
+  confirm: 'ui',
+  cancel: 'ui',
+  coin: 'ui',
+  hit: 'battle',
+  crit: 'battle',
+  miss: 'battle',
+  magic: 'battle',
+  heal: 'battle',
+  encounter: 'battle',
+  victory: 'battle',
+  defeat: 'battle',
+  levelUp: 'battle',
+  step: 'ambient',
+  door: 'ambient',
+};
+
 interface Tone {
   freq: number;
   dur: number;
@@ -106,6 +140,22 @@ export class AudioManager {
   private track: MusicTrack | null = null;
   private playback: MusicPlayback | null = null;
   private noise: AudioBuffer | null = null;
+  private readonly volumes: Record<AudioChannel, number> = { ...DEFAULT_CHANNEL_VOLUMES };
+  private readonly buses = new Map<AudioChannel, GainNode>();
+
+  /** Volume (0 to 1) of a channel. Applies immediately, including to sounds already queued. */
+  public getChannelVolume(channel: AudioChannel): number {
+    return this.volumes[channel];
+  }
+
+  public setChannelVolume(channel: AudioChannel, volume: number): void {
+    const clamped = Math.min(1, Math.max(0, volume));
+    this.volumes[channel] = clamped;
+    const bus = this.buses.get(channel);
+    if (bus) {
+      bus.gain.value = clamped;
+    }
+  }
 
   public toggleMute(): boolean {
     this.muted = !this.muted;
@@ -137,7 +187,8 @@ export class AudioManager {
     }
   }
 
-  public play(id: SoundId): void {
+  /** Plays a sound effect through its default channel, or `channel` when given (e.g. dialogue blips). */
+  public play(id: SoundId, channel: AudioChannel = SOUND_CHANNEL[id]): void {
     if (this.muted) {
       return;
     }
@@ -158,7 +209,7 @@ export class AudioManager {
         }
         gain.gain.setValueAtTime(tone.volume ?? 0.08, start);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.dur);
-        osc.connect(gain).connect(ctx.destination);
+        osc.connect(gain).connect(this.bus(ctx, channel));
         osc.start(start);
         osc.stop(start + tone.dur + 0.02);
       } catch {
@@ -171,8 +222,25 @@ export class AudioManager {
     this.stopPlayback();
     this.track = null;
     this.noise = null;
+    this.buses.clear();
     void this.ctx?.close().catch(() => undefined);
     this.ctx = null;
+  }
+
+  /**
+   * Gain node for a channel, created on first use. Every channel feeds the master bus, which feeds the
+   * speakers, so the master volume scales everything.
+   */
+  private bus(ctx: AudioContext, channel: AudioChannel): GainNode {
+    const existing = this.buses.get(channel);
+    if (existing) {
+      return existing;
+    }
+    const node = ctx.createGain();
+    node.gain.value = this.volumes[channel];
+    node.connect(channel === 'master' ? ctx.destination : this.bus(ctx, 'master'));
+    this.buses.set(channel, node);
+    return node;
   }
 
   private startPlayback(): void {
@@ -194,7 +262,7 @@ export class AudioManager {
       const now = ctx.currentTime;
       gain.gain.setValueAtTime(0.0001, now);
       gain.gain.linearRampToValueAtTime(1, now + MUSIC_FADE);
-      gain.connect(ctx.destination);
+      gain.connect(this.bus(ctx, 'music'));
       const playback: MusicPlayback = {
         track,
         gain,

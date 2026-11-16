@@ -1,5 +1,5 @@
 import { TILE, fitScale } from '../art/art';
-import { InputAction, InputManager, ItemEffect, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
+import { AudioChannel, InputAction, InputManager, ItemEffect, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { classDef } from '../data/classes';
 import { ITEMS, WEAPONS } from '../data/equipment';
@@ -46,9 +46,23 @@ type FieldMode =
   | 'equipPick'
   | 'magicWho'
   | 'magic'
-  | 'magicWho2';
+  | 'magicWho2'
+  | 'volume';
 
-const MAIN_MENU = ['STATUS', 'ITEM', 'EQUIP', 'MAGIC', 'QUESTS', 'MAP', 'CLOSE'] as const;
+const MAIN_MENU = ['STATUS', 'ITEM', 'EQUIP', 'MAGIC', 'QUESTS', 'VOLUME', 'MAP', 'CLOSE'] as const;
+/** Volume rows in the order they appear in the VOLUME submenu, with their labels. */
+const VOLUME_ROWS: readonly { readonly channel: AudioChannel; readonly label: string }[] = [
+  { channel: 'master', label: 'MASTER' },
+  { channel: 'music', label: 'MUSIC' },
+  { channel: 'ambient', label: 'AMBIENT' },
+  { channel: 'battle', label: 'BATTLE' },
+  { channel: 'dialogue', label: 'DIALOGUE' },
+  { channel: 'ui', label: 'UI / SFX' },
+];
+/** Step (0 to 1) each left or right press changes a volume row by. */
+const VOLUME_STEP = 0.1;
+/** Formats a 0 to 1 volume as a whole-number percentage, e.g. 0.25 becomes '25%'. */
+const volumeLabel = (v: number): string => `${Math.round(v * 100)}%`;
 const SLOT_LABELS: Readonly<Record<GearSlot, string>> = {
   weapon: 'WEAPON',
   armor: 'ARMOR',
@@ -132,6 +146,8 @@ export class FieldMenuScene implements Scene {
         this.openMembers('magicWho');
       } else if (entry === 'QUESTS') {
         say(this.ctx.stack, this.ctx.audio, questLog(this.state));
+      } else if (entry === 'VOLUME') {
+        this.openVolume();
       } else if (entry === 'MAP') {
         this.ctx.stack.pop();
         this.ctx.stack.push(new MapScene(this.ctx));
@@ -146,6 +162,10 @@ export class FieldMenuScene implements Scene {
         this.ctx.audio.play('cancel');
         this.openMembers('statusWho');
       }
+      return;
+    }
+    if (this.mode === 'volume') {
+      this.updateVolume(input);
       return;
     }
     const res = this.sub?.update(input);
@@ -169,7 +189,12 @@ export class FieldMenuScene implements Scene {
       return;
     }
     if (this.sub) {
-      const titles: Partial<Record<FieldMode, string>> = { item: 'ITEMS', magic: 'MAGIC', equipSlot: 'EQUIP' };
+      const titles: Partial<Record<FieldMode, string>> = {
+        item: 'ITEMS',
+        magic: 'MAGIC',
+        equipSlot: 'EQUIP',
+        volume: 'VOLUME',
+      };
       const title = this.mode === 'equipPick' ? SLOT_LABELS[this.slot] : titles[this.mode] ?? 'WHO?';
       this.sub.render(r, SUB_X, 8, SUB_W, true, title);
       const hint = this.subHint();
@@ -209,8 +234,45 @@ export class FieldMenuScene implements Scene {
     );
   }
 
+  /** Volume submenu: one row per audio channel, showing its level; left/right adjust it. */
+  private openVolume(): void {
+    this.mode = 'volume';
+    this.sub = new ListMenu(
+      VOLUME_ROWS.map((row) => ({ label: row.label, right: volumeLabel(this.ctx.audio.getChannelVolume(row.channel)) })),
+      this.ctx.audio,
+    );
+  }
+
+  private updateVolume(input: InputManager): void {
+    const menu = this.sub;
+    if (!menu) {
+      this.mode = 'main';
+      return;
+    }
+    if (input.wasPressed('cancel')) {
+      this.ctx.audio.play('cancel');
+      this.mode = 'main';
+      this.sub = null;
+      return;
+    }
+    const row = VOLUME_ROWS[menu.cursor];
+    const step = input.wasPressed('left') ? -VOLUME_STEP : input.wasPressed('right') ? VOLUME_STEP : 0;
+    if (step !== 0) {
+      this.ctx.audio.setChannelVolume(row.channel, this.ctx.audio.getChannelVolume(row.channel) + step);
+      this.ctx.audio.play('cursor');
+    }
+    menu.items[menu.cursor] = { ...menu.items[menu.cursor], right: volumeLabel(this.ctx.audio.getChannelVolume(row.channel)) };
+    if (input.wasPressed('up')) {
+      menu.cursor = (menu.cursor - 1 + menu.items.length) % menu.items.length;
+      this.ctx.audio.play('cursor');
+    } else if (input.wasPressed('down')) {
+      menu.cursor = (menu.cursor + 1) % menu.items.length;
+      this.ctx.audio.play('cursor');
+    }
+  }
+
   private openItems(): void {
-    this.subIds = [...ITEMS.values()].filter((i) => (this.state.inventory[i.id] ?? 0) > 0).map((i) => i.id);
+    this.subIds =  [...ITEMS.values()].filter((i) => (this.state.inventory[i.id] ?? 0) > 0).map((i) => i.id);
     if (this.subIds.length === 0) {
       say(this.ctx.stack, this.ctx.audio, ['You are not carrying any items.']);
       return;

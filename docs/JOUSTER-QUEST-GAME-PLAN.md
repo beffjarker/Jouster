@@ -1772,6 +1772,10 @@ compositions for this game (no borrowed tunes), so no extra licence or credit is
   crossfades over 0.4 s when the track changes. Asking for the track that is already playing does nothing, so the
   game calls it every frame. After a stall (e.g. a background tab) it skips ahead instead of bursting old notes.
 - `N` mutes the music as well as the SFX; unmuting resumes the current scene's track.
+- Volume channels: every sound goes through a per-channel gain bus feeding a master gain. Channels are Master,
+  Music, Ambient (steps, doors), Battle (hits, magic, encounter and victory jingles), Dialogue (message page
+  advance), and UI (menu cursor, confirm, cancel, coin). Defaults are Music 25% and every other channel 100%.
+  The field menu's Volume submenu adjusts them in 10% steps. Settings last for the session only.
 - `Scene.music` is optional. `SceneStack.music` takes it from the topmost scene that defines it, so menus,
   dialogs and the world map keep the music underneath. An empty string means silence.
 
@@ -1794,7 +1798,8 @@ When a battle ends, the music stops so the victory or defeat jingle plays alone,
 
 ### 22.3 Tests
 
-- Engine (`music.spec.ts`, `engine.spec.ts`): note frequencies (A4 = 440 Hz), voice parsing, lookahead
+- Engine (`music.spec.ts`, `engine.spec.ts`): channel defaults (Music 25%, others 100%), clamping, `play` routing
+  to the right bus, note frequencies (A4 = 440 Hz), voice parsing, lookahead
   scheduling and looping against a fake AudioContext, no restart for the same track, crossfade, catching up after
   a stall, mute and unmute, no WebAudio, and `SceneStack.music`.
 - Quest (`data/music.spec.ts`, `world-scene.spec.ts`): every track parses into whole bars at a sane tempo and

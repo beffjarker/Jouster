@@ -273,7 +273,7 @@ export class MessageScene implements Scene {
       if (this.lastPage) {
         this.close(-1);
       } else {
-        this.audio.play('cursor');
+        this.audio.play('cursor', 'dialogue');
         this.page++;
         this.shown = 0;
       }
