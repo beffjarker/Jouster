@@ -6,8 +6,9 @@
 > [Revision 3](#14-revision-3-exploration-pacing-widescreen-and-battle-presentation)). Mouse and touch controls
 > are implemented (see [16.9](#169-mouse-and-touch-controls-implemented)). Acts II, III and the Finale are
 > implemented (see [17](#17-act-ii-the-southlands-implemented), [19](#19-act-iii-the-frost-peaks-implemented) and
-> [21](#21-finale-the-ember-mountains-implemented)). Phase 8 polish is in progress; chiptune music loops are
-> implemented (see [22](#22-polish-chiptune-music-implemented)).
+> [21](#21-finale-the-ember-mountains-implemented)). Phase 8 polish is in progress: music, smooth walking, tile
+> fixes, one art style, a smoke test, poison and LPC battle poses are implemented (§22–§29; see
+> [17.8 Next](#178-next) for what is still open).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -364,7 +365,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27)) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29)). Open: LPC objects, giant toad art, animated slime and bat frames, post-unlock balance (4.4c) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -1923,7 +1924,7 @@ scorpion poison someone, walk a few steps, then try the chapel's CURE, an Antido
 ## 29. Attack and cast animations (implemented)
 
 Party members now swing, thrust, shoot and cast with the ULPC action rows instead of only stepping in or hopping
-(16.4 item 4c).
+(16.4 item 4c). Merged in PR #212.
 
 | Class | Attack (and damaging skills at enemies) | Spells |
 | --- | --- | --- |
