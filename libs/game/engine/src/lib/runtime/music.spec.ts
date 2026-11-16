@@ -6,6 +6,7 @@ class FakeParam {
   public setValueAtTime = jest.fn();
   public linearRampToValueAtTime = jest.fn();
   public exponentialRampToValueAtTime = jest.fn();
+  public setTargetAtTime = jest.fn();
   public cancelScheduledValues = jest.fn();
 }
 
@@ -241,13 +242,32 @@ describe('AudioManager channel volumes', () => {
     audio.dispose();
   });
 
-  it('applies a changed volume to the existing bus immediately', () => {
+  it('glides an existing bus to a changed volume instead of jumping', () => {
     const audio = new AudioManager();
     audio.playMusic(TRACK);
+    const musicBus = ctx().gains.find((g) => Math.abs(g.gain.value - 0.15) < 1e-6);
+    expect(musicBus).toBeDefined();
+    ctx().currentTime = 2;
     audio.setChannelVolume('music', 0.5);
     expect(audio.getChannelVolume('music')).toBeCloseTo(0.5);
-    const musicBus = ctx().gains.find((g) => g.gain.value === 0.5);
-    expect(musicBus).toBeDefined();
+    expect(musicBus?.gain.cancelScheduledValues).toHaveBeenCalledWith(2);
+    expect(musicBus?.gain.setTargetAtTime).toHaveBeenCalledWith(0.5, 2, expect.any(Number));
+    audio.dispose();
+  });
+
+  it('fades every note and sound in rather than starting at full gain', () => {
+    const audio = new AudioManager();
+    audio.playMusic(TRACK);
+    audio.play('confirm');
+    // Skip the music fade and channel buses; the rest are per-note and per-tone envelopes.
+    const envelopes = ctx().gains.filter((g) => g.gain.setValueAtTime.mock.calls.length > 0).slice(1);
+    expect(envelopes.length).toBeGreaterThanOrEqual(4);
+    for (const g of envelopes) {
+      const [startValue, startTime] = g.gain.setValueAtTime.mock.calls[0] as [number, number];
+      expect(startValue).toBeLessThanOrEqual(0.0001);
+      const [, rampEnd] = g.gain.linearRampToValueAtTime.mock.calls[0] as [number, number];
+      expect(rampEnd).toBeGreaterThan(startTime);
+    }
     audio.dispose();
   });
 
