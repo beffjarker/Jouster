@@ -111,6 +111,13 @@ const MUSIC_LOOKAHEAD = 0.25;
 const MUSIC_TICK_MS = 50;
 /** Crossfade time (seconds) when the music changes or stops. */
 const MUSIC_FADE = 0.4;
+/**
+ * Fade-in time (seconds) at the start of every note and sound. Jumping straight from silence to full gain
+ * (especially on a square wave) is a waveform discontinuity that is heard as a click.
+ */
+const NOTE_ATTACK = 0.005;
+/** Time constant (seconds) for gliding a channel bus to a new volume, so moving a volume slider never pops. */
+const VOLUME_SMOOTHING = 0.015;
 
 interface StepNote {
   readonly wave: MusicWave;
@@ -143,7 +150,7 @@ export class AudioManager {
   private readonly volumes: Record<AudioChannel, number> = { ...DEFAULT_CHANNEL_VOLUMES };
   private readonly buses = new Map<AudioChannel, GainNode>();
 
-  /** Volume (0 to 1) of a channel. Applies immediately, including to sounds already queued. */
+  /** Volume (0 to 1) of a channel. Changes glide in over a few milliseconds, including for sounds already queued. */
   public getChannelVolume(channel: AudioChannel): number {
     return this.volumes[channel];
   }
@@ -152,7 +159,16 @@ export class AudioManager {
     const clamped = Math.min(1, Math.max(0, volume));
     this.volumes[channel] = clamped;
     const bus = this.buses.get(channel);
-    if (bus) {
+    const ctx = this.ctx;
+    if (!bus || !ctx) {
+      return;
+    }
+    try {
+      const now = ctx.currentTime;
+      bus.gain.cancelScheduledValues(now);
+      bus.gain.setValueAtTime(bus.gain.value, now);
+      bus.gain.setTargetAtTime(clamped, now, VOLUME_SMOOTHING);
+    } catch {
       bus.gain.value = clamped;
     }
   }
@@ -207,7 +223,8 @@ export class AudioManager {
         if (tone.slideTo) {
           osc.frequency.exponentialRampToValueAtTime(tone.slideTo, start + tone.dur);
         }
-        gain.gain.setValueAtTime(tone.volume ?? 0.08, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.linearRampToValueAtTime(tone.volume ?? 0.08, start + NOTE_ATTACK);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + tone.dur);
         osc.connect(gain).connect(this.bus(ctx, channel));
         osc.start(start);
@@ -329,7 +346,8 @@ export class AudioManager {
         const dur = Math.min(0.08, playback.stepDur);
         const src = ctx.createBufferSource();
         src.buffer = this.noiseBuffer(ctx);
-        gain.gain.setValueAtTime(note.volume, start);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.linearRampToValueAtTime(note.volume, start + NOTE_ATTACK);
         gain.gain.exponentialRampToValueAtTime(0.0001, start + dur);
         src.connect(gain).connect(playback.gain);
         src.start(start);
@@ -340,9 +358,11 @@ export class AudioManager {
       const osc = ctx.createOscillator();
       osc.type = note.wave;
       osc.frequency.setValueAtTime(note.freq, start);
-      gain.gain.setValueAtTime(note.volume, start);
-      gain.gain.setValueAtTime(note.volume, start + dur * 0.7);
-      gain.gain.linearRampToValueAtTime(0.0001, start + dur * 0.95);
+      const attackEnd = start + NOTE_ATTACK;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(note.volume, attackEnd);
+      gain.gain.setValueAtTime(note.volume, Math.max(attackEnd, start + dur * 0.7));
+      gain.gain.linearRampToValueAtTime(0, start + dur * 0.95);
       osc.connect(gain).connect(playback.gain);
       osc.start(start);
       osc.stop(start + dur);
