@@ -25,7 +25,7 @@ export const AUDIO_CHANNELS: readonly AudioChannel[] = ['master', 'music', 'ambi
 /** Starting volume (0 to 1) of each channel. Music starts quieter so it sits under the sound effects. */
 export const DEFAULT_CHANNEL_VOLUMES: Readonly<Record<AudioChannel, number>> = {
   master: 1,
-  music: 0.25,
+  music: 0.15,
   ambient: 1,
   battle: 1,
   dialogue: 1,
