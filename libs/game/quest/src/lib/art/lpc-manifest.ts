@@ -31,8 +31,7 @@ export interface LpcCell {
 
 /**
  * LPC art for one tile id. `ground` lists look-alike variants (picked by a per-position hash).
- * Objects on top of the ground (trees, peaks, houses, torches) are still drawn procedurally over it
- * until LPC objects are converted.
+ * Objects on top of the ground are drawn procedurally over it, except those listed in {@link LPC_OBJECTS}.
  */
 export interface LpcTile {
   ground: readonly LpcCell[];
@@ -87,6 +86,71 @@ export const LPC_TILES: ReadonlyMap<string, LpcTile> = new Map<string, LpcTile>(
   ['torch', { ground: CAVE_ROCK }],
   ['caveWater', { ground: [t(13, 3), t(13, 5), t(14, 5)], animatedGround: true }],
 ]);
+
+/** A rectangle of a sheet (real pixels), pasted at (`dx`, `dy`) into an {@link LpcObject}. */
+export interface LpcPiece {
+  sheet: LpcSheetId;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  dx: number;
+  dy: number;
+}
+
+/**
+ * A landscape object (tree, cave mouth) cut from the LPC atlases. It is drawn 1:1 at 4x density, i.e. at half
+ * its native LPC size, like the procedural object overlays, so a 96 px LPC tree is 24 logical px and overlaps
+ * its neighbours the way a forest canopy should. `width` x `height` is the composed size in sheet pixels and
+ * `base` the row (from the top) that stands on the tile's bottom edge; shadows may hang below it.
+ */
+export interface LpcObject {
+  width: number;
+  height: number;
+  base: number;
+  pieces: readonly LpcPiece[];
+}
+
+const piece = (x: number, y: number, w: number, h: number, dx = 0, dy = 0): LpcPiece => ({ sheet: 'terrain', x, y, w, h, dx, dy });
+
+/** A pine: the trunk piece goes under the canopy, overlapping it by `TRUNK_OVERLAP` rows. */
+const TRUNK_OVERLAP = 12;
+function pine(canopy: LpcPiece, trunk: LpcPiece): LpcObject {
+  const width = Math.max(canopy.w, trunk.w);
+  const top = canopy.h - TRUNK_OVERLAP;
+  return {
+    width,
+    height: top + trunk.h,
+    base: top + trunk.h - 10,
+    pieces: [
+      { ...trunk, dx: Math.floor((width - trunk.w) / 2), dy: top },
+      { ...canopy, dx: Math.floor((width - canopy.w) / 2), dy: 0 },
+    ],
+  };
+}
+
+const PINE = pine(piece(772, 485, 85, 91), piece(816, 608, 64, 41));
+const PINE_DARK = pine(piece(870, 501, 85, 91), piece(915, 608, 59, 39));
+const OAK: LpcObject = { width: 95, height: 117, base: 112, pieces: [piece(929, 902, 95, 117)] };
+const SAPLING: LpcObject = { width: 60, height: 90, base: 88, pieces: [piece(867, 931, 60, 90)] };
+const CAVE_MOUTH: LpcObject = { width: 64, height: 75, base: 75, pieces: [piece(32, 160, 64, 75)] };
+
+/**
+ * LPC objects that replace a tile's procedural object overlay, indexed by the tile's art variant (`tileVariant`).
+ * Tiles not listed (mountains, hills, towns, ruins, torches, Act II/III scenery) keep the procedural objects:
+ * the LPC atlases have no overworld-sized mountains or houses, only cliff and building pieces.
+ */
+export const LPC_OBJECTS: ReadonlyMap<string, readonly LpcObject[]> = new Map<string, readonly LpcObject[]>([
+  ['forest', [OAK, PINE, PINE_DARK]],
+  ['tree', [OAK, PINE, SAPLING]],
+  ['caveEntrance', [CAVE_MOUTH]],
+]);
+
+/** The LPC object drawn on tile `id` with art variant `variant`, if the tile has one. */
+export function lpcObjectFor(id: string, variant: number): LpcObject | undefined {
+  const looks = LPC_OBJECTS.get(id);
+  return looks?.[variant % looks.length];
+}
 
 /** LPC ground for tile `id`; a decor tile `object@floor` uses its floor's ground. */
 export function lpcTileFor(id: string): LpcTile | undefined {

@@ -1,4 +1,4 @@
-import { InputAction, SceneStack, createRng } from '@jouster/game/engine';
+import { InputAction, Renderer, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { INN_RESPAWN, mapDef } from '../data/maps';
 import { ENCOUNTER_TABLES } from '../data/monsters';
@@ -701,5 +701,46 @@ describe('WorldScene mouse and touch', () => {
     const h = setup({ mapId: 'aldmere', x: 6, y: 3, facing: 'up' });
     h.tapTile(6, 3);
     expect(h.ctx.stack.top?.id).toBe('message');
+  });
+});
+
+describe('WorldScene landscape objects', () => {
+  /** The first overworld forest tile, a walkable spot to stand on. */
+  function forestTile(): { x: number; y: number } {
+    const rows = mapDef('overworld').rows;
+    for (let y = 0; y < rows.length; y++) {
+      const x = rows[y].indexOf('fff');
+      if (x > 0) {
+        return { x: x + 1, y };
+      }
+    }
+    throw new Error('no forest');
+  }
+
+  it('draws LPC trees over all the ground, top row first, and under the party', () => {
+    const h = setup({ mapId: 'overworld', ...forestTile(), facing: 'down' });
+    const art = new Proxy(
+      {
+        characterAction: () => undefined,
+        tileObject: (id: string) => (id === 'forest' ? { sprite: { kind: 'object' }, x: -2, y: -14 } : null),
+      },
+      {
+        get: (t, k) =>
+          (t as Record<string | symbol, unknown>)[k] ?? ((): { kind: string | symbol } => ({ kind: k })),
+      },
+    );
+    h.ctx.art = art as unknown as Art;
+    const draws: Array<{ kind: string; y: number }> = [];
+    const r = new Proxy(
+      { draw: (image: { kind: string }, _x: number, y: number) => draws.push({ kind: image.kind, y }) },
+      { get: (t, k) => (t as Record<string | symbol, unknown>)[k] ?? jest.fn() },
+    ) as unknown as Renderer;
+    h.world.render(r);
+    const kinds = draws.map((d) => d.kind);
+    const objects = draws.filter((d) => d.kind === 'object');
+    expect(objects.length).toBeGreaterThan(0);
+    expect(kinds.lastIndexOf('tile')).toBeLessThan(kinds.indexOf('object'));
+    expect(kinds.lastIndexOf('object')).toBeLessThan(kinds.findIndex((k) => k.startsWith('character')));
+    expect(objects.map((d) => d.y)).toEqual([...objects.map((d) => d.y)].sort((a, b) => a - b));
   });
 });

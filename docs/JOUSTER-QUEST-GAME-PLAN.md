@@ -367,7 +367,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30)). Open: LPC objects, giant toad art, post-unlock balance (4.4c) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32)). Open: giant toad art, post-unlock balance (4.4c) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -1307,8 +1307,9 @@ avoids laying out sprites twice.
 4b. LPC characters and monsters (16.7): build script, generated sheets and layout, credits, sprite anchoring,
    LPC as default. Done.
 4b2. HD procedural art (16.8): original art redrawn natively at 2? density. Done.
-4c. Next: LPC objects (trees, mountains, town and cave markers), art for the giant toad (the wolf and Alpha Wolf
-   are done, see 16.7), ~~attack and cast animations from the ULPC slash / spellcast rows~~ (done, §29), ~~animated
+4c. Next: art for the giant toad (the wolf and Alpha Wolf are done, see 16.7). ~~LPC objects~~ (trees and cave
+   mouths done, §32; mountains, hills, towns and ruins stay procedural because the atlases have no
+   overworld-sized ones), ~~attack and cast animations from the ULPC slash / spellcast rows~~ (done, §29), ~~animated
    slime and bat frames~~ (done, §30).
 5. Optional (16.5): one-map isometric prototype behind `?view=iso`, only if the owner asks after the LPC
    spike review.
@@ -1428,7 +1429,8 @@ Goal: all the generated art should be much more detailed than in 16.8.
 - **Canvas:** the game canvas is 1920×1080 (`pixelRatio` 4) and still shown at 960×540 CSS pixels, so on
   high-DPI screens and in full screen the extra detail is shown 1:1. The logical screen stays 480×270.
   LPC character sheets stay at their native 2× density; LPC ground tiles are upscaled to 4× so the
-  procedural object overlays line up.
+  procedural object overlays line up. LPC trees and cave mouths (§32) are drawn at 4× too, which is half their
+  native size.
 - **Battle sprite density:** battle boxes enlarge mini-bosses (1.5×) and bosses (2×), which would make their
   pixels twice as coarse as the party's. `Art.sharp(sprite, scale)` (with `sharpFactor` in `art/art.ts`) gives
   any sprite drawn coarser than `ART_PIXEL` (½ logical px, the LPC grid) a cached EPX copy at 2× or 4× density
@@ -1665,7 +1667,8 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~Status curing at the chapel (§12 deferred list).~~ Done in §28 (poison, with Antidote and Heal cures).
 - ~~A Cypress smoke test for `/jouster-quest`.~~ Done in §27.
 - ~~LPC wolf art~~ Done in 16.7 (wolf ×3, Alpha Wolf). ~~LPC attack animations (16.4 item 4c).~~ Done in §29.
-  Still open: giant toad (no suitable LPC art found), LPC objects. ~~Animated slime and bat frames.~~ Done in §30.
+  Still open: giant toad (no suitable LPC art found). ~~LPC objects.~~ Done in §32 (trees, cave mouths).
+  ~~Animated slime and bat frames.~~ Done in §30.
 - ~~Make the classes more distinct (Paladin vs Cleric).~~ Done in §31: the Necromancer replaced the Paladin, and
   the Wizard starts with more Herbs and 2 Tonics.
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
@@ -2029,3 +2032,39 @@ side-quest, title and LPC specs now use the Necromancer instead of the Paladin. 
 too ("Invalid bytecode" even with `--jitless`), so it is a machine problem, not a code one. All 686 balance
 tests pass when run in smaller `-t` groups on Node 20.12.1. Manual: start a new game as a Necromancer and as a Wizard and play solo up to the Goblin King, and
 load a v4 save with a Paladin.
+
+## 32. LPC trees and cave mouths (implemented)
+
+With the LPC sheets loaded, forests, lone trees and cave entrances used to paint the procedural tree or cave
+over LPC grass. They now use objects cut from `terrain_atlas.png` (16.4 item 4c). The atlases are already
+credited, so `CREDITS.md` is unchanged.
+
+| Tile | Looks (by tile variant) |
+| --- | --- |
+| `forest` | Oak, pine, dark pine |
+| `tree` | Oak, pine, sapling |
+| `caveEntrance` | Cave mouth |
+
+- **Manifest:** `LPC_OBJECTS` in `lpc-manifest.ts` lists each look as atlas pieces (`LpcPiece`) placed in an
+  `LpcObject` box with a `base` line, the row where the object meets the ground. A pine is its canopy over a
+  short trunk-with-shadow piece. The look follows the tile's variant, as the procedural trees do.
+- **Art:** `Art.tile()` gives these tiles bare LPC ground (no procedural overlay). `Art.tileObject(id, variant)`
+  returns the composed sprite at 4× density (half the native LPC size, the same scale as the procedural
+  overlays) and its offset from the tile: centred, with its base on the tile's bottom edge. It returns null
+  without sheets, so procedural art is unchanged.
+- **Drawing:** objects are bigger than a tile (a pine is about 21×30 logical px). `WorldScene.render` draws them
+  in a second pass after all the ground, top row first, so canopies overlap the tile above and the trees behind
+  them. The pass reaches one tile past each side and two rows below the screen, so trees just off screen still
+  show their tops. Signs, NPCs and the party are drawn after, so walkers in a forest stay on top as before
+  (forest is walkable).
+- **Kept procedural:** mountains, hills, towns, ruins, torches and the Act II/III scenery. The LPC atlases have
+  only cliff and building pieces, not overworld-sized mountains or towns, and the LPC torch doesn't animate.
+
+Tests: `lpc-manifest.spec.ts` checks that every object tile has LPC ground and one look per tile variant, that the pieces
+fit their object box, and that each piece is a whole sprite in the atlas: mostly opaque, with a transparent ring around it
+except at listed seams (a canopy on its trunk, the cave cut from a tiled cliff). It also checks that
+`tileObject` returns null without sheets, gives a cached 4× sprite with sheets, and that `tile()` skips the
+procedural overlay only on object tiles. `world-scene.spec.ts` renders the overworld by a forest and checks that
+objects are drawn after all the ground, in row order, and before the party. Manual: with LPC art on, walk
+through the forests near Aldmere and past a cave entrance. Look for overlapping canopies, trees cut off at
+the screen edge, and the party drawn over trees.
