@@ -1,4 +1,4 @@
-import { AudioManager } from './audio';
+import { AudioManager, DEFAULT_CHANNEL_VOLUMES } from './audio';
 import { MusicTrack, noteFrequency, parseTrack, parseVoice, stepDuration } from './music';
 
 class FakeParam {
@@ -224,9 +224,9 @@ describe('AudioManager channel volumes', () => {
     host.window = original;
   });
 
-  it('defaults music to 15% and every other channel to 100%', () => {
+  it('defaults music to 5% and every other channel to 100%', () => {
     const audio = new AudioManager();
-    expect(audio.getChannelVolume('music')).toBeCloseTo(0.15);
+    expect(audio.getChannelVolume('music')).toBeCloseTo(0.05);
     for (const ch of ['master', 'ambient', 'battle', 'dialogue', 'ui'] as const) {
       expect(audio.getChannelVolume(ch)).toBe(1);
     }
@@ -245,7 +245,7 @@ describe('AudioManager channel volumes', () => {
   it('glides an existing bus to a changed volume instead of jumping', () => {
     const audio = new AudioManager();
     audio.playMusic(TRACK);
-    const musicBus = ctx().gains.find((g) => Math.abs(g.gain.value - 0.15) < 1e-6);
+    const musicBus = ctx().gains.find((g) => Math.abs(g.gain.value - DEFAULT_CHANNEL_VOLUMES.music) < 1e-6);
     expect(musicBus).toBeDefined();
     ctx().currentTime = 2;
     audio.setChannelVolume('music', 0.5);

@@ -117,7 +117,7 @@ describe('class select layout', () => {
 describe('title OPTIONS volume menu', () => {
   it('opens VOLUME from the title menu and steps the highlighted channel', () => {
     const { ctx, driver } = setup();
-    const volumes: Record<string, number> = { master: 1, music: 0.15 };
+    const volumes: Record<string, number> = { master: 1, music: 0.05 };
     ctx.audio = {
       ...ctx.audio,
       getChannelVolume: (c: string) => volumes[c] ?? 1,
