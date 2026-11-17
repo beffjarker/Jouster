@@ -38,7 +38,7 @@ import {
   drawPartyStatus,
   say,
 } from '../ui/widgets';
-import { VOLUME_ROWS, adjustVolumeRow, volumeLabel } from '../ui/volume-rows';
+import { VOLUME_ROWS, adjustVolumeRow, rememberVolumes, volumeLabel } from '../ui/volume-rows';
 import { GameContext, memberStatus, requireState } from './context';
 import { GearGroup, gearDescription, gearMenuItem, gearStatsText, groupGear } from './gear-pick-scene';
 import { MapScene, questLog } from './map-scene';
@@ -280,7 +280,9 @@ export class FieldMenuScene implements Scene {
       return;
     }
     const row = VOLUME_ROWS[menu.cursor];
-    adjustVolumeRow(this.ctx.audio, row.channel, input);
+    if (adjustVolumeRow(this.ctx.audio, row.channel, input)) {
+      rememberVolumes(this.ctx.audio, this.ctx.storage, this.ctx.state);
+    }
     menu.items[menu.cursor] = { ...menu.items[menu.cursor], right: volumeLabel(this.ctx.audio.getChannelVolume(row.channel)) };
     if (input.wasPressed('up')) {
       menu.cursor = (menu.cursor - 1 + menu.items.length) % menu.items.length;

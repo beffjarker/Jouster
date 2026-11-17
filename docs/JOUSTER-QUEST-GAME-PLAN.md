@@ -1788,8 +1788,11 @@ compositions for this game (no borrowed tunes), so no extra licence or credit is
   Music, Ambient (steps, doors), Battle (hits, magic, encounter and victory jingles), Dialogue (message page
   advance), and UI (menu cursor, confirm, cancel, coin). Defaults are Music 5% and every other channel 100%.
   The title screen's OPTIONS entry (after NEW GAME and CONTINUE) and the field menu's VOLUME entry open the same
-  volume list (`ui/volume-rows.ts`); up/down picks a channel and left/right adjusts it in 10% steps. Settings last
-  for the session only.
+  volume list (`ui/volume-rows.ts`); up/down picks a channel and left/right adjusts it in 10% steps. Levels are
+  saved with the game as an optional `volumes` field (no save-version bump). A change is written straight into the
+  stored save (only its `volumes`, never game progress) and into the game in progress. The title screen applies a
+  save's levels on load, CONTINUE keeps them, and NEW GAME starts with the current levels. Bad or unknown values
+  are clamped or dropped instead of rejecting the save.
 - `Scene.music` is optional. `SceneStack.music` takes it from the topmost scene that defines it, so menus,
   dialogs and the world map keep the music underneath. An empty string means silence.
 

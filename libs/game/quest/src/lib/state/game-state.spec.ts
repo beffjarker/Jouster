@@ -8,6 +8,7 @@ import {
   SAVE_VERSION,
   addItem,
   answerCompanionQuest,
+  cleanVolumes,
   companionAvailable,
   companionPresent,
   completeCompanionQuest,
@@ -20,6 +21,7 @@ import {
   questStage,
   recruitCompanion,
   saveGame,
+  saveVolumes,
 } from './game-state';
 import { applyRestore } from '../scenes/menu-scenes';
 import { BAG_LIMIT } from './equipment';
@@ -345,5 +347,42 @@ describe('field restoration', () => {
     restoreMember(m);
     expect(m.hp).toBe(max.hp);
     expect(applyRestore(m, 'healHp', 5)).toBeNull();
+  });
+});
+
+describe('saved volume settings', () => {
+  it('round-trips volume levels through a save', () => {
+    const storage = memoryStorage();
+    const state = newGameState('ANA', 'warrior');
+    state.volumes = { master: 0.8, music: 0.05 };
+    saveGame(storage, state);
+    expect(loadGame(storage)?.volumes).toEqual({ master: 0.8, music: 0.05 });
+  });
+
+  it('loads saves without volumes, and drops or clamps bad values instead of rejecting the save', () => {
+    const storage = memoryStorage();
+    const state = newGameState('ANA', 'warrior');
+    saveGame(storage, state);
+    expect(loadGame(storage)?.volumes).toBeUndefined();
+    storage.setItem(SAVE_KEY, JSON.stringify({ ...state, volumes: { music: 'loud', master: 7, ui: -1, bogus: 0.5 } }));
+    expect(loadGame(storage)?.volumes).toEqual({ master: 1, ui: 0 });
+    storage.setItem(SAVE_KEY, JSON.stringify({ ...state, volumes: 'max' }));
+    const loaded = loadGame(storage);
+    expect(loaded?.party[0].name).toBe('ANA');
+    expect(loaded?.volumes).toBeUndefined();
+  });
+
+  it('saveVolumes patches only the volumes of an existing save', () => {
+    const storage = memoryStorage();
+    expect(saveVolumes(storage, { music: 0.5 })).toBe(false);
+    saveGame(storage, newGameState('ANA', 'warrior'));
+    expect(saveVolumes(storage, { music: 0.5 })).toBe(true);
+    expect(loadGame(storage)).toMatchObject({ volumes: { music: 0.5 }, party: [expect.objectContaining({ name: 'ANA' })] });
+  });
+
+  it('cleanVolumes ignores anything that is not a level map', () => {
+    expect(cleanVolumes(null)).toBeUndefined();
+    expect(cleanVolumes({})).toBeUndefined();
+    expect(cleanVolumes({ music: Number.NaN })).toBeUndefined();
   });
 });
