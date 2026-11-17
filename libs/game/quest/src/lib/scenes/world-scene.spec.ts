@@ -6,12 +6,16 @@ import { NORTH_LANDMARKS } from '../data/frostpeaks-gen';
 import { LANDMARKS } from '../data/overworld-gen';
 import { SOUTH_LANDMARKS } from '../data/southlands-gen';
 import { CAVE_FOG_RADIUS, isExplored } from '../state/fog';
-import { GameState, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
+import { ITEMS } from '../data/equipment';
+import { BAG_LIMIT, createGear } from '../state/equipment';
+import { GameState, addItem, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
+import { GearItem } from '../state/loot';
 import { createMember } from '../state/party';
 import { SUNNY_SIGHT_RADIUS, weatherAt, weatherSeed, weatherSightRadius } from '../state/weather';
 import { InputDriver } from '../testing/input-driver';
 import { SCREEN_H, SCREEN_W } from '../ui/widgets';
 import { GameContext } from './context';
+import { ShopScene } from './menu-scenes';
 import { SKY_FADE_SECONDS, STEP_TIME, WorldScene, cameraAxis } from './world-scene';
 
 interface Harness {
@@ -419,7 +423,7 @@ describe('WorldScene', () => {
 
   it('opens the menu straight on EQUIP with E and equips armor from the bag', () => {
     const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
-    h.state.inventory['leatherArmor'] = 1;
+    addItem(h.state, 'leatherArmor');
     h.tap('equip');
     expect(h.ctx.stack.top?.id).toBe('field-menu');
     h.tap('confirm'); // hero
@@ -427,7 +431,7 @@ describe('WorldScene', () => {
     h.tap('confirm'); // ARMOR
     h.tap('confirm'); // Leather Armor
     expect(h.state.party[0].armorId).toBe('leatherArmor');
-    expect(h.state.inventory['leatherArmor']).toBeUndefined();
+    expect(h.state.gear.some((g) => g.baseId === 'leatherArmor')).toBe(false);
   });
 
   it('opens the menu with I', () => {
@@ -471,10 +475,144 @@ describe('WorldScene', () => {
     h.tap('confirm');
     tapUntil('shop');
     expect(h.ctx.stack.top?.id).toBe('shop');
+    h.tap('confirm'); // BUY
     h.tap('confirm'); // Cloth Robe
     tapUntil('shop'); // "Equip it now?" -> first choice is the hero
     expect(h.state.party[0].armorId).toBe('clothRobe');
     expect(h.state.gold).toBe(470);
+    expect(h.state.gear).toEqual([]);
+  });
+
+  describe('shop and bag (plan 33.5)', () => {
+    const openShop = (gold = 500): Harness & { shop: ShopScene; choose(i: number): void } => {
+      const h = setup({ mapId: 'aldmere', x: 26, y: 13, facing: 'up', gold });
+      for (let i = 0; i < 12 && h.ctx.stack.top?.id !== 'shop'; i++) {
+        h.tap('confirm');
+      }
+      const choose = (i: number): void => {
+        h.run(3);
+        for (let k = 0; k < i; k++) {
+          h.tap('down');
+        }
+        h.tap('confirm');
+      };
+      return { ...h, shop: h.ctx.stack.top as ShopScene, choose };
+    };
+
+    it('buys into the bag with LATER and sells the piece back for half', () => {
+      const h = openShop();
+      h.tap('confirm'); // BUY
+      h.tap('confirm'); // Cloth Robe
+      h.choose(1); // LATER
+      h.run(3);
+      h.tap('confirm');
+      expect(h.ctx.stack.top?.id).toBe('shop');
+      expect(h.state.gear.map((g) => g.baseId)).toEqual(['clothRobe']);
+      expect(h.state.party[0].armorId).toBeUndefined();
+      expect(h.state.gold).toBe(470);
+      h.tap('cancel'); // back to BUY / SELL / LEAVE
+      expect(h.shop.shopMode).toBe('top');
+      h.tap('down');
+      h.tap('confirm'); // SELL
+      expect(h.shop.shopMode).toBe('sell');
+      const consumables = [...ITEMS.keys()].filter((id) => (h.state.inventory[id] ?? 0) > 0).length;
+      for (let i = 0; i < consumables; i++) {
+        h.tap('down');
+      }
+      h.tap('confirm'); // the robe
+      expect(h.state.gear).toEqual([]);
+      expect(h.state.gold).toBe(485);
+    });
+
+    it('sells consumables one at a time for half their price', () => {
+      const h = openShop();
+      const herbs = h.state.inventory['herb'] ?? 0;
+      const first = [...ITEMS.keys()].find((id) => (h.state.inventory[id] ?? 0) > 0);
+      expect(first).toBe('herb');
+      h.tap('down');
+      h.tap('confirm'); // SELL
+      h.tap('confirm'); // herb
+      expect(h.state.inventory['herb'] ?? 0).toBe(herbs - 1);
+      expect(h.state.gold).toBe(500 + Math.max(1, Math.floor((ITEMS.get('herb')?.price ?? 0) / 2)));
+    });
+
+    it('offers to sell first when the bag is full, and never trades in', () => {
+      const h = openShop();
+      while (h.state.gear.length < BAG_LIMIT) {
+        addItem(h.state, 'leatherArmor');
+      }
+      h.tap('confirm'); // BUY
+      h.tap('confirm'); // Cloth Robe
+      expect(h.ctx.stack.top?.id).toBe('message');
+      h.choose(0); // SELL
+      expect(h.ctx.stack.top?.id).toBe('shop');
+      expect(h.shop.shopMode).toBe('sell');
+      expect(h.state.gold).toBe(500);
+      expect(h.state.gear).toHaveLength(BAG_LIMIT);
+    });
+  });
+
+  describe('bag-full finds (plan 33.4)', () => {
+    const withFind = (find: Omit<GearItem, 'uid'>): Harness & { found: GearItem; choose(i: number): void } => {
+      const h = setup({ mapId: 'aldmere', x: 6, y: 5, facing: 'up' });
+      while (h.state.gear.length < BAG_LIMIT) {
+        addItem(h.state, 'clothRobe');
+      }
+      const found = createGear(h.state, find);
+      h.state.pendingGear = [found];
+      const choose = (i: number): void => {
+        h.run(3);
+        for (let k = 0; k < i; k++) {
+          h.tap('down');
+        }
+        h.tap('confirm');
+      };
+      h.run(0.05);
+      return { ...h, found, choose };
+    };
+
+    it('drops a bag piece to take the find', () => {
+      const h = withFind({ baseId: 'chainMail', rarity: 'rare', bonus: { agi: 2, hp: 8 } });
+      expect(h.ctx.stack.top?.id).toBe('message');
+      h.choose(0); // DROP AN ITEM
+      expect(h.ctx.stack.top?.id).toBe('gear-pick');
+      h.tap('confirm'); // a plain Cloth Robe, no confirmation needed
+      h.confirmUntilWorld();
+      expect(h.state.gear).toHaveLength(BAG_LIMIT);
+      expect(h.state.gear).toContainEqual(h.found);
+      expect(h.state.gear.filter((g) => g.baseId === 'clothRobe')).toHaveLength(BAG_LIMIT - 1);
+      expect(h.state.pendingGear).toBeUndefined();
+    });
+
+    it('asks again when the drop list is cancelled', () => {
+      const h = withFind({ baseId: 'chainMail', rarity: 'uncommon', bonus: { atk: 1 } });
+      h.choose(0);
+      h.tap('cancel');
+      expect(h.ctx.stack.top?.id).toBe('message');
+      expect(h.state.pendingGear).toEqual([h.found]);
+    });
+
+    it('confirms before leaving a Legendary behind, and can keep it', () => {
+      const h = withFind({ baseId: 'chainMail', rarity: 'legendary', bonus: { atk: 3, def: 3, agi: 3, hp: 12 } });
+      h.choose(1); // LEAVE IT
+      expect(h.ctx.stack.top?.id).toBe('message');
+      h.choose(1); // KEEP -> asked again
+      expect(h.state.pendingGear).toEqual([h.found]);
+      h.choose(1); // LEAVE IT
+      h.choose(0); // LEAVE
+      h.confirmUntilWorld();
+      expect(h.state.pendingGear).toBeUndefined();
+      expect(h.state.gear).not.toContainEqual(h.found);
+      expect(h.state.gear).toHaveLength(BAG_LIMIT);
+    });
+
+    it('leaves a Common find without asking twice', () => {
+      const h = withFind({ baseId: 'leatherArmor', rarity: 'common', bonus: {} });
+      h.choose(1);
+      h.confirmUntilWorld();
+      expect(h.state.pendingGear).toBeUndefined();
+      expect(h.ctx.stack.top?.id).toBe('world');
+    });
   });
 
   it('spends the caster MP when healing from the field menu', () => {

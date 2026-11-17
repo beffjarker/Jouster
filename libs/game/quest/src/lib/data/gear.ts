@@ -2,6 +2,8 @@ import { ClassId, Stats } from '@jouster/game/engine';
 
 /** Body slots besides the weapon (plan 15.4). */
 export type ArmorSlot = 'armor' | 'shield' | 'accessory';
+/** Every equipment slot. */
+export type GearSlot = 'weapon' | ArmorSlot;
 
 /** Armor, shields and accessories. Bonuses are added to the wearer's stats. */
 export interface GearDef {

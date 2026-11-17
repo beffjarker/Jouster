@@ -22,7 +22,9 @@ import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
 import { BOSS_HP_SCALE, FINALE_BOSS_IDS, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
+import { addToBag, createGear } from '../state/equipment';
 import { GameState, addItem } from '../state/game-state';
+import { rarityName, rollLoot } from '../state/loot';
 import { PartyMember, grantXp, memberStats, memberToCombatant, monstersToCombatants, syncFromCombatants } from '../state/party';
 import { COLORS, ListMenu, MenuItem, POISON_TAG, SCREEN_H, SCREEN_W, charsFit, drawCursor, drawHint, inRect } from '../ui/widgets';
 import { GameContext, requireState } from './context';
@@ -969,6 +971,15 @@ export class BattleScene implements Scene {
       rewards.items.forEach((id) => {
         addItem(this.state, id);
         lines.push(`Found a ${ITEMS.get(id)?.name ?? id}!`);
+      });
+      const classes = this.state.party.map((m) => m.classId);
+      rewards.gearDrops.forEach((monsterId) => {
+        const item = createGear(this.state, rollLoot(this.ctx.rng, monsterId, classes, this.state.flags));
+        const fits = addToBag(this.state, item);
+        if (!fits) {
+          (this.state.pendingGear ??= []).push(item);
+        }
+        lines.push(`Found: ${rarityName(item)}!${fits ? '' : ' Your bag is full.'}`);
       });
       survivors.forEach((m) => {
         const up = grantXp(m, share);

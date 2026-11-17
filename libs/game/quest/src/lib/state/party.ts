@@ -13,7 +13,9 @@ import {
 } from '@jouster/game/engine';
 import { classDef, fieldHpStepInterval } from '../data/classes';
 import { WEAPONS } from '../data/equipment';
-import { GEAR } from '../data/gear';
+import { GEAR, GearSlot } from '../data/gear';
+import { GEAR_DROP_CHANCE, lootSource } from '../data/rarity';
+import type { GearItem } from './loot';
 
 export interface PartyMember {
   id: string;
@@ -28,8 +30,24 @@ export interface PartyMember {
   armorId?: string;
   shieldId?: string;
   accessoryId?: string;
+  /**
+   * The worn piece per slot, with its rarity and bonuses (plan 33.4). Its `baseId` matches the slot's id field; a
+   * slot with an id but no entry here holds a plain Common.
+   */
+  worn?: Partial<Record<GearSlot, GearItem>>;
   /** Poisoned members lose HP while walking and in battle until cured (plan 28); missing = healthy. */
   poisoned?: boolean;
+}
+
+/** The base id worn in a slot. */
+function slotBaseId(m: PartyMember, slot: GearSlot): string | undefined {
+  return slot === 'weapon' ? m.weaponId : slot === 'armor' ? m.armorId : slot === 'shield' ? m.shieldId : m.accessoryId;
+}
+
+/** The worn piece's rolled bonus for a slot (none for a plain Common or a stale entry). */
+export function wornBonus(m: PartyMember, slot: GearSlot): GearItem['bonus'] {
+  const item = m.worn?.[slot];
+  return item && item.baseId === slotBaseId(m, slot) ? item.bonus : {};
 }
 
 export function weaponDef(id: string): WeaponDef {
@@ -56,7 +74,7 @@ export function createMember(id: string, name: string, classId: ClassId, level =
   };
 }
 
-/** Stats including weapon bonuses (ATK, MAG, DEF) and worn armor, shield and accessory. */
+/** Stats including weapon bonuses (ATK, MAG, DEF), worn armor, shield and accessory, and rolled bonuses. */
 export function memberStats(m: PartyMember): Stats {
   const base = statsAtLevel(classDef(m.classId), m.level);
   const w = weaponDef(m.weaponId);
@@ -66,10 +84,13 @@ export function memberStats(m: PartyMember): Stats {
     def: base.def + (w.def ?? 0),
     mag: base.mag + (w.mag ?? 0),
   };
-  for (const id of [m.armorId, m.shieldId, m.accessoryId]) {
-    const g = id ? GEAR.get(id) : undefined;
-    for (const [k, v] of Object.entries(g?.bonus ?? {})) {
-      s[k as keyof Stats] += v;
+  const bonuses = [m.armorId, m.shieldId, m.accessoryId].map((id) => (id ? GEAR.get(id)?.bonus ?? {} : {}));
+  if (m.worn) {
+    bonuses.push(...(['weapon', 'armor', 'shield', 'accessory'] as const).map((slot) => wornBonus(m, slot)));
+  }
+  for (const bonus of bonuses) {
+    for (const [k, v] of Object.entries(bonus)) {
+      s[k as keyof Stats] += v ?? 0;
     }
   }
   return s;
@@ -207,6 +228,7 @@ export function monstersToCombatants(defs: MonsterDef[], hpScale = 1): Combatant
       xp: d.xp,
       gold: d.gold,
       goldChance: d.goldChance ?? (d.boss ? 1 : DEFAULT_GOLD_CHANCE),
+      gearChance: d.gearChance ?? GEAR_DROP_CHANCE[lootSource(d.id)],
       drops: d.drops.map((x) => ({ ...x })),
       stolen: false,
       poisonChance: d.poisonChance ?? 0,

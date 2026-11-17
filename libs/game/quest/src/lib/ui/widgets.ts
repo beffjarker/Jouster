@@ -51,6 +51,8 @@ export interface MenuItem {
   label: string;
   right?: string;
   enabled?: boolean;
+  /** Label colour (e.g. an item's rarity); disabled items are always dim. */
+  color?: string;
 }
 
 export interface MenuSelect {
@@ -172,7 +174,7 @@ export class ListMenu {
       const item = this.items[i];
       const ty = y + 7 + (i - this.scroll) * LINE_H;
       const color = item.enabled === false ? COLORS.dim : COLORS.text;
-      r.text(item.label, x + 14, ty, color);
+      r.text(item.label, x + 14, ty, item.enabled === false ? COLORS.dim : (item.color ?? COLORS.text));
       if (item.right) {
         r.textRight(item.right, x + w - 8, ty, color);
       }

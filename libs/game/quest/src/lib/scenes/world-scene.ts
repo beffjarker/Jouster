@@ -52,6 +52,8 @@ import {
   recruitCompanion,
   saveGame,
 } from '../state/game-state';
+import { addToBag, removeFromBag } from '../state/equipment';
+import { GearItem, isPrecious, itemName, rarityName } from '../state/loot';
 import { PartyMember, applyFieldRegen, restoreMember, setPoisoned } from '../state/party';
 import {
   SEASON_NAMES,
@@ -68,6 +70,7 @@ import { COLORS, SCREEN_H, SCREEN_W, ask, drawPartyStatus, say } from '../ui/wid
 import { BattleEnd, BattleScene } from './battle-scene';
 import { GameContext, memberStatus, requireState } from './context';
 import { MapScene } from './map-scene';
+import { GearPickScene } from './gear-pick-scene';
 import { FieldMenuScene, ShopScene } from './menu-scenes';
 
 /** Seconds to walk one tile. */
@@ -245,6 +248,68 @@ export class WorldScene implements Scene {
     return !this.map.fog || isExplored(this.state.explored[this.map.id], this.tiles.width, x, y);
   }
 
+  /**
+   * Gear found while the bag was full (plan 33.4): drop a bag piece to make room, or leave the find behind. There
+   * is no merchant in the field, so nothing is sold. The find stays in `pendingGear` until the choice is made.
+   */
+  private offerPendingGear(): boolean {
+    const found = this.state.pendingGear?.[0];
+    if (!found || this.ctx.stack.transitioning) {
+      return false;
+    }
+    const { stack, audio } = this.ctx;
+    const done = (lines: string[]): void => {
+      this.state.pendingGear?.shift();
+      if (this.state.pendingGear?.length === 0) {
+        delete this.state.pendingGear;
+      }
+      say(stack, audio, lines);
+    };
+    const offer = (): void => {
+      ask(
+        stack,
+        audio,
+        [`Your bag is full. Found: ${rarityName(found)}.`],
+        ['DROP AN ITEM', 'LEAVE IT'],
+        (i) => (i === 0 ? pickDrop() : leave()),
+      );
+    };
+    const swap = (old: GearItem): void => {
+      removeFromBag(this.state, old.uid);
+      addToBag(this.state, found);
+      done([`You drop the ${itemName(old)} and take the ${rarityName(found)}.`]);
+    };
+    const pickDrop = (): void => {
+      stack.push(
+        new GearPickScene(
+          this.ctx,
+          'DROP WHICH?',
+          this.state.gear,
+          (old) => {
+            if (!isPrecious(old)) {
+              swap(old);
+              return;
+            }
+            ask(stack, audio, [`Drop the ${rarityName(old)}?`], ['DROP', 'KEEP'], (i) => (i === 0 ? swap(old) : offer()));
+          },
+          offer,
+        ),
+      );
+    };
+    const leave = (): void => {
+      const gone = [`You leave the ${rarityName(found)} behind.`];
+      if (!isPrecious(found)) {
+        done(gone);
+        return;
+      }
+      const question =
+        found.rarity === 'legendary' ? "This Legendary can't be found again. Leave it?" : `Leave the ${rarityName(found)}?`;
+      ask(stack, audio, [question], ['LEAVE', 'KEEP'], (i) => (i === 0 ? done(gone) : offer()));
+    };
+    offer();
+    return true;
+  }
+
   /** Shows a message the next time this scene is active (e.g. after a fade). */
   public queueMessage(lines: string[], then?: () => void): void {
     this.pending.push(() => say(this.ctx.stack, this.ctx.audio, lines, then));
@@ -258,6 +323,9 @@ export class WorldScene implements Scene {
     const next = this.pending.shift();
     if (next) {
       next();
+      return;
+    }
+    if (!this.moving && this.offerPendingGear()) {
       return;
     }
     this.updateNpcs(dt);

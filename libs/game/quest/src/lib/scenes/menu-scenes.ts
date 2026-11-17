@@ -3,21 +3,27 @@ import { InputAction, InputManager, ItemEffect, Renderer, Scene, Stats, cappedRe
 import { ABILITIES } from '../data/abilities';
 import { classDef } from '../data/classes';
 import { ITEMS, WEAPONS } from '../data/equipment';
-import { GEAR, gearBonusText, gearUsersText } from '../data/gear';
+import { GEAR, gearUsersText } from '../data/gear';
+import { RARITIES } from '../data/rarity';
 import {
   GEAR_SLOTS,
+  BAG_LIMIT,
   GearSlot,
+  bagFull,
+  buyGear,
   canEquip,
   equipChoices,
   equipItem,
-  equippedId,
+  equippedItem,
   previewStats,
+  removeFromBag,
   slotOf,
   slotUsable,
   statChangeText,
   unequipSlot,
 } from '../state/equipment';
 import { GameState, addItem } from '../state/game-state';
+import { GearItem, gearSellPrice, isPrecious, itemName, rarityName } from '../state/loot';
 import { PartyMember, memberAbilities, memberStats, memberToCombatant, setPoisoned } from '../state/party';
 import {
   COLORS,
@@ -34,6 +40,7 @@ import {
 } from '../ui/widgets';
 import { VOLUME_ROWS, adjustVolumeRow, volumeLabel } from '../ui/volume-rows';
 import { GameContext, memberStatus, requireState } from './context';
+import { GearGroup, gearDescription, gearMenuItem, gearStatsText, groupGear } from './gear-pick-scene';
 import { MapScene, questLog } from './map-scene';
 
 type FieldMode =
@@ -42,6 +49,8 @@ type FieldMode =
   | 'status'
   | 'item'
   | 'itemWho'
+  | 'gear'
+  | 'gearWho'
   | 'equipWho'
   | 'equipSlot'
   | 'equipPick'
@@ -57,12 +66,10 @@ const SLOT_LABELS: Readonly<Record<GearSlot, string>> = {
   shield: 'SHIELD',
   accessory: 'ACCESSORY',
 };
-/** Pseudo-id for the REMOVE row of the equip list. */
-const REMOVE = '';
-
-/** Display name of a weapon or gear id ('-' when empty). */
-function gearName(id: string | undefined): string {
-  return id ? (WEAPONS.get(id)?.name ?? GEAR.get(id)?.name ?? id).toUpperCase() : '-';
+/** Name of the piece worn in a slot ('-' when empty). */
+function wornName(m: PartyMember, slot: GearSlot): string {
+  const item = equippedItem(m, slot);
+  return item ? itemName(item).toUpperCase() : '-';
 }
 
 /** Party status row position while a message window is open over the menu. */
@@ -70,6 +77,8 @@ const FIELD_STATUS_Y_WITH_MESSAGE = MESSAGE_Y - 48;
 /** Field-menu submenu (items, magic, equipment) beside the main menu. */
 const SUB_X = 88;
 const SUB_W = Math.min(220, SCREEN_W - SUB_X - 8);
+/** Gear lists are wider, for rarity tags and bonus suffixes. */
+const GEAR_W = SCREEN_W - SUB_X - 8;
 /** Characters that fit on one line of the shop's description window. */
 const SHOP_CHARS = charsFit(SCREEN_W - 32);
 
@@ -89,6 +98,14 @@ export class FieldMenuScene implements Scene {
   private spellId = '';
   private slot: GearSlot = 'weapon';
   private subIds: string[] = [];
+  /** Cursor of the ITEMS and GEAR tabs, kept while switching between them. */
+  private readonly tabCursor = { item: 0, gear: 0 };
+  /** Lines of the GEAR tab. */
+  private gearGroups: GearGroup[] = [];
+  /** Lines of the equip pick list (null = REMOVE). */
+  private pick: Array<GearGroup | null> = [];
+  /** Bag piece chosen on the GEAR tab. */
+  private gearItem: GearItem | null = null;
   /** Action that opened the menu and closes it again (`cancel` already backs out level by level). */
   private readonly opener: InputAction | null;
 
@@ -98,7 +115,7 @@ export class FieldMenuScene implements Scene {
     this.main = new ListMenu(MAIN_MENU.map((label) => ({ label })), ctx.audio);
     if (open === 'item') {
       this.main.cursor = MAIN_MENU.indexOf('ITEM');
-      if ([...ITEMS.keys()].some((id) => (this.state.inventory[id] ?? 0) > 0)) {
+      if (this.hasConsumables() || this.state.gear.length > 0) {
         this.openItems();
       }
     } else if (open === 'equip') {
@@ -156,7 +173,18 @@ export class FieldMenuScene implements Scene {
       this.updateVolume(input);
       return;
     }
+    if ((this.mode === 'item' || this.mode === 'gear') && (input.wasPressed('left') || input.wasPressed('right'))) {
+      const other = this.mode === 'item' ? this.state.gear.length > 0 : this.hasConsumables();
+      if (other) {
+        this.ctx.audio.play('cursor');
+        this.toggleTab();
+      }
+      return;
+    }
     const res = this.sub?.update(input);
+    if (this.sub && (this.mode === 'item' || this.mode === 'gear')) {
+      this.tabCursor[this.mode] = this.sub.cursor;
+    }
     if (res?.kind === 'cancel') {
       this.back();
       return;
@@ -179,15 +207,17 @@ export class FieldMenuScene implements Scene {
     if (this.sub) {
       const titles: Partial<Record<FieldMode, string>> = {
         item: 'ITEMS',
+        gear: `GEAR ${this.state.gear.length}/${BAG_LIMIT}`,
         magic: 'MAGIC',
         equipSlot: 'EQUIP',
         volume: 'VOLUME',
       };
       const title = this.mode === 'equipPick' ? SLOT_LABELS[this.slot] : titles[this.mode] ?? 'WHO?';
-      this.sub.render(r, SUB_X, 8, SUB_W, true, title);
+      const w = this.mode === 'gear' || this.mode === 'equipPick' ? GEAR_W : SUB_W;
+      this.sub.render(r, SUB_X, 8, w, true, title);
       const hint = this.subHint();
       if (hint) {
-        drawHint(r, hint, SUB_X, 8 + this.sub.height() + 4, SUB_W);
+        drawHint(r, hint, SUB_X, 8 + this.sub.height() + 4, w);
       }
     }
     // Messages (e.g. spell results) cover the bottom of the screen, so lift the status above them.
@@ -197,14 +227,20 @@ export class FieldMenuScene implements Scene {
 
   /** Description of the highlighted item or spell. */
   private subHint(): string | undefined {
-    const id = this.subIds[this.sub?.cursor ?? 0];
+    const cursor = this.sub?.cursor ?? 0;
+    const id = this.subIds[cursor];
     if (this.mode === 'item') {
-      return ITEMS.get(id)?.description;
+      return id ? ITEMS.get(id)?.description : 'Show the gear in your bag (left / right).';
+    }
+    if (this.mode === 'gear') {
+      const item = this.gearGroups[cursor]?.item;
+      return item ? `${gearStatsText(item)}. ${gearDescription(item.baseId)}` : 'Show your items (left / right).';
     }
     if (this.mode === 'equipPick' && this.member) {
       const m = this.member;
-      const change = statChangeText(memberStats(m), previewStats(m, this.slot, id === REMOVE ? undefined : id));
-      const desc = id === REMOVE ? 'Take it off.' : WEAPONS.get(id)?.description ?? GEAR.get(id)?.description ?? '';
+      const item = this.pick[cursor]?.item;
+      const change = statChangeText(memberStats(m), previewStats(m, this.slot, item));
+      const desc = item ? `${gearStatsText(item)}. ${gearDescription(item.baseId)}` : 'Take it off.';
       return `${change || 'No change.'} ${desc}`;
     }
     return this.mode === 'magic' ? ABILITIES.get(id)?.description : undefined;
@@ -255,24 +291,106 @@ export class FieldMenuScene implements Scene {
     }
   }
 
+  private hasConsumables(): boolean {
+    return [...ITEMS.keys()].some((id) => (this.state.inventory[id] ?? 0) > 0);
+  }
+
+  private toggleTab(): void {
+    if (this.mode === 'item') {
+      this.openGear();
+    } else {
+      this.openItems();
+    }
+  }
+
+  /** ITEMS tab: consumables, plus a row to switch to the GEAR tab (plan 33.7). */
   private openItems(): void {
-    this.subIds =  [...ITEMS.values()].filter((i) => (this.state.inventory[i.id] ?? 0) > 0).map((i) => i.id);
+    this.subIds = [...ITEMS.values()].filter((i) => (this.state.inventory[i.id] ?? 0) > 0).map((i) => i.id);
     if (this.subIds.length === 0) {
+      if (this.state.gear.length > 0) {
+        this.openGear();
+        return;
+      }
       say(this.ctx.stack, this.ctx.audio, ['You are not carrying any items.']);
+      this.mode = 'main';
+      this.sub = null;
       return;
     }
     this.mode = 'item';
-    this.sub = new ListMenu(
-      this.subIds.map((id) => {
-        const def = ITEMS.get(id);
-        return {
-          label: (def?.name ?? id).toUpperCase(),
-          right: `x${this.state.inventory[id]}`,
-          enabled: def?.usableInField !== false,
+    const items: MenuItem[] = this.subIds.map((id) => {
+      const def = ITEMS.get(id);
+      return {
+        label: (def?.name ?? id).toUpperCase(),
+        right: `x${this.state.inventory[id]}`,
+        enabled: def?.usableInField !== false,
+      };
+    });
+    if (this.state.gear.length > 0) {
+      items.push({ label: 'GEAR >', right: `${this.state.gear.length}/${BAG_LIMIT}` });
+    }
+    this.setSub(items);
+  }
+
+  /** GEAR tab: bag pieces by slot, tier and rarity, plus a row back to the ITEMS tab. */
+  private openGear(): void {
+    this.gearGroups = groupGear(this.state.gear);
+    if (this.gearGroups.length === 0) {
+      this.openItems();
+      return;
+    }
+    this.mode = 'gear';
+    const items = this.gearGroups.map((g) => gearMenuItem(g));
+    if (this.hasConsumables()) {
+      items.push({ label: '< ITEMS' });
+    }
+    this.setSub(items);
+  }
+
+  /** Opens a tab's list with the cursor where it was last left. */
+  private setSub(items: MenuItem[]): void {
+    this.sub = new ListMenu(items, this.ctx.audio);
+    const tab = this.mode === 'gear' ? 'gear' : 'item';
+    this.sub.cursor = Math.max(0, Math.min(this.tabCursor[tab], items.length - 1));
+  }
+
+  /** What to do with a bag piece: equip it on someone or drop it. */
+  private gearAction(item: GearItem): void {
+    const { stack, audio } = this.ctx;
+    ask(stack, audio, [`${rarityName(item)}. ${gearStatsText(item)}.`], ['EQUIP', 'DROP', 'CANCEL'], (i) => {
+      if (i === 0) {
+        const users = this.state.party.map((m) => canEquip(m, item.baseId));
+        if (!users.some(Boolean)) {
+          say(stack, audio, ['No one in your party can use that.']);
+          return;
+        }
+        this.gearItem = item;
+        this.mode = 'gearWho';
+        this.sub = new ListMenu(
+          this.state.party.map((m, k) => ({
+            label: m.name.toUpperCase(),
+            right: statDelta(memberStats(m), previewStats(m, slotOf(item.baseId) ?? 'weapon', item)),
+            enabled: users[k],
+          })),
+          audio,
+        );
+      } else if (i === 1) {
+        const drop = (): void => {
+          removeFromBag(this.state, item.uid);
+          audio.play('cancel');
+          say(stack, audio, [`Dropped the ${itemName(item)}.`]);
+          this.openGear();
         };
-      }),
-      this.ctx.audio,
-    );
+        if (isPrecious(item)) {
+          ask(stack, audio, [`Drop the ${rarityName(item)}? It will be gone for good.`], ['DROP IT', 'KEEP IT'], (c) => {
+            if (c === 0) {
+              drop();
+            }
+          });
+        } else {
+          drop();
+        }
+      }
+    });
   }
 
   /** Slots of one member with what they wear (shields grey out for classes that cannot use one). */
@@ -280,46 +398,53 @@ export class FieldMenuScene implements Scene {
     this.member = m;
     this.mode = 'equipSlot';
     this.sub = new ListMenu(
-      GEAR_SLOTS.map((slot) => ({
-        label: SLOT_LABELS[slot],
-        right: gearName(equippedId(m, slot)),
-        enabled: slotUsable(m, slot),
-      })),
+      GEAR_SLOTS.map((slot) => {
+        const item = equippedItem(m, slot);
+        return {
+          label: SLOT_LABELS[slot],
+          right: wornName(m, slot),
+          enabled: slotUsable(m, slot),
+          color: item && slotUsable(m, slot) ? RARITIES[item.rarity].color : undefined,
+        };
+      }),
       this.ctx.audio,
     );
   }
 
-  /** Carried pieces for the slot, each with the stat change, plus REMOVE for non-weapons. */
+  /** Bag pieces for the slot (rarity colour, stat change), plus REMOVE for non-weapons. */
   private openPick(m: PartyMember, slot: GearSlot): void {
-    const choices = equipChoices(this.state, m, slot);
-    if (slot !== 'weapon' && equippedId(m, slot)) {
-      choices.push(REMOVE);
+    const choices: Array<GearGroup | null> = groupGear(equipChoices(this.state, m, slot));
+    if (slot !== 'weapon' && equippedItem(m, slot)) {
+      choices.push(null);
     }
     if (choices.length === 0) {
       say(this.ctx.stack, this.ctx.audio, ['Nothing in your bag fits that slot. Shops sell more gear.']);
       return;
     }
     this.slot = slot;
-    this.subIds = choices;
+    this.pick = choices;
     this.mode = 'equipPick';
     const before = memberStats(m);
     this.sub = new ListMenu(
-      choices.map((id) => ({
-        label: id === REMOVE ? 'REMOVE' : gearName(id),
-        right: statDelta(before, previewStats(m, slot, id === REMOVE ? undefined : id)),
-      })),
+      choices.map((g) =>
+        g ? gearMenuItem(g, statDelta(before, previewStats(m, slot, g.item))) : { label: 'REMOVE', right: statDelta(before, previewStats(m, slot, undefined)) },
+      ),
       this.ctx.audio,
     );
   }
 
-  private equip(m: PartyMember, id: string): void {
-    if (id === REMOVE) {
-      const name = gearName(equippedId(m, this.slot)).toLowerCase();
+  private equip(m: PartyMember, group: GearGroup | null): void {
+    if (!group) {
+      const worn = equippedItem(m, this.slot);
+      if (bagFull(this.state)) {
+        say(this.ctx.stack, this.ctx.audio, ['Your bag is full.']);
+        return;
+      }
       unequipSlot(this.state, m, this.slot);
-      say(this.ctx.stack, this.ctx.audio, [`${m.name} takes off the ${name}.`]);
-    } else if (equipItem(this.state, m, id) !== false) {
+      say(this.ctx.stack, this.ctx.audio, [`${m.name} takes off the ${worn ? itemName(worn) : 'gear'}.`]);
+    } else if (equipItem(this.state, m, group.item.uid) !== false) {
       this.ctx.audio.play('confirm');
-      say(this.ctx.stack, this.ctx.audio, [`${m.name} equips the ${gearName(id).toLowerCase()}.`]);
+      say(this.ctx.stack, this.ctx.audio, [`${m.name} equips the ${itemName(group.item)}.`]);
     }
     this.openSlots(m);
   }
@@ -334,6 +459,8 @@ export class FieldMenuScene implements Scene {
   private back(): void {
     if (this.mode === 'itemWho') {
       this.openItems();
+    } else if (this.mode === 'gearWho') {
+      this.openGear();
     } else if (this.mode === 'equipSlot') {
       this.openMembers('equipWho');
     } else if (this.mode === 'equipPick' && this.member) {
@@ -375,9 +502,32 @@ export class FieldMenuScene implements Scene {
         this.sub = null;
         return;
       case 'item':
+        if (index >= this.subIds.length) {
+          this.openGear();
+          return;
+        }
         this.itemId = this.subIds[index];
         this.openMembers('itemWho', ITEMS.get(this.itemId)?.effect);
         return;
+      case 'gear': {
+        const group = this.gearGroups[index];
+        if (group) {
+          this.gearAction(group.item);
+        } else {
+          this.openItems();
+        }
+        return;
+      }
+      case 'gearWho': {
+        const m = this.state.party[index];
+        const item = this.gearItem;
+        if (m && item && equipItem(this.state, m, item.uid) !== false) {
+          this.ctx.audio.play('confirm');
+          say(this.ctx.stack, this.ctx.audio, [`${m.name} equips the ${itemName(item)}.`]);
+        }
+        this.openGear();
+        return;
+      }
       case 'itemWho':
         this.useItem(this.state.party[index]);
         return;
@@ -391,7 +541,7 @@ export class FieldMenuScene implements Scene {
         return;
       case 'equipPick':
         if (this.member) {
-          this.equip(this.member, this.subIds[index]);
+          this.equip(this.member, this.pick[index] ?? null);
         }
         return;
       case 'magicWho':
@@ -478,7 +628,10 @@ export class FieldMenuScene implements Scene {
     });
     const col = x + 170;
     r.text('GEAR', col, 16, COLORS.dim);
-    GEAR_SLOTS.forEach((slot, i) => r.text(gearName(equippedId(m, slot)), col, 26 + i * 10));
+    GEAR_SLOTS.forEach((slot, i) => {
+      const item = equippedItem(m, slot);
+      r.text(wornName(m, slot), col, 26 + i * 10, item ? RARITIES[item.rarity].color : COLORS.text);
+    });
     r.text('ABILITIES', col, 72, COLORS.dim);
     memberAbilities(m)
       .slice(0, 10)
@@ -572,15 +725,31 @@ function shopEntry(id: string): { name: string; price: number } {
   return { name: def?.name ?? id, price: def?.price ?? 0 };
 }
 
+/** What a shop pays for a consumable: half its price, at least 1. */
+export function itemSellPrice(id: string): number {
+  return Math.max(1, Math.floor((ITEMS.get(id)?.price ?? 0) / 2));
+}
+
+type ShopMode = 'top' | 'buy' | 'sell';
+const SHOP_TOP = ['BUY', 'SELL', 'LEAVE'] as const;
+/** A line of the SELL list: a consumable id or a group of bag gear. */
+type SellLine = { id: string } | { group: GearGroup };
+const SHOP_LIST_X = 104;
+
 /**
- * Item shop, weapon shop and armorer. Gear goes into the bag, then the shop offers to equip it on a member who can
- * use it, trading in the piece it replaces for half its price (plan 15.4).
+ * Item shop, weapon shop and armorer: BUY, SELL or LEAVE (plan 33.5). Bought gear goes into the bag as a plain
+ * Common, then the shop offers to equip it; the piece it replaces goes into the bag too (nothing is sold
+ * automatically). Every shop buys anything: consumables and bag gear, for half their value.
  */
 export class ShopScene implements Scene {
   public readonly id = 'shop';
   public readonly overlay = true;
   private readonly state: GameState;
+  private readonly top: ListMenu;
   private readonly menu: ListMenu;
+  private readonly sellMenu: ListMenu;
+  private sellLines: SellLine[] = [];
+  private mode: ShopMode = 'top';
 
   constructor(
     private readonly ctx: GameContext,
@@ -588,32 +757,73 @@ export class ShopScene implements Scene {
     private readonly stock: readonly string[],
   ) {
     this.state = requireState(ctx);
+    this.top = new ListMenu(SHOP_TOP.map((label) => ({ label })), ctx.audio);
     this.menu = new ListMenu([], ctx.audio, 6);
+    this.sellMenu = new ListMenu([], ctx.audio, 6);
     this.refresh();
   }
 
+  /** Current mode, for tests. */
+  public get shopMode(): ShopMode {
+    return this.mode;
+  }
+
   public update(_dt: number, input: InputManager): void {
-    const res = this.menu.update(input);
-    if (res?.kind === 'cancel' || (res?.kind === 'select' && res.index === this.stock.length)) {
-      this.ctx.stack.pop();
-      say(this.ctx.stack, this.ctx.audio, ['Come again!']);
+    if (this.mode === 'top') {
+      const res = this.top.update(input);
+      const entry = res?.kind === 'select' ? SHOP_TOP[res.index] : undefined;
+      if (res?.kind === 'cancel' || entry === 'LEAVE') {
+        this.ctx.stack.pop();
+        say(this.ctx.stack, this.ctx.audio, ['Come again!']);
+      } else if (entry === 'BUY') {
+        this.mode = 'buy';
+        this.refresh();
+      } else if (entry === 'SELL') {
+        this.openSell();
+      }
       return;
     }
-    if (res?.kind === 'select') {
-      this.buy(this.stock[res.index]);
+    if (this.mode === 'buy') {
+      const res = this.menu.update(input);
+      if (res?.kind === 'cancel' || (res?.kind === 'select' && res.index === this.stock.length)) {
+        this.mode = 'top';
+      } else if (res?.kind === 'select') {
+        this.buy(this.stock[res.index]);
+      }
+      return;
+    }
+    const res = this.sellMenu.update(input);
+    if (res?.kind === 'cancel' || (res?.kind === 'select' && res.index === this.sellLines.length)) {
+      this.mode = 'top';
+    } else if (res?.kind === 'select') {
+      this.sell(this.sellLines[res.index]);
     }
   }
 
   public render(r: Renderer): void {
     const title = this.kind === 'item' ? 'ITEM SHOP' : this.kind === 'weapon' ? 'WEAPONS' : 'ARMORER';
-    this.menu.render(r, 8, 8, 200, true, title);
+    this.top.render(r, 8, 8, SHOP_LIST_X - 16, this.mode === 'top', title);
     r.window(SCREEN_W - 80, 8, 72, 20);
     r.textRight(`${this.state.gold}G`, SCREEN_W - 16, 14, COLORS.gold);
-    const id = this.stock[this.menu.cursor];
     const y = SCREEN_H - 60;
+    if (this.mode === 'buy') {
+      this.menu.render(r, SHOP_LIST_X, 8, 200, true, 'BUY');
+    } else if (this.mode === 'sell') {
+      const bag = `SELL  BAG ${this.state.gear.length}/${BAG_LIMIT}`;
+      this.sellMenu.render(r, SHOP_LIST_X, 8, SCREEN_W - SHOP_LIST_X - 88, true, bag);
+    }
     r.window(8, y - 8, SCREEN_W - 16, 56);
+    if (this.mode === 'top') {
+      r.text('WELCOME! BUY, OR SELL WHAT YOU CARRY.', 16, y);
+      return;
+    }
+    if (this.mode === 'sell') {
+      this.renderSellInfo(r, y);
+      return;
+    }
+    const id = this.stock[this.menu.cursor];
     if (!id) {
-      r.text('THANK YOU!', 16, y);
+      r.text('BACK TO THE COUNTER.', 16, y);
       return;
     }
     if (this.kind === 'item') {
@@ -622,15 +832,10 @@ export class ShopScene implements Scene {
       r.text(`YOU HAVE ${this.state.inventory[id] ?? 0}`, 16, y + 14, COLORS.dim);
       return;
     }
-    const w = WEAPONS.get(id);
     const g = GEAR.get(id);
-    const description = w?.description ?? g?.description ?? '';
-    r.text(description.toUpperCase().slice(0, SHOP_CHARS), 16, y);
-    const bonus = w
-      ? [`ATK+${w.atk}`, w.mag ? `MAG+${w.mag}` : '', w.def ? `DEF+${w.def}` : ''].filter(Boolean).join(' ')
-      : g
-      ? `${gearBonusText(g)}  WORN BY: ${gearUsersText(g)}`
-      : '';
+    r.text(gearDescription(id).toUpperCase().slice(0, SHOP_CHARS), 16, y);
+    const stats = gearStatsText({ baseId: id, rarity: 'common', bonus: {} });
+    const bonus = g ? `${stats}  WORN BY: ${gearUsersText(g)}` : stats;
     r.text(bonus.slice(0, SHOP_CHARS), 16, y + 12, COLORS.dim);
     const users = this.state.party.filter((m) => canEquip(m, id));
     r.text(
@@ -641,13 +846,88 @@ export class ShopScene implements Scene {
     );
   }
 
+  private renderSellInfo(r: Renderer, y: number): void {
+    const line = this.sellLines[this.sellMenu.cursor];
+    if (!line) {
+      r.text('BACK TO THE COUNTER.', 16, y);
+      return;
+    }
+    if ('id' in line) {
+      r.text((ITEMS.get(line.id)?.description ?? '').toUpperCase().slice(0, SHOP_CHARS), 16, y);
+      r.text(`YOU HAVE ${this.state.inventory[line.id] ?? 0}`, 16, y + 14, COLORS.dim);
+      return;
+    }
+    const item = line.group.item;
+    r.text(rarityName(item).toUpperCase().slice(0, SHOP_CHARS), 16, y, RARITIES[item.rarity].color);
+    r.text(gearStatsText(item).slice(0, SHOP_CHARS), 16, y + 12, COLORS.dim);
+    r.text(gearDescription(item.baseId).toUpperCase().slice(0, SHOP_CHARS), 16, y + 26);
+  }
+
   private refresh(): void {
     const items: MenuItem[] = this.stock.map((id) => {
       const { name, price } = shopEntry(id);
       return { label: name.toUpperCase(), right: `${price}G`, enabled: price <= this.state.gold };
     });
-    items.push({ label: 'LEAVE' });
+    items.push({ label: 'BACK' });
     this.menu.setItems(items);
+  }
+
+  /** SELL list: consumables, then bag gear (grouped plain Commons), each with what the shop pays. */
+  private openSell(): void {
+    const ids = [...ITEMS.keys()].filter((id) => (this.state.inventory[id] ?? 0) > 0);
+    this.sellLines = [...ids.map((id) => ({ id })), ...groupGear(this.state.gear).map((group) => ({ group }))];
+    if (this.sellLines.length === 0) {
+      this.mode = 'top';
+      say(this.ctx.stack, this.ctx.audio, ['You have nothing to sell.']);
+      return;
+    }
+    const items: MenuItem[] = this.sellLines.map((line) =>
+      'id' in line
+        ? {
+            label: `${(ITEMS.get(line.id)?.name ?? line.id).toUpperCase()} x${this.state.inventory[line.id]}`,
+            right: `${itemSellPrice(line.id)}G`,
+          }
+        : gearMenuItem(line.group, `${gearSellPrice(line.group.item)}G`),
+    );
+    items.push({ label: 'BACK' });
+    this.sellMenu.setItems(items);
+    this.mode = 'sell';
+  }
+
+  private sell(line: SellLine): void {
+    const { stack, audio } = this.ctx;
+    if ('id' in line) {
+      if ((this.state.inventory[line.id] ?? 0) <= 0) {
+        return;
+      }
+      this.state.gold += itemSellPrice(line.id);
+      addItem(this.state, line.id, -1);
+      if ((this.state.inventory[line.id] ?? 0) <= 0) {
+        delete this.state.inventory[line.id];
+      }
+      audio.play('coin');
+      this.openSell();
+      return;
+    }
+    const item = line.group.item;
+    const price = gearSellPrice(item);
+    const done = (): void => {
+      if (removeFromBag(this.state, item.uid)) {
+        this.state.gold += price;
+        audio.play('coin');
+      }
+      this.refresh();
+      this.openSell();
+    };
+    if (isPrecious(item)) {
+      ask(stack, audio, [`Sell the ${rarityName(item)} for ${price}G?`], ['SELL', 'KEEP'], (i) => {
+        if (i === 0) {
+          done();
+        }
+      });
+    } else {
+      done();
+    }
   }
 
   private buy(id: string): void {
@@ -656,21 +936,31 @@ export class ShopScene implements Scene {
     if (price > this.state.gold) {
       return;
     }
-    if (this.kind === 'item') {
+    if (this.kind === 'item' && ITEMS.has(id)) {
       this.state.gold -= price;
       addItem(this.state, id);
       audio.play('coin');
       this.refresh();
       return;
     }
-    const slot = slotOf(id);
-    const users = this.state.party.filter((m) => canEquip(m, id) && slot !== null && equippedId(m, slot) !== id);
-    if (!slot || users.length === 0) {
+    const users = this.state.party.filter((m) => canEquip(m, id));
+    if (!slotOf(id) || users.length === 0) {
       say(stack, audio, ['No one in your party can make use of that.']);
       return;
     }
+    if (bagFull(this.state)) {
+      ask(stack, audio, ['Your bag is full. Sell something first?'], ['SELL', 'NO'], (i) => {
+        if (i === 0) {
+          this.openSell();
+        }
+      });
+      return;
+    }
+    const item = buyGear(this.state, id);
+    if (!item) {
+      return;
+    }
     this.state.gold -= price;
-    addItem(this.state, id);
     audio.play('coin');
     this.refresh();
     ask(stack, audio, [`Bought the ${name}. Equip it now?`], [...users.map((m) => m.name.toUpperCase()), 'LATER'], (i) => {
@@ -679,24 +969,9 @@ export class ShopScene implements Scene {
         say(stack, audio, [`The ${name} is in your bag. Equip it from the menu (E).`]);
         return;
       }
-      say(stack, audio, [`${user.name} equips the ${name}!${this.tradeIn(user, id)}`]);
+      const old = equipItem(this.state, user, item.uid);
+      const note = old ? ` The ${itemName(old)} is in your bag.` : '';
+      say(stack, audio, [`${user.name} equips the ${name}!${note}`]);
     });
-  }
-
-  /** Equips a bought piece and sells the replaced one for half price; returns the trade-in note. */
-  private tradeIn(user: PartyMember, id: string): string {
-    const old = equipItem(this.state, user, id);
-    if (!old) {
-      return '';
-    }
-    const { name, price } = shopEntry(old);
-    const value = Math.floor(price / 2);
-    addItem(this.state, old, -1);
-    if ((this.state.inventory[old] ?? 0) <= 0) {
-      delete this.state.inventory[old];
-    }
-    this.state.gold += value;
-    this.refresh();
-    return value > 0 ? ` (Traded in the ${name} for ${value}G.)` : '';
   }
 }

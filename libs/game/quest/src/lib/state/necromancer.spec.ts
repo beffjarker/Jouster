@@ -143,7 +143,10 @@ describe('save v5 migration (Paladin -> Necromancer)', () => {
     ]);
     expect(loaded.party[0].armorId).toBeUndefined();
     expect(loaded.party[0].shieldId).toBeUndefined();
-    expect(loaded.inventory).toMatchObject({ herb: 2, duneReaper: 1, boneScythe: 1, plateArmor: 1, buckler: 1 });
+    // v6 moves bagged gear out of the item counts into plain Common pieces (plan 33).
+    expect(loaded.inventory).toEqual({ herb: 2 });
+    expect(loaded.gear.map((g) => g.baseId).sort()).toEqual(['boneScythe', 'buckler', 'duneReaper', 'plateArmor']);
+    expect(loaded.gear.every((g) => g.rarity === 'common' && g.uid < loaded.nextGearUid)).toBe(true);
     expect(loaded.companions['tavern'].classId).toBe('necromancer');
     expect(Object.values(loaded.companions).some((c) => (c.classId as string) === 'paladin')).toBe(false);
   });

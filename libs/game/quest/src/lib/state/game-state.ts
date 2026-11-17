@@ -3,12 +3,13 @@ import { CLASS_ORDER, classDef } from '../data/classes';
 import { COMPANION_SLOTS, CompanionInfo, companionSlot, rollCompanions } from '../data/companions';
 import { WEAPONS } from '../data/equipment';
 import { GEAR } from '../data/gear';
-import { canEquip, equippedId, returnGear, unequipSlot } from './equipment';
+import { BAG_LIMIT, canEquip, createGear, equippedId, returnGear, stashGear } from './equipment';
+import { GearItem, isValidGearItem } from './loot';
 import { PartyMember, createMember, memberStats } from './party';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 /** Older save versions that loadGame can migrate. */
-const MIGRATABLE_VERSIONS: readonly number[] = [2, 3, 4];
+const MIGRATABLE_VERSIONS: readonly number[] = [2, 3, 4, 5];
 export const SAVE_KEY = 'jouster-quest-save-v1';
 export const MAX_PARTY = 3;
 export const STARTING_GOLD = 50;
@@ -18,7 +19,14 @@ export interface GameState {
   version: number;
   party: PartyMember[];
   gold: number;
+  /** Consumables by id and count. */
   inventory: Record<string, number>;
+  /** Weapons and gear in the bag, each with its rarity and bonuses (plan 33.4); at most `BAG_LIMIT`. */
+  gear: GearItem[];
+  /** Uid for the next piece of gear created. */
+  nextGearUid: number;
+  /** Found gear waiting for room in a full bag; the field asks what to drop (plan 33.4). */
+  pendingGear?: GearItem[];
   flags: Record<string, boolean>;
   /** Level and XP of companions who left the party (they rejoin exactly as they left, plan 16.1). */
   companionProgress: Record<string, CompanionProgress>;
@@ -88,6 +96,8 @@ export function newGameState(heroName: string, classId: ClassId, rng: Rng = crea
     party: [createMember('hero', heroName, classId, 1)],
     gold: STARTING_GOLD,
     inventory: startingInventory(classId),
+    gear: [],
+    nextGearUid: 1,
     flags: {},
     companionProgress: {},
     companions: rollCompanions(classId, rng),
@@ -243,7 +253,14 @@ export function recruitCompanion(state: GameState, companionId: string, replaceI
   return true;
 }
 
+/** Adds consumables; a weapon or gear id instead adds plain Common pieces to the bag (or pending when full). */
 export function addItem(state: GameState, itemId: string, count = 1): void {
+  if (WEAPONS.has(itemId) || GEAR.has(itemId)) {
+    for (let i = 0; i < count; i++) {
+      stashGear(state, createGear(state, { baseId: itemId, rarity: 'common', bonus: {} }));
+    }
+    return;
+  }
   state.inventory[itemId] = (state.inventory[itemId] ?? 0) + count;
 }
 
@@ -281,14 +298,15 @@ export function hasSave(storage: SaveStorage): boolean {
 
 /**
  * Upgrades older saves step by step: v2/v3 -> v4 (fog, quests, companion XP) -> v5 (Necromancer replaces the
- * Paladin).
+ * Paladin) -> v6 (gear moves from counted ids to rarity instances).
  */
 function migrate(s: LegacySave): Partial<GameState> {
   if (typeof s?.version !== 'number' || !MIGRATABLE_VERSIONS.includes(s.version)) {
     return s;
   }
   const v4 = s.version < 4 ? migrateToV4(s) : s;
-  return migrateToV5(v4);
+  const v5 = s.version < 5 ? migrateToV5(v4) : v4;
+  return migrateToV6(v5);
 }
 
 /**
@@ -340,7 +358,7 @@ function migrateToV5(s: Partial<GameState>): Partial<GameState> {
     const to = PALADIN_WEAPONS[id] ?? id;
     inventory[to] = (inventory[to] ?? 0) + count;
   }
-  const state: Partial<GameState> = { ...s, version: SAVE_VERSION, inventory };
+  const state: Partial<GameState> = { ...s, version: 5, inventory };
   if (s.companions && typeof s.companions === 'object') {
     state.companions = Object.fromEntries(
       Object.entries(s.companions).map(([id, c]) => [id, { ...c, classId: necromancerFor(c.classId) }]),
@@ -353,7 +371,8 @@ function migrateToV5(s: Partial<GameState>): Partial<GameState> {
         (['armor', 'shield', 'accessory'] as const).forEach((slot) => {
           const id = equippedId(m, slot);
           if (id && GEAR.has(id) && !canEquip(m, id)) {
-            unequipSlot(state as GameState, m, slot);
+            inventory[id] = (inventory[id] ?? 0) + 1;
+            delete m[slot === 'armor' ? 'armorId' : slot === 'shield' ? 'shieldId' : 'accessoryId'];
           }
         });
         const max = memberStats(m);
@@ -364,6 +383,50 @@ function migrateToV5(s: Partial<GameState>): Partial<GameState> {
     });
   }
   return state;
+}
+
+/**
+ * v6 split the bag: weapon and gear ids counted in `inventory` become plain Common pieces in `gear` (any beyond the
+ * bag limit wait in `pendingGear`); worn gear stays as it was, an implicit plain Common.
+ */
+function migrateToV6(s: Partial<GameState>): Partial<GameState> {
+  const inventory: Record<string, number> = {};
+  const gear: GearItem[] = [];
+  let uid = 1;
+  for (const [id, count] of Object.entries(s.inventory ?? {})) {
+    if (WEAPONS.has(id) || GEAR.has(id)) {
+      for (let i = 0; i < count; i++) {
+        gear.push({ uid: uid++, baseId: id, rarity: 'common', bonus: {} });
+      }
+    } else {
+      inventory[id] = count;
+    }
+  }
+  const state: Partial<GameState> = {
+    ...s,
+    version: SAVE_VERSION,
+    inventory,
+    gear: gear.slice(0, BAG_LIMIT),
+    nextGearUid: uid,
+  };
+  if (gear.length > BAG_LIMIT) {
+    state.pendingGear = gear.slice(BAG_LIMIT);
+  }
+  return state;
+}
+
+/** Bag, pending and worn pieces are well formed, and every uid is below `nextGearUid`. */
+function validGear(s: Partial<GameState>): boolean {
+  if (!Array.isArray(s.gear) || s.gear.length > BAG_LIMIT || !Number.isInteger(s.nextGearUid)) {
+    return false;
+  }
+  if (s.pendingGear !== undefined && !Array.isArray(s.pendingGear)) {
+    return false;
+  }
+  const worn = (s.party ?? []).flatMap((m) => Object.values(m?.worn ?? {}));
+  return [...s.gear, ...(s.pendingGear ?? []), ...worn].every(
+    (g) => isValidGearItem(g) && g.uid < (s.nextGearUid ?? 0),
+  );
 }
 
 function isValidState(s: Partial<GameState>): s is GameState {
@@ -389,6 +452,7 @@ function isValidState(s: Partial<GameState>): s is GameState {
     typeof s.y === 'number' &&
     typeof s.inventory === 'object' &&
     s.inventory !== null &&
+    validGear(s) &&
     typeof s.flags === 'object' &&
     s.flags !== null &&
     validProgress(s.companionProgress) &&

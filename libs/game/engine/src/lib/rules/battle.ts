@@ -107,6 +107,8 @@ export interface BattleRewards {
   xp: number;
   gold: number;
   items: string[];
+  /** Monster ids (`sourceId`) of enemies that dropped a gear piece; the game picks what each piece is. */
+  gearDrops: string[];
 }
 
 /**
@@ -324,10 +326,15 @@ export class Battle {
           }
         });
       });
+      // Rolled after gold and items, and only for enemies that can drop gear, so older seeded results don't change.
+      const gearDrops = this.enemies
+        .filter((e) => (e.gearChance ?? 0) > 0 && rng.chance(e.gearChance ?? 0))
+        .map((e) => e.sourceId);
       this.cachedRewards = {
         xp: this.enemies.reduce((s, e) => s + e.xp, 0),
         gold: gold + this.stolenGold,
         items,
+        gearDrops,
       };
     }
     return this.cachedRewards;
