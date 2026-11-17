@@ -2059,12 +2059,21 @@ credited, so `CREDITS.md` is unchanged.
   (forest is walkable).
 - **Kept procedural:** mountains, hills, towns, ruins, torches and the Act II/III scenery. The LPC atlases have
   only cliff and building pieces, not overworld-sized mountains or towns, and the LPC torch doesn't animate.
+- **Town exits:** taller trees hid the gap in a town's tree border, so the way out was hard to see.
+  `exitRoads(map)` in `maps.ts` finds each warp within three solid tiles of the map edge. It runs a road from
+  the warp through the border and past the edge, using the warp's floor (cobble in towns). In towns,
+  `WorldScene` draws those tiles as that floor with no tree on them. The road continues `EXIT_ROAD_BEYOND`
+  tiles past the edge, enough to leave the screen in any direction, so the exit reads as a road out of town.
+  Only the drawing changes: the border stays solid, and stepping on the gate still warps.
 
 Tests: `lpc-manifest.spec.ts` checks that every object tile has LPC ground and one look per tile variant, that the pieces
 fit their object box, and that each piece is a whole sprite in the atlas: mostly opaque, with a transparent ring around it
 except at listed seams (a canopy on its trunk, the cave cut from a tiled cliff). It also checks that
 `tileObject` returns null without sheets, gives a cached 4× sprite with sheets, and that `tile()` skips the
 procedural overlay only on object tiles. `world-scene.spec.ts` renders the overworld by a forest and checks that
-objects are drawn after all the ground, in row order, and before the party. Manual: with LPC art on, walk
+objects are drawn after all the ground, in row order, and before the party. It also renders Aldmere's south
+gate and checks the road is cobble with no tree on it down to the bottom of the screen. `content.spec.ts` checks
+Aldmere's road tiles, that every town gets a road and that roads only replace border tiles inside a map, and
+that warps deep inside the overworld get none. Manual: with LPC art on, walk
 through the forests near Aldmere and past a cave entrance. Look for overlapping canopies, trees cut off at
-the screen edge, and the party drawn over trees.
+the screen edge, and the party drawn over trees. Walk to each town's gate and check that the road out is plain to see.

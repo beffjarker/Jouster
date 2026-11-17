@@ -1289,6 +1289,44 @@ export function mapHasEncounters(def: MapDef): boolean {
   return def.legend.some((t) => t.encounterTableId !== undefined);
 }
 
+/**
+ * Tiles that carry an edge exit's road out of the map, keyed `x,y` with the floor tile id to draw. From each warp
+ * within `reach` solid tiles of the map edge, the road runs through that solid border in the shortest direction
+ * and `beyond` tiles past the edge. The world draws these as the warp's floor with nothing on them, so a town's
+ * way out reads as an open road instead of a gap hidden under tree canopies.
+ */
+export function exitRoads(map: MapDef, reach = 3, beyond = 3): ReadonlyMap<string, string> {
+  const legend = new Map(map.legend.map((t) => [t.char, t]));
+  const inside = (x: number, y: number): boolean => y >= 0 && y < map.rows.length && x >= 0 && x < map.rows[y].length;
+  const at = (x: number, y: number): TileDef | undefined =>
+    inside(x, y) ? legend.get(map.rows[y].charAt(x)) : undefined;
+  const roads = new Map<string, string>();
+  map.warps.forEach((w) => {
+    const floor = at(w.x, w.y);
+    if (!floor || floor.solid) {
+      return;
+    }
+    const candidates = SIDES.flatMap(([dx, dy]) => {
+      const road: Array<[number, number]> = [];
+      let x = w.x + dx;
+      let y = w.y + dy;
+      for (; inside(x, y); x += dx, y += dy) {
+        if (!at(x, y)?.solid || road.length >= reach) {
+          return [];
+        }
+        road.push([x, y]);
+      }
+      for (let i = 0; i < beyond; i++, x += dx, y += dy) {
+        road.push([x, y]);
+      }
+      return [road];
+    });
+    const best = candidates.reduce<Array<[number, number]> | null>((a, b) => (!a || b.length < a.length ? b : a), null);
+    (best ?? []).forEach(([x, y]) => roads.set(`${x},${y}`, floor.id));
+  });
+  return roads;
+}
+
 /** Tiles you can talk across to an NPC standing behind them: shop counters, the chapel altar and cell bars. */
 const TALK_ACROSS: ReadonlySet<string> = new Set(['counter', 'altar', 'jailBars']);
 

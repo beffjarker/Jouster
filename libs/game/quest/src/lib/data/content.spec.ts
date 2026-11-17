@@ -2,7 +2,17 @@ import { FACING_DELTA, TileMap } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { CLASSES } from '../data/classes';
 import { ITEMS, WEAPONS, WEAPON_SHOP_STOCK } from '../data/equipment';
-import { INN_RESPAWN, MAPS, MapDef, SIGN_TEXT, SignKind, mapHasEncounters, talkAcross, wanderBlocked } from '../data/maps';
+import {
+  INN_RESPAWN,
+  MAPS,
+  MapDef,
+  SIGN_TEXT,
+  SignKind,
+  exitRoads,
+  mapHasEncounters,
+  talkAcross,
+  wanderBlocked,
+} from '../data/maps';
 import { COMPANION_SLOTS, companionRestSpot } from '../data/companions';
 import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
 import { OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
@@ -234,5 +244,44 @@ describe('town signs', () => {
     const tavern = COMPANION_SLOTS.find((s) => s.id === 'tavern');
     const aldmere = MAPS.get(tavern?.mapId ?? '');
     expect(tavern && (aldmere?.signs ?? []).some((s) => s.kind === 'tavern' && near(s, tavern))).toBe(true);
+  });
+});
+
+describe('exitRoads', () => {
+  it("carries Aldmere's south gate through the tree border and past the map edge", () => {
+    const roads = exitRoads(MAPS.get('aldmere') as MapDef, 3, 2);
+    expect([...roads.keys()].sort()).toEqual(['16,29', '16,30', '16,31', '17,29', '17,30', '17,31']);
+    expect(new Set(roads.values())).toEqual(new Set(['cobble']));
+  });
+
+  it('gives every town a road out and only paves its border', () => {
+    MAPS.forEach((m) => {
+      if (mapHasEncounters(m)) {
+        return;
+      }
+      const roads = exitRoads(m);
+      const solid = new Set(m.legend.filter((t) => t.solid).map((t) => t.char));
+      expect({ map: m.id, roads: roads.size > 0 }).toEqual({ map: m.id, roads: true });
+      [...roads.keys()]
+        .map((k) => k.split(',').map(Number))
+        .filter(([x, y]) => y >= 0 && y < m.rows.length && x >= 0 && x < m.rows[y].length)
+        .forEach(([x, y]) => {
+          expect({ map: m.id, x, y, solid: solid.has(m.rows[y][x]) }).toEqual({ map: m.id, x, y, solid: true });
+        });
+    });
+  });
+
+  it('ignores warps deep inside a map', () => {
+    const overworld = MAPS.get('overworld') as MapDef;
+    const roads = exitRoads(overworld);
+    const w = overworld.rows[0].length;
+    const h = overworld.rows.length;
+    overworld.warps
+      .filter((p) => p.x > 3 && p.y > 3 && p.x < w - 4 && p.y < h - 4)
+      .forEach((p) => {
+        [-1, 0, 1].forEach((d) => {
+          expect(roads.has(`${p.x + d},${p.y}`) || roads.has(`${p.x},${p.y + d}`)).toBe(false);
+        });
+      });
   });
 });

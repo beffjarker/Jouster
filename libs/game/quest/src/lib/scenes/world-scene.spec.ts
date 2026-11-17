@@ -1,5 +1,5 @@
 import { InputAction, Renderer, SceneStack, createRng } from '@jouster/game/engine';
-import { Art } from '../art/art';
+import { Art, TILE } from '../art/art';
 import { INN_RESPAWN, mapDef } from '../data/maps';
 import { ENCOUNTER_TABLES } from '../data/monsters';
 import { NORTH_LANDMARKS } from '../data/frostpeaks-gen';
@@ -10,6 +10,7 @@ import { GameState, hasSave, loadGame, memoryStorage, newGameState, recruitCompa
 import { createMember } from '../state/party';
 import { SUNNY_SIGHT_RADIUS, weatherAt, weatherSeed, weatherSightRadius } from '../state/weather';
 import { InputDriver } from '../testing/input-driver';
+import { SCREEN_H, SCREEN_W } from '../ui/widgets';
 import { GameContext } from './context';
 import { SKY_FADE_SECONDS, STEP_TIME, WorldScene, cameraAxis } from './world-scene';
 
@@ -742,5 +743,44 @@ describe('WorldScene landscape objects', () => {
     expect(kinds.lastIndexOf('tile')).toBeLessThan(kinds.indexOf('object'));
     expect(kinds.lastIndexOf('object')).toBeLessThan(kinds.findIndex((k) => k.startsWith('character')));
     expect(objects.map((d) => d.y)).toEqual([...objects.map((d) => d.y)].sort((a, b) => a - b));
+  });
+
+  it("paves a town's exit road through the trees and off screen, with no tree drawn on it", () => {
+    const h = setup({ mapId: 'aldmere', x: 16, y: 27, facing: 'down' });
+    const art = new Proxy(
+      {
+        characterAction: () => undefined,
+        tile: (id: string) => ({ kind: 'tile', id }),
+        tileObject: (id: string) => (id === 'tree' ? { sprite: { kind: 'object', id }, x: 0, y: 0 } : null),
+      },
+      {
+        get: (t, k) =>
+          (t as Record<string | symbol, unknown>)[k] ?? ((): { kind: string | symbol } => ({ kind: k })),
+      },
+    );
+    h.ctx.art = art as unknown as Art;
+    const camX = cameraAxis(16 * TILE, 34, SCREEN_W);
+    const camY = cameraAxis(27 * TILE, 30, SCREEN_H);
+    const draws: Array<{ kind: string; id?: string; tx: number; ty: number }> = [];
+    const r = new Proxy(
+      {
+        draw: (image: { kind: string; id?: string }, x: number, y: number) =>
+          draws.push({ kind: image.kind, id: image.id, tx: (x + camX) / TILE, ty: (y + camY) / TILE }),
+      },
+      { get: (t, k) => (t as Record<string | symbol, unknown>)[k] ?? jest.fn() },
+    ) as unknown as Renderer;
+    h.world.render(r);
+    const at = (kind: string, tx: number, ty: number): string | undefined =>
+      draws.find((d) => d.kind === kind && d.tx === tx && d.ty === ty)?.id;
+    const bottom = Math.floor((camY + SCREEN_H) / TILE);
+    expect(bottom).toBeGreaterThan(31);
+    for (let ty = 28; ty <= bottom; ty++) {
+      [16, 17].forEach((tx) => {
+        const drawn = { tx, ty, tile: at('tile', tx, ty), tree: at('object', tx, ty) };
+        expect(drawn).toEqual({ tx, ty, tile: 'cobble', tree: undefined });
+      });
+    }
+    expect(at('tile', 15, 30)).toBe('tree');
+    expect(at('object', 15, 30)).toBe('tree');
   });
 });
