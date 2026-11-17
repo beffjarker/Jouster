@@ -149,6 +149,8 @@ export interface MonsterDef {
   gold: number;
   /** Chance (0–1) of dropping gold; defaults to 1 for bosses and DEFAULT_GOLD_CHANCE for others. */
   goldChance?: number;
+  /** Chance (0–1) of dropping a gear piece; the game picks the default when omitted. */
+  gearChance?: number;
   undead?: boolean;
   boss?: boolean;
   weaknesses: Element[];

@@ -22,6 +22,7 @@ import {
   saveGame,
 } from './game-state';
 import { applyRestore } from '../scenes/menu-scenes';
+import { BAG_LIMIT } from './equipment';
 import { grantXp, memberStats, restoreMember } from './party';
 
 describe('game state', () => {
@@ -85,6 +86,47 @@ describe('game state', () => {
       cave: { level: 2, xp: totalXpForLevel(2) },
     });
     expect(loaded && 'companionLevels' in loaded).toBe(false);
+  });
+
+  it('migrates version 5 saves: bagged gear becomes plain Common pieces, overflow waits (plan 33)', () => {
+    const storage = memoryStorage();
+    const s = newGameState('ANA', 'warrior', createRng(2));
+    const v5: Partial<GameState> = { ...s, version: 5, inventory: { herb: 3, leatherArmor: BAG_LIMIT + 2, ironSword: 1 } };
+    delete v5.gear;
+    delete v5.nextGearUid;
+    storage.setItem(SAVE_KEY, JSON.stringify(v5));
+    const loaded = loadGame(storage) as GameState;
+    expect(loaded.version).toBe(SAVE_VERSION);
+    expect(loaded.inventory).toEqual({ herb: 3 });
+    expect(loaded.gear).toHaveLength(BAG_LIMIT);
+    expect(loaded.pendingGear).toHaveLength(3);
+    const all = [...loaded.gear, ...(loaded.pendingGear ?? [])];
+    expect(new Set(all.map((g) => g.uid)).size).toBe(BAG_LIMIT + 3);
+    expect(all.every((g) => g.rarity === 'common' && Object.keys(g.bonus).length === 0)).toBe(true);
+    expect(loaded.nextGearUid).toBe(BAG_LIMIT + 4);
+  });
+
+  it('puts gear given by id into the bag as plain Commons', () => {
+    const s = newGameState('ANA', 'warrior', createRng(2));
+    addItem(s, 'chainMail', 2);
+    addItem(s, 'herb');
+    expect(s.inventory['chainMail']).toBeUndefined();
+    expect(s.gear.map((g) => g.baseId)).toEqual(['chainMail', 'chainMail']);
+    expect(s.gear[0].uid).not.toBe(s.gear[1].uid);
+  });
+
+  it('rejects saves with malformed gear', () => {
+    const storage = memoryStorage();
+    const s = newGameState('ANA', 'warrior', createRng(2));
+    addItem(s, 'chainMail');
+    expect(saveGame(storage, s)).toBe(true);
+    const bad = (patch: Partial<GameState>): void => {
+      storage.setItem(SAVE_KEY, JSON.stringify({ ...s, ...patch }));
+      expect(loadGame(storage)).toBeNull();
+    };
+    bad({ nextGearUid: 1 });
+    bad({ gear: [{ ...s.gear[0], rarity: 'mythic' as never }] });
+    bad({ gear: Array.from({ length: BAG_LIMIT + 1 }, (_, i) => ({ ...s.gear[0], uid: i + 1 })), nextGearUid: 99 });
   });
 
   it('rejects a save with malformed companion progress', () => {

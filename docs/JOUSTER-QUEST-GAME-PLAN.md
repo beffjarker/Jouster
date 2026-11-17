@@ -9,6 +9,8 @@
 > [21](#21-finale-the-ember-mountains-implemented)). Phase 8 polish is in progress: music, smooth walking, tile
 > fixes, one art style, a smoke test, poison, LPC battle poses and animated slimes and bats are implemented (§22–§30),
 > and the Necromancer has replaced the Paladin (§31; see [17.8 Next](#178-next) for what is still open).
+> Planned next: an inventory with monster gear drops, item rarity and random stat bonuses, and selling at shops
+> ([33](#33-inventory-loot-and-item-rarity-planned)).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -449,7 +451,7 @@ NPCs with hints and side quests
 | World | Greenwood Vale overworld (96×72, seeded), Aldmere (castle, inn, chapel, shops, tavern), Brookhollow, Thornwick ruins, Goblin Cave, Wolf Den, southern lakeshore; fog of war and `M` world map |
 | Companions | Four spots (Aldmere tavern, Thornwick ruins, Brookhollow, Goblin Cave) with a random name and class per new game; each joins after the Goblin King and their side quest |
 | Story | King's quest → Goblin King boss → companion side quests → epilogue teasing **Vyrmorth**; the world stays open afterwards |
-| Economy | Gold, item shop, weapon shop with trade-in, inn (heal + save), chapel (revive + save) |
+| Economy | Gold, item shop, weapon shop with trade-in (to be replaced by selling, §33), inn (heal + save), chapel (revive + save) |
 | Saves | Versioned JSON in `localStorage` with validation; version 3 with migration from versions 1 and 2 |
 | Battle | Side view (party left, enemies right) with animations; waits for every member's command each round and for OK on the result screen |
 | Tests | Engine unit tests, content validation, seeded balance simulator, headless scene-flow tests, Angular page spec |
@@ -805,7 +807,8 @@ menu opens with `X`/`Esc` and has STATUS, ITEM, MAGIC, QUESTS, MAP and CLOSE.
 | Accessory | Ring of Vigor (+HP), Swift Boots (+AGI), Sage Charm (+MAG) | One stat |
 
 - Bought gear goes into the **inventory**, not straight onto a member. Weapons keep their trade-in offer at the
-  shop ("Equip now? YES / NO").
+  shop ("Equip now? YES / NO"). *Planned change (§33): equipping at the shop puts the replaced piece in the bag
+  instead of selling it, and shops get a SELL option.*
 - **Field menu:** new **EQUIP** entry: choose member → choose slot → choose an item from the inventory that this
   class can use. The list shows the stat change (e.g. `DEF 9 → 12`) before confirming. Unequipping returns the item
   to the inventory.
@@ -1673,6 +1676,8 @@ Every Act III asset is procedural, at the §16.10 density:
   the Wizard starts with more Herbs and 2 Tonics.
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
   play-testing confirms parties find Act II/III too easy.
+- Inventory, monster gear drops, item rarity (Common to Legendary), random stat bonuses and selling at shops
+  (planned in §33; buying no longer sells the replaced piece).
 
 ## 20. Revision 6: solo only before the unlock
 
@@ -2084,3 +2089,205 @@ Aldmere's road tiles, that every town gets a road and that roads only replace bo
 that warps deep inside the overworld get none. Manual: with LPC art on, walk
 through the forests near Aldmere and past a cave entrance. Look for overlapping canopies, trees cut off at
 the screen edge, and the party drawn over trees. Walk to each town's gate and check that the road out is plain to see.
+
+## 33. Inventory, loot and item rarity (implemented; simulator loot mode next)
+
+Feedback: monsters should sometimes drop common gear that can be equipped or sold. Buying gear must not sell the
+piece it replaces. Items should have rarity levels (Common, Uncommon, Rare, Epic, ...) and random stat bonuses,
+and anything bought in a shop is Common.
+
+### 33.1 Today (what changes)
+
+- `state.inventory` is a `Record<string, number>`: consumables and gear are counted by id, so two Iron Swords are
+  identical. Members wear base ids (`weaponId`, `armorId`, `shieldId`, `accessoryId`).
+- Buying gear puts it in the bag and offers "Equip it now?". Equipping sells the replaced piece for half its
+  price on the spot (`ShopScene.tradeIn`). There is no SELL option anywhere.
+- Monsters drop only consumables (`MonsterDef.drops`, rolled in `Battle.rewards()`).
+
+### 33.2 Rarity
+
+| Rarity | Colour | Tag | Bonus rolls | Value × | Where from |
+| --- | --- | --- | --- | --- | --- |
+| Common | white | `C` | 0 (shop), 0–1 (drop) | 1 | Shops, common monsters |
+| Uncommon | green | `U` | 1 | 1.5 | Common monsters (rarely), mini-bosses |
+| Rare | blue | `R` | 2 | 2.5 | Common monsters (very rarely), mini-bosses, bosses |
+| Epic | purple | `E` | 3 | 4 | Mini-bosses, bosses |
+| Legendary | orange | `L` | 3, all at the top of the range, plus 1 more | 6 | Act bosses and the finale only |
+
+- The tag letter is always shown next to the colour (`[R] IRON SWORD`), so rarity never depends on colour alone.
+- **Shop items are Common with no bonus rolls**, so the shop list shows exact stats and the simulator's "best
+  affordable gear" stays deterministic.
+
+### 33.3 Random stat bonuses
+
+- Each bonus roll picks a stat from HP, MP, ATK, DEF, AGI and MAG and adds it on top of the item's base stats.
+  Rolls on one item use different stats, so they never stack on the same one.
+- **Size by item tier** (`t` = 1–5): ATK/DEF/AGI/MAG `+1..t+1`, HP/MP `+4..4×(t+1)`. Rare and above roll in the
+  upper half of the range; Legendary rolls the top value.
+- **Weighting:** stats the item's slot already gives (ATK on weapons, DEF on armor and shields) are half as likely,
+  so bonuses add variety instead of just bigger numbers.
+- **Names:** the base name, plus a suffix from the largest bonus: *of Might* (ATK), *of Warding* (DEF), *of Haste*
+  (AGI), *of Sorcery* (MAG), *of Vigor* (HP), *of Spirit* (MP). For example `[R] IRON SWORD OF HASTE  ATK+10 AGI+2 MP+6`.
+  Commons with no bonus keep the plain name.
+- Bonuses are rolled once, when the piece drops, and saved with it.
+
+### 33.4 Inventory model
+
+- **Consumables** stay counted by id in `state.inventory`.
+- **Gear becomes item instances** in a new `state.gear: GearItem[]`:
+  `{ uid, baseId, rarity, bonus: Partial<Stats> }`. `uid` comes from a new counter, `state.nextGearUid`.
+- **Members wear instances:** the four slot fields hold a `GearItem` (the weapon is always set). `memberStats` adds
+  the base def's stats and then `bonus`. Battle code that reads the weapon family, hits or undead multiplier
+  uses `baseId`.
+- **Bag limit:** 40 gear pieces (consumables are not limited). Nothing is ever sold automatically, because there
+  is no merchant in the field.
+- **Bag full when gear drops:** after the victory window, a **Bag full** window opens for each new piece:
+  "Your bag is full. Found [U] Leather Armor of Haste." with two choices:
+  - **DROP AN ITEM:** opens the bag list (same layout as the GEAR tab, with the new piece's stats shown for
+    comparison). Pick a piece to leave behind; the new piece takes its place. CANCEL returns to the two choices.
+  - **LEAVE IT:** the new piece is left behind.
+  - Leaving behind a Rare or better piece (either the new one or one from the bag) asks for confirmation. Dropped
+    pieces are gone for good; there is no ground pile to come back to. Worn gear isn't in the bag list, so it can't
+    be dropped here. With several drops in one battle, the window repeats once per piece, in the order found.
+- **Other ways the bag can overflow:**
+  - *Unequip* in the EQUIP menu is blocked when the bag is full ("Your bag is full.").
+  - *Buying* gear at a shop with a full bag is refused ("Your bag is full. Sell something first?") and jumps to
+    SELL, since a merchant is right there.
+  - *A companion leaving* with a full bag opens the same Bag full window for each returned piece.
+- **Companions leaving:** `returnGear` moves their worn instances into the bag, as it does with ids today; the
+  class's starting weapon stays with them.
+
+### 33.5 Buying, equipping and selling
+
+- **Buy:** the piece goes into the bag as a Common instance. The shop still asks "Equip it now?" with the members
+  who can use it, plus LATER. Equipping moves **the replaced piece into the bag** ("Rowan equips the Iron Sword.
+  The Bronze Sword is in your bag."). The automatic half-price trade-in is removed.
+- **Shop menu:** BUY / SELL / LEAVE. Every shop (item shop, smith, armorer) buys anything, so you can sell a whole
+  haul at one counter.
+- **Sell list:** consumables (with counts) and every gear piece in the bag, each with its rarity tag, its bonuses
+  and the sell price. Worn gear isn't listed; unequip it first. Selling Rare or better asks for confirmation.
+- **Sell price:** `max(1, floor(value / 2))`, where `value = base price × rarity multiplier + 15 × tier × bonus
+  rolls`. For drops of starting gear (price 0), use the price of the tier above, so a Common Bronze Sword still
+  sells for a few gold.
+- **EQUIP menu (field, `E`):** the choice list shows instances with the rarity colour and tag, the bonuses and the
+  usual stat change (`ATK 14>17 AGI 6>8`). Identical Commons with no bonus are grouped as one line with a count.
+- **ITEM menu (`I`):** two tabs, ITEMS (consumables, as today) and GEAR (all pieces in the bag, sorted by slot,
+  then tier, then rarity, with who can use each piece).
+
+### 33.6 Monster loot
+
+- **Gear drop chance per monster**, rolled on victory with the battle RNG after gold and consumable drops:
+  common monsters 6%, mini-bosses 60%, bosses 100%. A new optional `MonsterDef.gearChance` overrides the default.
+- **Loot tier:** the region's shop tier (Act I outskirts 1, Act I after the Goblin Cave 2, Southlands 3, Frost
+  Peaks 4, Ember Mountains 5). A monster can set `lootTier`, or it comes from the encounter area.
+- **Base item:** a random weapon, armor, shield or accessory of that tier. Pieces someone in the current party can
+  use are weighted 3:1, so most drops are useful but there is still something to sell.
+- **Rarity odds:**
+
+| Source | Common | Uncommon | Rare | Epic | Legendary |
+| --- | --- | --- | --- | --- | --- |
+| Common monster | 75% | 20% | 5% | — | — |
+| Mini-boss | — | 50% | 38% | 12% | — |
+| Boss | — | — | 60% | 35% | 5% (act bosses and Vyrmorth only; otherwise Epic) |
+
+- **Engine change:** `Battle.rewards()` returns which enemies dropped gear (`gearDrops: { monsterId, tier }[]`).
+  Picking the base item and rolling rarity and bonuses (`rollLoot` in `state/loot.ts`) is game data, so it lives in
+  the quest lib. It runs once per victory with the same RNG, and the result is cached so re-reading rewards never
+  rolls twice.
+- The victory window lists each piece found: `Found [U] Leather Armor of Haste!`.
+- The Rogue's Steal stays consumables and gold only.
+
+### 33.7 Save
+
+- `SAVE_VERSION` 6. Migration from v5 (and older saves through the existing chain):
+  - each gear id counted in `inventory` becomes that many Common instances in `gear`;
+  - each worn id becomes a worn Common instance;
+  - `nextGearUid` starts after the last uid used.
+- Validation: unknown `baseId`, an unknown rarity, a bonus key that isn't a stat, a bag over the limit, or a worn
+  piece the class can't use make a save invalid, as unknown gear ids do today.
+
+### 33.8 Balance
+
+- Drops add power and gold, and enemies were tuned without them. The simulator gains a **loot mode**: at each
+  4.6 checkpoint the party wears the best shop gear plus the *expected* loot for the battles fought so far
+  (average rarity, mid-range bonuses). Every 4.6 target must still pass. If areas become too easy, lower the
+  common-monster `gearChance` before touching rarity odds.
+- **Economy check (15.2):** add the expected sell income from drops. A solo hero must still not afford the
+  tier-2 weapon much earlier than today; target no more than one level earlier. If selling makes it too early,
+  lower the value multipliers.
+- Cap: at most one Legendary per act boss, and only on the first win (`flags.loot:<bossId>`), so replaying a boss
+  can't farm Legendaries. Leaving a Legendary behind in the Bag full window is final, so its confirmation says so
+  ("This Legendary can't be found again. Leave it?").
+
+### 33.9 Work breakdown
+
+1. `data/rarity.ts` (rarities, colours, tags, value multipliers, odds) and `state/loot.ts` (`rollLoot`,
+   `itemName`, `sellValue`) with seeded unit tests.
+2. `GearItem` state, `memberStats` with bonuses, equip/unequip/returnGear on instances, save v6 and migration.
+3. Shop: remove the automatic trade-in, and add BUY/SELL and the sell list with confirmation for Rare+.
+4. Field ITEM tabs and the EQUIP list with rarity and bonus text.
+5. Engine `gearDrops`, monster `gearChance`/`lootTier`, loot in the victory window, and the Bag full window
+   (drop an item from the bag or leave the new piece).
+6. Simulator loot mode and economy check; tune the drop chances.
+7. Plan, controls list and README updates; a Cypress smoke step that opens the shop's SELL list.
+
+### 33.10 Tests
+
+- `loot.spec.ts`:
+  - rarity frequencies over 10,000 seeded rolls fall within ±2% of the tables;
+  - bonus counts and ranges match each rarity and tier;
+  - there is no duplicate stat on one item;
+  - names come from the largest bonus;
+  - sell values match the formula.
+- `equipment.spec.ts`:
+  - buying and equipping puts the old piece in the bag, with no gold gained;
+  - unequip and companion return keep instances intact;
+  - stats include bonuses.
+- `shop` specs:
+  - SELL lists bag gear but not worn gear;
+  - selling Rare+ asks first;
+  - every shop buys every kind of item.
+- `game-state.spec.ts`: v5 → v6 migration and the validation failures above.
+- `rewards.spec.ts`:
+  - gear drop chances by monster kind;
+  - bag full: dropping a bag piece swaps in the new one, LEAVE IT keeps the bag unchanged, no gold is gained,
+    worn gear is never offered, Rare+ asks first, and several drops each get their own prompt;
+  - unequip is blocked and a companion's returned gear prompts when the bag is full;
+  - the one-Legendary-per-boss flag.
+- `balance.spec.ts`: the 4.6 targets in loot mode and the updated economy check.
+
+### 33.11 Decisions (revisit after play-testing)
+
+- Five rarities: Common, Uncommon, Rare, Epic and Legendary. Legendary is rare enough to stay special.
+- Shop Commons have no random bonus (exact stats, fair prices). Only drops roll bonuses.
+- Every shop buys everything; worn gear must be unequipped before it can be sold.
+- Bag limit 40 gear pieces. When the bag is full you choose: drop a piece from the bag or leave the new one.
+  Nothing is auto-sold, since there is no merchant in the field.
+
+### 33.12 Implementation notes
+
+What shipped differs from the plan above in these ways:
+
+- **Worn gear:** the base-id slot fields (`weaponId`, `armorId`, ...) are still the source of truth, so battle code
+  and older saves need no changes. `member.worn[slot]` holds the instance only for pieces with a rarity or bonus
+  (an entry counts only while its `baseId` matches the slot). Worn plain Commons are implicit and get a fresh uid
+  when they're taken off.
+- **Engine:** `BattleRewards.gearDrops` is a `string[]` of monster ids. The loot tier comes from a per-monster
+  `LOOT_TIER` map in `data/rarity.ts` instead of a `MonsterDef.lootTier` field; default drop chances come from
+  `GEAR_DROP_CHANCE` (6% / 60% / 100%).
+- **Victory window:** shows `Found: Rare Iron Sword of Haste!`, plus "Your bag is full." when the piece is
+  waiting in `state.pendingGear`. The Bag full window opens on the field once the battle closes.
+- **Bag full from other places:** a companion's returned gear that doesn't fit waits in `pendingGear` too, and a
+  v5 save with more than 40 gear ids loads with the overflow there.
+- **ITEM menu:** the GEAR tab lists the bag grouped (identical plain Commons as one line with a count). Choosing a
+  piece offers EQUIP (to a member who can use it) or DROP; dropping Rare or better asks first.
+- **Shop:** BUY / SELL / LEAVE. BUY refuses gear no one in the party can use. SELL lists consumables (half
+  price) then grouped bag gear; there is no trade-in anywhere.
+- **`addItem`** routes gear ids into the bag as plain Commons, so chest and quest rewards keep working.
+- **Save v6:** gear ids counted in `inventory` become Common instances; worn ids stay as they are (see above).
+
+Not done yet:
+
+- 33.8 simulator loot mode and the economy check with drop income. The existing 4.6 targets still pass
+  without loot; drops only add power, so areas may feel a little easier until this is tuned.
+- 33.9 step 7: controls list, README and the Cypress SELL smoke step.

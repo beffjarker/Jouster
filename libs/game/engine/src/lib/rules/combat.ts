@@ -52,6 +52,8 @@ export interface Combatant {
   gold: number;
   /** Chance (0–1) that this enemy drops gold at all; default 1. The amount then varies ±25%. */
   goldChance?: number;
+  /** Chance (0–1) that this enemy drops a gear piece; default 0 (none). */
+  gearChance?: number;
   drops: { itemId: string; chance: number }[];
   stolen: boolean;
   /** Loses `poisonDamage` HP at the end of every round until cured (never below 1 HP). */

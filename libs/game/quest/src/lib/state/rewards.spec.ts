@@ -2,14 +2,16 @@ import { Battle, createRng } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { MONSTERS } from '../data/monsters';
+import { GEAR_DROP_CHANCE } from '../data/rarity';
 import { DEFAULT_GOLD_CHANCE, createMember, memberToCombatant, monstersToCombatants } from './party';
 
-function rewardsFor(monsterId: string, seed: number): { gold: number } {
+function rewardsFor(monsterId: string, seed: number, gearChance?: number): ReturnType<Battle['rewards']> {
   const def = MONSTERS.get(monsterId);
   if (!def) {
     throw new Error(monsterId);
   }
-  const battle = new Battle([memberToCombatant(createMember('h', 'Hero', 'warrior', 1))], monstersToCombatants([def]), {
+  const foes = monstersToCombatants([def]).map((c) => (gearChance === undefined ? c : { ...c, gearChance }));
+  const battle = new Battle([memberToCombatant(createMember('h', 'Hero', 'warrior', 1))], foes, {
     abilities: ABILITIES,
     items: ITEMS,
     inventory: {},
@@ -38,5 +40,26 @@ describe('gold drops (plan 15.2)', () => {
         expect(rewardsFor(id, seed).gold).toBeGreaterThan(0);
       }
     });
+  });
+});
+
+describe('gear drops (plan 33.6)', () => {
+  it('common monsters drop gear now and then; bosses always do', () => {
+    const drops = Array.from({ length: 2000 }, (_, i) => rewardsFor('goblin', i).gearDrops.length);
+    const rate = drops.reduce((a, b) => a + b, 0) / drops.length;
+    expect(Math.abs(rate - GEAR_DROP_CHANCE.common)).toBeLessThan(0.02);
+    for (let seed = 0; seed < 50; seed++) {
+      expect(rewardsFor('goblinKing', seed).gearDrops).toEqual(['goblinKing']);
+    }
+  });
+
+  it('rolls gear last, so gold and items are unchanged by it', () => {
+    for (let seed = 0; seed < 200; seed++) {
+      const without = rewardsFor('goblin', seed, 0);
+      const withGear = rewardsFor('goblin', seed, 1);
+      expect(without.gearDrops).toEqual([]);
+      expect(withGear.gearDrops).toEqual(['goblin']);
+      expect({ gold: withGear.gold, items: withGear.items }).toEqual({ gold: without.gold, items: without.items });
+    }
   });
 });
