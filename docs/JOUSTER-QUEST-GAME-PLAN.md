@@ -2023,6 +2023,6 @@ Tests: `necromancer.spec.ts` covers the class, scythes and gear rules, Drain Lif
 on bosses), Soul Harvest, both starting kits and the v4→v5 migration. The balance, party, equipment, save,
 side-quest, title and LPC specs now use the Necromancer instead of the Paladin. On the dev workstation Node
 20.19.2 (and, less often, 20.12.1) crashes inside V8 while running `balance.spec.ts`. This happens on `main`
-too ("Invalid bytecode" even with `--jitless`), so it is a machine problem, not a code one; CI runs the full
-balance gate. Manual: start a new game as a Necromancer and as a Wizard and play solo up to the Goblin King, and
+too ("Invalid bytecode" even with `--jitless`), so it is a machine problem, not a code one. All 686 balance
+tests pass when run in smaller `-t` groups on Node 20.12.1. Manual: start a new game as a Necromancer and as a Wizard and play solo up to the Goblin King, and
 load a v4 save with a Paladin.
