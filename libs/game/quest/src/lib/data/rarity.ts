@@ -39,7 +39,7 @@ export const RARITY_ODDS: Readonly<Record<LootSource, Readonly<Partial<Record<Ra
 };
 
 /** Default gear drop chance per source; a monster's `gearChance` overrides it. */
-export const GEAR_DROP_CHANCE: Readonly<Record<LootSource, number>> = { common: 0.06, miniBoss: 0.6, boss: 1 };
+export const GEAR_DROP_CHANCE: Readonly<Record<LootSource, number>> = { common: 0.15, miniBoss: 0.6, boss: 1 };
 
 /** Bosses that may drop a Legendary (once each, on the first win); other bosses roll Epic instead. */
 export const LEGENDARY_BOSS_IDS: readonly string[] = ['goblinKing', ...ACT_TWO_BOSS_IDS, ...ACT_THREE_BOSS_IDS, ...FINALE_BOSS_IDS];

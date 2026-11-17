@@ -2177,7 +2177,7 @@ and anything bought in a shop is Common.
 ### 33.6 Monster loot
 
 - **Gear drop chance per monster**, rolled on victory with the battle RNG after gold and consumable drops:
-  common monsters 6%, mini-bosses 60%, bosses 100%. A new optional `MonsterDef.gearChance` overrides the default.
+  common monsters 15% (raised from 6% after play-testing: about 1 drop in 11 fights felt like none), mini-bosses 60%, bosses 100%. A new optional `MonsterDef.gearChance` overrides the default.
 - **Loot tier:** the region's shop tier (Act I outskirts 1, Act I after the Goblin Cave 2, Southlands 3, Frost
   Peaks 4, Ember Mountains 5). A monster can set `lootTier`, or it comes from the encounter area.
 - **Base item:** a random weapon, armor, shield or accessory of that tier. Pieces someone in the current party can
@@ -2274,7 +2274,7 @@ What shipped differs from the plan above in these ways:
   when they're taken off.
 - **Engine:** `BattleRewards.gearDrops` is a `string[]` of monster ids. The loot tier comes from a per-monster
   `LOOT_TIER` map in `data/rarity.ts` instead of a `MonsterDef.lootTier` field; default drop chances come from
-  `GEAR_DROP_CHANCE` (6% / 60% / 100%).
+  `GEAR_DROP_CHANCE` (15% / 60% / 100%).
 - **Victory window:** shows `Found: Rare Iron Sword of Haste!`, plus "Your bag is full." when the piece is
   waiting in `state.pendingGear`. The Bag full window opens on the field once the battle closes.
 - **Bag full from other places:** a companion's returned gear that doesn't fit waits in `pendingGear` too, and a
