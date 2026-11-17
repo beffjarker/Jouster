@@ -1,12 +1,25 @@
 /**
  * @jest-environment jsdom
  */
+import { imageDensity } from '@jouster/game/engine';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
 import { inflateSync } from 'zlib';
-import { Art } from './art';
+import { Art, TILE_VARIANT_COUNTS } from './art';
 import { ART_SCALE } from './hd-paint';
-import { LPC_CELL, LPC_SHEETS, LPC_SHEET_SIZE, LPC_TILES, LpcCell, LpcSheetId, groundVariant, lpcGroundCell, lpcSheetUrl } from './lpc-manifest';
+import {
+  LPC_CELL,
+  LPC_OBJECTS,
+  LPC_SHEETS,
+  LPC_SHEET_SIZE,
+  LPC_TILES,
+  LpcCell,
+  LpcSheetId,
+  groundVariant,
+  lpcGroundCell,
+  lpcObjectFor,
+  lpcSheetUrl,
+} from './lpc-manifest';
 import { ImageLoader, loadLpcSheets } from './sheet-loader';
 
 const assetDir = resolve(__dirname, '../../../../../../apps/jouster-ui/public/game-assets/lpc');
@@ -216,5 +229,114 @@ describe('Art sheets', () => {
     expect(cellAt('torch', 1)).toBe(cellAt('torch', 0));
     expect(cellAt('water', 1)).not.toBe(cellAt('water', 0));
     spy.mockRestore();
+  });
+
+  it('builds LPC landscape objects at 4x density, only when sheets are loaded', () => {
+    expect(new Art().tileObject('forest')).toBeNull();
+    const art = new Art(new Map<LpcSheetId, CanvasImageSource>());
+    expect(art.tileObject('grass')).toBeNull();
+    const pine = art.tileObject('forest', 1);
+    expect(pine).not.toBeNull();
+    if (pine) {
+      expect(imageDensity(pine.sprite)).toBe(2 * ART_SCALE);
+      // Centred on the tile, standing on its bottom edge, and taller than the tile.
+      expect(pine.x).toBeLessThanOrEqual(0);
+      expect(pine.y).toBeLessThan(0);
+      expect(art.tileObject('forest', 1)?.sprite).toBe(pine.sprite);
+      expect(art.tileObject('forest', 4)?.sprite).toBe(pine.sprite);
+    }
+  });
+
+  it('leaves the procedural tree off LPC ground that carries an object', () => {
+    type SheetTile = (...args: unknown[]) => HTMLCanvasElement;
+    const spy = jest.spyOn(Art.prototype as unknown as { sheetTile: SheetTile }, 'sheetTile');
+    const art = new Art(new Map<LpcSheetId, CanvasImageSource>());
+    const withObject = (id: string): unknown => {
+      spy.mockClear();
+      art.tile(id, 0, 1, 0);
+      return spy.mock.calls[0][7];
+    };
+    expect(withObject('forest')).toBe(false);
+    expect(withObject('caveEntrance')).toBe(false);
+    expect(withObject('mountain')).toBe(true);
+    spy.mockRestore();
+  });
+});
+
+describe('LPC landscape objects', () => {
+  const objects = [...LPC_OBJECTS.entries()];
+
+  it('only uses tiles that have LPC ground, with one look per tile variant', () => {
+    objects.forEach(([id, looks]) => {
+      expect(LPC_TILES.has(id)).toBe(true);
+      expect(looks.length).toBe(TILE_VARIANT_COUNTS.get(id) ?? 1);
+    });
+  });
+
+  it('keeps every piece inside the object and its base inside the sprite', () => {
+    objects.forEach(([, looks]) =>
+      looks.forEach((o) => {
+        expect(o.base).toBeLessThanOrEqual(o.height);
+        o.pieces.forEach((p) => {
+          expect(p.dx).toBeGreaterThanOrEqual(0);
+          expect(p.dy).toBeGreaterThanOrEqual(0);
+          expect(p.dx + p.w).toBeLessThanOrEqual(o.width);
+          expect(p.dy + p.h).toBeLessThanOrEqual(o.height);
+        });
+      }),
+    );
+  });
+
+  it('cuts whole sprites from the sheets: opaque inside, transparent just outside', () => {
+    type Side = 'top' | 'bottom' | 'left' | 'right';
+    // Edges where the atlas packs a connecting piece: the pine canopy sits on its own trunk, the second trunk
+    // runs up into a canopy, and the cave mouth is cut from a tiled cliff set.
+    const seams = new Map<string, Side[]>([
+      ['terrain:772,485', ['bottom']],
+      ['terrain:915,608', ['top']],
+      ['terrain:32,160', ['top', 'bottom', 'left', 'right']],
+    ]);
+    const sheets = new Map<LpcSheetId, Rgba>();
+    const problems: string[] = [];
+    objects.forEach(([id, looks]) =>
+      looks.forEach((o) =>
+        o.pieces.forEach((p) => {
+          expect(p.x + p.w).toBeLessThanOrEqual(LPC_SHEET_SIZE);
+          expect(p.y + p.h).toBeLessThanOrEqual(LPC_SHEET_SIZE);
+          const sheet = sheets.get(p.sheet) ?? readRgbaPng(resolve(assetDir, LPC_SHEETS[p.sheet]));
+          sheets.set(p.sheet, sheet);
+          const alpha = (x: number, y: number): number =>
+            x < 0 || y < 0 || x >= sheet.width || y >= LPC_SHEET_SIZE ? 0 : sheet.data[(y * sheet.width + x) * 4 + 3];
+          let opaque = 0;
+          for (let y = p.y; y < p.y + p.h; y++) {
+            for (let x = p.x; x < p.x + p.w; x++) {
+              opaque += alpha(x, y) > 0 ? 1 : 0;
+            }
+          }
+          if (opaque < (p.w * p.h) / 4) {
+            problems.push(`${id} piece at ${p.x},${p.y} is mostly empty`);
+          }
+          const xs = Array.from({ length: p.w + 2 }, (_, i) => p.x - 1 + i);
+          const ys = Array.from({ length: p.h }, (_, i) => p.y + i);
+          const ring: Record<Side, boolean> = {
+            top: xs.some((x) => alpha(x, p.y - 1) > 0),
+            bottom: xs.some((x) => alpha(x, p.y + p.h) > 0),
+            left: ys.some((y) => alpha(p.x - 1, y) > 0),
+            right: ys.some((y) => alpha(p.x + p.w, y) > 0),
+          };
+          const open = seams.get(`${p.sheet}:${p.x},${p.y}`) ?? [];
+          (Object.keys(ring) as Side[])
+            .filter((side) => ring[side] && !open.includes(side))
+            .forEach((side) => problems.push(`${id} piece at ${p.x},${p.y} is clipped on the ${side}`));
+        }),
+      ),
+    );
+    expect(problems).toEqual([]);
+  });
+
+  it('looks objects up by tile variant', () => {
+    expect(lpcObjectFor('grass', 0)).toBeUndefined();
+    expect(lpcObjectFor('forest', 0)).toBe(LPC_OBJECTS.get('forest')?.[0]);
+    expect(lpcObjectFor('forest', 5)).toBe(LPC_OBJECTS.get('forest')?.[2]);
   });
 });

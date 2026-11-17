@@ -19,7 +19,7 @@ import { ANIMATED_DECOR, WALKWAY_TILES, decorParts, paintDecorTop, paintTile, pa
 export const SHADOW_W = 32;
 
 export { SHADOW_CASTERS, WALKWAY_TILES, castsShadow, decorTopOf, walkwayMask } from './hd-tiles';
-import { LPC_CELL, LpcSheetId, lpcGroundCell, lpcTileFor } from './lpc-manifest';
+import { LPC_CELL, LpcObject, LpcSheetId, lpcGroundCell, lpcObjectFor, lpcTileFor } from './lpc-manifest';
 import {
   LPC_ACTIONS,
   LPC_ACTION_CELL,
@@ -284,6 +284,16 @@ const ANIMATED_TILES: ReadonlySet<string> = new Set(['water', 'bridge', 'caveWat
 /** Distinct walkway connection masks (four edge bits and four inner-corner bits). */
 const WALKWAY_VARIANTS = 256;
 
+/** A landscape object sprite and the logical offset from its tile's top-left corner to draw it at. */
+export interface TileObject {
+  sprite: HTMLCanvasElement;
+  x: number;
+  y: number;
+}
+
+/** Real pixels per logical pixel of LPC objects (drawn 1:1 at half their native size, like procedural overlays). */
+const OBJECT_DENSITY = 2 * ART_SCALE;
+
 /** Loaded art sheets (LPC atlases) by id; see `loadLpcSheets`. */
 export type ArtSheets = ReadonlyMap<LpcSheetId, CanvasImageSource>;
 
@@ -344,11 +354,30 @@ export class Art {
     if (lpc && this.sheets) {
       const sheets = this.sheets;
       const cell = lpcGroundCell(lpc, ground, decorParts(id) ? 0 : f);
-      return this.cached(`lpc:${id}:${f}:${v}:${cell.sheet}:${cell.col}:${cell.row}`, () =>
-        this.sheetTile(sheets, id, cell.sheet, cell.col, cell.row, f, v),
+      // Tiles with an LPC object get bare ground here; the object is drawn later by `tileObject`.
+      const bare = lpcObjectFor(id, v) !== undefined;
+      return this.cached(`lpc:${id}:${f}:${v}:${bare}:${cell.sheet}:${cell.col}:${cell.row}`, () =>
+        this.sheetTile(sheets, id, cell.sheet, cell.col, cell.row, f, v, !bare),
       );
     }
     return this.cached(`tile:${id}:${f}:${v}`, () => (paintTile(id, f, v) ?? magenta()).toCanvas());
+  }
+
+  /**
+   * The LPC object (tree, cave mouth) standing on tile `id` with art `variant`, or null when the tile has none or
+   * the sheets are not loaded (its procedural object is then part of {@link tile}). Objects are bigger than a
+   * tile, so the world draws them after all the ground, in row order, letting canopies overlap their neighbours.
+   */
+  public tileObject(id: string, variant = 0): TileObject | null {
+    const sheets = this.sheets;
+    const v = variant % (TILE_VARIANT_COUNTS.get(id) ?? 1);
+    const object = sheets ? lpcObjectFor(id, v) : undefined;
+    if (!sheets || !object) {
+      return null;
+    }
+    const sprite = this.cached(`lpcObject:${id}:${v}`, () => this.objectSprite(sheets, object));
+    const half = (TILE * OBJECT_DENSITY - object.width) / 2;
+    return { sprite, x: Math.round(half) / OBJECT_DENSITY, y: (TILE * OBJECT_DENSITY - object.base) / OBJECT_DENSITY };
   }
 
   /** True when `spriteId` is a humanoid look (otherwise it is drawn as a monster). */
@@ -532,7 +561,32 @@ export class Art {
     return setImageDensity(canvas, 2);
   }
 
-  private sheetTile(sheets: ArtSheets, id: string, sheet: LpcSheetId, col: number, row: number, f: number, v: number): HTMLCanvasElement {
+  /** An {@link LpcObject} composed from its sheet pieces at {@link OBJECT_DENSITY}. */
+  private objectSprite(sheets: ArtSheets, object: LpcObject): HTMLCanvasElement {
+    const canvas = createCanvas(object.width, object.height);
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.imageSmoothingEnabled = false;
+      object.pieces.forEach((p) => {
+        const image = sheets.get(p.sheet);
+        if (image) {
+          ctx.drawImage(image, p.x, p.y, p.w, p.h, p.dx, p.dy, p.w, p.h);
+        }
+      });
+    }
+    return setImageDensity(canvas, OBJECT_DENSITY);
+  }
+
+  private sheetTile(
+    sheets: ArtSheets,
+    id: string,
+    sheet: LpcSheetId,
+    col: number,
+    row: number,
+    f: number,
+    v: number,
+    withObject = true,
+  ): HTMLCanvasElement {
     // LPC ground (2x density) is doubled up to the procedural overlay's 4x density so both stay crisp.
     const density = 2 * ART_SCALE;
     const size = TILE * density;
@@ -542,7 +596,7 @@ export class Art {
     if (ctx && image) {
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(image, col * LPC_CELL, row * LPC_CELL, LPC_CELL, LPC_CELL, 0, 0, size, size);
-      const overlay = paintTile(id, f, v, false);
+      const overlay = withObject ? paintTile(id, f, v, false) : null;
       if (overlay) {
         ctx.drawImage(overlay.toCanvas(), 0, 0);
       }

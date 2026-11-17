@@ -435,19 +435,31 @@ export class WorldScene implements Scene {
       const ch = this.tiles.charAt(tx, ty);
       return ch === undefined ? outside : this.tileIds.get(ch) ?? outside;
     };
-    for (let ty = startY; ty <= startY + SCREEN_H / TILE + 1; ty++) {
-      for (let tx = startX; tx <= startX + SCREEN_W / TILE + 1; tx++) {
+    const variantAt = (id: string, tx: number, ty: number): number =>
+      WALKWAY_TILES.has(id) ? walkwayMask((dx, dy) => tileId(tx + dx, ty + dy)) : tileVariant(this.map.id, id, tx, ty);
+    const lastY = startY + SCREEN_H / TILE + 1;
+    const lastX = startX + SCREEN_W / TILE + 1;
+    for (let ty = startY; ty <= lastY; ty++) {
+      for (let tx = startX; tx <= lastX; tx++) {
         const id = tileId(tx, ty);
-        const variant = WALKWAY_TILES.has(id)
-          ? walkwayMask((dx, dy) => tileId(tx + dx, ty + dy))
-          : tileVariant(this.map.id, id, tx, ty);
-        r.draw(this.ctx.art.tile(id, frame, variant, groundVariant(tx, ty)), tx * TILE - camX, ty * TILE - camY);
+        r.draw(this.ctx.art.tile(id, frame, variantAt(id, tx, ty), groundVariant(tx, ty)), tx * TILE - camX, ty * TILE - camY);
         if (!castsShadow(id) && castsShadow(tileId(tx, ty - 1))) {
           r.draw(this.ctx.art.wallShadow(), tx * TILE - camX, ty * TILE - camY);
         }
         const top = decorTopOf(tileId(tx, ty + 1));
         if (top) {
           r.draw(this.ctx.art.decorTop(top), tx * TILE - camX, ty * TILE - camY);
+        }
+      }
+    }
+    // LPC trees and cave mouths are bigger than a tile: drawn over all the ground, top row first, so lower
+    // objects overlap the ones behind them. Objects just off screen may reach into view.
+    for (let ty = startY; ty <= lastY + 2; ty++) {
+      for (let tx = startX - 1; tx <= lastX + 1; tx++) {
+        const id = tileId(tx, ty);
+        const object = this.ctx.art.tileObject(id, variantAt(id, tx, ty));
+        if (object) {
+          r.draw(object.sprite, tx * TILE - camX + object.x, ty * TILE - camY + object.y);
         }
       }
     }
