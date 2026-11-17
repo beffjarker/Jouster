@@ -2174,6 +2174,9 @@ and anything bought in a shop is Common.
   sells for a few gold.
 - **EQUIP menu (field, `E`):** the choice list shows instances with the rarity colour and tag, the bonuses and the
   usual stat change (`ATK 14>17 AGI 6>8`). Identical Commons with no bonus are grouped as one line with a count.
+  Under the list, a comparison window (`scenes/gear-compare.ts`) shows NOW (the worn piece) and NEW (the
+  highlighted piece, or REMOVE), each with its rarity colour and own stats, then every member stat as
+  `before > after` with the change in green (gain) or red (loss), and the new piece's description.
 - **ITEM menu (`I`):** two tabs, ITEMS (consumables, as today) and GEAR (all pieces in the bag, sorted by slot,
   then tier, then rarity, with who can use each piece).
 

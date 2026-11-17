@@ -19,7 +19,6 @@ import {
   removeFromBag,
   slotOf,
   slotUsable,
-  statChangeText,
   unequipSlot,
 } from '../state/equipment';
 import { GameState, addItem } from '../state/game-state';
@@ -40,6 +39,7 @@ import {
 } from '../ui/widgets';
 import { VOLUME_ROWS, adjustVolumeRow, rememberVolumes, volumeLabel } from '../ui/volume-rows';
 import { GameContext, memberStatus, requireState } from './context';
+import { drawGearCompare } from './gear-compare';
 import { GearGroup, gearDescription, gearMenuItem, gearStatsText, groupGear } from './gear-pick-scene';
 import { MapScene, questLog } from './map-scene';
 
@@ -216,7 +216,9 @@ export class FieldMenuScene implements Scene {
       const w = this.mode === 'gear' || this.mode === 'equipPick' ? GEAR_W : SUB_W;
       this.sub.render(r, SUB_X, 8, w, true, title);
       const hint = this.subHint();
-      if (hint) {
+      if (this.mode === 'equipPick' && this.member) {
+        drawGearCompare(r, this.member, this.slot, this.pick[this.sub.cursor]?.item, SUB_X, 8 + this.sub.height() + 4, w);
+      } else if (hint) {
         drawHint(r, hint, SUB_X, 8 + this.sub.height() + 4, w);
       }
     }
@@ -235,13 +237,6 @@ export class FieldMenuScene implements Scene {
     if (this.mode === 'gear') {
       const item = this.gearGroups[cursor]?.item;
       return item ? `${gearStatsText(item)}. ${gearDescription(item.baseId)}` : 'Show your items (left / right).';
-    }
-    if (this.mode === 'equipPick' && this.member) {
-      const m = this.member;
-      const item = this.pick[cursor]?.item;
-      const change = statChangeText(memberStats(m), previewStats(m, this.slot, item));
-      const desc = item ? `${gearStatsText(item)}. ${gearDescription(item.baseId)}` : 'Take it off.';
-      return `${change || 'No change.'} ${desc}`;
     }
     return this.mode === 'magic' ? ABILITIES.get(id)?.description : undefined;
   }
