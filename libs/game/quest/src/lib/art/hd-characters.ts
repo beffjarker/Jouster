@@ -19,7 +19,7 @@ export interface HumanoidLook {
   hat?: 'wizard' | 'helmet' | 'hood' | 'crown' | 'cap' | 'mitre' | 'bandana';
   hatColor?: string;
   cape?: string;
-  weapon?: 'sword' | 'staff' | 'bow' | 'mace' | 'dagger' | 'shield';
+  weapon?: 'sword' | 'staff' | 'bow' | 'mace' | 'dagger' | 'shield' | 'scythe';
   child?: boolean;
   beard?: string;
   /** Ankle-length robe instead of trousers. */
@@ -36,7 +36,7 @@ export interface HumanoidLook {
 export const LOOKS: ReadonlyMap<string, HumanoidLook> = new Map<string, HumanoidLook>([
   ['warrior', { skin: '#f0c090', hair: '#7a3a10', body: '#a03020', trim: '#c0c0c0', legs: '#5a3a20', hat: 'helmet', hatColor: '#a8a8b8', weapon: 'sword' }],
   ['wizard', { skin: '#f0c090', hair: '#d8d8d8', body: '#3040a8', trim: '#e0c040', legs: '#202060', hat: 'wizard', hatColor: '#3040a8', weapon: 'staff', beard: '#e0e0e0' }],
-  ['paladin', { skin: '#f0c090', hair: '#e0c040', body: '#d8d8e8', trim: '#3060c0', legs: '#8080a0', hat: 'helmet', hatColor: '#e0e0f0', cape: '#3060c0', weapon: 'shield' }],
+  ['necromancer', { skin: '#e0d0c0', hair: '#202020', body: '#2a2030', trim: '#7030a0', legs: '#1a1420', hat: 'hood', hatColor: '#2a2030', robe: true, weapon: 'scythe' }],
   ['cleric', { skin: '#f0c090', hair: '#a06030', body: '#f0f0f0', trim: '#d8a830', legs: '#c0c0c0', hat: 'mitre', hatColor: '#f0f0f0', weapon: 'mace' }],
   ['rogue', { skin: '#e0b080', hair: '#202020', body: '#404048', trim: '#802020', legs: '#2a2a30', hat: 'hood', hatColor: '#303038', weapon: 'dagger' }],
   ['ranger', { skin: '#e0b080', hair: '#a05a20', body: '#3a7a30', trim: '#8a5a2a', legs: '#5a4020', hat: 'cap', hatColor: '#2a6a2a', weapon: 'bow' }],
@@ -540,6 +540,17 @@ function weapon(p: Paint, look: HumanoidLook, f: Frame, facing: Facing, frame: n
         p.flat(seg(hx + 4, y, hx + 6, y + 0.4, 0.15), '#5a3418');
       }
       p.flat(seg(hx + 1, hy - 14, hx + 1, hy + 14, 0.4), '#e8e8e8');
+      break;
+    }
+    case 'scythe': {
+      p.fill(seg(hx, 7, hx, f.foot - 1, 1), '#3a2a20', { gradX: 1, bevel: 0, tex: 0.3 });
+      [16, 26].forEach((y) => p.fill(box(hx - 1.2, y, 2.4, 1), '#c8c0b0', { bevel: 0, grad: 0.5 }));
+      // A crescent blade sweeping out from the top of the haft, with a pale edge and a sickly glint.
+      const blade = cut(ell(hx + 6, 8, 7.5, 3.2), ell(hx + 5, 9.8, 7, 2.6));
+      p.fill(clip(blade, box(hx, 3, 15, 10)), STEEL, { gradX: 1, rim: true });
+      p.flat(clip(seg(hx + 1, 5.2, hx + 12, 6.8, 0.2), blade), '#e0ffe0', 0.7);
+      p.fill(ell(hx, 7, 1.4), '#c8c0b0', { sphere: true, bevel: 0 });
+      p.px(Math.round(hx + 8), 6, '#a0ffa0');
       break;
     }
     case 'shield': {

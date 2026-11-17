@@ -150,6 +150,7 @@ export function memberToCombatant(m: PartyMember): Combatant {
     defending: false,
     tauntTurns: 0,
     battleHpRegen: cls.passive?.battleHpRegen ?? 0,
+    mpOnKill: cls.passive?.mpOnKill ?? 0,
     actionsTaken: 0,
     ai: [],
     sourceId: m.classId,

@@ -3,12 +3,12 @@ import { CLASS_ORDER, classDef } from '../data/classes';
 import { COMPANION_SLOTS, CompanionInfo, companionSlot, rollCompanions } from '../data/companions';
 import { WEAPONS } from '../data/equipment';
 import { GEAR } from '../data/gear';
-import { returnGear } from './equipment';
-import { PartyMember, createMember } from './party';
+import { canEquip, equippedId, returnGear, unequipSlot } from './equipment';
+import { PartyMember, createMember, memberStats } from './party';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 /** Older save versions that loadGame can migrate. */
-const MIGRATABLE_VERSIONS: readonly number[] = [2, 3];
+const MIGRATABLE_VERSIONS: readonly number[] = [2, 3, 4];
 export const SAVE_KEY = 'jouster-quest-save-v1';
 export const MAX_PARTY = 3;
 export const STARTING_GOLD = 50;
@@ -75,13 +75,19 @@ export function memoryStorage(): SaveStorage {
   };
 }
 
+/** The consumables a new hero of this class starts with: Herbs plus any class extras (the Wizard's Tonics). */
+export function startingInventory(classId: ClassId): Record<string, number> {
+  const def = classDef(classId);
+  return { herb: STARTING_HERBS + def.bonusHerbs, ...def.startingItems };
+}
+
 /** Starts a new journey. The companion roster is rolled with `rng` (random when omitted). */
 export function newGameState(heroName: string, classId: ClassId, rng: Rng = createRng(timeSeed())): GameState {
   return {
     version: SAVE_VERSION,
     party: [createMember('hero', heroName, classId, 1)],
     gold: STARTING_GOLD,
-    inventory: { herb: STARTING_HERBS + classDef(classId).bonusHerbs },
+    inventory: startingInventory(classId),
     flags: {},
     companionProgress: {},
     companions: rollCompanions(classId, rng),
@@ -274,13 +280,22 @@ export function hasSave(storage: SaveStorage): boolean {
 }
 
 /**
- * Upgrades older saves. v2 had no fog or quests (companions already met keep their place); v2 and v3 stored
- * benched companions' levels only, which become `{ level, xp }` at the start of that level (no downgrade).
+ * Upgrades older saves step by step: v2/v3 -> v4 (fog, quests, companion XP) -> v5 (Necromancer replaces the
+ * Paladin).
  */
 function migrate(s: LegacySave): Partial<GameState> {
   if (typeof s?.version !== 'number' || !MIGRATABLE_VERSIONS.includes(s.version)) {
     return s;
   }
+  const v4 = s.version < 4 ? migrateToV4(s) : s;
+  return migrateToV5(v4);
+}
+
+/**
+ * v2 had no fog or quests (companions already met keep their place); v2 and v3 stored benched companions'
+ * levels only, which become `{ level, xp }` at the start of that level (no downgrade).
+ */
+function migrateToV4(s: LegacySave): Partial<GameState> {
   const { companionLevels, ...rest } = s;
   const levels = typeof companionLevels === 'object' && companionLevels !== null ? companionLevels : {};
   const quests: Record<string, QuestStatus> = {};
@@ -297,11 +312,58 @@ function migrate(s: LegacySave): Partial<GameState> {
   }
   return {
     ...rest,
-    version: SAVE_VERSION,
+    version: 4,
     explored: s.explored ?? {},
     quests: s.quests ?? quests,
     companionProgress: s.companionProgress ?? companionProgress,
   };
+}
+
+/** v4 sword-and-shield weapons -> the same-tier scythe. */
+const PALADIN_WEAPONS: Readonly<Record<string, string>> = {
+  knightBlade: 'boneScythe',
+  oathBlade: 'graveScythe',
+  aegisBlade: 'duneReaper',
+  glacierBlade: 'frostreapScythe',
+  emberguardBlade: 'soulfireScythe',
+};
+
+const necromancerFor = (classId: ClassId): ClassId => ((classId as string) === 'paladin' ? 'necromancer' : classId);
+
+/**
+ * v5 retired the Paladin: Paladins become Necromancers (same name, level and XP), sword-and-shield weapons
+ * become same-tier scythes, and armor or shields a Necromancer can't wear go back to the bag.
+ */
+function migrateToV5(s: Partial<GameState>): Partial<GameState> {
+  const inventory: Record<string, number> = {};
+  for (const [id, count] of Object.entries(s.inventory ?? {})) {
+    const to = PALADIN_WEAPONS[id] ?? id;
+    inventory[to] = (inventory[to] ?? 0) + count;
+  }
+  const state: Partial<GameState> = { ...s, version: SAVE_VERSION, inventory };
+  if (s.companions && typeof s.companions === 'object') {
+    state.companions = Object.fromEntries(
+      Object.entries(s.companions).map(([id, c]) => [id, { ...c, classId: necromancerFor(c.classId) }]),
+    );
+  }
+  if (Array.isArray(s.party)) {
+    state.party = s.party.map((old) => {
+      const m: PartyMember = { ...old, classId: necromancerFor(old.classId), weaponId: PALADIN_WEAPONS[old.weaponId] ?? old.weaponId };
+      if (m.classId !== old.classId) {
+        (['armor', 'shield', 'accessory'] as const).forEach((slot) => {
+          const id = equippedId(m, slot);
+          if (id && GEAR.has(id) && !canEquip(m, id)) {
+            unequipSlot(state as GameState, m, slot);
+          }
+        });
+        const max = memberStats(m);
+        m.hp = Math.min(m.hp, max.hp);
+        m.mp = Math.min(m.mp, max.mp);
+      }
+      return m;
+    });
+  }
+  return state;
 }
 
 function isValidState(s: Partial<GameState>): s is GameState {

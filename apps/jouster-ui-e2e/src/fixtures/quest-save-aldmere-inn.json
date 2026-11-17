@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "party": [
     {
       "id": "hero",
@@ -19,7 +19,7 @@
   "companions": {
     "tavern": { "classId": "ranger", "name": "Ashe" },
     "thornwick": { "classId": "cleric", "name": "Tamsin" },
-    "brookhollow": { "classId": "paladin", "name": "Joan" },
+    "brookhollow": { "classId": "necromancer", "name": "Ysolde" },
     "cave": { "classId": "rogue", "name": "Rook" }
   },
   "explored": {},

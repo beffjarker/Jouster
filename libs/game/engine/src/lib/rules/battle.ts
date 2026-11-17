@@ -78,6 +78,8 @@ export type BattleFx =
   | { type: 'ko'; targetId: string }
   | { type: 'heal'; targetId: string; amount: number; mp?: boolean }
   | { type: 'buff'; targetId: string }
+  /** A stat lowered by a curse. */
+  | { type: 'debuff'; targetId: string }
   | { type: 'revive'; targetId: string }
   /** Poison set in (`amount` 0) or ticking (`amount` HP lost). */
   | { type: 'poison'; targetId: string; amount: number }
@@ -396,7 +398,24 @@ export class Battle {
         updates: [this.update(target)],
         fx: { type: 'ko', targetId: target.id },
       });
+      this.harvestSouls(target, events);
     }
+  }
+
+  /** Living opponents of a fallen combatant with `mpOnKill` regain MP (Soul Harvest). */
+  private harvestSouls(fallen: Combatant, events: BattleEvent[]): void {
+    this.opponentsOf(fallen)
+      .filter((c) => isAlive(c) && (c.mpOnKill ?? 0) > 0 && c.mp < c.maxMp)
+      .forEach((c) => {
+        const amount = cappedRestore(c.mp, c.maxMp, c.mpOnKill ?? 0);
+        c.mp += amount;
+        events.push({
+          text: `${c.name} harvests ${amount} MP.`,
+          sound: 'heal',
+          updates: [this.update(c)],
+          fx: { type: 'heal', targetId: c.id, amount, mp: true },
+        });
+      });
   }
 
   private execute(actor: Combatant, action: BattleAction, events: BattleEvent[]): void {
@@ -513,6 +532,9 @@ export class Battle {
       case 'buff':
         this.abilityBuff(actor, def, targetId, events);
         return;
+      case 'debuff':
+        this.abilityDebuff(actor, def, targetId, events);
+        return;
       case 'revive':
         this.revive(actor, targetId, def.revivePercent ?? 0.25, events);
         return;
@@ -555,9 +577,62 @@ export class Battle {
       if (hit.missed) {
         events.push({ text: `${target.name} dodges!`, sound: 'miss', updates: [], fx: { type: 'miss', targetId: target.id } });
       } else {
+        const before = target.hp;
         this.damage(target, hit.damage, events, hit.crit, def.element);
+        this.drain(actor, def, before - target.hp, events);
+        this.inflictPoison(def, target, events);
       }
     }
+  }
+
+  /** Drain Life: the user regains a share of the HP it just took. */
+  private drain(actor: Combatant, def: AbilityDef, dealt: number, events: BattleEvent[]): void {
+    if (!def.drainPercent || dealt <= 0 || !isAlive(actor)) {
+      return;
+    }
+    const amount = cappedRestore(actor.hp, actor.maxHp, Math.max(1, Math.floor(dealt * def.drainPercent)));
+    if (amount <= 0) {
+      return;
+    }
+    actor.hp += amount;
+    events.push({
+      text: `${actor.name} drains ${amount} HP.`,
+      sound: 'heal',
+      updates: [this.update(actor)],
+      fx: { type: 'heal', targetId: actor.id, amount },
+    });
+  }
+
+  /** Abilities with `poisonChance` (Blight) may poison a living non-boss target. */
+  private inflictPoison(def: AbilityDef, target: Combatant, events: BattleEvent[]): void {
+    const chance = def.poisonChance ?? 0;
+    if (chance <= 0 || target.boss || !isAlive(target) || target.poisoned || !this.config.rng.chance(chance)) {
+      return;
+    }
+    target.poisoned = true;
+    events.push({
+      text: `${target.name} is poisoned!`,
+      sound: 'miss',
+      updates: [],
+      fx: { type: 'poison', targetId: target.id, amount: 0 },
+    });
+  }
+
+  /** Curse: lowers one opponent's stat (`buff.multiplier` below 1) for a few turns. */
+  private abilityDebuff(actor: Combatant, def: AbilityDef, targetId: string | undefined, events: BattleEvent[]): void {
+    const target = this.opponentTarget(actor, targetId);
+    if (!target || !def.buff) {
+      return;
+    }
+    const { stat, multiplier, turns } = def.buff;
+    target.buffs = target.buffs.filter((b) => b.stat !== stat);
+    target.buffs.push({ stat, multiplier, turnsLeft: turns });
+    events.push({
+      text: `${target.name}'s ${stat === 'def' ? 'defense' : 'attack'} falls!`,
+      sound: 'buff',
+      updates: [],
+      fx: { type: 'debuff', targetId: target.id },
+    });
   }
 
   private allyTarget(actor: Combatant, targetId: string | undefined): Combatant | undefined {

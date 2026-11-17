@@ -21,7 +21,7 @@ describe('field regen (plan 15.9 / 15.10)', () => {
     ['wizard', 2, 0],
     ['rogue', 2, 0],
     ['ranger', 2, 0],
-    ['paladin', 3, 0],
+    ['necromancer', 2, 0],
     ['cleric', 4, 4],
   ])('%s gains +%i HP and +%i MP over 48 overworld steps', (classId, hp, mp) => {
     expect(walk(classId, 48, true)).toEqual({ hp, mp });

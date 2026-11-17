@@ -79,14 +79,14 @@ describe('equipment (plan 15.4)', () => {
 
   it('returns bought gear to the bag when a companion leaves', () => {
     const s = state();
-    const m = createMember('tavern', 'B', 'paladin', 4);
+    const m = createMember('tavern', 'B', 'warrior', 4);
     m.armorId = 'plateArmor';
-    m.weaponId = 'oathBlade';
+    m.weaponId = 'ironSword';
     returnGear(s, m);
     expect(m.armorId).toBeUndefined();
     expect(s.inventory['plateArmor']).toBe(1);
-    expect(s.inventory['oathBlade']).toBe(1);
-    expect(m.weaponId).toBe('knightBlade');
+    expect(s.inventory['ironSword']).toBe(1);
+    expect(m.weaponId).toBe('bronzeSword');
   });
 
   it('strips gear from the member swapped out of a full party', () => {
@@ -126,6 +126,6 @@ describe('equipment (plan 15.4)', () => {
       expect(hp).toBeLessThanOrEqual(12);
       expect(Math.max(0, ...Object.values(stats))).toBeLessThanOrEqual(9);
     }
-    expect(gearDef('buckler').classes).toEqual(['warrior', 'paladin']);
+    expect(gearDef('buckler').classes).toEqual(['warrior']);
   });
 });

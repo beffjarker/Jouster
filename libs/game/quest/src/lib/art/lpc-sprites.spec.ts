@@ -84,8 +84,8 @@ describe('LPC sprite layout', () => {
   });
 
   it('gives every class an attack pose and the spell casters a cast pose, inside actions.png', () => {
-    const casters = ['wizard', 'paladin', 'cleric'];
-    ['warrior', 'wizard', 'paladin', 'cleric', 'rogue', 'ranger'].forEach((id) => {
+    const casters = ['wizard', 'necromancer', 'cleric'];
+    ['warrior', 'wizard', 'necromancer', 'cleric', 'rogue', 'ranger'].forEach((id) => {
       expect(LPC_ACTIONS.has(`${id}:attack`)).toBe(true);
       expect(LPC_ACTIONS.has(`${id}:cast`)).toBe(casters.includes(id));
     });

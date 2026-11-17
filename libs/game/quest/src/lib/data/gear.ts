@@ -16,7 +16,9 @@ export interface GearDef {
   description: string;
 }
 
-const HEAVY: readonly ClassId[] = ['warrior', 'paladin'];
+const HEAVY: readonly ClassId[] = ['warrior'];
+/** Robes for the spellcasters. */
+const CASTERS: readonly ClassId[] = ['wizard', 'necromancer', 'cleric'];
 
 /**
  * Enemy damage was tuned without armor, so DEF stays modest (tier 1 up to +2, tier 2 up to +4,
@@ -30,7 +32,7 @@ const GEAR_LIST: GearDef[] = [
     slot: 'armor',
     tier: 1,
     bonus: { def: 2 },
-    classes: ['warrior', 'paladin', 'cleric', 'rogue', 'ranger'],
+    classes: ['warrior', 'necromancer', 'cleric', 'rogue', 'ranger'],
     price: 70,
     description: 'Boiled leather. Light and quiet.',
   },
@@ -40,9 +42,9 @@ const GEAR_LIST: GearDef[] = [
     slot: 'armor',
     tier: 2,
     bonus: { def: 2, mag: 2 },
-    classes: ['wizard', 'cleric'],
+    classes: CASTERS,
     price: 140,
-    description: 'Woven with runes. Wizards and clerics.',
+    description: 'Woven with runes. Spellcasters.',
   },
   {
     id: 'chainMail',
@@ -50,7 +52,7 @@ const GEAR_LIST: GearDef[] = [
     slot: 'armor',
     tier: 2,
     bonus: { def: 3 },
-    classes: ['warrior', 'paladin', 'cleric', 'ranger'],
+    classes: ['warrior', 'cleric', 'ranger'],
     price: 160,
     description: 'Riveted rings over a padded coat.',
   },
@@ -62,7 +64,7 @@ const GEAR_LIST: GearDef[] = [
     bonus: { def: 4, hp: 6 },
     classes: HEAVY,
     price: 240,
-    description: 'Full steel plate. Warriors and paladins.',
+    description: 'Full steel plate. Warriors only.',
   },
   { id: 'buckler', name: 'Buckler', slot: 'shield', tier: 1, bonus: { def: 1 }, classes: HEAVY, price: 40, description: 'A small round shield.' },
   {
@@ -85,9 +87,9 @@ const GEAR_LIST: GearDef[] = [
     slot: 'armor',
     tier: 3,
     bonus: { def: 3, mag: 3 },
-    classes: ['wizard', 'cleric'],
+    classes: CASTERS,
     price: 260,
-    description: 'Silk that bends the light. Wizards and clerics.',
+    description: 'Silk that bends the light. Spellcasters.',
   },
   {
     id: 'shadowLeather',
@@ -105,7 +107,7 @@ const GEAR_LIST: GearDef[] = [
     slot: 'armor',
     tier: 3,
     bonus: { def: 5 },
-    classes: ['warrior', 'paladin', 'cleric', 'ranger'],
+    classes: ['warrior', 'cleric', 'ranger'],
     price: 300,
     description: 'Overlapping sunsteel scales.',
   },
@@ -117,7 +119,7 @@ const GEAR_LIST: GearDef[] = [
     bonus: { def: 6, hp: 8 },
     classes: HEAVY,
     price: 420,
-    description: 'Gilded plate. Warriors and paladins.',
+    description: 'Gilded plate. Warriors only.',
   },
   {
     id: 'towerShield',
@@ -137,9 +139,9 @@ const GEAR_LIST: GearDef[] = [
     slot: 'armor',
     tier: 4,
     bonus: { def: 5, mag: 4 },
-    classes: ['wizard', 'cleric'],
+    classes: CASTERS,
     price: 440,
-    description: 'Fur-lined silk that glows faintly. Wizards and clerics.',
+    description: 'Fur-lined silk that glows faintly. Spellcasters.',
   },
   {
     id: 'snowcatLeather',
@@ -157,7 +159,7 @@ const GEAR_LIST: GearDef[] = [
     slot: 'armor',
     tier: 4,
     bonus: { def: 7, hp: 6 },
-    classes: ['warrior', 'paladin', 'cleric', 'ranger'],
+    classes: ['warrior', 'cleric', 'ranger'],
     price: 480,
     description: 'Cold-hammered rings over wool.',
   },
@@ -169,7 +171,7 @@ const GEAR_LIST: GearDef[] = [
     bonus: { def: 9, hp: 12 },
     classes: HEAVY,
     price: 640,
-    description: 'Blue-white plate. Warriors and paladins.',
+    description: 'Blue-white plate. Warriors only.',
   },
   {
     id: 'wyvernShield',
@@ -189,9 +191,9 @@ const GEAR_LIST: GearDef[] = [
     slot: 'armor',
     tier: 5,
     bonus: { def: 7, mag: 6 },
-    classes: ['wizard', 'cleric'],
+    classes: CASTERS,
     price: 760,
-    description: 'Woven by fire-spiders. Wizards and clerics.',
+    description: 'Woven by fire-spiders. Spellcasters.',
   },
   {
     id: 'drakehide',
@@ -209,7 +211,7 @@ const GEAR_LIST: GearDef[] = [
     slot: 'armor',
     tier: 5,
     bonus: { def: 9, hp: 9 },
-    classes: ['warrior', 'paladin', 'cleric', 'ranger'],
+    classes: ['warrior', 'cleric', 'ranger'],
     price: 820,
     description: 'Blackened rings that shed heat.',
   },
@@ -221,7 +223,7 @@ const GEAR_LIST: GearDef[] = [
     bonus: { def: 9, hp: 12, agi: 1 },
     classes: HEAVY,
     price: 980,
-    description: 'Red scale over black steel. Warriors and paladins.',
+    description: 'Red scale over black steel. Warriors only.',
   },
   {
     id: 'basaltShield',
@@ -267,7 +269,7 @@ export function gearBonusText(def: GearDef): string {
     .join(' ');
 }
 
-/** "WIZARD, CLERIC" or "ANYONE". */
+/** "WIZARD, NECROMANCER, CLERIC" or "ANYONE". */
 export function gearUsersText(def: GearDef): string {
   return def.classes ? def.classes.map((c) => c.toUpperCase()).join(', ') : 'ANYONE';
 }

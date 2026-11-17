@@ -186,7 +186,7 @@ export function companionRestSpot(id: string): RestSpot {
 export const COMPANION_NAMES: Readonly<Record<ClassId, readonly string[]>> = {
   warrior: ['Bren', 'Garrick', 'Hilda', 'Torvald'],
   wizard: ['Ilya', 'Morwen', 'Quill', 'Zephyr'],
-  paladin: ['Aldous', 'Cedric', 'Joan', 'Maren'],
+  necromancer: ['Mordecai', 'Ysolde', 'Corvin', 'Hesper'],
   cleric: ['Sera', 'Elin', 'Tamsin', 'Ivo'],
   rogue: ['Vex', 'Nim', 'Kestrel', 'Rook'],
   ranger: ['Fenn', 'Ashe', 'Linden', 'Wren'],
@@ -196,7 +196,7 @@ export const COMPANION_NAMES: Readonly<Record<ClassId, readonly string[]>> = {
 export const COMPANION_PITCH: Readonly<Record<ClassId, string>> = {
   warrior: 'My blade and shield are yours - I will stand in front.',
   wizard: 'My fire and ice are yours - I hit hard, but keep me safe.',
-  paladin: 'I can fight, and my light can mend wounds. Let me guard you.',
+  necromancer: 'Death answers me. I drain my foes to mend myself - and the rest rot where they stand.',
   cleric: 'I can heal and protect you - and my mace still bites.',
   rogue: 'Quick hands, sharp knives. I strike first and I strike twice.',
   ranger: 'My arrows fly true, and I know the wilds well.',

@@ -138,6 +138,7 @@ const FX_DELAY: Readonly<Record<BattleFx['type'], number>> = {
   ko: 0.45,
   heal: 0.5,
   buff: 0.45,
+  debuff: 0.45,
   revive: 0.5,
   poison: 0.45,
   cure: 0.45,
@@ -758,6 +759,10 @@ export class BattleScene implements Scene {
         return;
       case 'buff':
         this.sparkle(fx.targetId, COLORS.gold);
+        return;
+      case 'debuff':
+        this.float(fx.targetId, 'CURSED', ELEMENT_COLORS.dark);
+        this.burst(fx.targetId, ELEMENT_COLORS.dark, 6);
         return;
       case 'revive':
         this.float(fx.targetId, 'UP', HEAL_COLOR);
