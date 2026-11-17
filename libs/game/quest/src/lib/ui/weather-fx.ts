@@ -30,11 +30,17 @@ export function fadeColor(color: string, strength: number): string {
   return color;
 }
 
+/** The season's ground wash at `strength` (0..1), or undefined when the season has none or it has faded out. */
+export function seasonTint(season: Season, strength = 1): string | undefined {
+  const tint = SEASON_TINT[season];
+  return tint && strength > 0 ? fadeColor(tint, strength) : undefined;
+}
+
 /** Tints the outdoor ground for the season (draw after tiles, before sprites). `strength` fades it in or out. */
 export function drawSeasonTint(r: Renderer, season: Season, strength = 1): void {
-  const tint = SEASON_TINT[season];
-  if (tint && strength > 0) {
-    r.fillRect(0, 0, SCREEN_W, SCREEN_H, fadeColor(tint, strength));
+  const tint = seasonTint(season, strength);
+  if (tint) {
+    r.fillRect(0, 0, SCREEN_W, SCREEN_H, tint);
   }
 }
 

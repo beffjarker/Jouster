@@ -718,11 +718,13 @@ describe('WorldScene landscape objects', () => {
     throw new Error('no forest');
   }
 
-  it('draws LPC trees over all the ground, top row first, and under the party', () => {
-    const h = setup({ mapId: 'overworld', ...forestTile(), facing: 'down' });
+  it('depth-sorts LPC trees with the party: trees behind them first, trees in front of them after', () => {
+    const at = forestTile();
+    const h = setup({ mapId: 'overworld', ...at, facing: 'down' });
     const art = new Proxy(
       {
         characterAction: () => undefined,
+        tinted: (sprite: unknown) => sprite,
         tileObject: (id: string) => (id === 'forest' ? { sprite: { kind: 'object' }, x: -2, y: -14 } : null),
       },
       {
@@ -731,17 +733,31 @@ describe('WorldScene landscape objects', () => {
       },
     );
     h.ctx.art = art as unknown as Art;
-    const draws: Array<{ kind: string; y: number }> = [];
+    const camY = cameraAxis(at.y * TILE, mapDef('overworld').rows.length, SCREEN_H);
+    const draws: Array<{ kind: string; y: number; party: boolean }> = [];
     const r = new Proxy(
-      { draw: (image: { kind: string }, _x: number, y: number) => draws.push({ kind: image.kind, y }) },
+      {
+        // Only party walkers pass draw options (their alpha), which tells them apart from NPCs.
+        draw: (image: { kind: string }, _x: number, y: number, opts?: object) =>
+          draws.push({ kind: image.kind, y, party: opts !== undefined }),
+      },
       { get: (t, k) => (t as Record<string | symbol, unknown>)[k] ?? jest.fn() },
     ) as unknown as Renderer;
     h.world.render(r);
     const kinds = draws.map((d) => d.kind);
-    const objects = draws.filter((d) => d.kind === 'object');
-    expect(objects.length).toBeGreaterThan(0);
-    expect(kinds.lastIndexOf('tile')).toBeLessThan(kinds.indexOf('object'));
-    expect(kinds.lastIndexOf('object')).toBeLessThan(kinds.findIndex((k) => k.startsWith('character')));
+    const party = draws.map((d, i) => (d.party ? i : -1)).filter((i) => i >= 0);
+    const objects = draws
+      .map((d, i) => ({ ...d, i, row: (d.y + 14 + camY) / TILE }))
+      .filter((d) => d.kind === 'object');
+    const rows = (h.world as unknown as { walkers: Array<{ y: number }> }).walkers.map((w) => w.y);
+    const behind = objects.filter((d) => d.row <= Math.min(...rows));
+    const inFront = objects.filter((d) => d.row > Math.max(...rows));
+    expect(party.length).toBeGreaterThan(0);
+    expect(party[0]).toBeGreaterThan(kinds.lastIndexOf('tile'));
+    expect(behind.length).toBeGreaterThan(0);
+    expect(inFront.length).toBeGreaterThan(0);
+    behind.forEach((d) => expect(d.i).toBeLessThan(party[0]));
+    inFront.forEach((d) => expect(d.i).toBeGreaterThan(party[party.length - 1]));
     expect(objects.map((d) => d.y)).toEqual([...objects.map((d) => d.y)].sort((a, b) => a - b));
   });
 
@@ -750,6 +766,7 @@ describe('WorldScene landscape objects', () => {
     const art = new Proxy(
       {
         characterAction: () => undefined,
+        tinted: (sprite: unknown) => sprite,
         tile: (id: string) => ({ kind: 'tile', id }),
         tileObject: (id: string) => (id === 'tree' ? { sprite: { kind: 'object', id }, x: 0, y: 0 } : null),
       },
