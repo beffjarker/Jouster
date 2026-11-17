@@ -45,7 +45,7 @@ describe('title flow', () => {
 
   it('continues a saved game', () => {
     const { ctx, driver } = setup();
-    const saved = newGameState('SAVED', 'paladin');
+    const saved = newGameState('SAVED', 'necromancer');
     saved.mapId = 'overworld';
     saved.x = 10;
     saved.y = 15;

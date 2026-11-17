@@ -4,7 +4,7 @@ import { ACT_THREE_BOSS_IDS, ACT_TWO_BOSS_IDS, FINALE_BOSS_IDS, ENCOUNTER_TABLES
 import { ITEMS, WEAPONS } from '../data/equipment';
 import { pickEncounter } from '@jouster/game/engine';
 import { DEFAULT_GOLD_CHANCE, PartyMember, applyFieldRegen, createMember, grantXp, memberToCombatant } from '../state/party';
-import { MAX_PARTY, STARTING_GOLD, companionJoinLevel } from '../state/game-state';
+import { MAX_PARTY, STARTING_GOLD, companionJoinLevel, startingInventory } from '../state/game-state';
 import { ABILITIES } from '../data/abilities';
 import { FightResult, expectedDamage, runMany, simulateFight } from './simulator';
 import { MONSTERS } from '../data/monsters';
@@ -15,7 +15,7 @@ import { GEAR, gearUsableBy } from '../data/gear';
 const N = 400;
 
 function startKit(classId: ClassId): Record<string, number> {
-  return { herb: 3 + classDef(classId).bonusHerbs };
+  return startingInventory(classId);
 }
 
 function armed(m: PartyMember, tier: number): PartyMember {
@@ -118,9 +118,11 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     expect(holy).toBeGreaterThan(expectedDamage(c, goblin()));
   });
 
-  it.each(levels)('paladin level %i: Holy Strike beats a plain Attack', (level) => {
-    const c = memberToCombatant(tier2(createMember('h', 'Hero', 'paladin', level)));
-    expect(expectedDamage(c, goblin(), ability('holyStrike'))).toBeGreaterThan(expectedDamage(c, goblin()));
+  it.each(levels)('necromancer level %i: Drain Life beats a plain Attack; Blight on 2 foes > Drain Life', (level) => {
+    const c = memberToCombatant(tier2(createMember('h', 'Hero', 'necromancer', level)));
+    const drain = expectedDamage(c, goblin(), ability('drainLife'));
+    expect(drain).toBeGreaterThan(expectedDamage(c, goblin()));
+    expect(expectedDamage(c, goblin(), ability('blight')) * 2).toBeGreaterThan(drain);
   });
 
   it.each(levels)('wizard level %i with the best staff: Fire >= 1.2x Arcane Strike; Bolt on 2 foes > Fire', (level) => {

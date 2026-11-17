@@ -76,6 +76,11 @@ export function chooseAction(battle: Battle, actor: Combatant, inventory: Record
   if (boss && has('protect') && !actor.buffs.some((b) => b.stat === 'def') && actor.mp >= healMp * 2) {
     return { kind: 'ability', actorId: actor.id, abilityId: 'protect', targetId: actor.id };
   }
+  // Curse a boss whose attack isn't lowered yet, if MP for a spell remains afterwards.
+  const curseDef = ABILITIES.get('curse');
+  if (boss && curseDef && has('curse') && !boss.buffs.some((b) => b.multiplier < 1) && actor.mp >= curseDef.mpCost + 3) {
+    return { kind: 'ability', actorId: actor.id, abilityId: 'curse', targetId: boss.id };
+  }
   if (boss && canHealSpell && actor.mp < healMp && (inventory['tonic'] ?? 0) > 0) {
     return { kind: 'item', actorId: actor.id, itemId: 'tonic', targetId: actor.id };
   }
@@ -104,8 +109,10 @@ export function chooseAction(battle: Battle, actor: Combatant, inventory: Record
       def.target === 'allEnemies'
         ? enemies.reduce((s, e) => s + Math.min(e.hp, expectedDamage(actor, e, def)), 0)
         : Math.min(target.hp, expectedDamage(actor, target, def)) * 1.0001;
+    // Drain Life is worth more the more HP the caster is missing.
+    const drained = def.drainPercent ? Math.min(actor.maxHp - actor.hp, score * def.drainPercent) * 0.5 : 0;
     // Small preference for free attacks when MP abilities barely help.
-    const adjusted = def.mpCost > 0 ? score - def.mpCost * 0.5 : score;
+    const adjusted = (def.mpCost > 0 ? score - def.mpCost * 0.5 : score) + drained;
     if (adjusted > Math.min(target.hp, bestScore)) {
       bestScore = adjusted;
       best = { kind: 'ability', actorId: actor.id, abilityId: id, targetId: target.id };

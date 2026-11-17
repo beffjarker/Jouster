@@ -58,6 +58,8 @@ export interface Combatant {
   poisoned?: boolean;
   /** Chance (0–1) that a landed basic attack poisons the target (enemies only). */
   poisonChance?: number;
+  /** MP regained whenever an opponent falls (Necromancer's Soul Harvest). */
+  mpOnKill?: number;
 }
 
 export const BASE_ACCURACY = 0.97;

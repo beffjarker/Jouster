@@ -6,7 +6,7 @@ import { GameState, answerCompanionQuest, markQuestReady, newGameState, questSta
 import { questLog, questPins } from './map-scene';
 
 function afterKing(): GameState {
-  const s = newGameState('A', 'paladin', createRng(1));
+  const s = newGameState('A', 'necromancer', createRng(1));
   s.flags['bossDefeated'] = true;
   return s;
 }
@@ -36,7 +36,7 @@ describe('companion side quests (plan 15.6)', () => {
   });
 
   it('the Goblin Jailer guards the cell key from the start, so it can be won before the quest', () => {
-    const s = newGameState('A', 'paladin', createRng(1));
+    const s = newGameState('A', 'necromancer', createRng(1));
     expect(bossVisible(s, 'goblinCave', 'goblinChief')).toBe(true);
     s.flags['goblinChiefDefeated'] = true;
     expect(bossVisible(s, 'goblinCave', 'goblinChief')).toBe(false);

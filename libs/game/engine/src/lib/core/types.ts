@@ -18,7 +18,7 @@ export interface Stats {
 
 export type StatKey = keyof Stats;
 
-export type WeaponFamily = 'sword' | 'swordShield' | 'staff' | 'mace' | 'daggers' | 'knife';
+export type WeaponFamily = 'sword' | 'scythe' | 'staff' | 'mace' | 'daggers' | 'knife';
 
 /** Every class has a melee weapon; `atk` is added to the wielder's ATK for the basic Attack. */
 export interface WeaponDef {
@@ -27,9 +27,9 @@ export interface WeaponDef {
   family: WeaponFamily;
   tier: number;
   atk: number;
-  /** Bonus MAG while equipped (staves). */
+  /** Bonus MAG while equipped (staves, scythes). */
   mag?: number;
-  /** Bonus DEF while equipped (shields). */
+  /** Bonus DEF while equipped. */
   def?: number;
   /** Number of strikes per basic Attack (daggers strike twice). */
   hits?: number;
@@ -43,7 +43,8 @@ export interface WeaponDef {
 
 export type AbilityCategory = 'magic' | 'skill';
 export type AbilityTarget = 'enemy' | 'allEnemies' | 'ally' | 'self' | 'deadAlly';
-export type AbilityEffect = 'damage' | 'heal' | 'buff' | 'revive' | 'steal' | 'taunt';
+/** `debuff` applies `buff` (a multiplier below 1) to one enemy. */
+export type AbilityEffect = 'damage' | 'heal' | 'buff' | 'debuff' | 'revive' | 'steal' | 'taunt';
 export type DamageType = 'physical' | 'magical';
 export type BuffStat = 'atk' | 'def';
 
@@ -82,6 +83,10 @@ export interface AbilityDef {
   revivePercent?: number;
   /** Heals that also cure poison (Heal). */
   curesPoison?: boolean;
+  /** Damage: the user regains this fraction of the damage dealt as HP (Drain Life). */
+  drainPercent?: number;
+  /** Damage: chance (0-1) that each hit poisons the target. Bosses are immune (Blight). */
+  poisonChance?: number;
 }
 
 export interface LearnedAbility {
@@ -97,9 +102,11 @@ export interface ClassPassive {
   battleHpRegen?: number;
   /** Regain 1 MP every N steps on maps with encounters (not in towns). */
   fieldMpStepInterval?: number;
+  /** MP regained in battle whenever an enemy falls. */
+  mpOnKill?: number;
 }
 
-export type ClassId = 'warrior' | 'wizard' | 'paladin' | 'cleric' | 'rogue' | 'ranger';
+export type ClassId = 'warrior' | 'wizard' | 'necromancer' | 'cleric' | 'rogue' | 'ranger';
 
 export interface ClassDef {
   id: ClassId;
@@ -117,8 +124,10 @@ export interface ClassDef {
   passive?: ClassPassive;
   /** Regain 1 HP every N steps on maps with encounters (default 24). */
   fieldHpStepInterval?: number;
-  /** Extra Herbs in the starting kit (classes without healing magic). */
+  /** Extra Herbs in the starting kit (classes without healing magic, and the frail Wizard). */
   bonusHerbs: number;
+  /** Other consumables in the starting kit (item id -> count). */
+  startingItems?: Readonly<Record<string, number>>;
 }
 
 export interface MonsterAction {

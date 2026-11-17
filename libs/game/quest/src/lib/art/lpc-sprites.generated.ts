@@ -14,7 +14,7 @@ export const LPC_CHARACTER_STEP_POSE = 4;
 export const LPC_CHARACTER_ROWS: ReadonlyMap<string, number> = new Map<string, number>([
   ['warrior', 0],
   ['wizard', 1],
-  ['paladin', 2],
+  ['necromancer', 2],
   ['cleric', 3],
   ['rogue', 4],
   ['ranger', 5],
@@ -68,7 +68,7 @@ export const LPC_MONSTERS: ReadonlyMap<
 ]);
 
 /** Real-pixel size of one `actions.png` cell (a battle pose frame, facing right). */
-export const LPC_ACTION_CELL = { width: 70, height: 60 } as const;
+export const LPC_ACTION_CELL = { width: 74, height: 60 } as const;
 
 /** Real-pixel offset of the `characters.png` cell inside an `actions.png` cell (the body lines up). */
 export const LPC_ACTION_ORIGIN = { x: -10, y: -6 } as const;
@@ -78,8 +78,8 @@ export const LPC_ACTIONS: ReadonlyMap<string, { row: number; frames: number }> =
   ['warrior:attack', { row: 0, frames: 6 }],
   ['wizard:attack', { row: 1, frames: 8 }],
   ['wizard:cast', { row: 2, frames: 7 }],
-  ['paladin:attack', { row: 3, frames: 6 }],
-  ['paladin:cast', { row: 4, frames: 7 }],
+  ['necromancer:attack', { row: 3, frames: 6 }],
+  ['necromancer:cast', { row: 4, frames: 7 }],
   ['cleric:attack', { row: 5, frames: 6 }],
   ['cleric:cast', { row: 6, frames: 7 }],
   ['rogue:attack', { row: 7, frames: 6 }],

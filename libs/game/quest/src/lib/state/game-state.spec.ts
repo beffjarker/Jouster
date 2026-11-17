@@ -5,6 +5,7 @@ import {
   GameState,
   MAX_PARTY,
   SAVE_KEY,
+  SAVE_VERSION,
   addItem,
   answerCompanionQuest,
   companionAvailable,
@@ -61,7 +62,7 @@ describe('game state', () => {
     delete v2.companionProgress;
     storage.setItem(SAVE_KEY, JSON.stringify(v2));
     const loaded = loadGame(storage);
-    expect(loaded?.version).toBe(4);
+    expect(loaded?.version).toBe(SAVE_VERSION);
     expect(loaded?.explored).toEqual({});
     expect(loaded?.quests).toEqual({ thornwick: 'done', tavern: 'done' });
     expect(loaded?.companionProgress).toEqual({ tavern: { level: 4, xp: totalXpForLevel(4) } });
@@ -78,7 +79,7 @@ describe('game state', () => {
     delete v3.companionProgress;
     storage.setItem(SAVE_KEY, JSON.stringify(v3));
     const loaded = loadGame(storage);
-    expect(loaded?.version).toBe(4);
+    expect(loaded?.version).toBe(SAVE_VERSION);
     expect(loaded?.companionProgress).toEqual({
       thornwick: { level: 7, xp: totalXpForLevel(7) },
       cave: { level: 2, xp: totalXpForLevel(2) },
@@ -168,7 +169,7 @@ describe('recruiting', () => {
   }
 
   it('nobody joins before the Goblin King falls, even if their quest is done', () => {
-    const s = withRoster('paladin');
+    const s = withRoster('necromancer');
     COMPANION_SLOTS.forEach((slot) => (s.quests[slot.id] = 'done'));
     expect(companionPresent(s, 'tavern')).toBe(true);
     expect(companionPresent(s, 'cave')).toBe(true);
@@ -180,7 +181,7 @@ describe('recruiting', () => {
   });
 
   it('runs the side quest: offer, decline, accept, kill, turn in with reward, then join', () => {
-    const s = withRoster('paladin');
+    const s = withRoster('necromancer');
     s.flags['bossDefeated'] = true;
     expect(questStage(s, 'tavern')).toBe('available');
     answerCompanionQuest(s, 'tavern', false);
@@ -204,7 +205,7 @@ describe('recruiting', () => {
   });
 
   it('only readies a quest that was accepted', () => {
-    const s = withRoster('paladin');
+    const s = withRoster('necromancer');
     s.flags['bossDefeated'] = true;
     expect(markQuestReady(s, 'alphaWolfDefeated')).toBeNull();
     expect(markQuestReady(s, 'unknownFlag')).toBeNull();
@@ -234,7 +235,7 @@ describe('recruiting', () => {
     COMPANION_SLOTS.forEach((slot) => expect(slot.quest.reward.items?.['herb'] ?? 0).toBeGreaterThanOrEqual(2));
   });
   it('keeps the cave companion in the cell until the Goblin King is defeated', () => {
-    const s = withRoster('paladin');
+    const s = withRoster('necromancer');
     expect(companionPresent(s, 'cave')).toBe(true);
     expect(recruitCompanion(s, 'cave')).toBe(false);
     unlocked(s);
@@ -243,7 +244,7 @@ describe('recruiting', () => {
   });
 
   it('allows any order and swaps when the party is full', () => {
-    const s = unlocked(withRoster('paladin'));
+    const s = unlocked(withRoster('necromancer'));
     expect(recruitCompanion(s, 'thornwick')).toBe(true);
     expect(recruitCompanion(s, 'tavern')).toBe(true);
     expect(s.party).toHaveLength(MAX_PARTY);

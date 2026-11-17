@@ -38,7 +38,7 @@ export function canEquip(m: PartyMember, id: string): boolean {
   return g !== undefined && gearUsableBy(g, m.classId);
 }
 
-/** True when the class can use anything at all in this slot (shields are Warrior/Paladin only). */
+/** True when the class can use anything at all in this slot (shields are Warrior only). */
 export function slotUsable(m: PartyMember, slot: GearSlot): boolean {
   return slot === 'weapon' || [...GEAR.values()].some((g) => g.slot === slot && gearUsableBy(g, m.classId));
 }

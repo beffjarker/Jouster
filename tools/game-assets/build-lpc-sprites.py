@@ -92,6 +92,7 @@ MACE = 'weapons/blunt/weapon_blunt_mace'
 STAFF = 'weapons/magic/weapon_magic_gnarled'
 BOW = 'weapons/ranged/bow/weapon_ranged_bow_normal'
 SPEAR = 'weapons/polearm/weapon_polearm_spear'
+SCYTHE = 'weapons/polearm/weapon_polearm_scythe'
 CANE = 'weapons/polearm/weapon_polearm_cane'
 NASAL = 'headwear/helmets/helmets/hat_helmet_nasal'
 ARMET = 'headwear/helmets/helmets/hat_helmet_armet'
@@ -119,8 +120,8 @@ LOOKS = {
                      (LEATHER, None), (NASAL, 'metal:iron'), (SWORD, 'v:steel')),
     'wizard': human('male', 'light', HEAD_OLD, (BEARD_LONG, 'hair:white'), (SKIRT, 'cloth:navy'), (SHOES, 'cloth:brown'),
                     (LONG, 'cloth:blue'), (WIZARD_HAT, 'v:blue'), (STAFF, 'v:medium')),
-    'paladin': human('male', 'light', HEAD_M, (HAIR_PLAIN, 'hair:blonde'), (PANTS, 'cloth:navy'), (BOOTS, 'cloth:gray'),
-                     (PLATE, 'metal:silver'), (CAPE, 'cloth:blue'), (ARMET, 'metal:silver'), (SWORD, 'v:silver')),
+    'necromancer': human('male', 'light', HEAD_M, (HAIR_PLAIN, 'hair:black'), (SKIRT, 'cloth:black'), (SHOES, 'cloth:black'),
+                         (LONG, 'cloth:black'), (HOOD, 'cloth:black'), (SCYTHE, 'v:scythe')),
     'cleric': human('female', 'light', HEAD_F, (HAIR_BOB, 'hair:light_brown'), (SHOES, 'cloth:tan'),
                     ('torso/shirts/torso_clothes_robe', 'v:white'), ('torso/waist/belt_robe', 'v:white'), (MACE, 'v:mace')),
     'rogue': human('male', 'olive', HEAD_M, (HAIR_MESSY, 'hair:black'), (PANTS, 'cloth:charcoal'), (BOOTS, 'cloth:black'),
@@ -201,7 +202,7 @@ POSE_FACING = 'right'
 POSES = {
     'warrior': {'attack': 'slash'},
     'wizard': {'attack': 'thrust', 'cast': 'spellcast'},
-    'paladin': {'attack': 'slash', 'cast': 'spellcast'},
+    'necromancer': {'attack': 'slash', 'cast': 'spellcast'},
     'cleric': {'attack': 'slash', 'cast': 'spellcast'},
     'rogue': {'attack': 'slash'},
     'ranger': {'attack': 'shoot'},

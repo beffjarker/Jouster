@@ -7,8 +7,8 @@
 > are implemented (see [16.9](#169-mouse-and-touch-controls-implemented)). Acts II, III and the Finale are
 > implemented (see [17](#17-act-ii-the-southlands-implemented), [19](#19-act-iii-the-frost-peaks-implemented) and
 > [21](#21-finale-the-ember-mountains-implemented)). Phase 8 polish is in progress: music, smooth walking, tile
-> fixes, one art style, a smoke test, poison, LPC battle poses and animated slimes and bats are implemented (§22–§30;
-> see [17.8 Next](#178-next) for what is still open).
+> fixes, one art style, a smoke test, poison, LPC battle poses and animated slimes and bats are implemented (§22–§30),
+> and the Necromancer has replaced the Paladin (§31; see [17.8 Next](#178-next) for what is still open).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -101,7 +101,7 @@ apps/
 | --- | --- | --- | --- | --- |
 | **Warrior** | Tank / damage | Sword or axe | *Power Strike* (×1.5 dmg, 25% miss), *Taunt* | High damage and defense |
 | **Wizard** | Attack magic | Staff (+2 MAG when equipped) | Fire, Ice, Bolt, later Meteor; *Arcane Strike* (staff hit + MAG/2) | Hits weaknesses; spells kill groups fast |
-| **Paladin** | Hybrid | Sword and shield | *Smite* (holy melee), Heal | Steady damage, can heal itself |
+| **Necromancer** (§31; replaced the Paladin) | Dark magic / drain | Scythe (×1.25 vs undead) | *Drain Life* (heals for half the damage), *Curse* (−30% ATK), *Blight* (all foes, may poison); passive *Soul Harvest* (+2 MP per kill) | Drains HP back from every foe; Curse blunts bosses |
 | **Cleric** | Holy fighter / support | Mace or flail (×1.5 vs undead) | *Holy Strike*, Heal, Protect, Revive; passive *Blessed* | Outlasts enemies (see 4.4) |
 | **Rogue** | Speed / utility | Daggers (attacks twice at ×0.6 each) | *Steal*, *Backstab* (big crit chance on first turn) | Acts first; frequent crits |
 | **Ranger** | Skirmisher | Hunting knife (melee); bow for skills | *Volley* (bow, hits all), *Aimed Shot* | Damages groups, high AGI |
@@ -117,7 +117,7 @@ The budget is **36 points**, counted as `HP/4 + MP/4 + ATK + DEF + AGI + MAG`.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Warrior | 32 | 0 | 12 | 10 | 6 | 0 | 36 |
 | Wizard | 20 | 16 | 6 | 4 | 6 | 11 | 36 |
-| Paladin | 28 | 8 | 10 | 9 | 4 | 4 | 36 |
+| Necromancer (§31) | 22 | 14 | 8 | 5 | 5 | 9 | 36 |
 | Cleric | 24 | 16 | 8 | 7 | 5 | 6 | 36 |
 | Rogue | 24 | 0 | 11 | 6 | 13 | 0 | 36 |
 | Ranger | 24 | 4 | 10 | 6 | 10 | 3 | 36 |
@@ -216,7 +216,8 @@ trio instead of a lone hero. A hero who stays alone gets no balance guarantee an
   3. **Measure attrition, not single fights, in areas.** Single-fight win rates stay at 100% for any party; the
      real area challenge is how many fights a party can chain before the inn. A party streak check (like 4.4b's)
      should set the Act II/III area targets.
-  4. **Keep pre-unlock solo as is.** Every class clears the Goblin King solo at level 6 at 72–98% (Paladin 72%,
+  4. **Keep pre-unlock solo as is.** Every class clears the Goblin King solo at level 6 at 72–98% (revision 6,
+     before §31 replaced the Paladin: Paladin 72%,
      Cleric 81%, Wizard 91%, Rogue 95%, Ranger 97%, Warrior 98%). Optionally raise the Paladin's damage a little
      (13.9 rounds against the King, the slowest) instead of weakening the King, so the target band (65–80%) is
      not pushed below for the slow classes.
@@ -226,7 +227,8 @@ trio instead of a lone hero. A hero who stays alone gets no balance guarantee an
 - While the hero is alone, random encounters have **at most 2 enemies**. Since no one can join before the Goblin
   King, this covers the whole Prologue and Act I.
 - The **Goblin King** boss scales with the size of the party (×0.75 HP when alone).
-- Starting kit for every class: 3 Herbs and 50 gold. Classes without spells (Warrior, Rogue) get 2 more Herbs.
+- Starting kit for every class: 3 Herbs and 50 gold. Classes without spells (Warrior, Rogue) get 2 more Herbs;
+  the Necromancer gets 1 more. The Wizard, the frailest solo hero, gets 2 more Herbs **and 2 Tonics** (§31).
 - Running away is slightly easier when alone (+10%).
 
 ### 4.6 Balance targets (checked by the simulator)
@@ -443,7 +445,7 @@ NPCs with hints and side quests
 | --- | --- |
 | Engine | Seeded RNG, fixed-step loop, keyboard input, scene stack with fades, renderer + 5×7 pixel font, tilemap, Web Audio SFX |
 | Rules | Battle (turn order, attack/ability/item/defend/run, elements, status, crits), XP curve, encounters with grace steps |
-| Classes | Warrior, Paladin, Cleric, Wizard, Rogue, Ranger — equal stat budget, every class has a melee Attack |
+| Classes | Warrior, Necromancer (replaced the Paladin in §31), Cleric, Wizard, Rogue, Ranger — equal stat budget, every class has a melee Attack |
 | World | Greenwood Vale overworld (96×72, seeded), Aldmere (castle, inn, chapel, shops, tavern), Brookhollow, Thornwick ruins, Goblin Cave, Wolf Den, southern lakeshore; fog of war and `M` world map |
 | Companions | Four spots (Aldmere tavern, Thornwick ruins, Brookhollow, Goblin Cave) with a random name and class per new game; each joins after the Goblin King and their side quest |
 | Story | King's quest → Goblin King boss → companion side quests → epilogue teasing **Vyrmorth**; the world stays open afterwards |
@@ -799,7 +801,7 @@ menu opens with `X`/`Esc` and has STATUS, ITEM, MAGIC, QUESTS, MAP and CLOSE.
 | --- | --- | --- |
 | Weapon | (existing, by class family) | ATK (staves also MAG) |
 | Armor | Cloth Robe, Leather Armor, Chain Mail, Plate | DEF (heavier armor class-restricted) |
-| Shield | Buckler, Kite Shield | DEF (Warrior, Paladin only) |
+| Shield | Buckler, Kite Shield | DEF (Warrior only since §31; the Paladin also used them) |
 | Accessory | Ring of Vigor (+HP), Swift Boots (+AGI), Sage Charm (+MAG) | One stat |
 
 - Bought gear goes into the **inventory**, not straight onto a member. Weapons keep their trade-in offer at the
@@ -959,8 +961,8 @@ replacing inns, Herbs or Heal. The Cleric recovers fastest, the Paladin in betwe
 
 | Class | Field HP regen | Approx. per average gap between fights (~16 steps) |
 | --- | --- | --- |
-| Warrior, Wizard, Rogue, Ranger | **+1 HP every 24 steps** | ~0.7 HP |
-| Paladin | **+1 HP every 16 steps** | ~1 HP |
+| Warrior, Wizard, Rogue, Ranger (and the Necromancer, §31) | **+1 HP every 24 steps** | ~0.7 HP |
+| Paladin (retired in §31) | **+1 HP every 16 steps** | ~1 HP |
 | Cleric | **+1 HP every 10 steps** | ~1.6 HP |
 
 - Same rules as Cleric MP regen (15.9): only on maps with encounters (not in towns), not for KO'd members, never
@@ -1664,6 +1666,8 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~A Cypress smoke test for `/jouster-quest`.~~ Done in §27.
 - ~~LPC wolf art~~ Done in 16.7 (wolf ×3, Alpha Wolf). ~~LPC attack animations (16.4 item 4c).~~ Done in §29.
   Still open: giant toad (no suitable LPC art found), LPC objects. ~~Animated slime and bat frames.~~ Done in §30.
+- ~~Make the classes more distinct (Paladin vs Cleric).~~ Done in §31: the Necromancer replaced the Paladin, and
+  the Wizard starts with more Herbs and 2 Tonics.
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
   play-testing confirms parties find Act II/III too easy.
 
@@ -1916,7 +1920,7 @@ Poison is the first lasting status effect. It gives the chapel something to cure
 | Sources | A landed melee hit from a venomous monster: Scorpion 30%, Marsh Witch 25%, Wyvern and Wyvern Matriarch 20%. Act I has none, so solo play before the unlock is unchanged (§20). |
 | In battle | At the end of each round a poisoned member loses `max(1, floor(maxHp / 12))` HP. Poison never knocks anyone out: it stops at 1 HP ("X is weakened by poison."). |
 | In the field | Lasts after battle. A poisoned member loses 1 HP every 4 steps on any map (never below 1) and gets no walking HP regen; MP regen is unchanged. |
-| Cures | **Heal** (cleric, paladin) also cures, even at full HP; **Antidote** (10 g, every item shop); the chapel's new **CURE** option (5 g per poisoned member); resting at the inn, a revive, a KO, or waking after defeat. |
+| Cures | **Heal** (Cleric; the Paladin's Heal too, until §31) also cures, even at full HP; **Antidote** (10 g, every item shop); the chapel's new **CURE** option (5 g per poisoned member); resting at the inn, a revive, a KO, or waking after defeat. |
 | Display | `PSN` replaces the level and the HP bar turns purple in the party status; the status page says POISONED. Battle shows a purple damage float and "CURE" sparkles. |
 | Saves | `PartyMember.poisoned` is optional; save version 4 is unchanged and older saves load as unpoisoned. |
 
@@ -1935,7 +1939,7 @@ Party members now swing, thrust, shoot and cast with the ULPC action rows instea
 
 | Class | Attack (and damaging skills at enemies) | Spells |
 | --- | --- | --- |
-| Warrior, Paladin, Cleric, Rogue | Slash, 6 frames (oversize weapon layers where the weapon has them) | Paladin and Cleric: spellcast, 7 frames |
+| Warrior, Necromancer (§31), Cleric, Rogue | Slash, 6 frames (oversize weapon layers where the weapon has them) | Necromancer and Cleric: spellcast, 7 frames |
 | Wizard | Staff thrust, 8 frames | Spellcast, 7 frames |
 | Ranger | Bow shot, 13 frames (Aimed Shot and Volley too) | none |
 
@@ -1982,3 +1986,43 @@ Tests: `lpc-sprites.spec.ts` checks that every slime and bat look has several fr
 characters-sheet monsters have one, `monster()` steps down the column over time with the right crop, wraps and
 caches per frame, and that only those sheet monsters report as animated. Manual: fight slimes and giant bats on
 the Greenwood plains and in the forest, and watch them squash and flap out of step.
+
+## 31. Necromancer replaces the Paladin; Wizard starting kit (implemented)
+
+The Paladin (sword-and-shield, Heal, holy strikes, faster field regen) overlapped too much with the Cleric. It is
+replaced by the **Necromancer**, a dark caster with a scythe who survives by draining HP from foes. The Wizard,
+who is fragile when alone, also gets a bigger starting kit.
+
+| Necromancer | Value |
+| --- | --- |
+| Base stats | HP 22, MP 14, ATK 8, DEF 5, AGI 5, MAG 9 (growth per level: HP 5, MP 4, ATK 1, DEF 0.5, AGI 0.5, MAG 1.75) |
+| Drain Life (L1, 3 MP) | Dark magic, power 5 + MAG; heals the caster for half the damage dealt (minimum 1) |
+| Curse (L3, 2 MP) | One enemy's ATK × 0.7 for 3 rounds (new `debuff` ability effect) |
+| Blight (L5, 5 MP) | Dark damage to all enemies (power 3 + 0.6 × MAG); 50% chance to poison each one, never bosses |
+| Soul Harvest (passive) | +2 MP whenever an enemy falls (only while below max MP) |
+| Starting kit | Bone Scythe; +1 Herb |
+
+- **Scythes:** Bone (T1), Grave (T2), Dune Reaper (T3), Frostreap (T4) and Soulfire (T5) take the old Paladin
+  blades' slots in each tier's weapon shop. They give ATK and some MAG, and hit undead for ×1.25 (Maces
+  stay at ×1.5). Without that bonus the Necromancer won only ~13% of solo fights against the Bone Captain and
+  Skeleton (both resist dark); with it, the solo mini-boss check passes.
+- **Gear:** shields and plate are now Warrior-only. The Necromancer wears the casters' robes and leather.
+- **Wizard kit:** +2 Herbs (5 total) and 2 Tonics at the start (`ClassDef.startingItems`), so a solo Wizard can
+  refill MP in the first fights.
+- **Engine:** abilities can set `drainPercent` and `poisonChance`. `debuff` applies a stat multiplier to an
+  enemy. Combatants can set `mpOnKill`. The battle scene floats "CURSED" over a cursed enemy. The balance
+  simulator casts Curse on a boss that isn't already weakened (keeping 3 MP spare), and counts Drain Life's healing when picking moves.
+- **Saves (v5):** v4 saves migrate when loaded. Paladins, both party members and companions, become
+  Necromancers. Paladin blades in the inventory or equipped turn into the scythe of the same tier. Shields and
+  armor the new class can't wear go back to the bag, and HP/MP are clamped to the new maximums.
+- **Art:** the HD painter draws a hooded Necromancer with a scythe. The LPC sheet uses a male skirt, long
+  sleeves, a hood and the ULPC scythe (CC-BY-SA 3.0, bluecarrot16; the ULPC robe is female-only). The scythe
+  has a slash pose but no spellcast pose, and `actions.png` cells are now 74 px wide.
+
+Tests: `necromancer.spec.ts` covers the class, scythes and gear rules, Drain Life, Curse, Blight (poison, never
+on bosses), Soul Harvest, both starting kits and the v4→v5 migration. The balance, party, equipment, save,
+side-quest, title and LPC specs now use the Necromancer instead of the Paladin. On the dev workstation Node
+20.19.2 (and, less often, 20.12.1) crashes inside V8 while running `balance.spec.ts`. This happens on `main`
+too ("Invalid bytecode" even with `--jitless`), so it is a machine problem, not a code one; CI runs the full
+balance gate. Manual: start a new game as a Necromancer and as a Wizard and play solo up to the Goblin King, and
+load a v4 save with a Paladin.
