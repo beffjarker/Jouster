@@ -1,4 +1,4 @@
-import { ClassId, Facing, Rng, createRng, timeSeed, totalXpForLevel } from '@jouster/game/engine';
+import { AUDIO_CHANNELS, AudioChannel, ClassId, Facing, Rng, createRng, timeSeed, totalXpForLevel } from '@jouster/game/engine';
 import { CLASS_ORDER, classDef } from '../data/classes';
 import { COMPANION_SLOTS, CompanionInfo, companionSlot, rollCompanions } from '../data/companions';
 import { WEAPONS } from '../data/equipment';
@@ -43,7 +43,12 @@ export interface GameState {
   steps: number;
   stepsSinceBattle: number;
   playSeconds: number;
+  /** Volume (0 to 1) per audio channel, restored when the game is continued. Missing in older saves. */
+  volumes?: VolumeSettings;
 }
+
+/** Saved volume per audio channel (0 to 1). */
+export type VolumeSettings = Partial<Record<AudioChannel, number>>;
 
 /** A benched companion's saved level and total XP. */
 export interface CompanionProgress {
@@ -286,9 +291,52 @@ export function loadGame(storage: SaveStorage): GameState | null {
   }
   try {
     const data = migrate(JSON.parse(raw) as Partial<GameState>);
-    return isValidState(data) ? data : null;
+    if (!isValidState(data)) {
+      return null;
+    }
+    // Bad volume values never cost the player their save; they just fall back to the defaults.
+    const volumes = cleanVolumes(data.volumes);
+    if (volumes) {
+      data.volumes = volumes;
+    } else {
+      delete data.volumes;
+    }
+    return data;
   } catch {
     return null;
+  }
+}
+
+/** Known channels with a finite level, clamped to 0..1; undefined when nothing usable is left. */
+export function cleanVolumes(raw: unknown): VolumeSettings | undefined {
+  if (typeof raw !== 'object' || raw === null) {
+    return undefined;
+  }
+  const out: VolumeSettings = {};
+  for (const channel of AUDIO_CHANNELS) {
+    const v = (raw as Record<string, unknown>)[channel];
+    if (typeof v === 'number' && Number.isFinite(v)) {
+      out[channel] = Math.min(1, Math.max(0, v));
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/**
+ * Writes new volume levels into the stored save without touching anything else in it, so changing the volume
+ * never saves (or loses) game progress. Does nothing when there is no readable save.
+ */
+export function saveVolumes(storage: SaveStorage, volumes: VolumeSettings): boolean {
+  try {
+    const raw = storage.getItem(SAVE_KEY);
+    const data: unknown = raw ? JSON.parse(raw) : null;
+    if (typeof data !== 'object' || data === null) {
+      return false;
+    }
+    storage.setItem(SAVE_KEY, JSON.stringify({ ...data, volumes: { ...volumes } }));
+    return true;
+  } catch {
+    return false;
   }
 }
 

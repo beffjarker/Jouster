@@ -6,7 +6,7 @@ import { ABILITIES } from '../data/abilities';
 import { GameState, hasSave, loadGame, newGameState } from '../state/game-state';
 import { createMember, memberStats, weaponDef } from '../state/party';
 import { COLORS, ListMenu, SCREEN_H, SCREEN_W, charsFit, inRect } from '../ui/widgets';
-import { VOLUME_ROWS, adjustVolumeRow, volumeLabel } from '../ui/volume-rows';
+import { VOLUME_ROWS, adjustVolumeRow, applyVolumes, currentVolumes, rememberVolumes, volumeLabel } from '../ui/volume-rows';
 import { GameContext } from './context';
 import { WorldScene } from './world-scene';
 
@@ -32,8 +32,10 @@ export class TitleScene implements Scene {
       [{ label: 'NEW GAME' }, { label: 'CONTINUE', enabled: hasSave(ctx.storage) }, { label: 'OPTIONS' }],
       ctx.audio,
     );
-    if (hasSave(ctx.storage)) {
+    const saved = loadGame(ctx.storage);
+    if (saved) {
       this.menu.cursor = 1;
+      applyVolumes(ctx.audio, saved.volumes);
     }
   }
 
@@ -57,6 +59,8 @@ export class TitleScene implements Scene {
     }
     const state = loadGame(this.ctx.storage);
     if (state) {
+      applyVolumes(this.ctx.audio, state.volumes);
+      state.volumes = currentVolumes(this.ctx.audio);
       this.ctx.state = state;
       this.ctx.stack.replace(new WorldScene(this.ctx), true);
     }
@@ -81,7 +85,9 @@ export class TitleScene implements Scene {
       return;
     }
     const row = VOLUME_ROWS[menu.cursor];
-    adjustVolumeRow(this.ctx.audio, row.channel, input);
+    if (adjustVolumeRow(this.ctx.audio, row.channel, input)) {
+      rememberVolumes(this.ctx.audio, this.ctx.storage, this.ctx.state);
+    }
     menu.items[menu.cursor] = {
       ...menu.items[menu.cursor],
       right: volumeLabel(this.ctx.audio.getChannelVolume(row.channel)),
@@ -321,6 +327,7 @@ export class NameEntryScene implements Scene {
     const name = this.name.trim() || 'HERO';
     this.ctx.audio.play('confirm');
     const state: GameState = newGameState(name, this.classId, this.ctx.rng);
+    state.volumes = currentVolumes(this.ctx.audio);
     this.ctx.state = state;
     const world = new WorldScene(this.ctx);
     this.ctx.stack.replace(world, true);

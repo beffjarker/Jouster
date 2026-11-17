@@ -1,7 +1,7 @@
 import { AudioChannel, AudioManager, DEFAULT_CHANNEL_VOLUMES } from '@jouster/game/engine';
 import { SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
-import { memoryStorage, newGameState } from '../state/game-state';
+import { loadGame, memoryStorage, newGameState, saveGame } from '../state/game-state';
 import { InputDriver } from '../testing/input-driver';
 import { GameContext } from './context';
 import { FieldMenuScene } from './menu-scenes';
@@ -116,5 +116,43 @@ describe('field menu VOLUME submenu', () => {
     driver.tap('cancel');
     driver.run(0.1);
     expect(ctx.stack.top?.id).not.toBe('field-menu');
+  });
+});
+
+describe('field menu volume persistence', () => {
+  it('writes a changed level into the game in progress and the stored save, without saving progress', () => {
+    const { ctx, driver } = setup();
+    const state = ctx.state;
+    if (!state) {
+      throw new Error('no state');
+    }
+    saveGame(ctx.storage, state);
+    state.gold = 9999;
+    ctx.stack.push(new FieldMenuScene(ctx));
+    for (let i = 0; i < 5; i++) {
+      driver.tap('down');
+    }
+    driver.tap('confirm');
+    driver.run(0.1);
+    driver.tap('down');
+    driver.tap('right');
+    expect(state.volumes?.music).toBeCloseTo(0.2);
+    const stored = loadGame(ctx.storage);
+    expect(stored?.volumes?.music).toBeCloseTo(0.2);
+    expect(stored?.volumes?.master).toBe(1);
+    expect(stored?.gold).not.toBe(9999);
+  });
+
+  it('keeps the levels in the game state when there is no save yet', () => {
+    const { ctx, driver } = setup();
+    ctx.stack.push(new FieldMenuScene(ctx));
+    for (let i = 0; i < 5; i++) {
+      driver.tap('down');
+    }
+    driver.tap('confirm');
+    driver.run(0.1);
+    driver.tap('left');
+    expect(ctx.state?.volumes?.master).toBeCloseTo(0.9);
+    expect(loadGame(ctx.storage)).toBeNull();
   });
 });

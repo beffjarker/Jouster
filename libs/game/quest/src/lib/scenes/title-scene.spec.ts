@@ -1,7 +1,7 @@
 import { CELL_WIDTH, Renderer, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { CLASS_ORDER } from '../data/classes';
-import { memoryStorage, newGameState, saveGame } from '../state/game-state';
+import { loadGame, memoryStorage, newGameState, saveGame } from '../state/game-state';
 import { InputDriver } from '../testing/input-driver';
 import { SCREEN_W } from '../ui/widgets';
 import { GameContext } from './context';
@@ -179,5 +179,63 @@ describe('name entry by mouse or touch', () => {
     tapKey(driver, 'BACK');
     driver.run(0.6);
     expect(ctx.stack.top?.id).toBe('class-select');
+  });
+});
+
+describe('saved volume settings', () => {
+  function withVolumes(ctx: GameContext): Record<string, number> {
+    const volumes: Record<string, number> = { master: 1, music: 0.05, ambient: 1, battle: 1, dialogue: 1, ui: 1 };
+    ctx.audio = {
+      ...ctx.audio,
+      getChannelVolume: (c: string) => volumes[c],
+      setChannelVolume: (c: string, v: number) => {
+        volumes[c] = Math.min(1, Math.max(0, Math.round(v * 100) / 100));
+      },
+    } as never;
+    return volumes;
+  }
+
+  it('restores the saved levels on the title screen and keeps them on CONTINUE', () => {
+    const { ctx, driver } = setup();
+    const volumes = withVolumes(ctx);
+    const saved = newGameState('SAVED', 'wizard');
+    saved.volumes = { music: 0.3, battle: 0.5 };
+    saveGame(ctx.storage, saved);
+    ctx.stack.push(new TitleScene(ctx));
+    expect(volumes.music).toBeCloseTo(0.3);
+    expect(volumes.battle).toBeCloseTo(0.5);
+    expect(volumes.master).toBe(1);
+    driver.tap('confirm');
+    driver.run(0.6);
+    expect(ctx.stack.top?.id).toBe('world');
+    expect(ctx.state?.volumes).toMatchObject({ music: 0.3, battle: 0.5, master: 1 });
+  });
+
+  it('stores a level changed in title OPTIONS into the existing save', () => {
+    const { ctx, driver } = setup();
+    const volumes = withVolumes(ctx);
+    saveGame(ctx.storage, newGameState('SAVED', 'cleric'));
+    ctx.stack.push(new TitleScene(ctx));
+    driver.tap('down');
+    driver.tap('confirm');
+    driver.run(0.1);
+    driver.tap('left');
+    expect(volumes.master).toBeCloseTo(0.9);
+    expect(loadGame(ctx.storage)?.volumes?.master).toBeCloseTo(0.9);
+    expect(loadGame(ctx.storage)?.party[0].name).toBe('SAVED');
+  });
+
+  it('starts a new game with the current levels', () => {
+    const { ctx, driver } = setup();
+    const volumes = withVolumes(ctx);
+    volumes.music = 0.4;
+    ctx.stack.push(new TitleScene(ctx));
+    driver.tap('confirm');
+    driver.run(0.6);
+    driver.tap('confirm');
+    driver.run(0.6);
+    driver.type('Enter');
+    driver.run(0.6);
+    expect(ctx.state?.volumes?.music).toBeCloseTo(0.4);
   });
 });
