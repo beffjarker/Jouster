@@ -1,9 +1,11 @@
-import { SceneStack, createRng } from '@jouster/game/engine';
+import { CELL_WIDTH, Renderer, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
+import { CLASS_ORDER } from '../data/classes';
 import { memoryStorage, newGameState, saveGame } from '../state/game-state';
 import { InputDriver } from '../testing/input-driver';
+import { SCREEN_W } from '../ui/widgets';
 import { GameContext } from './context';
-import { NAME_KEYS, NameEntryScene, TitleScene, nameKeyAt } from './title-scene';
+import { ClassSelectScene, NAME_KEYS, NameEntryScene, TitleScene, nameKeyAt } from './title-scene';
 
 function setup(): { ctx: GameContext; driver: InputDriver } {
   const ctx: GameContext = {
@@ -55,6 +57,60 @@ describe('title flow', () => {
     driver.run(0.6);
     expect(ctx.stack.top?.id).toBe('world');
     expect(ctx.state?.party[0].name).toBe('SAVED');
+  });
+});
+
+describe('class select layout', () => {
+  interface Span {
+    s: string;
+    x0: number;
+    x1: number;
+    y: number;
+  }
+
+  /** Renders the scene with a recorder and returns every text run and window. */
+  function capture(scene: ClassSelectScene): { spans: Span[]; windows: Array<{ x: number; w: number }> } {
+    const spans: Span[] = [];
+    const windows: Array<{ x: number; w: number }> = [];
+    const width = (s: string): number => s.length * CELL_WIDTH;
+    const r = new Proxy(
+      {
+        text: (s: string, x: number, y: number) => spans.push({ s, x0: x, x1: x + width(s), y }),
+        textRight: (s: string, x: number, y: number) => spans.push({ s, x0: x - width(s), x1: x, y }),
+        textCentered: (s: string, x: number, y: number) =>
+          spans.push({ s, x0: x - width(s) / 2, x1: x + width(s) / 2, y }),
+        window: (x: number, _y: number, w: number) => windows.push({ x, w }),
+      },
+      { get: (t, k) => (t as Record<string | symbol, unknown>)[k] ?? jest.fn() },
+    ) as unknown as Renderer;
+    scene.render(r);
+    return { spans, windows };
+  }
+
+  it('fits every class name in the list and never overlaps text on a row', () => {
+    const { ctx, driver } = setup();
+    ctx.art = { titleBackdrop: () => ({}), character: () => ({ width: 32, height: 32 }) } as unknown as Art;
+    const scene = new ClassSelectScene(ctx);
+    ctx.stack.push(scene);
+    CLASS_ORDER.forEach((id, i) => {
+      if (i > 0) {
+        driver.tap('down');
+      }
+      const { spans, windows } = capture(scene);
+      const [list, detail] = windows;
+      expect(list.x + list.w).toBeLessThanOrEqual(detail.x);
+      spans
+        .filter((sp) => sp.x0 < detail.x)
+        .forEach((sp) => expect({ id, s: sp.s, right: sp.x1 <= list.x + list.w - 4 }).toEqual({ id, s: sp.s, right: true }));
+      spans.forEach((a, ai) => {
+        expect(a.x1).toBeLessThanOrEqual(SCREEN_W);
+        spans.slice(ai + 1).forEach((b) => {
+          const sameRow = Math.abs(a.y - b.y) < 8;
+          const clash = sameRow && a.x0 < b.x1 && b.x0 < a.x1;
+          expect({ id, a: a.s, b: b.s, clash }).toEqual({ id, a: a.s, b: b.s, clash: false });
+        });
+      });
+    });
   });
 });
 

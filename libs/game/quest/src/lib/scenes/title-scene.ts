@@ -1,4 +1,4 @@
-import { InputManager, PointerPoint, Renderer, Scene } from '@jouster/game/engine';
+import { CELL_WIDTH, InputManager, PointerPoint, Renderer, Scene } from '@jouster/game/engine';
 import { TILE, fitScale, spriteSize, tileAnchor } from '../art/art';
 import { titleTwinkles } from '../art/hd-backdrops';
 import { CLASS_ORDER, classDef } from '../data/classes';
@@ -153,12 +153,16 @@ export class ClassSelectScene implements Scene {
   public render(r: Renderer): void {
     dimBackdrop(r, this.ctx);
     r.textCentered('CHOOSE YOUR CLASS', SCREEN_W / 2, 8, COLORS.gold);
-    this.menu.render(r, 8, 24, 76);
+    // Size the list to its longest class name (labels start 14 px in, plus an 8 px right margin).
+    const longest = Math.max(...CLASS_ORDER.map((c) => classDef(c).name.length));
+    const menuW = Math.max(76, 22 + longest * CELL_WIDTH);
+    this.menu.render(r, 8, 24, menuW);
     const id = CLASS_ORDER[this.menu.cursor];
     const cls = classDef(id);
     const m = createMember('preview', cls.name, id, 1);
     const s = memberStats(m);
-    const x = 92;
+    const x = 8 + menuW + 4;
+    const skillsX = x + 196;
     r.window(x, 24, SCREEN_W - x - 8, SCREEN_H - 32);
     const frame = Math.floor(this.time * 3) % 2;
     const portrait = this.ctx.art.character(id, 'down', frame);
@@ -181,10 +185,10 @@ export class ClassSelectScene implements Scene {
     });
     r.text('WEAPON', x + 8, 108, COLORS.dim);
     r.text(weaponDef(cls.startingWeaponId).name.toUpperCase(), x + 54, 108);
-    r.text('SKILLS', x + 160, 34, COLORS.dim);
+    r.text('SKILLS', skillsX, 34, COLORS.dim);
     cls.abilities.slice(0, 6).forEach((a, i) => {
       const name = ABILITIES.get(a.abilityId)?.name ?? a.abilityId;
-      r.text(`L${String(a.level).padEnd(2)} ${name.toUpperCase()}`, x + 166, 46 + i * 10);
+      r.text(`L${String(a.level).padEnd(2)} ${name.toUpperCase()}`, skillsX + 6, 46 + i * 10);
     });
     const desc = cls.passive ? `${cls.description} ${cls.passive.name}: ${cls.passive.description}` : cls.description;
     wrapLines(desc, charsFit(SCREEN_W - x - 24)).slice(0, 8).forEach((line, i) => r.text(line, x + 8, 128 + i * 11, COLORS.text));

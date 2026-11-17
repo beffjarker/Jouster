@@ -2018,9 +2018,12 @@ who is fragile when alone, also gets a bigger starting kit.
 - **Art:** the HD painter draws a hooded Necromancer with a scythe. The LPC sheet uses a male skirt, long
   sleeves, a hood and the ULPC scythe (CC-BY-SA 3.0, bluecarrot16; the ULPC robe is female-only). The scythe
   has a slash pose but no spellcast pose, and `actions.png` cells are now 74 px wide.
+- **Class select:** the class list is sized to its longest name, so "NECROMANCER" fits. The SKILLS column sits
+  past the longest role ("HOLY FIGHTER / SUPPORT" used to run into the Cleric's first skill).
 
 Tests: `necromancer.spec.ts` covers the class, scythes and gear rules, Drain Life, Curse, Blight (poison, never
-on bosses), Soul Harvest, both starting kits and the v4→v5 migration. The balance, party, equipment, save,
+on bosses), Soul Harvest, both starting kits and the v4→v5 migration. `title-scene.spec.ts` renders class select
+for every class and checks that names fit the list and no text overlaps on a row. The balance, party, equipment, save,
 side-quest, title and LPC specs now use the Necromancer instead of the Paladin. On the dev workstation Node
 20.19.2 (and, less often, 20.12.1) crashes inside V8 while running `balance.spec.ts`. This happens on `main`
 too ("Invalid bytecode" even with `--jitless`), so it is a machine problem, not a code one. All 686 balance
