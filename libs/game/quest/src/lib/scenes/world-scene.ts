@@ -63,7 +63,7 @@ import {
   weatherSeed,
   weatherSightRadius,
 } from '../state/weather';
-import { drawSeasonTint, drawWeather } from '../ui/weather-fx';
+import { drawWeather, seasonTint } from '../ui/weather-fx';
 import { COLORS, SCREEN_H, SCREEN_W, ask, drawPartyStatus, say } from '../ui/widgets';
 import { BattleEnd, BattleScene } from './battle-scene';
 import { GameContext, memberStatus, requireState } from './context';
@@ -118,6 +118,8 @@ export const SKY_FADE_SECONDS = 3;
 const FOG_EDGE = 'rgba(7,6,12,0.7)';
 /** Tiles a town's exit road runs past the map edge: far enough to leave the screen whichever way it points. */
 export const EXIT_ROAD_BEYOND = Math.ceil(Math.max(SCREEN_W, SCREEN_H) / TILE / 2) + 2;
+/** Lifts a landscape object's depth just above its row, so whoever stands on that tile draws over its own tree. */
+const OBJECT_DEPTH_BIAS = 0.25;
 
 /**
  * Camera offset on one axis. A map narrower (or shorter) than the view is centred and stays still, with the
@@ -474,26 +476,24 @@ export class WorldScene implements Scene {
         }
       }
     }
-    // LPC trees and cave mouths are bigger than a tile: drawn over all the ground, top row first, so lower
-    // objects overlap the ones behind them. Objects just off screen may reach into view.
-    for (let ty = startY; ty <= lastY + 2; ty++) {
-      for (let tx = startX - 1; tx <= lastX + 1; tx++) {
-        const id = tileId(tx, ty);
-        const object = this.ctx.art.tileObject(id, variantAt(id, tx, ty));
-        if (object) {
-          r.draw(object.sprite, tx * TILE - camX + object.x, ty * TILE - camY + object.y);
-        }
-      }
-    }
     const season = seasonAt(this.state.steps);
     const from = this.outdoors && this.skyFade < 1 ? this.skyFrom : null;
+    const tints: string[] = [];
     if (this.outdoors) {
-      if (from && from.season !== season) {
-        drawSeasonTint(r, from.season, 1 - this.skyFade);
-        drawSeasonTint(r, season, this.skyFade);
-      } else {
-        drawSeasonTint(r, season);
-      }
+      const washes: Array<[Season, number]> =
+        from && from.season !== season
+          ? [
+              [from.season, 1 - this.skyFade],
+              [season, this.skyFade],
+            ]
+          : [[season, 1]];
+      washes.forEach(([s, strength]) => {
+        const tint = seasonTint(s, strength);
+        if (tint) {
+          tints.push(tint);
+          r.fillRect(0, 0, SCREEN_W, SCREEN_H, tint);
+        }
+      });
     }
     const windy = this.outdoors && (this.weather === 'storm' || this.weather === 'blizzard');
     (this.map.signs ?? []).forEach((s, i) => {
@@ -501,6 +501,22 @@ export class WorldScene implements Scene {
       r.draw(this.ctx.art.sign(s.kind), s.x * TILE - camX + sway, s.y * TILE - camY);
     });
     const sprites: Array<{ y: number; draw(): void }> = [];
+    // LPC trees and cave mouths are bigger than a tile, so they are depth-sorted with the walkers: a tree covers
+    // the trees and anyone behind it (on rows above), and sits just under walkers on its own row. They are drawn
+    // after the season wash, so they carry it themselves. Objects just off screen may reach into view.
+    for (let ty = startY; ty <= lastY + 2; ty++) {
+      for (let tx = startX - 1; tx <= lastX + 1; tx++) {
+        const id = tileId(tx, ty);
+        const object = this.ctx.art.tileObject(id, variantAt(id, tx, ty));
+        if (object) {
+          const sprite = this.ctx.art.tinted(object.sprite, tints);
+          sprites.push({
+            y: ty * TILE - camY - OBJECT_DEPTH_BIAS,
+            draw: () => r.draw(sprite, tx * TILE - camX + object.x, ty * TILE - camY + object.y),
+          });
+        }
+      }
+    }
     this.npcs
       .filter((n) => this.npcVisible(n) && this.explored(n.x, n.y))
       .forEach((n) => {
@@ -511,7 +527,7 @@ export class WorldScene implements Scene {
         const humanoid = this.ctx.art.isCharacter(spriteId) || n.def.role === 'companion';
         const bob = !humanoid && frame && !this.ctx.art.isAnimatedMonster(spriteId) ? 1 : 0;
         sprites.push({
-          y: py,
+          y: Math.max(n.fromY, n.y) * TILE - camY,
           draw: () => {
             const sprite = !humanoid
               ? this.ctx.art.monster(spriteId, 0, this.time)
@@ -535,8 +551,11 @@ export class WorldScene implements Scene {
         ? this.ctx.art.characterWalk(member.classId, w.facing, walkPhase)
         : this.ctx.art.character(member.classId, w.facing, frame);
       const a = tileAnchor(sprite);
+      // Depth comes from the lower of the two rows a step spans, so a walker passing a tree isn't covered by it
+      // for most of the step and then popped in front at the end.
+      const depth = Math.max(w.fromY, w.y) * TILE - camY;
       sprites.push({
-        y: py + (i === 0 ? 0.5 : -i * 0.01),
+        y: depth + (i === 0 ? 0.5 : -i * 0.01),
         draw: () => r.draw(sprite, px - a.x, py - a.y, { alpha: member.hp > 0 ? 1 : 0.45 }),
       });
     });

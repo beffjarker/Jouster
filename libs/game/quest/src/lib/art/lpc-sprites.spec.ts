@@ -163,6 +163,35 @@ describe('sprite placement helpers', () => {
     expect(art.sharp(boss, 2)).toBe(sharp);
     expect(spriteSize(art.sharp(boss, 4))).toEqual(spriteSize(boss));
   });
+
+  it('tints a sprite with each wash over its own pixels, keeping its size and caching the latest tint', () => {
+    const art = new Art(fakeSheets());
+    const tree = setImageDensity(createCanvas(4, 8), 2);
+    const fills: Array<{ op: string; style: string }> = [];
+    const ctx = {
+      globalCompositeOperation: 'source-over',
+      fillStyle: '',
+      drawImage: jest.fn(),
+      fillRect(): void {
+        fills.push({ op: this.globalCompositeOperation, style: this.fillStyle });
+      },
+    };
+    const spy = jest
+      .spyOn(HTMLCanvasElement.prototype, 'getContext')
+      .mockImplementation(() => ctx as unknown as CanvasRenderingContext2D);
+    expect(art.tinted(tree, [])).toBe(tree);
+    const autumn = art.tinted(tree, ['rgba(214,110,30,0.16)', 'rgba(228,238,255,0.1)']);
+    expect(autumn).not.toBe(tree);
+    expect(spriteSize(autumn)).toEqual(spriteSize(tree));
+    expect(ctx.drawImage).toHaveBeenCalledWith(tree, 0, 0);
+    expect(fills).toEqual([
+      { op: 'source-atop', style: 'rgba(214,110,30,0.16)' },
+      { op: 'source-atop', style: 'rgba(228,238,255,0.1)' },
+    ]);
+    expect(art.tinted(tree, ['rgba(214,110,30,0.16)', 'rgba(228,238,255,0.1)'])).toBe(autumn);
+    expect(art.tinted(tree, ['rgba(228,238,255,0.3)'])).not.toBe(autumn);
+    spy.mockRestore();
+  });
 });
 
 describe('Art sprites', () => {

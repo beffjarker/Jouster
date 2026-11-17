@@ -324,6 +324,8 @@ function mirrored(source: HTMLCanvasElement): HTMLCanvasElement {
 export class Art {
   private readonly cache = new Map<string, HTMLCanvasElement>();
   private readonly sharpened = new WeakMap<HTMLCanvasElement, Map<number, HTMLCanvasElement>>();
+  /** Last tinted copy of each sprite (see {@link tinted}); one per sprite, since tints only change with the season. */
+  private readonly tintCache = new WeakMap<HTMLCanvasElement, { key: string; canvas: HTMLCanvasElement }>();
   private sheets: ArtSheets | null = null;
 
   constructor(sheets?: ArtSheets) {
@@ -366,7 +368,8 @@ export class Art {
   /**
    * The LPC object (tree, cave mouth) standing on tile `id` with art `variant`, or null when the tile has none or
    * the sheets are not loaded (its procedural object is then part of {@link tile}). Objects are bigger than a
-   * tile, so the world draws them after all the ground, in row order, letting canopies overlap their neighbours.
+   * tile, so the world draws them after all the ground, depth-sorted by row with the walkers, letting canopies
+   * overlap their neighbours and anyone standing behind them.
    */
   public tileObject(id: string, variant = 0): TileObject | null {
     const sheets = this.sheets;
@@ -378,6 +381,36 @@ export class Art {
     const sprite = this.cached(`lpcObject:${id}:${v}`, () => this.objectSprite(sheets, object));
     const half = (TILE * OBJECT_DENSITY - object.width) / 2;
     return { sprite, x: Math.round(half) / OBJECT_DENSITY, y: (TILE * OBJECT_DENSITY - object.base) / OBJECT_DENSITY };
+  }
+
+  /**
+   * A copy of `sprite` with each colour in `tints` laid over its opaque pixels in turn, the way a full-screen
+   * wash colours the scene. Sprites drawn after the season tint (trees in front of the party) use it to match
+   * the tinted ground. Returns `sprite` itself when there are no tints.
+   */
+  public tinted(sprite: HTMLCanvasElement, tints: readonly string[]): HTMLCanvasElement {
+    if (tints.length === 0) {
+      return sprite;
+    }
+    const key = tints.join('|');
+    const hit = this.tintCache.get(sprite);
+    if (hit?.key === key) {
+      return hit.canvas;
+    }
+    const canvas = createCanvas(sprite.width, sprite.height);
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return sprite;
+    }
+    ctx.drawImage(sprite, 0, 0);
+    ctx.globalCompositeOperation = 'source-atop';
+    tints.forEach((tint) => {
+      ctx.fillStyle = tint;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    });
+    const out = setImageDensity(canvas, imageDensity(sprite));
+    this.tintCache.set(sprite, { key, canvas: out });
+    return out;
   }
 
   /** True when `spriteId` is a humanoid look (otherwise it is drawn as a monster). */

@@ -2053,10 +2053,15 @@ credited, so `CREDITS.md` is unchanged.
   overlays) and its offset from the tile: centred, with its base on the tile's bottom edge. It returns null
   without sheets, so procedural art is unchanged.
 - **Drawing:** objects are bigger than a tile (a pine is about 21×30 logical px). `WorldScene.render` draws them
-  in a second pass after all the ground, top row first, so canopies overlap the tile above and the trees behind
-  them. The pass reaches one tile past each side and two rows below the screen, so trees just off screen still
-  show their tops. Signs, NPCs and the party are drawn after, so walkers in a forest stay on top as before
-  (forest is walkable).
+  after all the ground, depth-sorted by row with the NPCs and the party: canopies overlap the tile above and
+  the trees behind them, and a tree in a row below a character covers that character's legs, so nobody is drawn
+  over a canopy in front of them. Each object sorts just above its own row (`OBJECT_DEPTH_BIAS`), so someone
+  standing on a walkable forest tile is drawn over that tile's tree. A walker mid-step sorts by the lower of
+  its two rows, so it isn't covered by a tree for most of a step and then suddenly drawn in front at the end.
+  Because the objects now come after the season wash,
+  each one is drawn as `Art.tinted(sprite, tints)`, a cached copy with the same wash (`seasonTint` in
+  `weather-fx.ts`) laid over its own pixels. The pass reaches one tile past each side and two rows below the
+  screen, so trees just off screen still show their tops.
 - **Kept procedural:** mountains, hills, towns, ruins, torches and the Act II/III scenery. The LPC atlases have
   only cliff and building pieces, not overworld-sized mountains or towns, and the LPC torch doesn't animate.
 - **Town exits:** taller trees hid the gap in a town's tree border, so the way out was hard to see.
@@ -2070,8 +2075,10 @@ Tests: `lpc-manifest.spec.ts` checks that every object tile has LPC ground and o
 fit their object box, and that each piece is a whole sprite in the atlas: mostly opaque, with a transparent ring around it
 except at listed seams (a canopy on its trunk, the cave cut from a tiled cliff). It also checks that
 `tileObject` returns null without sheets, gives a cached 4× sprite with sheets, and that `tile()` skips the
-procedural overlay only on object tiles. `world-scene.spec.ts` renders the overworld by a forest and checks that
-objects are drawn after all the ground, in row order, and before the party. It also renders Aldmere's south
+procedural overlay only on object tiles. `lpc-sprites.spec.ts` checks that `Art.tinted` lays each wash over the
+sprite with `source-atop`, keeps its size and caches the latest tint. `world-scene.spec.ts` renders the overworld
+by a forest and checks that objects come after all the ground, that trees in rows above the party are drawn
+before it, and that trees in rows below it are drawn after it. It also renders Aldmere's south
 gate and checks the road is cobble with no tree on it down to the bottom of the screen. `content.spec.ts` checks
 Aldmere's road tiles, that every town gets a road and that roads only replace border tiles inside a map, and
 that warps deep inside the overworld get none. Manual: with LPC art on, walk
