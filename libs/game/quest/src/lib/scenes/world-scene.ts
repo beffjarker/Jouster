@@ -16,7 +16,20 @@ import { classDef } from '../data/classes';
 import { PRE_BOSS_HINT, companionIntro, companionLines, companionRestSpot, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { ARMOR_SHOP_STOCK } from '../data/gear';
-import { Backdrop, BossDef, INN_RESPAWN, MapDef, NpcDef, SIGN_TEXT, Warp, mapDef, mapHasEncounters, talkAcross, wanderBlocked } from '../data/maps';
+import {
+  Backdrop,
+  BossDef,
+  INN_RESPAWN,
+  MapDef,
+  NpcDef,
+  SIGN_TEXT,
+  Warp,
+  exitRoads,
+  mapDef,
+  mapHasEncounters,
+  talkAcross,
+  wanderBlocked,
+} from '../data/maps';
 import { ENCOUNTER_TABLES, SOLO_MAX_ENEMIES } from '../data/monsters';
 import { musicForMap } from '../data/music';
 import {
@@ -103,6 +116,8 @@ const FOG_DIM = `rgba(7,6,12,${FOG_DIM_ALPHA})`;
 /** Seconds a change of weather or season takes to fade from the old sky to the new one. */
 export const SKY_FADE_SECONDS = 3;
 const FOG_EDGE = 'rgba(7,6,12,0.7)';
+/** Tiles a town's exit road runs past the map edge: far enough to leave the screen whichever way it points. */
+export const EXIT_ROAD_BEYOND = Math.ceil(Math.max(SCREEN_W, SCREEN_H) / TILE / 2) + 2;
 
 /**
  * Camera offset on one axis. A map narrower (or shorter) than the view is centred and stays still, with the
@@ -144,6 +159,8 @@ export class WorldScene implements Scene {
   private readonly map: MapDef;
   private readonly tiles: TileMap;
   private readonly tileIds: ReadonlyMap<string, string>;
+  /** A town's way out drawn as open road through its tree border and off screen (see `exitRoads`). */
+  private readonly roads: ReadonlyMap<string, string>;
   private readonly walkers: Walker[] = [];
   private readonly npcs: NpcRuntime[];
   private readonly pending: Array<() => void> = [];
@@ -174,6 +191,7 @@ export class WorldScene implements Scene {
     this.map = mapDef(this.state.mapId);
     this.tiles = new TileMap(this.map.rows, this.map.legend);
     this.tileIds = new Map(this.map.legend.map((t) => [t.char, t.id]));
+    this.roads = mapHasEncounters(this.map) ? new Map() : exitRoads(this.map, 3, EXIT_ROAD_BEYOND);
     this.seed = weatherSeed(this.state);
     this.torches = this.map.rows.flatMap((row, y) =>
       [...row].flatMap((ch, x) => (this.tileIds.get(ch) === 'torch' ? [{ x, y }] : [])),
@@ -432,6 +450,10 @@ export class WorldScene implements Scene {
     const startY = Math.floor(camY / TILE);
     const outside = this.tileIds.get(this.map.outsideTile) ?? 'grass';
     const tileId = (tx: number, ty: number): string => {
+      const road = this.roads.get(`${tx},${ty}`);
+      if (road) {
+        return road;
+      }
       const ch = this.tiles.charAt(tx, ty);
       return ch === undefined ? outside : this.tileIds.get(ch) ?? outside;
     };
