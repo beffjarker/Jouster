@@ -72,6 +72,20 @@ describe('Necromancer (plan 31)', () => {
     expect(texts(events)).toContain(`Necro drains ${healed} HP.`);
   });
 
+  it('Drain Life still heals on the killing blow, for the HP the foe actually had left', () => {
+    const battle = setup(['goblin']);
+    const necro = battle.party[0];
+    const goblin = battle.enemies[0];
+    const { events, hpBefore } = cast(battle, 'drainLife', goblin, (n) => {
+      n.hp = 5;
+      goblin.hp = 6;
+    });
+    expect(goblin.hp).toBe(0);
+    expect(necro.hp).toBe(hpBefore + 3);
+    const order = texts(events);
+    expect(order.indexOf('Necro drains 3 HP.')).toBeGreaterThan(order.indexOf('Goblin is defeated!'));
+  });
+
   it('Curse lowers an enemy\'s attack for a few rounds', () => {
     const battle = setup(['goblin']);
     const goblin = battle.enemies[0];

@@ -1,4 +1,4 @@
-import { createRng } from '@jouster/game/engine';
+import { GLYPHS, createRng } from '@jouster/game/engine';
 import { WEAPONS } from '../data/equipment';
 import { GEAR } from '../data/gear';
 import { MONSTERS } from '../data/monsters';
@@ -147,6 +147,19 @@ describe('loot and rarity (plan 33)', () => {
     expect(bonusText(item.bonus)).toBe('AGI+3 HP+8');
     expect(itemName({ baseId: 'ironSword', rarity: 'common', bonus: {} })).toBe('Iron Sword');
     expect(itemName({ baseId: 'vigorRing', rarity: 'uncommon', bonus: { mp: 12 } })).toContain('of Spirit');
+  });
+
+  it('draws every gear label with real glyphs (no ? for missing characters)', () => {
+    const missingGlyphs = new Set<string>();
+    [...GEAR.keys(), ...WEAPONS.keys()].forEach((baseId) =>
+      RARITY_ORDER.forEach((rarity) =>
+        BONUS_STATS.forEach((stat) => {
+          const label = itemLabel({ baseId, rarity, bonus: { [stat]: 1 } });
+          [...label].filter((ch) => !GLYPHS.has(ch)).forEach((ch) => missingGlyphs.add(ch));
+        }),
+      ),
+    );
+    expect([...missingGlyphs]).toEqual([]);
   });
 
   it('flags plain and precious pieces', () => {
