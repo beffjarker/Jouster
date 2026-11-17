@@ -1,4 +1,4 @@
-import { AudioChannel, AudioManager } from '@jouster/game/engine';
+import { AudioChannel, AudioManager, DEFAULT_CHANNEL_VOLUMES } from '@jouster/game/engine';
 import { SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { memoryStorage, newGameState } from '../state/game-state';
@@ -8,14 +8,7 @@ import { FieldMenuScene } from './menu-scenes';
 
 /** Audio stand-in that keeps channel volumes in 0..1 like the real AudioManager. */
 function fakeAudio(): { audio: AudioManager; volumes: Record<AudioChannel, number> } {
-  const volumes: Record<AudioChannel, number> = {
-    master: 1,
-    music: 0.15,
-    ambient: 1,
-    battle: 1,
-    dialogue: 1,
-    ui: 1,
-  };
+  const volumes: Record<AudioChannel, number> = { ...DEFAULT_CHANNEL_VOLUMES };
   const audio = {
     play: jest.fn(),
     toggleMute: jest.fn(),
@@ -44,9 +37,9 @@ function setup(): { ctx: GameContext; driver: InputDriver; volumes: Record<Audio
 }
 
 describe('field menu VOLUME submenu', () => {
-  it('starts music at 15% and everything else at 100%', () => {
+  it('starts music at 5% and everything else at 100%', () => {
     const { volumes } = setup();
-    expect(volumes.music).toBe(0.15);
+    expect(volumes.music).toBe(0.05);
     expect(volumes.master).toBe(1);
     expect(volumes.ambient).toBe(1);
     expect(volumes.battle).toBe(1);
@@ -104,7 +97,7 @@ describe('field menu VOLUME submenu', () => {
     driver.tap('down');
     driver.tap('left');
     expect(volumes.ambient).toBeCloseTo(0.9);
-    expect(volumes.music).toBe(0.15);
+    expect(volumes.music).toBe(0.05);
     expect(volumes.master).toBe(1);
   });
 
