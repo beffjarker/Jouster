@@ -54,19 +54,50 @@ describe('world-anchored weather', () => {
     );
   });
 
-  it('keeps rain and snow fixed to the ground as the camera moves', () => {
-    (['snow', 'rain'] as WeatherKind[]).forEach((kind) => {
-      const tint = (c: Call): boolean => c.w === SCREEN_W && c.h === SCREEN_H;
-      const small = (calls: Call[]): Call[] => calls.filter((c) => c.kind === 'rect' && !tint(c));
-      const before = small(frame(kind, 2, { x: 0, y: 0 }));
-      const after = small(frame(kind, 2, { x: SCREEN_W, y: 0 }));
-      // Moving a whole screen width wraps the particle field back onto itself.
-      expect(after.map((c) => [Math.round(c.x), Math.round(c.y)])).toEqual(
-        before.map((c) => [Math.round(c.x), Math.round(c.y)]),
+  const tint = (c: Call): boolean => c.w === SCREEN_W && c.h === SCREEN_H;
+  const small = (calls: Call[]): Call[] => calls.filter((c) => c.kind === 'rect' && !tint(c));
+  /** World positions (camera added back) of the particles drawn well inside the screen. */
+  const worldSpots = (calls: Call[], cam: WeatherCamera, margin: number): string[] =>
+    small(calls)
+      .filter((c) => c.x >= margin && c.y >= margin && c.x < SCREEN_W - margin && c.y < SCREEN_H - margin)
+      .map((c) => `${(c.x + cam.x).toFixed(2)},${(c.y + cam.y).toFixed(2)}`);
+
+  it.each(['rain', 'storm', 'snow', 'blizzard'] as WeatherKind[])(
+    'keeps %s fixed to the ground as the camera moves, in either direction',
+    (kind) => {
+      const a = { x: 400, y: 300 };
+      const b = { x: 437, y: 277 };
+      const before = worldSpots(frame(kind, 2, a), a, 40);
+      const after = new Set(worldSpots(frame(kind, 2, b), b, 0));
+      expect(before.length).toBeGreaterThan(10);
+      before.forEach((spot) => expect(after.has(spot) ? spot : `${spot} moved`).toBe(spot));
+    },
+  );
+
+  it('rains harder in some patches of ground than others', () => {
+    const counts = [0, 1, 2, 3, 4, 5].map((i) => small(frame('rain', 2, { x: i * 700, y: i * 450 })).length);
+    expect(Math.max(...counts) - Math.min(...counts)).toBeGreaterThan(20);
+  });
+
+  it('brings lightning down onto a fixed spot on the ground', () => {
+    const bolt = (calls: Call[]): Call[] => calls.filter((c) => c.color === '#fffbe0');
+    const a = { x: 0, y: 0 };
+    const b = { x: 9, y: -6 };
+    let checked = 0;
+    for (let t = 0; t < 120 && checked < 3; t += 0.02) {
+      const first = bolt(frame('storm', t, a));
+      const inside = first.length > 0 && first.every((c) => c.x > 20 && c.x < SCREEN_W - 20);
+      if (!inside) {
+        continue;
+      }
+      const second = bolt(frame('storm', t, b));
+      expect(second.map((c) => [(c.x + b.x).toFixed(2), (c.y + b.y).toFixed(2)])).toEqual(
+        first.map((c) => [(c.x + a.x).toFixed(2), (c.y + a.y).toFixed(2)]),
       );
-      const shifted = small(frame(kind, 2, { x: 10, y: 0 }));
-      expect(shifted.map((c) => c.x)).not.toEqual(before.map((c) => c.x));
-    });
+      checked++;
+      t += 1;
+    }
+    expect(checked).toBe(3);
   });
 
   it('keeps the screen tint full-screen whatever the camera', () => {
