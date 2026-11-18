@@ -795,9 +795,16 @@ describe('WorldScene', () => {
     expect(h.state.quests['tavern']).toBe('ready');
   });
 
-  it('marks the Thornwick ruins when visited', () => {
+  it('enters the Thornwick ruins from the overworld', () => {
     const h = setup({ mapId: 'overworld', x: LANDMARKS.thornwick.x - 1, y: LANDMARKS.thornwick.y, facing: 'right' });
     h.hold('right', STEP_TIME);
+    h.run(1);
+    expect(h.state.mapId).toBe('thornwick');
+  });
+
+  it('marks the Thornwick ruins when first walking in', () => {
+    const h = setup({ mapId: 'thornwick', x: 12, y: 13, facing: 'up' });
+    h.hold('up', STEP_TIME);
     h.run(0.2);
     expect(h.state.flags['sawRuins']).toBe(true);
     expect(h.ctx.stack.top?.id).toBe('message');

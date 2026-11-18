@@ -79,7 +79,9 @@ describe('Jouster Quest balance with expected loot (plan 33.8)', () => {
     expectStillAFight(fight(m), fight(looted(TO_KING)(m)), 0.6);
   });
 
-  const miniFights = ['overworld', 'goblinCave', 'wolfDen'].flatMap(bossFights).filter((f) => !f.includes('goblinKing'));
+  const miniFights = ['overworld', 'thornwick', 'goblinCave', 'wolfDen']
+    .flatMap(bossFights)
+    .filter((f) => !f.includes('goblinKing'));
   const miniCases = CLASS_ORDER.flatMap((id) => miniFights.map((fight) => [id, fight.join('+'), fight] as const));
   // Side-quest mini-bosses already fall in 4-6 rounds without loot, so only the 4.6 win-rate target applies. With
   // this generous model a Wizard's fights shrink from about 4 rounds to 2 (MAG on every slot); see plan 33.8.

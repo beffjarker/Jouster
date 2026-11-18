@@ -13,9 +13,9 @@ import {
   talkAcross,
   wanderBlocked,
 } from '../data/maps';
-import { COMPANION_SLOTS, companionRestSpot } from '../data/companions';
+import { COMPANION_SLOTS, companionRestSpot, companionSlot } from '../data/companions';
 import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
-import { OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
+import { LANDMARKS, OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
 import { newGameState } from '../state/game-state';
 import { monsterVariantCount } from '../art/art';
 
@@ -134,7 +134,7 @@ describe('Jouster Quest content', () => {
     s.companionProgress['tavern'] = { level: 2, xp: 40 };
     expect(visibleAt('goblinCave', 'cave')).toBe(false);
     expect(visibleAt('aldmere', 'caveResting')).toBe(true);
-    expect(visibleAt('overworld', 'thornwick')).toBe(false);
+    expect(visibleAt('thornwick', 'thornwick')).toBe(false);
     expect(visibleAt('aldmere', 'thornwickResting')).toBe(true);
     // A companion found in town simply waits at the same spot.
     expect(visibleAt('aldmere', 'tavern')).toBe(true);
@@ -144,6 +144,40 @@ describe('Jouster Quest content', () => {
       expect({ id: slot.id, town: mapHasEncounters(town) }).toEqual({ id: slot.id, town: false });
       expect(tileMap(town).isSolid(rest.x, rest.y)).toBe(false);
     });
+  });
+
+  it('hides every companion until the Goblin King falls, and finds the Thornwick one inside the ruins', () => {
+    const s = newGameState('Hero', 'rogue');
+    const visible = (mapId: string, id: string): boolean => {
+      const npc = (MAPS.get(mapId) as MapDef).npcs.find((n) => n.id === id);
+      return !!npc && (npc.visible ? npc.visible(s) : true);
+    };
+    const homes = COMPANION_SLOTS.map((slot) => [slot.mapId, slot.id] as const);
+    homes.forEach(([mapId, id]) => expect({ id, seen: visible(mapId, id) }).toEqual({ id, seen: false }));
+    s.flags['bossDefeated'] = true;
+    homes.forEach(([mapId, id]) => expect({ id, seen: visible(mapId, id) }).toEqual({ id, seen: true }));
+    expect(companionSlot('thornwick').mapId).toBe('thornwick');
+    expect(MAPS.get('overworld')?.npcs.some((n) => n.id === 'thornwick')).toBe(false);
+  });
+
+  it('makes Thornwick a walkable ruin entered from the overworld, with the Bone Captain in its chapel', () => {
+    const world = MAPS.get('overworld') as MapDef;
+    const warp = world.warps.find((w) => w.toMap === 'thornwick');
+    expect(warp).toMatchObject({ x: LANDMARKS.thornwick.x, y: LANDMARKS.thornwick.y });
+    expect(world.npcs.some((n) => n.id === 'boneCaptain')).toBe(false);
+    const ruins = MAPS.get('thornwick') as MapDef;
+    expect(mapHasEncounters(ruins)).toBe(false);
+    const map = tileMap(ruins);
+    expect(map.isSolid(warp?.toX ?? 0, warp?.toY ?? 0)).toBe(false);
+    ruins.warps.forEach((w) => expect(w).toMatchObject({ toMap: 'overworld', toX: LANDMARKS.thornwick.x }));
+    const captain = ruins.npcs.find((n) => n.id === 'boneCaptain');
+    expect(map.tileAt(captain?.x ?? 0, captain?.y ?? 0)?.id).toBe('wood');
+    const s = newGameState('Hero', 'rogue');
+    s.flags['bossDefeated'] = true;
+    s.quests['thornwick'] = 'active';
+    expect(captain?.visible?.(s)).toBe(false);
+    s.flags['thornwickNight'] = true;
+    expect(captain?.visible?.(s)).toBe(true);
   });
 
   it('marks clue spots with their own walkable tile', () => {
@@ -157,7 +191,7 @@ describe('Jouster Quest content', () => {
     };
     expect(clue('overworld', 'lakeShore')).toBe('tornNet@grass');
     expect(clue('wolfDen', 'denNest')).toBe('boneNest@caveFloor');
-    expect(clue('overworld', 'thornwick')).toBe('ruins');
+    expect(clue('thornwick', 'thornwick')).toBe('cobble');
   });
 
   it('boss fights and companion quest pins reference real monsters, flags and tiles', () => {

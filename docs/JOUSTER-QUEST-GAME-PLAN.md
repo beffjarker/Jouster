@@ -322,14 +322,14 @@ weapon that can end the dragon's reign.
 | Act | Region | Enemies | Key events |
 | --- | --- | --- | --- |
 | **Prologue** | Aldmere Castle & Thornwick | Tutorial slimes | Class select; the King's quest; Thornwick in ashes |
-| **Act I** | Greenwood | Slime, Wolf, Goblin, Giant Bat, Skeleton | Hero travels alone; clear the Goblin Cave; boss: **Goblin King**. Afterwards, companion side quests open (Alpha Wolf, Giant Toad, Bone Captain, Goblin Jailer) |
+| **Act I** | Greenwood | Slime, Wolf, Goblin, Giant Bat, Skeleton | Hero travels alone; clear the Goblin Cave; boss: **Goblin King**. Afterwards, the four companions appear and their side quests open (Alpha Wolf, Giant Toad, Bone Captain, Goblin Jailer) |
 | **Act II** | Sunscar Desert & Mirewood Marsh | Scorpion, Sand Worm, Lizardman, Wraith | Two Dragon Seals from shrines; bosses: **Sand Wyrm**, **Marsh Witch** |
 | **Act III** | Frost Peaks | Ice Troll, Wyvern, Yeti, Frost Mage | Third seal; forge Dragonbane; boss: **Wyvern Matriarch** |
 | **Finale** | Ember Mountains (volcano lair) | Fire Drake, Magma Golem, Dragon Cultist | Two-phase final boss: **Vyrmorth** |
 
 ### Content scope (target; built)
 
-- 5 towns, all built: Aldmere, Brookhollow, Sandhollow, Frostgate and Emberwatch, plus the ruins of Thornwick
+- 5 towns, all built: Aldmere, Brookhollow, Sandhollow, Frostgate and Emberwatch, plus the walkable ruins of Thornwick (?34)
 - 4 region maps (Greenwood Vale, the Southlands, the Frost Peaks, the Ember Mountains) covering the 5 story regions
 - 5 dungeons (Goblin Cave, Wolf Den, Sun Shrine, Mire Shrine, Wyvern Roost) and 1 final lair (Vyrmorth's Lair)
 - About 25 monster types and 5 bosses (built: 26 monster entries, including 4 mini-bosses, 4 act bosses and the
@@ -1574,7 +1574,7 @@ across any `counter`, `altar` or `jailBars` tile (`talkAcross`).
   The Goblin Cave prisoner and the Thornwick rogue wait at the Aldmere tavern table. A companion
   without a rest spot goes back to its usual place.
 - Clue events have their own tiles: a torn fishing net on the lakeshore and a bone-strewn nest in the
-  Wolf Den. The Thornwick clue is already marked by the ruins.
+  Wolf Den. The Thornwick clue is the ruins' own cobbled square (see ?34).
 
 ### 18.6 Turn-by-turn battles
 
@@ -2324,3 +2324,35 @@ What shipped differs from the plan above in these ways:
   out to the world (fixture `quest-save-aldmere-shop.json`).
 - **Controls list and README:** `I` is "items and gear bag", `E` mentions the comparison; the quest README has a
   Gear and loot section.
+
+## 34. Thornwick ruins and companion pacing (implemented)
+
+**Feedback:** companions can't join until the Goblin King falls, so they shouldn't be standing around before then.
+Thornwick should be a real ruin to walk through, with its companion inside the ruined town rather than outside it.
+
+**Changes:**
+
+- **Walkable ruins:** the `RUINS_AT` landmark on the overworld is now a warp into a new `thornwick` map (26x16,
+  "Thornwick Ruins"): burnt-out houses, rubble, scattered graves and a roofless chapel to the north. There are no
+  random encounters there. Leaving from the south edge puts you back just below the landmark. Two new decor painters,
+  `grave` and `rubble`, live in `art/hd-tiles.ts`.
+- **Companion inside the ruins:** the Thornwick companion stands among the graves in the north-east of the ruins.
+  The Bone Captain (with a skeleton) is in the chapel aisle. It only appears while the quest is active and after an
+  inn rest (`thornwickNight`). The overworld no longer has the Bone Captain or the Thornwick event. A quest pin on
+  another map also marks that map's landmark on the overworld.
+- **Companions after the king:** `companionPresent` requires `flags.bossDefeated`. All four companions (tavern,
+  Thornwick, Brookhollow, Goblin Cave prisoner) are hidden until the Goblin King falls, so they never refuse to
+  join. `PRE_BOSS_HINT` is gone. A save from before this change that is still in the old `locked` stage only hears
+  the intro.
+- **Dialog up to the king:**
+  - On the first meeting, the King says few dare the roads while goblins raid, so the hero must go alone until
+    their king falls. He no longer promises travelers.
+  - After the victory, he says word is spreading and travelers seek you in the tavern, in Brookhollow and among
+    the ruins of Thornwick.
+  - Before the king falls, the barkeep says no sellsword stays long with goblins on the roads. After the victory,
+    sellswords are returning and someone has been asking for you.
+  - The farmer and the gate guard point to the newcomer and to the survivors burying the dead.
+  - Companion intros mention the slain king. The Thornwick traveler has come back to bury the dead.
+  - The quest log's empty-party line says that a victory over the Goblin King may draw allies.
+- **Balance:** the mini-boss fight lists in `balance.spec.ts` and `loot-balance.spec.ts` now include the
+  `thornwick` map.

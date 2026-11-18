@@ -5,8 +5,9 @@ import { LANDMARKS } from './overworld-gen';
 /**
  * Companion spots are fixed places in the open world. Which companion waits at each spot is
  * rolled per new game (see `rollCompanions`): a random class that is never the hero's class
- * and never repeated, plus a random name for that class. Nobody joins before the Goblin King
- * falls; after that each companion asks for a favour (a side quest) before joining.
+ * and never repeated, plus a random name for that class. Companions only appear once the Goblin
+ * King falls (word of the victory draws them out); each then asks for a favour (a side quest) before
+ * joining.
  */
 export interface CompanionSlot {
   id: string;
@@ -25,7 +26,7 @@ export interface CompanionSlot {
   requiresFlag?: string;
   /** Why the companion is here (`{name}` is replaced). */
   intro: string[];
-  /** Favour the companion asks before joining (offered after the Goblin King falls). */
+  /** Favour the companion asks before joining. */
   quest: CompanionQuest;
 }
 
@@ -39,8 +40,8 @@ export interface RestSpot {
 }
 
 /**
- * A companion's side quest. Companions cannot join until the first boss is defeated; after that
- * each one asks for help first. `{name}` in lines is replaced with the companion's name.
+ * A companion's side quest. Companions appear once the first boss is defeated, and each one asks
+ * for help before joining. `{name}` in lines is replaced with the companion's name.
  */
 export interface CompanionQuest {
   title: string;
@@ -59,9 +60,6 @@ export interface CompanionQuest {
   reward: { gold: number; items?: Record<string, number> };
 }
 
-/** What a companion says before the Goblin King is defeated (they will not join yet). */
-export const PRE_BOSS_HINT = '{name}: Prove yourself against the Goblin King first. Then come find me - I may need your help.';
-
 /** The rolled companion for one slot (stored in the save). */
 export interface CompanionInfo {
   name: string;
@@ -75,7 +73,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
     x: 12,
     y: 24,
     home: 'the Aldmere tavern',
-    intro: ['{name}: Coin is scarce and the goblins are many. I could use honest work.'],
+    intro: ['{name}: So you are the one who slew the Goblin King. Coin is scarce since the raids - I could use honest work.'],
     quest: {
       title: 'The Wolf Den',
       objective: 'Slay the Alpha Wolf in its den in the eastern hills.',
@@ -93,26 +91,26 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
   },
   {
     id: 'thornwick',
-    mapId: 'overworld',
-    x: 70,
-    y: 53,
+    mapId: 'thornwick',
+    x: 19,
+    y: 5,
     home: 'the Thornwick ruins',
     rest: { mapId: 'aldmere', x: 5, y: 25, facing: 'right', home: 'the Aldmere tavern' },
     intro: [
-      '{name}: I was passing through Thornwick when the goblins came... I could not save it.',
-      'They came from a cave in the north-eastern hills. Let me help you end this.',
+      '{name}: I was passing through Thornwick when the goblins burned it... I could not save anyone.',
+      'When word came that the Goblin King had fallen, I came back to bury the dead. You are the one who slew him?',
     ],
     quest: {
       title: 'Restless Bones',
-      objective: 'Rest at an inn, then face the Bone Captain in the Thornwick ruins at night.',
+      objective: 'Rest at an inn, then face the Bone Captain in the ruined chapel of Thornwick at night.',
       doneFlag: 'boneCaptainDefeated',
-      pin: { mapId: 'overworld', ...LANDMARKS.thornwick },
+      pin: { mapId: 'thornwick', x: 10, y: 3 },
       offer: [
-        "{name}: The dead of Thornwick don't rest. Each night a Bone Captain rises among the ruins.",
+        "{name}: But the dead of Thornwick won't stay in their graves. Each night a Bone Captain rises in the chapel.",
         'Rest at an inn and return after dark. Put it down and I will join you.',
       ],
-      reminder: ['{name}: The Bone Captain rises at night. Rest at an inn, then come back.'],
-      thanks: ['{name}: Thornwick can finally rest. Take this - I found it in the ashes.'],
+      reminder: ['{name}: The Bone Captain rises in the chapel at night. Rest at an inn, then come back.'],
+      thanks: ['{name}: The graves are quiet at last. Thornwick can rest. Take this - I found it in the ashes.'],
       already: ['{name}: The Bone Captain is already dust? You work fast.'],
       reward: { gold: 40, items: { herb: 2, tonic: 2 } },
     },
@@ -123,7 +121,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
     x: 14,
     y: 4,
     home: 'Brookhollow',
-    intro: ['{name}: Brookhollow is quiet - too quiet for me. I hear you hunt goblins?'],
+    intro: ['{name}: You slew the Goblin King? Brookhollow is too quiet for me - I came looking for you.'],
     quest: {
       title: 'The Lake Beast',
       objective: 'Drive off the Giant Toad on the west shore of the southern lake.',

@@ -13,7 +13,7 @@ import {
 import { TILE, WALKWAY_TILES, castsShadow, decorTopOf, tileAnchor, tileVariant, walkwayMask } from '../art/art';
 import { groundVariant } from '../art/lpc-manifest';
 import { classDef } from '../data/classes';
-import { PRE_BOSS_HINT, companionIntro, companionLines, companionRestSpot, companionSlot } from '../data/companions';
+import { companionIntro, companionLines, companionRestSpot, companionSlot } from '../data/companions';
 import { ITEM_SHOP_STOCK, WEAPON_SHOP_STOCK } from '../data/equipment';
 import { ARMOR_SHOP_STOCK } from '../data/gear';
 import {
@@ -1023,6 +1023,7 @@ export class WorldScene implements Scene {
         `KING ALDRIC: The Goblin King is slain! ${hero}, Aldmere is in your debt.`,
         `Take these ${ACT_ONE_REWARD} gold pieces with my thanks.`,
         'Yet the goblins served a greater master. Vyrmorth, the dragon beneath the northern peaks, is waking.',
+        'Word of your victory is spreading. Travelers seek you now - in our tavern, in Brookhollow, even among the ruins of Thornwick.',
         'Grow strong, and gather allies. The guard at the southern pass beyond Thornwick will now let you through.',
         '- END OF ACT I - The Southlands await.',
       ]);
@@ -1075,7 +1076,7 @@ export class WorldScene implements Scene {
         `KING ALDRIC: Welcome, ${hero}. Dark days have come to Greenwood Vale.`,
         'Goblins burned the village of Thornwick, and their king hides in a cave in the north-eastern hills.',
         `Defeat the Goblin King and Aldmere will reward you. Take ${KING_GIFT} gold for supplies.`,
-        'Travelers in our tavern, in the ruins of Thornwick and in Brookhollow may aid you - once you have proven yourself.',
+        'Few dare the roads while the goblins raid. Until their king falls, you must go alone.',
       ]);
       return;
     }
@@ -1185,8 +1186,8 @@ export class WorldScene implements Scene {
   }
 
   /**
-   * Companions never join before the Goblin King falls. After that each asks a favour (a side
-   * quest); once it is done they offer to join (and rejoin freely after leaving the party).
+   * Companions only appear after the Goblin King falls. Each asks a favour (a side quest); once it is
+   * done they offer to join (and rejoin freely after leaving the party).
    */
   private talkToCompanion(companionId: string): void {
     const { stack, audio } = this.ctx;
@@ -1195,7 +1196,8 @@ export class WorldScene implements Scene {
     const quest = companionSlot(companionId).quest;
     switch (questStage(s, companionId)) {
       case 'locked':
-        say(stack, audio, [...companionIntro(companionId, c), ...companionLines([PRE_BOSS_HINT], c)]);
+        // Unreachable in play (companions are hidden until the Goblin King falls); kept for old saves.
+        say(stack, audio, companionIntro(companionId, c));
         return;
       case 'available': {
         const firstTime = s.quests[companionId] === undefined;
@@ -1297,14 +1299,16 @@ export class WorldScene implements Scene {
       return;
     }
     if (id === 'thornwick' && this.state.flags['thornwickNight'] && !this.state.flags['boneCaptainDefeated']) {
-      this.queueMessage(['Pale lights drift among the ruins. Something in old armour stands guard...']);
+      this.queueMessage(['Pale lights drift among the graves. In the chapel, something in old armour stands watch...']);
       return;
     }
     if (id === 'thornwick' && !s.flags['sawRuins']) {
       s.flags['sawRuins'] = true;
       this.queueMessage([
-        'The ruins of Thornwick. Charred beams and broken carts litter the square.',
-        'Goblin tracks lead north, toward the hills.',
+        'The ruins of Thornwick. Charred beams and scattered bones litter the square; the chapel stands roofless.',
+        s.flags['bossDefeated']
+          ? 'Fresh earth is turned in the graveyard. Someone has been burying the dead.'
+          : 'Goblin tracks lead north, toward the hills.',
       ]);
     }
   }

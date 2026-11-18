@@ -128,7 +128,7 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
   });
 
   // Side-quest mini-bosses (with their minions) as placed in the world.
-  const miniBossFights = ['overworld', 'goblinCave', 'wolfDen']
+  const miniBossFights = ['overworld', 'thornwick', 'goblinCave', 'wolfDen']
     .flatMap((id) => mapDef(id).npcs)
     .flatMap((n) => (n.boss && !n.boss.monsterIds.includes('goblinKing') ? [n.boss.monsterIds] : []));
 
@@ -406,7 +406,7 @@ const STAGES: Stage[] = [
   tableStage('hills', 5, 2, soloKitI),
   tableStage('cave', 6, 2, soloKitI),
   { name: 'goblinKing', level: 6, tier: 2, kit: soloKitI, fight: () => ['goblinKing'], bossHpScale: BOSS_HP_SCALE[0] },
-  ...bossStages(['overworld', 'goblinCave', 'wolfDen'], 7, 2, soloKitI, ['goblinKing']),
+  ...bossStages(['overworld', 'thornwick', 'goblinCave', 'wolfDen'], 7, 2, soloKitI, ['goblinKing']),
 ];
 /** Plan 4.4c: post-unlock content, reported for a hero who stays alone but not asserted (a party is expected). */
 const POST_UNLOCK: Stage[] = [

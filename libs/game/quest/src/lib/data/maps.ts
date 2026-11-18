@@ -539,6 +539,53 @@ const VYRMORTH_LAIR_ROWS = [
   '######################',
 ];
 
+// --- Thornwick Ruins (26x16) ---------------------------------------------------------------
+
+/**
+ * The village the goblins burned: a gutted chapel (north-west), a graveyard (north-east), two roofless
+ * houses and a dry square. No encounters, so it plays as a (silent) town.
+ */
+const THORNWICK_ROWS = [
+  'TTTTTTTTTTTTTTTTTTTTTTTTTT',
+  'TF.gg####r#####gggggggggFT',
+  'Tg..g#wwwAAwww#gGgGgGgGggT',
+  'T..gg#wnnwwnnw.ggggggggggT',
+  'Tg.gg#wnnwwnnw#gGgGgGgGggT',
+  'Tgg.grwwwwwwww#ggggggggggT',
+  'T.ggg####ww#r##gggggggfggT',
+  'Tg..g..B.__...g.gggggggggT',
+  'T#r##.._v_______b__###r#gT',
+  'T#www.._____~~_____#www#gT',
+  'T#wRw#.__u_________.wRw#gT',
+  'T#ww.#g____________#www#gT',
+  'T##r##gg.F..__..F.g##.##gT',
+  'TgF.g.gg..g.__.g.gg.g..FgT',
+  'TTTTTTTTTTTTEETTTTTTTTTTTT',
+  'TTTTTTTTTTTTTTTTTTTTTTTTTT',
+];
+
+const THORNWICK_LEGEND: TileDef[] = [
+  { char: 'T', id: 'tree', solid: true },
+  { char: 'F', id: 'charredTree', solid: true },
+  { char: 'g', id: 'townGrass', solid: false },
+  { char: '.', id: 'ash', solid: false },
+  { char: '_', id: 'cobble', solid: false },
+  { char: 'E', id: 'cobble', solid: false },
+  { char: '#', id: 'wall', solid: true },
+  { char: 'w', id: 'wood', solid: false },
+  { char: 'r', id: 'rubble@ash', solid: true },
+  { char: 'R', id: 'rubble@wood', solid: true },
+  { char: 'G', id: 'grave@townGrass', solid: true },
+  { char: 'A', id: 'altar@wood', solid: true },
+  { char: 'n', id: 'pew@wood', solid: true },
+  { char: 'B', id: 'bones@ash', solid: true },
+  { char: 'b', id: 'bones@cobble', solid: true },
+  { char: 'v', id: 'crate@cobble', solid: true },
+  { char: 'u', id: 'barrel@cobble', solid: true },
+  { char: '~', id: 'fountain', solid: true },
+  { char: 'f', id: 'campfire@townGrass', solid: true },
+];
+
 /** Items sold in Emberwatch (finale). */
 export const EMBERWATCH_ITEM_STOCK: readonly string[] = ['herb', 'potion', 'tonic', 'antidote', 'phoenixFeather'];
 
@@ -581,7 +628,6 @@ const kingLines = (s: GameState): string[] => {
   if (s.flags['metKing']) {
     return [
       'KING ALDRIC: The Goblin Cave lies past the river, in the eastern hills.',
-      'Travelers in our tavern, in the ruins of Thornwick and in Brookhollow may aid you - once you have proven yourself.',
       'Go where you will - but beware the cave, and rest at the inn.',
     ];
   }
@@ -616,6 +662,7 @@ const BASE_MAPS: MapDef[] = [
         { x: CAVE_AT.x, y: CAVE_AT.y, toMap: 'goblinCave', toX: 2, toY: 19, facing: 'up' },
         { x: BROOK_AT.x, y: BROOK_AT.y, toMap: 'brookhollow', toX: 10, toY: 12, facing: 'up' },
         { x: DEN_AT.x, y: DEN_AT.y, toMap: 'wolfDen', toX: 8, toY: 11, facing: 'up' },
+        { x: RUINS_AT.x, y: RUINS_AT.y, toMap: 'thornwick', toX: 12, toY: 13, facing: 'up' },
         {
           x: PASS_AT.x,
           y: PASS_AT.y,
@@ -675,24 +722,8 @@ const BASE_MAPS: MapDef[] = [
           },
           (s) => s.quests['brookhollow'] === 'active',
         ),
-        bossNpc(
-          'boneCaptain',
-          RUINS_AT.x - 2,
-          RUINS_AT.y - 1,
-          'boneCaptain',
-          {
-            monsterIds: ['boneCaptain', 'skeleton'],
-            defeatFlag: 'boneCaptainDefeated',
-            lines: ['BONE CAPTAIN: Who disturbs the watch of Thornwick? Join my company... in death!'],
-            victory: ['The Bone Captain crumbles to dust. A cold wind leaves the ruins.'],
-          },
-          (s) => s.quests['thornwick'] === 'active' && s.flags['thornwickNight'] === true,
-        ),
       ],
-      events: [
-        { x: RUINS_AT.x, y: RUINS_AT.y, id: 'thornwick' },
-        { x: LAKE_AT.x, y: LAKE_AT.y, id: 'lakeShore' },
-      ],
+      events: [{ x: LAKE_AT.x, y: LAKE_AT.y, id: 'lakeShore' }],
       outsideTile: '^',
       backdrop: 'field',
       fog: true,
@@ -726,8 +757,11 @@ const BASE_MAPS: MapDef[] = [
           role: 'talk',
           lines: (s) =>
             s.flags['bossDefeated']
-              ? ['GUARD: You beat the Goblin King? The king will want to hear of it!']
-              : ['GUARD: Goblins burned Thornwick, south-east of here. Terrible business.'],
+              ? [
+                  'GUARD: You beat the Goblin King? The king will want to hear of it!',
+                  'Folk say survivors have gone back to Thornwick to bury their dead.',
+                ]
+              : ['GUARD: Goblins burned Thornwick, south-east of here. Nobody lives there now. Terrible business.'],
         },
         // The priest stands behind the altar; keepers stand behind their counters (talk across them).
         { id: 'priest', x: 26, y: 2, spriteId: 'priest', facing: 'down', role: 'church' },
@@ -742,7 +776,13 @@ const BASE_MAPS: MapDef[] = [
           spriteId: 'villager',
           facing: 'down',
           role: 'talk',
-          lines: () => ['BARKEEP: Adventurers come here looking for work. Talk to anyone who catches your eye.'],
+          lines: (s) =>
+            s.flags['bossDefeated']
+              ? [
+                  'BARKEEP: Since word of the Goblin King got out, sellswords are coming back to the Vale.',
+                  'Someone in the corner has been asking after you. Talk to anyone who catches your eye.',
+                ]
+              : ['BARKEEP: Quiet these days. No sellsword stays long with goblins on the roads.'],
         },
         {
           id: 'oldMan',
@@ -892,7 +932,10 @@ const BASE_MAPS: MapDef[] = [
           role: 'talk',
           lines: (s) =>
             s.flags['bossDefeated']
-              ? ['FARMER: The goblin raids have stopped! Bless you, traveler.']
+              ? [
+                  'FARMER: The goblin raids have stopped! Bless you, traveler.',
+                  'A traveler came into the village asking for the hero who slew the Goblin King. Go and say hello.',
+                ]
               : ['FARMER: Goblins took half my harvest. Somebody ought to deal with that king of theirs.'],
         },
       ],
@@ -901,6 +944,38 @@ const BASE_MAPS: MapDef[] = [
         { x: 19, y: 4, kind: 'item' },
       ],
       events: [],
+      outsideTile: 'T',
+      backdrop: 'field',
+    },
+  {
+      id: 'thornwick',
+      name: 'Thornwick Ruins',
+      rows: THORNWICK_ROWS,
+      legend: THORNWICK_LEGEND,
+      warps: [
+        { x: 12, y: 14, toMap: 'overworld', toX: RUINS_AT.x, toY: RUINS_AT.y + 1, facing: 'down' },
+        { x: 13, y: 14, toMap: 'overworld', toX: RUINS_AT.x, toY: RUINS_AT.y + 1, facing: 'down' },
+      ],
+      npcs: [
+        // Rises in the chapel aisle at night while the companion's quest is open (see the inn rest).
+        bossNpc(
+          'boneCaptain',
+          10,
+          3,
+          'boneCaptain',
+          {
+            monsterIds: ['boneCaptain', 'skeleton'],
+            defeatFlag: 'boneCaptainDefeated',
+            lines: ['BONE CAPTAIN: Who disturbs the watch of Thornwick? Join my company... in death!'],
+            victory: ['The Bone Captain crumbles to dust. A cold wind leaves the ruins.'],
+          },
+          (s) => s.quests['thornwick'] === 'active' && s.flags['thornwickNight'] === true,
+        ),
+      ],
+      events: [
+        { x: 12, y: 12, id: 'thornwick' },
+        { x: 13, y: 12, id: 'thornwick' },
+      ],
       outsideTile: 'T',
       backdrop: 'field',
     },
