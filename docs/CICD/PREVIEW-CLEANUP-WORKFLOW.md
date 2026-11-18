@@ -14,12 +14,13 @@ I've successfully created and deployed a comprehensive GitHub Actions workflow t
 
 **Features:**
 - Automatically triggers when PR is closed (merged or not)
-- Deletes S3 bucket and all contents
-- Checks and removes DNS records (if Route53 hosted zone exists)
-- Checks for CloudFront distributions (provides manual instructions if found)
-- Posts cleanup summary comment to PR
+- Removes the `pr{N}-preview.jouster.org` Route 53 alias records
+- Disables, waits for, and deletes the per-PR CloudFront distribution (HTTPS front end)
+- Deletes S3 bucket and all contents (only after DNS is removed, to prevent bucket-name takeover)
+- Posts cleanup summary comment to PR (per-resource status)
 - Removes 'preview-deployed' label if present
 - Comprehensive logging and error handling
+- Anything left behind is retried by the weekly `scheduled-cleanup.yml` workflow
 
 ### 2. ✅ Committed to Develop Branch
 
@@ -54,25 +55,23 @@ on:
    - Uses secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
    - Region: `us-west-2`
 
-2. **Generate Bucket Name**
-   - Pattern: `jouster-preview-pr{NUMBER}`
-   - Example: `jouster-preview-pr11`
+2. **Generate Names**
+   - Bucket: `jouster-preview-pr{NUMBER}` (e.g. `jouster-preview-pr11`)
+   - Domain: `pr{NUMBER}-preview.jouster.org`
 
-3. **Delete S3 Bucket**
+3. **Delete DNS Records**
+   - Find A/AAAA (and legacy CNAME) records for the preview domain in the `jouster.org` hosted zone
+   - Delete them
+
+4. **Delete CloudFront Distribution**
+   - Find the distribution by alias (or by the bucket's S3 website origin)
+   - Disable it, wait for the change to deploy (~5-20 min), then delete it
+
+5. **Delete S3 Bucket** (skipped if DNS removal failed)
    - Check if bucket exists
    - Delete all objects recursively
    - Remove the bucket itself
    - Log results
-
-4. **Delete DNS Records** (if configured)
-   - Check for Route53 hosted zone `jouster.org`
-   - Find CNAME record for `{bucket-name}.jouster.org`
-   - Delete DNS record if found
-
-5. **Check CloudFront** (informational)
-   - List CloudFront distributions
-   - Check if any use this bucket
-   - Provide manual deletion instructions (CloudFront requires async disable)
 
 6. **Post PR Comment**
    - Detailed cleanup summary
@@ -94,10 +93,10 @@ For each closed PR, the workflow deletes:
 
 | Resource | Action | Status |
 |----------|--------|--------|
+| **DNS Records** | `pr{N}-preview.jouster.org` A/AAAA aliases | ✅ Deleted |
+| **CloudFront** | Per-PR distribution | ✅ Disabled, then deleted |
 | **S3 Bucket** | `jouster-preview-pr{N}` | ✅ Deleted |
 | **Bucket Objects** | All files (recursive delete) | ✅ Removed |
-| **DNS Records** | CNAME in Route53 (if exists) | ✅ Checked & Removed |
-| **CloudFront** | Associated distributions | ⚠️ Manual deletion required |
 | **PR Label** | `preview-deployed` | ✅ Removed |
 
 ---

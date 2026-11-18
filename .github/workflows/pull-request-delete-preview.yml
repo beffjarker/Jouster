@@ -16,7 +16,8 @@ permissions:
 jobs:
   cleanup-preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # CloudFront must be disabled and fully redeployed before it can be deleted (~5-20 min).
+    timeout-minutes: 45
 
     steps:
       - name: Configure AWS credentials
@@ -31,10 +32,95 @@ jobs:
         run: |
           PR_NUM="${{ github.event.pull_request.number }}"
           BUCKET_NAME="jouster-preview-pr${PR_NUM}"
+          DOMAIN="pr${PR_NUM}-preview.jouster.org"
           echo "name=$BUCKET_NAME" >> $GITHUB_OUTPUT
-          echo "url=http://${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com" >> $GITHUB_OUTPUT
+          echo "origin=${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com" >> $GITHUB_OUTPUT
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+          echo "url=https://${DOMAIN}" >> $GITHUB_OUTPUT
+
+      # Order matters: DNS first, then CloudFront, then the bucket. Deleting the bucket while a
+      # live distribution/DNS record still points at its name would allow a bucket-name takeover.
+      - name: Delete Route53 DNS records (if they exist)
+        continue-on-error: true
+        id: delete-dns
+        env:
+          DOMAIN: ${{ steps.bucket.outputs.domain }}
+          BUCKET_NAME: ${{ steps.bucket.outputs.name }}
+        run: |
+          set -euo pipefail
+          echo "🔍 Checking for DNS records for: ${DOMAIN}"
+
+          ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name jouster.org \
+            --query "HostedZones[?Name=='jouster.org.'].Id | [0]" --output text | sed 's|/hostedzone/||')
+          if [ -z "$ZONE_ID" ] || [ "$ZONE_ID" = "None" ]; then
+            echo "⚠️  No Route53 hosted zone found for jouster.org"
+            echo "status=not_found" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # Includes the legacy ${BUCKET_NAME}.jouster.org name from the pre-HTTPS preview setup.
+          aws route53 list-resource-record-sets --hosted-zone-id "$ZONE_ID" --output json \
+            | jq --arg a "${DOMAIN}." --arg b "${BUCKET_NAME}.jouster.org." '{
+                Comment: "Remove PR preview DNS",
+                Changes: [.ResourceRecordSets[]
+                  | select((.Name == $a or .Name == $b) and (.Type == "A" or .Type == "AAAA" or .Type == "CNAME"))
+                  | { Action: "DELETE", ResourceRecordSet: . }]
+              }' > preview-dns-delete.json
+
+          if [ "$(jq '.Changes | length' preview-dns-delete.json)" = "0" ]; then
+            echo "⚠️  No DNS records found for ${DOMAIN}"
+            echo "status=not_found" >> $GITHUB_OUTPUT
+          else
+            jq -r '.Changes[].ResourceRecordSet | "Deleting \(.Type) \(.Name)"' preview-dns-delete.json
+            aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" \
+              --change-batch file://preview-dns-delete.json >/dev/null
+            echo "✅ DNS records deleted"
+            echo "status=deleted" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Delete CloudFront distribution (if it exists)
+        continue-on-error: true
+        id: delete-cloudfront
+        env:
+          DOMAIN: ${{ steps.bucket.outputs.domain }}
+          ORIGIN: ${{ steps.bucket.outputs.origin }}
+        run: |
+          set -euo pipefail
+          echo "🔍 Checking for CloudFront distribution for: ${DOMAIN}"
+
+          DIST_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?(Aliases.Quantity > \`0\` && contains(Aliases.Items, '${DOMAIN}')) || Origins.Items[0].DomainName == '${ORIGIN}'].Id | [0]" \
+            --output text)
+
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
+            echo "⚠️  No CloudFront distribution found for ${DOMAIN}"
+            echo "status=not_found" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "✅ Found CloudFront distribution: ${DIST_ID}"
+          aws cloudfront get-distribution-config --id "$DIST_ID" > preview-dist-current.json
+          if [ "$(jq -r '.DistributionConfig.Enabled' preview-dist-current.json)" = "true" ]; then
+            echo "Disabling distribution..."
+            jq '.DistributionConfig | .Enabled = false' preview-dist-current.json > preview-dist-disabled.json
+            aws cloudfront update-distribution --id "$DIST_ID" \
+              --distribution-config file://preview-dist-disabled.json \
+              --if-match "$(jq -r '.ETag' preview-dist-current.json)" >/dev/null
+          fi
+
+          # Record the partial state so a failure below is reported accurately.
+          echo "status=disabled" >> $GITHUB_OUTPUT
+          echo "Waiting for the disabled distribution to deploy (can take several minutes)..."
+          aws cloudfront wait distribution-deployed --id "$DIST_ID"
+
+          ETAG=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'ETag' --output text)
+          aws cloudfront delete-distribution --id "$DIST_ID" --if-match "$ETAG"
+          echo "✅ CloudFront distribution deleted: ${DIST_ID}"
+          echo "status=deleted" >> $GITHUB_OUTPUT
 
       - name: Delete preview S3 bucket and contents
+        # Keep the bucket name claimed if DNS could not be removed; the scheduled cleanup retries later.
+        if: steps.delete-dns.outcome == 'success'
         continue-on-error: true
         id: delete-s3
         run: |
@@ -92,82 +178,6 @@ jobs:
 
           echo "Note: shared IAM role and dev DynamoDB table are intentionally preserved."
 
-      - name: Delete Route53 DNS records (if they exist)
-        continue-on-error: true
-        id: delete-dns
-        run: |
-          BUCKET_NAME="${{ steps.bucket.outputs.name }}"
-          DNS_NAME="${BUCKET_NAME}.jouster.org"
-
-          echo "🔍 Checking for DNS records for: ${DNS_NAME}"
-
-          # Get hosted zone ID for jouster.org
-          HOSTED_ZONE_ID=$(aws route53 list-hosted-zones \
-            --query "HostedZones[?Name=='jouster.org.'].Id" \
-            --output text 2>/dev/null | sed 's|/hostedzone/||')
-
-          if [ -z "$HOSTED_ZONE_ID" ]; then
-            echo "⚠️  No Route53 hosted zone found for jouster.org"
-            echo "No DNS records to clean up."
-          else
-            echo "✅ Found hosted zone: ${HOSTED_ZONE_ID}"
-
-            # Check if DNS record exists
-            RECORD_EXISTS=$(aws route53 list-resource-record-sets \
-              --hosted-zone-id "$HOSTED_ZONE_ID" \
-              --query "ResourceRecordSets[?Name=='${DNS_NAME}.' && Type=='CNAME']" \
-              --output text)
-
-            if [ -z "$RECORD_EXISTS" ]; then
-              echo "⚠️  No DNS record found for ${DNS_NAME}"
-            else
-              echo "✅ Found DNS record for ${DNS_NAME}, deleting..."
-
-              # Delete the CNAME record
-              aws route53 change-resource-record-sets \
-                --hosted-zone-id "$HOSTED_ZONE_ID" \
-                --change-batch "{
-                  \"Changes\": [{
-                    \"Action\": \"DELETE\",
-                    \"ResourceRecordSet\": {
-                      \"Name\": \"${DNS_NAME}.\",
-                      \"Type\": \"CNAME\",
-                      \"TTL\": 300,
-                      \"ResourceRecords\": [{
-                        \"Value\": \"${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com\"
-                      }]
-                    }
-                  }]
-                }" && echo "✅ DNS record deleted" || echo "⚠️  DNS record deletion failed (may not exist)"
-            fi
-          fi
-
-      - name: Delete CloudFront distribution (if it exists)
-        continue-on-error: true
-        id: delete-cloudfront
-        run: |
-          BUCKET_NAME="${{ steps.bucket.outputs.name }}"
-
-          echo "🔍 Checking for CloudFront distributions for: ${BUCKET_NAME}"
-
-          # List CloudFront distributions and find any associated with this bucket
-          DISTRIBUTION_ID=$(aws cloudfront list-distributions \
-            --query "DistributionList.Items[?contains(Origins.Items[0].DomainName, '${BUCKET_NAME}')].Id" \
-            --output text 2>/dev/null)
-
-          if [ -z "$DISTRIBUTION_ID" ]; then
-            echo "⚠️  No CloudFront distribution found for ${BUCKET_NAME}"
-          else
-            echo "✅ Found CloudFront distribution: ${DISTRIBUTION_ID}"
-            echo "⚠️  CloudFront deletion requires disabling first and waiting for deployment."
-            echo "Skipping automatic CloudFront cleanup - manual intervention required."
-            echo "To delete manually:"
-            echo "  1. aws cloudfront get-distribution-config --id ${DISTRIBUTION_ID}"
-            echo "  2. Disable the distribution"
-            echo "  3. Wait for deployment (can take 15-20 minutes)"
-            echo "  4. aws cloudfront delete-distribution --id ${DISTRIBUTION_ID}"
-          fi
-
       - name: Comment cleanup status on PR
         uses: actions/github-script@v7
         with:
@@ -176,16 +186,23 @@ jobs:
             const prNumber = context.issue.number;
             const bucketName = '${{ steps.bucket.outputs.name }}';
             const previewUrl = '${{ steps.bucket.outputs.url }}';
+            const statuses = {
+              dns: '${{ steps.delete-dns.outputs.status }}' || '${{ steps.delete-dns.outcome }}',
+              cloudfront: '${{ steps.delete-cloudfront.outputs.status }}' || '${{ steps.delete-cloudfront.outcome }}',
+              s3: '${{ steps.delete-s3.outputs.status }}' || '${{ steps.delete-s3.outcome }}',
+            };
+            const cfFailed = '${{ steps.delete-cloudfront.outcome }}' === 'failure';
+            const label = (status, failed = false) => {
+              if (failed) return `❌ Failed (${status || 'unknown'}) - scheduled cleanup will retry`;
+              if (status === 'deleted') return '✅ Deleted';
+              if (status === 'not_found') return '➖ None found';
+              if (status === 'skipped') return '⏸️ Skipped (DNS removal failed) - scheduled cleanup will retry';
+              return `❌ ${status || 'unknown'} - scheduled cleanup will retry`;
+            };
+            const allClean = [statuses.dns, statuses.s3].every((s) => s === 'deleted' || s === 'not_found') &&
+              !cfFailed && (statuses.cloudfront === 'deleted' || statuses.cloudfront === 'not_found');
 
             const commentBody = `## 🧹 Preview Environment Cleaned Up
-
-            The preview environment for PR #${prNumber} has been successfully deleted.
-
-            ### Deleted Resources
-
-            ✅ **S3 Bucket:** \`${bucketName}\`
-            - All files and objects removed
-            - Bucket deleted from AWS S3
 
             🔗 **Preview URL (now inactive):** ~~${previewUrl}~~
 
@@ -193,12 +210,11 @@ jobs:
 
             | Resource | Status |
             |----------|--------|
-            | S3 Bucket | ✅ Deleted |
-            | Bucket Contents | ✅ Removed |
+            | DNS Records | ${label(statuses.dns)} |
+            | CloudFront Distribution (HTTPS) | ${label(statuses.cloudfront, cfFailed)} |
+            | S3 Bucket \`${bucketName}\` | ${label(statuses.s3)} |
             | Lambda (backend API) | ✅ Deleted |
             | API Gateway (HTTP API) | ✅ Deleted |
-            | DNS Records | ⚠️  Checked (none found or removed) |
-            | CloudFront Distribution | ⚠️  Checked (none found) |
 
             ### Details
 
@@ -209,7 +225,9 @@ jobs:
 
             ---
 
-            *All preview environment resources have been removed from AWS. No further cleanup is required.*`;
+            ${allClean
+              ? '*All preview environment resources have been removed from AWS.*'
+              : '*Some resources could not be removed; the weekly scheduled cleanup will retry.*'}`;
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -244,11 +262,10 @@ jobs:
           echo "Bucket: ${{ steps.bucket.outputs.name }}"
           echo "Status: ${{ github.event.pull_request.merged && 'Merged' || 'Closed' }}"
           echo ""
-          echo "Resources cleaned up:"
-          echo "  ✅ S3 Bucket deleted"
-          echo "  ✅ All files removed"
-          echo "  ✅ DNS records checked"
-          echo "  ✅ CloudFront checked"
+          echo "Resources:"
+          echo "  DNS records:  ${{ steps.delete-dns.outputs.status || steps.delete-dns.outcome }}"
+          echo "  CloudFront:   ${{ steps.delete-cloudfront.outputs.status || steps.delete-cloudfront.outcome }} (step: ${{ steps.delete-cloudfront.outcome }})"
+          echo "  S3 bucket:    ${{ steps.delete-s3.outputs.status || steps.delete-s3.outcome }}"
           echo ""
           echo "Preview URL no longer accessible:"
           echo "  ${{ steps.bucket.outputs.url }}"

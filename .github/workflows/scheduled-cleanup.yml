@@ -91,6 +91,76 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # PR previews are served via per-PR CloudFront distributions (pr{N}-preview.jouster.org).
+      # CloudFront must be disabled and redeployed before deletion, so orphans are disabled on one
+      # run and deleted on a later one. DNS is removed first so nothing routes to a closed preview.
+      - name: Clean up orphaned preview CloudFront distributions and DNS
+        run: |
+          set -uo pipefail
+          DRY_RUN="${{ github.event.inputs.dry_run || 'false' }}"
+          ALIAS_RE='^pr[0-9]+-preview\.jouster\.org$'
+
+          ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name jouster.org \
+            --query "HostedZones[?Name=='jouster.org.'].Id | [0]" --output text | sed 's|/hostedzone/||')
+
+          aws cloudfront list-distributions --output json \
+            | jq -r --arg re "$ALIAS_RE" '(.DistributionList.Items // [])[]
+                | . as $d
+                | ((.Aliases.Items // [])[] | select(test($re))) as $alias
+                | [$d.Id, $alias, ($d.Enabled | tostring), $d.Status] | @tsv' > preview-dists.tsv
+
+          if [ ! -s preview-dists.tsv ]; then
+            echo "✅ No preview CloudFront distributions found"
+            exit 0
+          fi
+
+          while IFS=$'\t' read -r -u 3 DIST_ID ALIAS ENABLED STATUS; do
+            PR_NUM=$(echo "$ALIAS" | sed -E 's/^pr([0-9]+)-preview.*/\1/')
+            PR_STATE=$(gh pr view "$PR_NUM" --json state --jq '.state' 2>/dev/null || echo "NOT_FOUND")
+            echo ""
+            echo "Distribution $DIST_ID ($ALIAS) - PR #$PR_NUM is $PR_STATE, enabled=$ENABLED, status=$STATUS"
+            if [ "$PR_STATE" = "OPEN" ]; then
+              echo "✅ Active preview - leaving in place"
+              continue
+            fi
+
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "[DRY RUN] Would remove DNS for $ALIAS and disable/delete $DIST_ID"
+              continue
+            fi
+
+            if [ -n "$ZONE_ID" ] && [ "$ZONE_ID" != "None" ]; then
+              aws route53 list-resource-record-sets --hosted-zone-id "$ZONE_ID" --output json \
+                | jq --arg name "${ALIAS}." '{
+                    Changes: [.ResourceRecordSets[]
+                      | select(.Name == $name and (.Type == "A" or .Type == "AAAA" or .Type == "CNAME"))
+                      | { Action: "DELETE", ResourceRecordSet: . }]
+                  }' > orphan-dns-delete.json
+              if [ "$(jq '.Changes | length' orphan-dns-delete.json)" != "0" ]; then
+                aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" \
+                  --change-batch file://orphan-dns-delete.json >/dev/null \
+                  && echo "✅ DNS records removed for $ALIAS" || echo "❌ Failed to remove DNS for $ALIAS"
+              fi
+            fi
+
+            if [ "$ENABLED" = "true" ]; then
+              aws cloudfront get-distribution-config --id "$DIST_ID" > orphan-dist.json
+              jq '.DistributionConfig | .Enabled = false' orphan-dist.json > orphan-dist-disabled.json
+              aws cloudfront update-distribution --id "$DIST_ID" \
+                --distribution-config file://orphan-dist-disabled.json \
+                --if-match "$(jq -r '.ETag' orphan-dist.json)" >/dev/null \
+                && echo "✅ Disabled $DIST_ID (will be deleted on a later run)" || echo "❌ Failed to disable $DIST_ID"
+            elif [ "$STATUS" = "Deployed" ]; then
+              ETAG=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'ETag' --output text)
+              aws cloudfront delete-distribution --id "$DIST_ID" --if-match "$ETAG" \
+                && echo "✅ Deleted $DIST_ID" || echo "❌ Failed to delete $DIST_ID"
+            else
+              echo "⏳ $DIST_ID is disabled but still deploying - will delete on a later run"
+            fi
+          done 3< preview-dists.tsv
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Delete orphaned buckets
         if: steps.scan.outputs.orphans != '' && (github.event.inputs.dry_run != 'true' || github.event_name == 'schedule')
         run: |
@@ -108,6 +178,15 @@ jobs:
               if [ "$DRY_RUN" == "true" ]; then
                 echo "[DRY RUN] Would delete bucket: $BUCKET"
               else
+                # Never free a bucket name that a CloudFront distribution still uses as its origin.
+                IN_USE=$(aws cloudfront list-distributions \
+                  --query "DistributionList.Items[?Origins.Items[0].DomainName=='${BUCKET}.s3-website-us-west-2.amazonaws.com'].Id | [0]" \
+                  --output text)
+                if [ -n "$IN_USE" ] && [ "$IN_USE" != "None" ]; then
+                  echo "⏸️  Skipping $BUCKET - still the origin of CloudFront distribution $IN_USE"
+                  echo ""
+                  continue
+                fi
                 echo "Deleting bucket: $BUCKET"
                 aws s3 rb "s3://${BUCKET}" --force && echo "✅ Deleted successfully" || echo "❌ Failed to delete"
               fi

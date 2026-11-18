@@ -14,10 +14,16 @@ permissions:
   pull-requests: write
   deployments: write
 
+# Serialize deploys per PR so two pushes can't race to create the same CloudFront distribution.
+concurrency:
+  group: preview-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
 jobs:
   build-artifact:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Allows for the one-time wait while a PR's CloudFront distribution first deploys.
+    timeout-minutes: 75
 
     steps:
       - name: Checkout code
@@ -72,8 +78,12 @@ jobs:
         run: |
           PR_NUM="${{ github.event.pull_request.number }}"
           BUCKET_NAME="jouster-preview-pr${PR_NUM}"
+          # Single DNS label so the existing *.jouster.org certificate covers it.
+          DOMAIN="pr${PR_NUM}-preview.jouster.org"
           echo "name=$BUCKET_NAME" >> $GITHUB_OUTPUT
-          echo "url=http://${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com" >> $GITHUB_OUTPUT
+          echo "origin=${BUCKET_NAME}.s3-website-us-west-2.amazonaws.com" >> $GITHUB_OUTPUT
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+          echo "url=https://${DOMAIN}" >> $GITHUB_OUTPUT
 
       - name: Package backend for Lambda
         if: github.actor != 'dependabot[bot]'
@@ -301,6 +311,146 @@ jobs:
             --metadata-directive REPLACE
 
           echo "Deployment complete!"
+
+      # S3 website endpoints are HTTP-only, so each preview is served through its own CloudFront
+      # distribution using the existing *.jouster.org ACM certificate (same pattern as QA).
+      # Idempotent: reuses the distribution that already has this PR's alias, otherwise creates one.
+      - name: Ensure preview CloudFront distribution (HTTPS)
+        if: github.actor != 'dependabot[bot]'
+        id: cdn
+        env:
+          PREVIEW_DOMAIN: ${{ steps.bucket.outputs.domain }}
+          PREVIEW_ORIGIN: ${{ steps.bucket.outputs.origin }}
+          PR_NUM: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          DIST_ID=$(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Aliases.Quantity > \`0\` && contains(Aliases.Items, '${PREVIEW_DOMAIN}')].Id | [0]" \
+            --output text)
+
+          if [ -z "$DIST_ID" ] || [ "$DIST_ID" = "None" ]; then
+            CERT_ARN=$(aws acm list-certificates --region us-east-1 --certificate-statuses ISSUED \
+              --includes keyTypes=RSA_2048,EC_prime256v1 \
+              --query "CertificateSummaryList[?DomainName=='*.jouster.org'].CertificateArn | [0]" \
+              --output text)
+            if [ -z "$CERT_ARN" ] || [ "$CERT_ARN" = "None" ]; then
+              echo "::error::No issued *.jouster.org certificate found in ACM us-east-1"
+              exit 1
+            fi
+
+            # Managed policies: CachingOptimized and SecurityHeadersPolicy (adds HSTS etc.).
+            jq -n \
+              --arg ref "jouster-preview-pr${PR_NUM}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+              --arg comment "Jouster preview PR #${PR_NUM} (${PREVIEW_DOMAIN})" \
+              --arg domain "$PREVIEW_DOMAIN" \
+              --arg origin "$PREVIEW_ORIGIN" \
+              --arg cert "$CERT_ARN" '{
+                CallerReference: $ref,
+                Comment: $comment,
+                Enabled: true,
+                Aliases: { Quantity: 1, Items: [$domain] },
+                DefaultRootObject: "index.html",
+                PriceClass: "PriceClass_100",
+                HttpVersion: "http2and3",
+                IsIPV6Enabled: true,
+                Origins: { Quantity: 1, Items: [{
+                  Id: "preview-s3-website",
+                  DomainName: $origin,
+                  OriginPath: "",
+                  CustomHeaders: { Quantity: 0 },
+                  CustomOriginConfig: {
+                    HTTPPort: 80,
+                    HTTPSPort: 443,
+                    OriginProtocolPolicy: "http-only",
+                    OriginSslProtocols: { Quantity: 1, Items: ["TLSv1.2"] },
+                    OriginReadTimeout: 30,
+                    OriginKeepaliveTimeout: 5
+                  }
+                }]},
+                DefaultCacheBehavior: {
+                  TargetOriginId: "preview-s3-website",
+                  ViewerProtocolPolicy: "redirect-to-https",
+                  Compress: true,
+                  CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6",
+                  ResponseHeadersPolicyId: "67f7725c-6f97-4210-82d7-5512b31e9d03",
+                  AllowedMethods: {
+                    Quantity: 2, Items: ["GET", "HEAD"],
+                    CachedMethods: { Quantity: 2, Items: ["GET", "HEAD"] }
+                  }
+                },
+                CustomErrorResponses: { Quantity: 2, Items: [
+                  { ErrorCode: 403, ResponsePagePath: "/index.html", ResponseCode: "200", ErrorCachingMinTTL: 10 },
+                  { ErrorCode: 404, ResponsePagePath: "/index.html", ResponseCode: "200", ErrorCachingMinTTL: 10 }
+                ]},
+                ViewerCertificate: {
+                  ACMCertificateArn: $cert,
+                  SSLSupportMethod: "sni-only",
+                  MinimumProtocolVersion: "TLSv1.2_2021"
+                }
+              }' > preview-distribution.json
+
+            DIST_ID=$(aws cloudfront create-distribution \
+              --distribution-config file://preview-distribution.json \
+              --query 'Distribution.Id' --output text)
+            echo "Created CloudFront distribution $DIST_ID for ${PREVIEW_DOMAIN}"
+          else
+            echo "Using existing CloudFront distribution $DIST_ID for ${PREVIEW_DOMAIN}"
+            # A previous close may have disabled it without finishing deletion (e.g. PR reopened).
+            aws cloudfront get-distribution-config --id "$DIST_ID" > preview-dist-current.json
+            if [ "$(jq -r '.DistributionConfig.Enabled' preview-dist-current.json)" != "true" ]; then
+              echo "Re-enabling disabled distribution $DIST_ID"
+              jq '.DistributionConfig | .Enabled = true' preview-dist-current.json > preview-dist-enabled.json
+              aws cloudfront update-distribution --id "$DIST_ID" \
+                --distribution-config file://preview-dist-enabled.json \
+                --if-match "$(jq -r '.ETag' preview-dist-current.json)" >/dev/null
+            fi
+          fi
+
+          STATUS=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.Status' --output text)
+          if [ "$STATUS" != "Deployed" ]; then
+            echo "Waiting for distribution $DIST_ID to finish deploying (status: $STATUS)..."
+            aws cloudfront wait distribution-deployed --id "$DIST_ID"
+          fi
+
+          CF_DOMAIN=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.DomainName' --output text)
+          echo "id=$DIST_ID" >> "$GITHUB_OUTPUT"
+          echo "domain=$CF_DOMAIN" >> "$GITHUB_OUTPUT"
+
+      - name: Point preview domain at CloudFront
+        if: github.actor != 'dependabot[bot]'
+        env:
+          PREVIEW_DOMAIN: ${{ steps.bucket.outputs.domain }}
+          CF_DOMAIN: ${{ steps.cdn.outputs.domain }}
+        run: |
+          set -euo pipefail
+          ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name jouster.org \
+            --query "HostedZones[?Name=='jouster.org.'].Id | [0]" --output text | sed 's|/hostedzone/||')
+          if [ -z "$ZONE_ID" ] || [ "$ZONE_ID" = "None" ]; then
+            echo "::error::Route 53 hosted zone for jouster.org not found"
+            exit 1
+          fi
+
+          # Z2FDTNDATAQYW2 is the fixed hosted zone ID for all CloudFront alias targets.
+          jq -n --arg name "${PREVIEW_DOMAIN}." --arg target "$CF_DOMAIN" '{
+            Comment: "Serve PR preview through CloudFront (HTTPS)",
+            Changes: (["A", "AAAA"] | map({
+              Action: "UPSERT",
+              ResourceRecordSet: {
+                Name: $name,
+                Type: .,
+                AliasTarget: { HostedZoneId: "Z2FDTNDATAQYW2", DNSName: $target, EvaluateTargetHealth: false }
+              }
+            }))
+          }' > preview-dns-change.json
+
+          aws route53 change-resource-record-sets --hosted-zone-id "$ZONE_ID" --change-batch file://preview-dns-change.json
+          echo "${PREVIEW_DOMAIN} now aliases ${CF_DOMAIN}"
+
+      - name: Invalidate preview CloudFront cache
+        if: github.actor != 'dependabot[bot]'
+        run: |
+          aws cloudfront create-invalidation --distribution-id "${{ steps.cdn.outputs.id }}" --paths '/*' \
+            --query 'Invalidation.Id' --output text
           echo "Preview URL: ${{ steps.bucket.outputs.url }}"
 
       - name: Update deployment status

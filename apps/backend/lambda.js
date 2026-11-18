@@ -9,7 +9,7 @@
  *   NODE_ENV=development          -> enables mock fallbacks, disables HTTPS redirect
  *   USE_DYNAMODB=true             -> conversation history reads from DynamoDB
  *   DYNAMODB_TABLE=dev-jouster-conversations
- *   CORS_ALLOWED_ORIGINS=http://jouster-preview-prN.s3-website-us-west-2.amazonaws.com
+ *   CORS_ALLOWED_ORIGINS=https://prN-preview.jouster.org
  *   SECRETS_ARNS=arn:...,arn:...  -> Secrets Manager JSON secrets loaded into process.env
  *                                    before the app (and its session config) is built
  *
