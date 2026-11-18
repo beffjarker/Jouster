@@ -122,11 +122,15 @@ export function inParty(state: GameState, companionId: string): boolean {
   return state.party.some((m) => m.id === companionId);
 }
 
-/** True when the companion is waiting at their home spot (unlocked and not in the party). */
+/**
+ * True when the companion is waiting at their home spot (unlocked and not in the party). Nobody shows up
+ * before the Goblin King falls - word of the victory is what draws them out.
+ */
 export function companionPresent(state: GameState, companionId: string): boolean {
   const slot = companionSlot(companionId);
   return (
     companionId in state.companions &&
+    state.flags['bossDefeated'] === true &&
     !inParty(state, companionId) &&
     (!slot.requiresFlag || state.flags[slot.requiresFlag] === true)
   );
@@ -141,15 +145,11 @@ export function companionBenched(state: GameState, companionId: string): boolean
 }
 
 /**
- * True when a present companion is willing to join: the Goblin King has fallen and the
- * companion's side quest is done (companions who were in the party before always rejoin).
+ * True when a present companion is willing to join: their side quest is done (companions who were in the
+ * party before always rejoin).
  */
 export function companionAvailable(state: GameState, companionId: string): boolean {
-  return (
-    companionPresent(state, companionId) &&
-    state.flags['bossDefeated'] === true &&
-    state.quests[companionId] === 'done'
-  );
+  return companionPresent(state, companionId) && state.quests[companionId] === 'done';
 }
 
 /**

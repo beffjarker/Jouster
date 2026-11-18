@@ -163,7 +163,7 @@ export function questLog(state: GameState): string[] {
     lines.push(
       f['bossDefeated']
         ? 'Travelers across the vale may need your help. Talk to them.'
-        : 'Nobody will join an untested hero. Defeat the Goblin King first.',
+        : 'You travel alone. Word of a victory over the Goblin King may draw allies to you.',
     );
   }
   return lines;
@@ -171,15 +171,20 @@ export function questLog(state: GameState): string[] {
 
 /**
  * Quest pins on map `mapId`: the mini-boss spot for accepted quests, and the quest giver once the quest is
- * ready to turn in (a town giver is pinned at the town's overworld entrance).
+ * ready to turn in. A spot inside a town, ruin or cave is also pinned at that place's overworld entrance.
  */
 export function questPins(state: GameState, mapId: string): Array<{ x: number; y: number }> {
   const landmarks: Readonly<Record<string, { x: number; y: number }>> = LANDMARKS;
   const pins: Array<{ x: number; y: number }> = [];
   for (const slot of COMPANION_SLOTS) {
     const stage = questStage(state, slot.id);
-    if (stage === 'active' && slot.quest.pin.mapId === mapId) {
-      pins.push(slot.quest.pin);
+    if (stage === 'active') {
+      const pin = slot.quest.pin;
+      if (pin.mapId === mapId) {
+        pins.push(pin);
+      } else if (mapId === 'overworld' && landmarks[pin.mapId]) {
+        pins.push(landmarks[pin.mapId]);
+      }
     } else if (stage === 'ready') {
       if (slot.mapId === mapId) {
         pins.push({ x: slot.x, y: slot.y });

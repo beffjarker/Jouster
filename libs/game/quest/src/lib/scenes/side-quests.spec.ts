@@ -23,12 +23,14 @@ describe('companion side quests (plan 15.6)', () => {
   it.each([
     ['tavern', 'wolfDen', 'alphaWolf'],
     ['brookhollow', 'overworld', 'giantToad'],
+    ['thornwick', 'thornwick', 'boneCaptain'],
   ])('the %s mini-boss only appears while its quest is active', (questId, mapId, npcId) => {
     const s = afterKing();
     expect(bossVisible(s, mapId, npcId)).toBe(false);
     answerCompanionQuest(s, questId, false);
     expect(bossVisible(s, mapId, npcId)).toBe(false);
     answerCompanionQuest(s, questId, true);
+    s.flags['thornwickNight'] = true;
     expect(bossVisible(s, mapId, npcId)).toBe(true);
     s.flags[companionSlot(questId).quest.doneFlag] = true;
     markQuestReady(s, companionSlot(questId).quest.doneFlag);
@@ -75,6 +77,18 @@ describe('companion side quests (plan 15.6)', () => {
     expect(questPins(s, 'aldmere')).toEqual([{ x: tavern.x, y: tavern.y }]);
     s.quests['tavern'] = 'done';
     expect(questPins(s, 'overworld')).toEqual([]);
+  });
+
+  it('pins an objective inside the Thornwick ruins on the ruins map and at their overworld entrance', () => {
+    const s = afterKing();
+    answerCompanionQuest(s, 'thornwick', true);
+    expect(questPins(s, 'thornwick')).toEqual([companionSlot('thornwick').quest.pin]);
+    expect(questPins(s, 'overworld')).toEqual([LANDMARKS.thornwick]);
+    s.flags['boneCaptainDefeated'] = true;
+    markQuestReady(s, 'boneCaptainDefeated');
+    const slot = companionSlot('thornwick');
+    expect(questPins(s, 'thornwick')).toEqual([{ x: slot.x, y: slot.y }]);
+    expect(questPins(s, 'overworld')).toEqual([LANDMARKS.thornwick]);
   });
 
   it('logs declined, active and ready quests', () => {

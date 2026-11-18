@@ -2432,6 +2432,43 @@ function bones(p: Paint): void {
   [14.9, 15.9, 16.9, 17.9].forEach((x) => p.flat(box(x, 18.6, 0.4, 0.6), '#1a1210'));
 }
 
+/** A weathered round-topped headstone over a fresh earth mound. */
+function grave(p: Paint): void {
+  shadow(p, 16, 28.8, 10.5, 1.8);
+  p.fill(ell(16, 25.5, 9.5, 3.6), '#6a5038', { sphere: true, tex: 0.6, seed: 141 });
+  const stone = '#9a968c';
+  p.fill(union(box(10.5, 9, 11, 15), ell(16, 9.5, 5.5, 4.5)), stone, { gradX: 1, tex: 0.4, seed: 142, bevel: 1 });
+  p.fill(box(9.8, 22.6, 12.4, 2.2), tone(stone, -1), { bevel: 0 });
+  p.flat(box(15.3, 11, 1.4, 7), tone(stone, -2.5));
+  p.flat(box(13, 13.2, 6, 1.4), tone(stone, -2.5));
+  p.flat(seg(18.6, 16, 20.4, 21, 0.3), tone(stone, -3), 0.7);
+  [
+    [8.5, 26.5],
+    [23, 25.8],
+  ].forEach(([x, y]) => p.fill(ell(x, y, 1.4, 1), '#5a8a3a', { sphere: true, bevel: 0, dither: 0 }));
+}
+
+/** A heap of tumbled stones with a charred roof beam across it. */
+function rubble(p: Paint): void {
+  shadow(p, 16, 28.5, 13, 2.2);
+  const stone = '#8a8478';
+  [
+    [9, 23, 6, 4.5, 151],
+    [22, 23.5, 6.5, 4.8, 152],
+    [15.5, 19, 6, 4.6, 153],
+    [6.5, 17.5, 3.6, 3, 154],
+    [25, 16.5, 3.2, 2.8, 155],
+    [14, 26, 4, 2.6, 156],
+  ].forEach(([x, y, rx, ry, seed]) => p.fill(ell(x, y, rx, ry), stone, { sphere: true, tex: 0.5, seed }));
+  p.fill(seg(4, 12, 28, 20.5, 1.7), '#2a1e16', { bevel: 1, dither: 0 });
+  p.flat(seg(4.5, 11.4, 27.5, 19.8, 0.4), '#4a3a2a', 0.7);
+  [
+    [9, 13.7],
+    [17, 16.3],
+    [24, 18.6],
+  ].forEach(([x, y]) => p.flat(ell(x, y, 0.8, 0.5), '#c04a1a', 0.6));
+}
+
 /** Heap of gold coins with a few gems. */
 function goldPile(p: Paint): void {
   glow(p, 16, 20, 13, '#ffe080', 0.18);
@@ -2626,6 +2663,8 @@ const DECOR: ReadonlyMap<string, DecorDef> = new Map<string, DecorDef>([
   ['chest', { draw: chest }],
   ['jailBars', { draw: jailBars }],
   ['bones', { draw: bones }],
+  ['grave', { draw: grave }],
+  ['rubble', { draw: rubble }],
   ['goldPile', { draw: goldPile }],
   ['campfire', { draw: campfire }],
   ['straw', { draw: straw }],
