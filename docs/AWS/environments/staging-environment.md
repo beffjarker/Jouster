@@ -44,7 +44,22 @@ cd aws/scripts
 
 ## Environment URLs
 - **Staging Domain**: https://stg.jouster.org
-- **S3 Direct**: http://stg.jouster.org.s3-website-us-west-2.amazonaws.com
+- **S3 website endpoint**: http://stg.jouster.org.s3-website-us-west-2.amazonaws.com (redirects to HTTPS
+  once the bucket is secured, see [HTTPS only](#https-only))
+
+## HTTPS only
+
+Staging and production buckets are made private with the **Secure Frontend Origins (HTTPS only)** workflow
+(`.github/workflows/secure-frontend-origins.yml`). It moves each CloudFront origin to the S3 REST endpoint
+with Origin Access Control, verifies it, removes public read and turns the S3 website endpoint into a
+redirect to HTTPS. It is safe to re-run. See [QA HTTPS](../../QA-HTTPS-ISSUE.md#private-s3-origins-s3-origin-httpssh)
+for the steps it performs.
+
+1. Run it with `target` = `staging` and `dry_run` = `true`; review the planned changes in the log.
+2. Run it again with `dry_run` = `false`.
+3. Check: `curl -I http://stg.jouster.org.s3-website-us-west-2.amazonaws.com/` returns
+   `301 Location: https://stg.jouster.org/`, and `https://stg.jouster.org` still loads.
+4. Repeat with `target` = `production`.
 
 ## Blue-Green Deployment Strategy
 
@@ -91,8 +106,9 @@ For automated deployment, ensure these secrets are set in GitHub:
 ## Troubleshooting
 - **Build failures**: Check GitHub Actions logs
 - **DNS issues**: Verify Route 53 hosted zone exists
-- **Access issues**: Check S3 bucket policy and public access settings
-- **SSL**: Staging uses HTTP (no SSL) for simplicity, production uses HTTPS
+- **Access issues**: Once secured, the bucket is private; check that its policy allows `cloudfront.amazonaws.com`
+  for the staging distribution and that the origin uses the `jouster-s3-oac` Origin Access Control
+- **SSL**: Staging and production are served over HTTPS through CloudFront; HTTP redirects to HTTPS
 
 ## Next Steps
 After staging testing is complete, promote to production:

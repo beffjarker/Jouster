@@ -41,9 +41,11 @@ https://pr{NUMBER}-preview.jouster.org
 https://pr42-preview.jouster.org
 ```
 
-HTTP requests are redirected to HTTPS. The bucket is private (read by CloudFront through Origin Access
-Control), and its S3 website endpoint
+HTTP requests are redirected to HTTPS. The bucket is private (read by CloudFront through the shared
+`jouster-s3-oac` Origin Access Control), and its S3 website endpoint
 (`http://jouster-preview-pr{NUMBER}.s3-website-us-west-2.amazonaws.com`) only redirects to the HTTPS URL.
+The workflow applies this with `.github/scripts/s3-origin-https.sh`, the same script used for QA, staging
+and production.
 
 ---
 
@@ -253,7 +255,7 @@ The IAM user needs these S3 permissions:
 1. Verify the bucket policy allows `cloudfront.amazonaws.com` (OAC) to read objects for this PR's distribution
 2. Check that `index.html` exists in bucket
 3. Ensure the distribution's origin is `jouster-preview-pr{NUMBER}.s3.us-west-2.amazonaws.com` with the
-   `jouster-preview-s3-oac` origin access control
+   `jouster-s3-oac` origin access control
 4. Verify bucket name is correct
 
 ---

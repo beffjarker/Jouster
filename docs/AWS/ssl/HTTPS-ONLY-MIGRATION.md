@@ -46,7 +46,10 @@ Ensure all internal links use HTTPS.
 Add CSP headers to prevent mixed content.
 
 #### D. Redirect S3 Direct Access
-Ensure users can't bypass CloudFront.
+Ensure users can't bypass CloudFront. This is now automated: QA and preview deploys apply it on every run,
+and staging/production use the **Secure Frontend Origins (HTTPS only)** workflow. Buckets become private
+(CloudFront reads them through the `jouster-s3-oac` Origin Access Control) and each S3 website endpoint
+redirects to HTTPS. See [Staging: HTTPS only](../environments/staging-environment.md#https-only).
 
 ---
 

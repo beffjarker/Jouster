@@ -36,7 +36,8 @@ cd aws/scripts
 
 ## Environment URLs
 - **QA Domain**: https://qa.jouster.org
-- **S3 Direct**: http://qa.jouster.org.s3-website-us-west-2.amazonaws.com
+- **S3 website endpoint**: http://qa.jouster.org.s3-website-us-west-2.amazonaws.com (redirects to HTTPS;
+  the bucket is private and only CloudFront can read it, see [QA HTTPS](../../QA-HTTPS-ISSUE.md))
 
 ## Configuration Files
 - **Workflow**: `.github/workflows/qa-deploy.yml`
@@ -73,5 +74,6 @@ Trunk-based: `main` is the only long-lived branch.
 ## Troubleshooting
 - **Build failures**: Check GitHub Actions logs
 - **DNS issues**: Verify Route 53 hosted zone exists
-- **Access issues**: Check S3 bucket policy and public access settings
-- **SSL**: QA uses HTTP (no SSL) for simplicity, production uses HTTPS
+- **Access issues**: The bucket is private; check that its policy allows `cloudfront.amazonaws.com` for the
+  QA distribution and that the origin uses the `jouster-s3-oac` Origin Access Control
+- **SSL**: QA is HTTPS only (CloudFront, `*.jouster.org` certificate); HTTP redirects to HTTPS

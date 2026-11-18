@@ -65,36 +65,16 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-west-2
 
+    # Private bucket: CloudFront reads it through Origin Access Control, and the "Serve QA over HTTPS only"
+    # step turns its HTTP website endpoint into a redirect to https://qa.jouster.org.
     - name: Create QA S3 bucket if not exists
       run: |
         if ! aws s3api head-bucket --bucket qa.jouster.org 2>/dev/null; then
-          echo "Creating QA S3 bucket..."
-          aws s3 mb s3://qa.jouster.org --region us-west-2
-
-          # Configure bucket for static website hosting
-          aws s3 website s3://qa.jouster.org --index-document index.html --error-document index.html
-
-          # Remove public access blocks
-          aws s3api put-public-access-block \
-            --bucket qa.jouster.org \
-            --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
-
-          # Apply public read policy
-          aws s3api put-bucket-policy \
-            --bucket qa.jouster.org \
-            --policy '{
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Sid": "PublicReadGetObject",
-                  "Effect": "Allow",
-                  "Principal": "*",
-                  "Action": "s3:GetObject",
-                  "Resource": "arn:aws:s3:::qa.jouster.org/*"
-                }
-              ]
-            }'
-          echo "QA S3 bucket created and configured"
+          echo "Creating private QA S3 bucket..."
+          aws s3api create-bucket --bucket qa.jouster.org --region us-west-2 \
+            --create-bucket-configuration LocationConstraint=us-west-2
+          aws s3api put-public-access-block --bucket qa.jouster.org --public-access-block-configuration \
+            "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
         else
           echo "QA S3 bucket already exists"
         fi
@@ -115,13 +95,13 @@ jobs:
         echo "✅ Deployment to qa.jouster.org complete!"
 
     # S3 website endpoints are HTTP-only, so QA is served through CloudFront using the
-    # existing *.jouster.org ACM certificate. Idempotent: reuses the distribution that
-    # already has the qa.jouster.org alias, otherwise creates one.
+    # existing *.jouster.org ACM certificate, reading the private bucket via Origin Access Control.
+    # Idempotent: reuses the distribution that already has the qa.jouster.org alias, otherwise creates one.
     - name: Ensure QA CloudFront distribution (HTTPS)
       id: cdn
       env:
         QA_DOMAIN: qa.jouster.org
-        QA_ORIGIN: qa.jouster.org.s3-website-us-west-2.amazonaws.com
+        QA_ORIGIN: qa.jouster.org.s3.us-west-2.amazonaws.com
       run: |
         set -euo pipefail
         DIST_ID=$(aws cloudfront list-distributions \
@@ -138,11 +118,14 @@ jobs:
             exit 1
           fi
 
+          OAC_ID=$(bash .github/scripts/s3-origin-https.sh oac)
+
           # Managed policies: CachingOptimized and SecurityHeadersPolicy (adds HSTS etc.).
           jq -n \
             --arg ref "jouster-qa-${GITHUB_RUN_ID}" \
             --arg domain "$QA_DOMAIN" \
             --arg origin "$QA_ORIGIN" \
+            --arg oac "$OAC_ID" \
             --arg cert "$CERT_ARN" '{
               CallerReference: $ref,
               Comment: "Jouster QA (\($domain))",
@@ -153,21 +136,15 @@ jobs:
               HttpVersion: "http2and3",
               IsIPV6Enabled: true,
               Origins: { Quantity: 1, Items: [{
-                Id: "qa-s3-website",
+                Id: "qa-s3",
                 DomainName: $origin,
                 OriginPath: "",
                 CustomHeaders: { Quantity: 0 },
-                CustomOriginConfig: {
-                  HTTPPort: 80,
-                  HTTPSPort: 443,
-                  OriginProtocolPolicy: "http-only",
-                  OriginSslProtocols: { Quantity: 1, Items: ["TLSv1.2"] },
-                  OriginReadTimeout: 30,
-                  OriginKeepaliveTimeout: 5
-                }
+                S3OriginConfig: { OriginAccessIdentity: "" },
+                OriginAccessControlId: $oac
               }]},
               DefaultCacheBehavior: {
-                TargetOriginId: "qa-s3-website",
+                TargetOriginId: "qa-s3",
                 ViewerProtocolPolicy: "redirect-to-https",
                 Compress: true,
                 CachePolicyId: "658327ea-f89d-4fab-a63d-7e88639e58f6",
@@ -177,9 +154,10 @@ jobs:
                   CachedMethods: { Quantity: 2, Items: ["GET", "HEAD"] }
                 }
               },
-              CustomErrorResponses: { Quantity: 1, Items: [{
-                ErrorCode: 404, ResponsePagePath: "/index.html", ResponseCode: "200", ErrorCachingMinTTL: 10
-              }]},
+              CustomErrorResponses: { Quantity: 2, Items: [
+                { ErrorCode: 403, ResponsePagePath: "/index.html", ResponseCode: "200", ErrorCachingMinTTL: 10 },
+                { ErrorCode: 404, ResponsePagePath: "/index.html", ResponseCode: "200", ErrorCachingMinTTL: 10 }
+              ]},
               ViewerCertificate: {
                 ACMCertificateArn: $cert,
                 SSLSupportMethod: "sni-only",
@@ -205,6 +183,12 @@ jobs:
         CF_DOMAIN=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.DomainName' --output text)
         echo "id=$DIST_ID" >> "$GITHUB_OUTPUT"
         echo "domain=$CF_DOMAIN" >> "$GITHUB_OUTPUT"
+
+    # Moves a distribution created before OAC off the public HTTP website endpoint, locks the bucket to
+    # CloudFront (Block Public Access on) and makes the website endpoint redirect to HTTPS.
+    # Verifies the new origin before removing public access and rolls back if it fails.
+    - name: Serve QA over HTTPS only
+      run: bash .github/scripts/s3-origin-https.sh secure qa.jouster.org qa.jouster.org
 
     # Replaces the legacy CNAME to the S3 website endpoint with A/AAAA aliases to CloudFront.
     - name: Point qa.jouster.org at CloudFront
@@ -252,6 +236,6 @@ jobs:
         echo "?? QA Deployment Complete!"
         echo "QA Environment URLs:"
         echo "- Custom Domain: https://qa.jouster.org (CloudFront ${{ steps.cdn.outputs.domain }})"
-        echo "- S3 Origin (HTTP only): http://qa.jouster.org.s3-website-us-west-2.amazonaws.com"
+        echo "- S3 website endpoint: redirects to https://qa.jouster.org (bucket is private)"
         echo "- Build: ${{ github.sha }}"
         echo "- Branch: ${{ github.ref_name }}"
