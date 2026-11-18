@@ -23,7 +23,7 @@ When you open or update a pull request:
 
 1. **GitHub Actions triggers** the `build-preview-artifact.yml` workflow
 2. **Application is built** using production configuration
-3. **Unique S3 bucket is created** named `jouster-preview-pr{NUMBER}` (CloudFront origin)
+3. **Unique private S3 bucket is created** named `jouster-preview-pr{NUMBER}` (CloudFront origin via OAC)
 4. **Files are deployed** to the S3 bucket
 5. **A per-PR CloudFront distribution** serves the bucket over HTTPS using the `*.jouster.org` certificate,
    and a Route 53 alias points `pr{NUMBER}-preview.jouster.org` at it (the first deploy of a PR waits
@@ -41,8 +41,9 @@ https://pr{NUMBER}-preview.jouster.org
 https://pr42-preview.jouster.org
 ```
 
-HTTP requests are redirected to HTTPS. The raw S3 website endpoint
-(`http://jouster-preview-pr{NUMBER}.s3-website-us-west-2.amazonaws.com`) is only the CloudFront origin.
+HTTP requests are redirected to HTTPS. The bucket is private (read by CloudFront through Origin Access
+Control), and its S3 website endpoint
+(`http://jouster-preview-pr{NUMBER}.s3-website-us-west-2.amazonaws.com`) only redirects to the HTTPS URL.
 
 ---
 
@@ -249,9 +250,10 @@ The IAM user needs these S3 permissions:
 **Problem:** Preview URL returns 403 or 404 error.
 
 **Solutions:**
-1. Verify bucket policy allows public read access
+1. Verify the bucket policy allows `cloudfront.amazonaws.com` (OAC) to read objects for this PR's distribution
 2. Check that `index.html` exists in bucket
-3. Ensure static website hosting is enabled
+3. Ensure the distribution's origin is `jouster-preview-pr{NUMBER}.s3.us-west-2.amazonaws.com` with the
+   `jouster-preview-s3-oac` origin access control
 4. Verify bucket name is correct
 
 ---
@@ -277,7 +279,7 @@ Preview environments are designed to be cost-effective:
 
 ### Public Access
 
-Preview environments are **publicly accessible** by default:
+Preview environments are **publicly accessible over HTTPS** by default:
 - Anyone with the URL can access
 - No authentication required
 - Suitable for public projects or stakeholder review

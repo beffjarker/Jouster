@@ -64,7 +64,7 @@ on:
    - Delete them
 
 4. **Delete CloudFront Distribution**
-   - Find the distribution by alias (or by the bucket's S3 website origin)
+   - Find the distribution by alias (or by the bucket's S3 origin, including the legacy website origin)
    - Disable it, wait for the change to deploy (~5-20 min), then delete it
 
 5. **Delete S3 Bucket** (skipped if DNS removal failed)
