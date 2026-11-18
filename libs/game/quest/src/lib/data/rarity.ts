@@ -11,16 +11,19 @@ export interface RarityDef {
   color: string;
   /** Random bonus rolls (Common drops roll 0 or 1, see `COMMON_DROP_BONUS_CHANCE`). */
   rolls: number;
-  /** Multiplier on the base price when working out what a piece is worth. */
+  /**
+   * Multiplier on the base price when working out what a piece is worth. Commons are worth little, so selling drops
+   * doesn't outpace fight gold (plan 33.8); Rare and better are still a good sale.
+   */
   valueMultiplier: number;
 }
 
 export const RARITIES: Readonly<Record<Rarity, RarityDef>> = {
-  common: { id: 'common', name: 'Common', tag: 'C', color: '#ffffff', rolls: 0, valueMultiplier: 1 },
-  uncommon: { id: 'uncommon', name: 'Uncommon', tag: 'U', color: '#50e070', rolls: 1, valueMultiplier: 1.5 },
-  rare: { id: 'rare', name: 'Rare', tag: 'R', color: '#60a8ff', rolls: 2, valueMultiplier: 2.5 },
-  epic: { id: 'epic', name: 'Epic', tag: 'E', color: '#c080ff', rolls: 3, valueMultiplier: 4 },
-  legendary: { id: 'legendary', name: 'Legendary', tag: 'L', color: '#ffa040', rolls: 4, valueMultiplier: 6 },
+  common: { id: 'common', name: 'Common', tag: 'C', color: '#ffffff', rolls: 0, valueMultiplier: 0.15 },
+  uncommon: { id: 'uncommon', name: 'Uncommon', tag: 'U', color: '#50e070', rolls: 1, valueMultiplier: 0.3 },
+  rare: { id: 'rare', name: 'Rare', tag: 'R', color: '#60a8ff', rolls: 2, valueMultiplier: 0.75 },
+  epic: { id: 'epic', name: 'Epic', tag: 'E', color: '#c080ff', rolls: 3, valueMultiplier: 1.5 },
+  legendary: { id: 'legendary', name: 'Legendary', tag: 'L', color: '#ffa040', rolls: 4, valueMultiplier: 2.5 },
 };
 
 export const RARITY_ORDER: readonly Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary'];

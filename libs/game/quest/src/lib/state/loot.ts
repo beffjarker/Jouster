@@ -39,7 +39,10 @@ const SUFFIX: Readonly<Record<BonusStat, string>> = {
 };
 
 /** Value added per bonus roll per item tier (plan 33.5). */
-const BONUS_VALUE_PER_TIER = 15;
+const BONUS_VALUE_PER_TIER = 5;
+
+/** Starting gear has no price; it's valued at a tenth of the tier above, so it sells for a few gold. */
+const STARTING_GEAR_VALUE_DIVISOR = 10;
 
 interface BaseInfo {
   name: string;
@@ -181,7 +184,7 @@ export function isPrecious(item: GearRoll): boolean {
   return RARITY_ORDER.indexOf(item.rarity) >= RARITY_ORDER.indexOf('rare');
 }
 
-/** Base price; starting gear (price 0) uses the cheapest piece of the tier above in the same slot or family. */
+/** Base price; starting gear (price 0) is worth a tenth of the cheapest weapon of the tier above in its family. */
 function basePrice(baseId: string): number {
   const info = baseInfo(baseId);
   if (!info) {
@@ -194,10 +197,10 @@ function basePrice(baseId: string): number {
   const above = [...WEAPONS.values()]
     .filter((w) => w.tier === info.tier + 1 && (family === undefined || w.family === family))
     .map((w) => w.price);
-  return above.length ? Math.min(...above) : 0;
+  return above.length ? Math.round(Math.min(...above) / STARTING_GEAR_VALUE_DIVISOR) : 0;
 }
 
-/** What a piece is worth: base price x rarity multiplier + 15 x tier per bonus roll (plan 33.5). */
+/** What a piece is worth: base price x rarity multiplier + 5 x tier per bonus roll (plan 33.5, tuned in 33.8). */
 export function gearValue(item: GearRoll): number {
   const tier = baseInfo(item.baseId)?.tier ?? 1;
   return Math.round(basePrice(item.baseId) * RARITIES[item.rarity].valueMultiplier) + BONUS_VALUE_PER_TIER * tier * bonusCount(item);

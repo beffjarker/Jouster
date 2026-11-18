@@ -169,15 +169,19 @@ describe('loot and rarity (plan 33)', () => {
     expect(isPrecious({ baseId: 'chainMail', rarity: 'rare', bonus: {} })).toBe(true);
   });
 
-  it('values pieces by rarity and bonuses, and sells them for half', () => {
+  it('values pieces by rarity and bonuses (Commons cheaply), and sells them for half', () => {
     const price = baseInfo('chainMail')?.price ?? 0;
     const tier = baseInfo('chainMail')?.tier ?? 1;
     const common: GearRoll = { baseId: 'chainMail', rarity: 'common', bonus: {} };
-    expect(gearValue(common)).toBe(price);
-    expect(gearSellPrice(common)).toBe(Math.floor(price / 2));
+    expect(gearValue(common)).toBe(Math.round(price * 0.15));
+    expect(gearSellPrice(common)).toBe(Math.max(1, Math.floor(Math.round(price * 0.15) / 2)));
     const epic: GearRoll = { baseId: 'chainMail', rarity: 'epic', bonus: { atk: 1, agi: 1, hp: 4 } };
-    expect(gearValue(epic)).toBe(price * 4 + 15 * tier * 3);
-    expect(gearSellPrice({ baseId: 'bronzeSword', rarity: 'common', bonus: {} })).toBeGreaterThan(0);
+    expect(gearValue(epic)).toBe(Math.round(price * 1.5) + 5 * tier * 3);
+    expect(gearSellPrice(epic)).toBeGreaterThan(gearSellPrice(common) * 5);
+    // Starting gear is worth a tenth of the tier above: a few gold, never zero.
+    const bronze = gearSellPrice({ baseId: 'bronzeSword', rarity: 'common', bonus: {} });
+    expect(bronze).toBeGreaterThan(0);
+    expect(bronze).toBeLessThanOrEqual(5);
   });
 
   it('checks the shape of saved pieces', () => {
