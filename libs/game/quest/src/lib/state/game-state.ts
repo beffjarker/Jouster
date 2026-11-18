@@ -123,14 +123,15 @@ export function inParty(state: GameState, companionId: string): boolean {
 }
 
 /**
- * True when the companion is waiting at their home spot (unlocked and not in the party). Nobody shows up
- * before the Goblin King falls - word of the victory is what draws them out.
+ * True when the companion is waiting at their home spot (unlocked and not in the party). Word of the Goblin
+ * King's fall is what draws most of them out; only a companion with `beforeKing` lines (the cave prisoner) is
+ * there before that.
  */
 export function companionPresent(state: GameState, companionId: string): boolean {
   const slot = companionSlot(companionId);
   return (
     companionId in state.companions &&
-    state.flags['bossDefeated'] === true &&
+    (state.flags['bossDefeated'] === true || slot.beforeKing !== undefined) &&
     !inParty(state, companionId) &&
     (!slot.requiresFlag || state.flags[slot.requiresFlag] === true)
   );
@@ -145,11 +146,15 @@ export function companionBenched(state: GameState, companionId: string): boolean
 }
 
 /**
- * True when a present companion is willing to join: their side quest is done (companions who were in the
- * party before always rejoin).
+ * True when a present companion is willing to join: the Goblin King has fallen and their side quest is done
+ * (companions who were in the party before always rejoin).
  */
 export function companionAvailable(state: GameState, companionId: string): boolean {
-  return companionPresent(state, companionId) && state.quests[companionId] === 'done';
+  return (
+    state.flags['bossDefeated'] === true &&
+    companionPresent(state, companionId) &&
+    state.quests[companionId] === 'done'
+  );
 }
 
 /**

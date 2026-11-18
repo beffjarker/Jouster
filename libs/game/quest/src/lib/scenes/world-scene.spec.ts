@@ -189,6 +189,17 @@ describe('WorldScene', () => {
     expect(rolled.classId).not.toBe('cleric');
   });
 
+  it('lets the cave prisoner talk through the bars before the Goblin King falls, without a quest yet', () => {
+    const h = setup({ mapId: 'goblinCave', x: 19, y: 4, facing: 'up' });
+    h.tap('confirm');
+    const pages = (h.ctx.stack.top as unknown as { pages: string[][] }).pages.flat().join(' ');
+    expect(pages).toContain('behind the bars');
+    expect(pages).toContain('Bring him down');
+    h.confirmUntilWorld();
+    expect(h.state.quests['cave']).toBeUndefined();
+    expect(h.state.party).toHaveLength(1);
+  });
+
   it('warps between maps', () => {
     const h = setup({ mapId: 'overworld', x: LANDMARKS.aldmere.x, y: LANDMARKS.aldmere.y + 1, facing: 'up' });
     h.hold('up', STEP_TIME);

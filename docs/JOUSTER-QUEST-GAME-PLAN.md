@@ -2340,10 +2340,13 @@ Thornwick should be a real ruin to walk through, with its companion inside the r
   The Bone Captain (with a skeleton) is in the chapel aisle. It only appears while the quest is active and after an
   inn rest (`thornwickNight`). The overworld no longer has the Bone Captain or the Thornwick event. A quest pin on
   another map also marks that map's landmark on the overworld.
-- **Companions after the king:** `companionPresent` requires `flags.bossDefeated`. All four companions (tavern,
-  Thornwick, Brookhollow, Goblin Cave prisoner) are hidden until the Goblin King falls, so they never refuse to
-  join. `PRE_BOSS_HINT` is gone. A save from before this change that is still in the old `locked` stage only hears
-  the intro.
+- **Companions after the king:** `companionPresent` requires `flags.bossDefeated`. The tavern, Thornwick and
+  Brookhollow companions are hidden until the Goblin King falls, so they never refuse to join. `PRE_BOSS_HINT` is
+  gone. A save from before this change that is still in the old `locked` stage only hears the intro.
+- **Cave prisoner stays in his cell:** he is part of the king's throne room. Slots with `beforeKing` lines are
+  present before the king falls, so he is always behind the bars. Before the victory he gives his intro plus his
+  `beforeKing` line ("Bring him down, then we'll talk.") with no quest. `companionAvailable` also requires
+  `bossDefeated`, so nobody can join early.
 - **Dialog up to the king:**
   - On the first meeting, the King says few dare the roads while goblins raid, so the hero must go alone until
     their king falls. He no longer promises travelers.
@@ -2356,3 +2359,18 @@ Thornwick should be a real ruin to walk through, with its companion inside the r
   - The quest log's empty-party line says that a victory over the Goblin King may draw allies.
 - **Balance:** the mini-boss fight lists in `balance.spec.ts` and `loot-balance.spec.ts` now include the
   `thornwick` map.
+
+## 35. Weather anchored to the ground (implemented)
+
+**Feedback:** rain, lightning and all other weather should be anchored to the ground, as the clouds are, instead of following
+the hero.
+
+**Changes (`ui/weather-fx.ts`):**
+
+- **Patchy density:** rain and snow are thinned by a world-space value-noise field (`cellDensity`, 110 px cells)
+  that drifts slowly with the wind. Heavier and lighter patches visibly slide past as the hero walks, instead of a
+  uniform field that repeats every screen. Storms and blizzards keep a higher floor, so they never go fully clear.
+- **Slant from the fall:** a drop's sideways wind offset comes from its own fall distance, not its screen row, so
+  walking up or down no longer slides the rain sideways. Splashes stay on fixed ground spots.
+- **Lightning strikes the ground:** each bolt ends on a fixed world spot, with a ground glow there, and scrolls with
+  the map while it is visible. The screen-wide flash and tint stay as sky lighting.
