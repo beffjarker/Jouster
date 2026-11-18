@@ -9,8 +9,8 @@
 const getAllowedOrigins = () => {
   const env = process.env.NODE_ENV || 'development';
 
-  // Extra origins can be injected at deploy time (e.g. per-PR preview S3 website
-  // URL) via a comma-separated CORS_ALLOWED_ORIGINS env var. These are always
+  // Extra origins can be injected at deploy time (e.g. per-PR preview URL
+  // https://prN-preview.jouster.org) via a comma-separated CORS_ALLOWED_ORIGINS env var. These are always
   // merged in, regardless of NODE_ENV, so preview environments can reach the API.
   const extraOrigins = (process.env.CORS_ALLOWED_ORIGINS || '')
     .split(',')

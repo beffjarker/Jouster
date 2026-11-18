@@ -21,23 +21,28 @@ Every pull request automatically gets its own preview environment deployed to AW
 
 When you open or update a pull request:
 
-1. **GitHub Actions triggers** the `pull-request-deploy-preview.yml` workflow
+1. **GitHub Actions triggers** the `build-preview-artifact.yml` workflow
 2. **Application is built** using production configuration
-3. **Unique S3 bucket is created** named `jouster-preview-pr{NUMBER}-{BRANCH}`
+3. **Unique S3 bucket is created** named `jouster-preview-pr{NUMBER}` (CloudFront origin)
 4. **Files are deployed** to the S3 bucket
-5. **Comment is posted** on the PR with the preview URL
-6. **Label is added** `preview-deployed` to the PR
+5. **A per-PR CloudFront distribution** serves the bucket over HTTPS using the `*.jouster.org` certificate,
+   and a Route 53 alias points `pr{NUMBER}-preview.jouster.org` at it (the first deploy of a PR waits
+   for CloudFront to finish deploying; later pushes reuse it and invalidate the cache)
+6. **Comment is posted** on the PR with the preview URL
 
 ### Preview URL Format
 
 ```
-http://jouster-preview-pr{NUMBER}-{BRANCH-NAME}.s3-website-us-west-2.amazonaws.com
+https://pr{NUMBER}-preview.jouster.org
 ```
 
 **Example:**
 ```
-http://jouster-preview-pr42-fix-email-search.s3-website-us-west-2.amazonaws.com
+https://pr42-preview.jouster.org
 ```
+
+HTTP requests are redirected to HTTPS. The raw S3 website endpoint
+(`http://jouster-preview-pr{NUMBER}.s3-website-us-west-2.amazonaws.com`) is only the CloudFront origin.
 
 ---
 
@@ -52,7 +57,7 @@ After your PR is created or updated, look for a comment from GitHub Actions:
 
 Your preview environment is ready for testing:
 
-🔗 Preview URL: http://jouster-preview-pr42-fix-email-search.s3-website-us-west-2.amazonaws.com
+🔗 Preview URL: https://pr42-preview.jouster.org
 
 📦 Bucket: jouster-preview-pr42-fix-email-search
 🔢 PR: #42
