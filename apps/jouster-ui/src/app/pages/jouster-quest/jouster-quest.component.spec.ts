@@ -6,7 +6,7 @@ const mockStart = jest.fn();
 const mockDestroy = jest.fn();
 let mockShouldThrow = false;
 let mockLastOptions:
-  | { keySource?: EventTarget; onSceneChange?(id: string | undefined): void }
+  | { keySource?: EventTarget; onSceneChange?(id: string | undefined): void; onViewChange?(view: string): void }
   | undefined;
 
 jest.mock('@jouster/game/quest', () => ({
@@ -69,6 +69,13 @@ describe('JousterQuestComponent', () => {
     spectator = createComponent();
     mockLastOptions?.onSceneChange?.('title');
     expect(spectator.query('canvas')?.getAttribute('data-scene')).toBe('title');
+  });
+
+  it("exposes the top scene's view (such as a shop's SELL list) for e2e tests", () => {
+    spectator = createComponent();
+    expect(spectator.query('canvas')?.getAttribute('data-view')).toBe('');
+    mockLastOptions?.onViewChange?.('sell');
+    expect(spectator.query('canvas')?.getAttribute('data-view')).toBe('sell');
   });
 
   it('shows a fallback message when the game cannot start', () => {

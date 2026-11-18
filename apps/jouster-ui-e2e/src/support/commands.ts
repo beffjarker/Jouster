@@ -8,6 +8,7 @@ export interface QuestKey {
 
 export const QUEST_KEYS = {
   up: { code: 'ArrowUp', key: 'ArrowUp' },
+  down: { code: 'ArrowDown', key: 'ArrowDown' },
   confirm: { code: 'KeyZ', key: 'z' },
   cancel: { code: 'KeyX', key: 'x' },
   enter: { code: 'Enter', key: 'Enter' },

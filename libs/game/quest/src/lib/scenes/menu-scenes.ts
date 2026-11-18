@@ -765,6 +765,11 @@ export class ShopScene implements Scene {
     return this.mode;
   }
 
+  /** The mode (`top`, `buy` or `sell`) as the canvas `data-view`, for e2e. */
+  public get view(): string {
+    return this.mode;
+  }
+
   public update(_dt: number, input: InputManager): void {
     if (this.mode === 'top') {
       const res = this.top.update(input);

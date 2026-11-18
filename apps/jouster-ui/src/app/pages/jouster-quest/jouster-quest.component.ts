@@ -95,6 +95,9 @@ export class JousterQuestComponent implements AfterViewInit, OnDestroy {
           onSceneChange: (id) => {
             canvas.dataset['scene'] = id ?? '';
           },
+          onViewChange: (view) => {
+            canvas.dataset['view'] = view;
+          },
         });
         this.game.start();
       });

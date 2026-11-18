@@ -1,4 +1,4 @@
-import { clientToLogical } from './game';
+import { clientToLogical, viewWatcher } from './game';
 
 describe('clientToLogical', () => {
   const rect = { left: 100, top: 50, width: 960, height: 540 };
@@ -16,5 +16,22 @@ describe('clientToLogical', () => {
   it('clamps points outside the canvas (e.g. a drag that leaves it) to the screen', () => {
     expect(clientToLogical(0, 0, rect)).toEqual({ x: 0, y: 0 });
     expect(clientToLogical(5000, 5000, rect)).toEqual({ x: 479, y: 269 });
+  });
+});
+
+describe('viewWatcher', () => {
+  it('reports the top scene view only when it changes, and an empty view for scenes without one', () => {
+    const notify = jest.fn();
+    const watch = viewWatcher(notify);
+    watch({});
+    watch({ view: 'top' });
+    watch({ view: 'top' });
+    watch({ view: 'sell' });
+    watch(undefined);
+    expect(notify.mock.calls).toEqual([['top'], ['sell'], ['']]);
+  });
+
+  it('works without a listener', () => {
+    expect(() => viewWatcher()({ view: 'buy' })).not.toThrow();
   });
 });
