@@ -5,6 +5,8 @@ import { Renderer } from './renderer';
 export interface Scene {
   /** Stable id used for debugging / e2e (`data-scene`). */
   readonly id: string;
+  /** Optional sub-view inside the scene (e.g. a shop's `sell` list), for e2e (`data-view`). */
+  readonly view?: string;
   enter?(): void;
   exit?(): void;
   update(dt: number, input: InputManager): void;

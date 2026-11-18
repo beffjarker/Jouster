@@ -5,6 +5,7 @@ import {
   InputManager,
   KeyEventSource,
   Renderer,
+  Scene,
   SceneStack,
   animationFrameScheduler,
   createRng,
@@ -27,6 +28,8 @@ export interface JousterQuestOptions {
   pointer?: boolean;
   /** Notified with the active scene id whenever the scene stack changes. */
   onSceneChange?(sceneId: string | undefined): void;
+  /** Notified with the top scene's `view` (empty when it has none) whenever it changes. */
+  onViewChange?(view: string): void;
   scheduler?: FrameScheduler;
   seed?: number;
   /**
@@ -55,6 +58,21 @@ export function clientToLogical(clientX: number, clientY: number, rect: ScreenRe
   return { x: Math.max(0, Math.min(SCREEN_W - 1, x)), y: Math.max(0, Math.min(SCREEN_H - 1, y)) };
 }
 
+/**
+ * Returns a per-frame check that calls `notify` with the top scene's `view` ('' when it has none) only when it
+ * differs from the last one reported. Scene ids already reach the page on push / pop; views change inside a scene.
+ */
+export function viewWatcher(notify?: (view: string) => void): (top: Pick<Scene, 'view'> | undefined) => void {
+  let last = '';
+  return (top) => {
+    const view = top?.view ?? '';
+    if (view !== last) {
+      last = view;
+      notify?.(view);
+    }
+  };
+}
+
 /** Scenes that consume raw typing, where the mute hotkey must not fire. */
 const TEXT_ENTRY_SCENES = new Set(['name-entry']);
 
@@ -73,6 +91,7 @@ export class JousterQuestGame {
   private readonly ctx: GameContext;
   private readonly loop: GameLoop;
   private readonly pointerCleanup: Array<() => void> = [];
+  private readonly watchView: (top: Scene | undefined) => void;
 
   constructor(canvas: HTMLCanvasElement, options: JousterQuestOptions = {}) {
     const context2d = canvas.getContext('2d');
@@ -82,6 +101,7 @@ export class JousterQuestGame {
     context2d.imageSmoothingEnabled = false;
     this.renderer = new Renderer(context2d, { pixelRatio: 4 });
     this.input = new InputManager(options.keySource ?? window);
+    this.watchView = viewWatcher(options.onViewChange);
     this.ctx = {
       stack: new SceneStack((scene) => options.onSceneChange?.(scene?.id)),
       audio: new AudioManager(),
@@ -183,6 +203,7 @@ export class JousterQuestGame {
       this.ctx.audio.toggleMute();
     }
     this.ctx.stack.update(dt, this.input);
+    this.watchView(this.ctx.stack.top);
     this.ctx.audio.playMusic(musicTrack(this.ctx.stack.music));
     this.input.endFrame();
     if (this.ctx.state) {

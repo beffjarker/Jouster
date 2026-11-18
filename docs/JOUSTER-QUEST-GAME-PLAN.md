@@ -9,8 +9,8 @@
 > [21](#21-finale-the-ember-mountains-implemented)). Phase 8 polish is in progress: music, smooth walking, tile
 > fixes, one art style, a smoke test, poison, LPC battle poses and animated slimes and bats are implemented (§22–§30),
 > and the Necromancer has replaced the Paladin (§31; see [17.8 Next](#178-next) for what is still open).
-> Planned next: an inventory with monster gear drops, item rarity and random stat bonuses, and selling at shops
-> ([33](#33-inventory-loot-and-item-rarity-planned)).
+> An inventory with monster gear drops, item rarity, random stat bonuses, selling at shops and a simulator loot
+> mode is implemented ([33](#33-inventory-loot-and-item-rarity-implemented)).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -1676,8 +1676,9 @@ Every Act III asset is procedural, at the §16.10 density:
   the Wizard starts with more Herbs and 2 Tonics.
 - Apply the 4.4c suggestions (stronger Act II/III bosses for parties, a party attrition check for areas) once
   play-testing confirms parties find Act II/III too easy.
-- Inventory, monster gear drops, item rarity (Common to Legendary), random stat bonuses and selling at shops
-  (planned in §33; buying no longer sells the replaced piece).
+- ~~Inventory, monster gear drops, item rarity (Common to Legendary), random stat bonuses and selling at shops.~~
+  Done in §33, with a simulator loot mode and drop-economy check (33.8). Watch item: well-looted Wizards end
+  mini-boss fights in about half the rounds.
 
 ## 20. Revision 6: solo only before the unlock
 
@@ -2093,7 +2094,7 @@ that warps deep inside the overworld get none. Manual: with LPC art on, walk
 through the forests near Aldmere and past a cave entrance. Look for overlapping canopies, trees cut off at
 the screen edge, and the party drawn over trees. Walk to each town's gate and check that the road out is plain to see.
 
-## 33. Inventory, loot and item rarity (implemented; simulator loot mode next)
+## 33. Inventory, loot and item rarity (implemented)
 
 Feedback: monsters should sometimes drop common gear that can be equipped or sold. Buying gear must not sell the
 piece it replaces. Items should have rarity levels (Common, Uncommon, Rare, Epic, ...) and random stat bonuses,
@@ -2169,9 +2170,10 @@ and anything bought in a shop is Common.
   haul at one counter.
 - **Sell list:** consumables (with counts) and every gear piece in the bag, each with its rarity tag, its bonuses
   and the sell price. Worn gear isn't listed; unequip it first. Selling Rare or better asks for confirmation.
-- **Sell price:** `max(1, floor(value / 2))`, where `value = base price × rarity multiplier + 15 × tier × bonus
-  rolls`. For drops of starting gear (price 0), use the price of the tier above, so a Common Bronze Sword still
-  sells for a few gold.
+- **Sell price:** `max(1, floor(value / 2))`, where `value = round(base price × rarity multiplier) + 5 × tier ×
+  bonus rolls`. Rarity multipliers: Common ×0.15, Uncommon ×0.3, Rare ×0.75, Epic ×1.5, Legendary ×2.5 (lowered
+  from ×1–×6 by the 33.8 economy check). For drops of starting gear (price 0), the base price is a tenth of the
+  cheapest weapon of the tier above, so a Common Bronze Sword still sells for a few gold.
 - **EQUIP menu (field, `E`):** the choice list shows instances with the rarity colour and tag, the bonuses and the
   usual stat change (`ATK 14>17 AGI 6>8`). Identical Commons with no bonus are grouped as one line with a count.
   Under the list, a comparison window (`scenes/gear-compare.ts`) shows NOW (the worn piece) and NEW (the
@@ -2224,6 +2226,29 @@ and anything bought in a shop is Common.
 - Cap: at most one Legendary per act boss, and only on the first win (`flags.loot:<bossId>`), so replaying a boss
   can't farm Legendaries. Leaving a Legendary behind in the Bag full window is final, so its confirmation says so
   ("This Legendary can't be found again. Leave it?").
+
+**Implemented** (`balance/loot-mode.ts`, `balance/loot-balance.spec.ts`; shared kits moved to `balance/kits.ts`):
+
+- **Expected haul:** each stretch of the expected path (random fights in an area from one level to the next, or
+  a boss fight shared by the party) adds drop chance × rarity odds × the chance the piece lands in a slot the
+  class can use (the 3:1 weighting). Random fights are counted by XP, so the per-member haul doesn't depend on
+  party size.
+- **Loot mode** (`withExpectedLoot`): in every slot where the member has probably found a piece (expected count
+  of that rarity or better ≥ 1), it wears that many bonus rolls at mid-range values on the stats it wants most
+  (attack stat, DEF, HP, AGI, ...); an empty slot gets the best piece of the loot tier. It leans generous on
+  purpose, so "still a fight" runs against a well-looted party.
+- **Checks:** the Goblin King, the shrine bosses, the Wyvern Matriarch and both of Vyrmorth's forms stay a fight
+  (≥ 4 rounds and ≥ 2/3 of the no-loot length; boss pairs keep ≥ 70% wins); mini-bosses keep the 4.6 ≥ 60%
+  win rate; area pairs keep ≥ 90%. All pass with the 15% common drop chance, so it stays.
+- **Watch item:** mini-boss fights were already short (about 3.6–6 rounds) without loot, and loot roughly halves
+  them for the Wizard (Bone Captain 4.5 → 2.1 rounds), because MAG bonuses stack on every slot. Revisit if
+  play-testing finds the mini-bosses trivial.
+- **Economy:** with the first value formula a Greenwood slime drop sold for ~53 gold on average against ~2.6 gold
+  per fight, so a solo hero could afford the tier-2 weapon 2.6 levels early (1.7–2.1 levels for tiers 3–5).
+  Starting gear was valued at the full tier-2 price, and every drop resold for half a same-tier shop piece. The
+  multipliers, the per-roll bonus value (15 → 5 × tier) and the starting-gear base price were lowered (see
+  33.5). Now every area's next weapon comes no more than one level earlier with sales, and Greenwood sales add
+  less per fight than fight gold.
 
 ### 33.9 Work breakdown
 
@@ -2292,8 +2317,10 @@ What shipped differs from the plan above in these ways:
 - **`addItem`** routes gear ids into the bag as plain Commons, so chest and quest rewards keep working.
 - **Save v6:** gear ids counted in `inventory` become Common instances; worn ids stay as they are (see above).
 
-Not done yet:
-
-- 33.8 simulator loot mode and the economy check with drop income. The existing 4.6 targets still pass
-  without loot; drops only add power, so areas may feel a little easier until this is tuned.
-- 33.9 step 7: controls list, README and the Cypress SELL smoke step.
+- **Simulator loot mode and economy check:** see 33.8 *Implemented*.
+- **e2e:** scenes may expose a sub-view (`Scene.view`); the game reports the top scene's view through
+  `onViewChange`, and the page mirrors it onto the canvas as `data-view` (the shop reports `top`, `buy` or
+  `sell`). The Cypress smoke test talks to the Aldmere merchant, opens SELL, checks `data-view="sell"` and backs
+  out to the world (fixture `quest-save-aldmere-shop.json`).
+- **Controls list and README:** `I` is "items and gear bag", `E` mentions the comparison; the quest README has a
+  Gear and loot section.
