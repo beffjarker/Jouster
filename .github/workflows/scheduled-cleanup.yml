@@ -180,7 +180,7 @@ jobs:
               else
                 # Never free a bucket name that a CloudFront distribution still uses as its origin.
                 IN_USE=$(aws cloudfront list-distributions \
-                  --query "DistributionList.Items[?Origins.Items[0].DomainName=='${BUCKET}.s3-website-us-west-2.amazonaws.com'].Id | [0]" \
+                  --query "DistributionList.Items[?Origins.Items[0].DomainName=='${BUCKET}.s3.us-west-2.amazonaws.com' || Origins.Items[0].DomainName=='${BUCKET}.s3-website-us-west-2.amazonaws.com'].Id | [0]" \
                   --output text)
                 if [ -n "$IN_USE" ] && [ "$IN_USE" != "None" ]; then
                   echo "⏸️  Skipping $BUCKET - still the origin of CloudFront distribution $IN_USE"
