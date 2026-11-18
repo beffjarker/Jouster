@@ -296,47 +296,7 @@ jobs:
           PR_NUM: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
-          OAC_NAME="jouster-preview-s3-oac"
-          find_oac() {
-            aws cloudfront list-origin-access-controls \
-              --query "OriginAccessControlList.Items[?Name=='${OAC_NAME}'].Id | [0]" --output text
-          }
-          OAC_ID=$(find_oac)
-          if [ -z "$OAC_ID" ] || [ "$OAC_ID" = "None" ]; then
-            # Shared by all previews; a concurrent run may create it first, so re-read on failure.
-            aws cloudfront create-origin-access-control --origin-access-control-config \
-              "Name=${OAC_NAME},Description=Jouster PR previews (private S3),SigningProtocol=sigv4,SigningBehavior=always,OriginAccessControlOriginType=s3" \
-              >/dev/null || true
-            OAC_ID=$(find_oac)
-          fi
-          if [ -z "$OAC_ID" ] || [ "$OAC_ID" = "None" ]; then
-            echo "::error::Could not find or create CloudFront OAC ${OAC_NAME}"
-            exit 1
-          fi
-
-          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          # $1 = distribution ID, $2 = "true" to keep legacy public read during an origin migration.
-          write_bucket_policy() {
-            jq -n --arg bucket "$BUCKET_NAME" --arg dist "arn:aws:cloudfront::${ACCOUNT_ID}:distribution/$1" \
-              --argjson legacy "$2" '{
-                Version: "2012-10-17",
-                Statement: ([{
-                  Sid: "AllowCloudFrontOAC",
-                  Effect: "Allow",
-                  Principal: { Service: "cloudfront.amazonaws.com" },
-                  Action: "s3:GetObject",
-                  Resource: "arn:aws:s3:::\($bucket)/*",
-                  Condition: { StringEquals: { "AWS:SourceArn": $dist } }
-                }] + (if $legacy then [{
-                  Sid: "PublicReadGetObject",
-                  Effect: "Allow",
-                  Principal: "*",
-                  Action: "s3:GetObject",
-                  Resource: "arn:aws:s3:::\($bucket)/*"
-                }] else [] end))
-              }' > preview-bucket-policy.json
-            aws s3api put-bucket-policy --bucket "$BUCKET_NAME" --policy file://preview-bucket-policy.json
-          }
+          OAC_ID=$(bash .github/scripts/s3-origin-https.sh oac)
 
           DIST_ID=$(aws cloudfront list-distributions \
             --query "DistributionList.Items[?Aliases.Quantity > \`0\` && contains(Aliases.Items, '${PREVIEW_DOMAIN}')].Id | [0]" \
@@ -404,44 +364,18 @@ jobs:
             echo "Created CloudFront distribution $DIST_ID for ${PREVIEW_DOMAIN}"
           else
             echo "Using existing CloudFront distribution $DIST_ID for ${PREVIEW_DOMAIN}"
-            aws cloudfront get-distribution-config --id "$DIST_ID" > preview-dist-current.json
-            # A previous close may have disabled it without finishing deletion (e.g. PR reopened),
-            # and distributions created before OAC used the public HTTP website endpoint as origin.
-            NEEDS_UPDATE=$(jq --arg origin "$PREVIEW_ORIGIN" --arg oac "$OAC_ID" '.DistributionConfig as $c
-              | ($c.Enabled != true) or ($c.Origins.Items[0].DomainName != $origin)
-                or ($c.Origins.Items[0].OriginAccessControlId != $oac)' preview-dist-current.json)
-            if [ "$NEEDS_UPDATE" = "true" ]; then
-              echo "Updating distribution $DIST_ID (enable + private S3 origin via OAC)"
-              # Keep public read until CloudFront has switched origins so the preview never 403s.
-              write_bucket_policy "$DIST_ID" true
-              jq --arg origin "$PREVIEW_ORIGIN" --arg oac "$OAC_ID" '.DistributionConfig
-                | .Enabled = true
-                | .Origins.Items[0] |= (del(.CustomOriginConfig) + {
-                    DomainName: $origin,
-                    S3OriginConfig: { OriginAccessIdentity: "" },
-                    OriginAccessControlId: $oac
-                  })' preview-dist-current.json > preview-dist-updated.json
-              aws cloudfront update-distribution --id "$DIST_ID" \
-                --distribution-config file://preview-dist-updated.json \
-                --if-match "$(jq -r '.ETag' preview-dist-current.json)" >/dev/null
-            fi
           fi
+
+          # Re-enables a distribution left disabled by an unfinished close (e.g. PR reopened), moves
+          # previews created before OAC to the private origin, locks the bucket to CloudFront and
+          # redirects the HTTP website endpoint to HTTPS.
+          ENSURE_ENABLED=true bash .github/scripts/s3-origin-https.sh secure "$BUCKET_NAME" "$PREVIEW_DOMAIN"
 
           STATUS=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.Status' --output text)
           if [ "$STATUS" != "Deployed" ]; then
             echo "Waiting for distribution $DIST_ID to finish deploying (status: $STATUS)..."
             aws cloudfront wait distribution-deployed --id "$DIST_ID"
           fi
-
-          echo "Locking bucket to CloudFront (OAC only, Block Public Access on)..."
-          write_bucket_policy "$DIST_ID" false
-          aws s3api put-public-access-block --bucket "$BUCKET_NAME" --public-access-block-configuration \
-            "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-
-          echo "Redirecting the S3 website endpoint (HTTP) to https://${PREVIEW_DOMAIN}..."
-          jq -n --arg host "$PREVIEW_DOMAIN" '{ RedirectAllRequestsTo: { HostName: $host, Protocol: "https" } }' \
-            > preview-website.json
-          aws s3api put-bucket-website --bucket "$BUCKET_NAME" --website-configuration file://preview-website.json
 
           CF_DOMAIN=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.DomainName' --output text)
           echo "id=$DIST_ID" >> "$GITHUB_OUTPUT"

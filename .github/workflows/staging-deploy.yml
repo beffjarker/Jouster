@@ -52,36 +52,17 @@ jobs:
         role-to-assume: arn:aws:iam::924677642513:role/GitHubActionsPreviewRole
         aws-region: us-west-2
 
+    # Recovery only: the bucket normally exists. A recreated bucket stays private; run
+    # "Secure Frontend Origins (HTTPS only)" for staging afterwards so CloudFront can read it via OAC.
     - name: Create staging S3 bucket if not exists
       run: |
         if ! aws s3api head-bucket --bucket stg.jouster.org 2>/dev/null; then
-          echo "Creating staging S3 bucket..."
-          aws s3 mb s3://stg.jouster.org --region us-west-2
-
-          # Configure bucket for static website hosting
-          aws s3 website s3://stg.jouster.org --index-document index.html --error-document index.html
-
-          # Remove public access blocks
-          aws s3api put-public-access-block \
-            --bucket stg.jouster.org \
-            --public-access-block-configuration "BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false"
-
-          # Apply public read policy
-          aws s3api put-bucket-policy \
-            --bucket stg.jouster.org \
-            --policy '{
-              "Version": "2012-10-17",
-              "Statement": [
-                {
-                  "Sid": "PublicReadGetObject",
-                  "Effect": "Allow",
-                  "Principal": "*",
-                  "Action": "s3:GetObject",
-                  "Resource": "arn:aws:s3:::stg.jouster.org/*"
-                }
-              ]
-            }'
-          echo "Staging S3 bucket created and configured"
+          echo "Creating private staging S3 bucket..."
+          aws s3api create-bucket --bucket stg.jouster.org --region us-west-2 \
+            --create-bucket-configuration LocationConstraint=us-west-2
+          aws s3api put-public-access-block --bucket stg.jouster.org --public-access-block-configuration \
+            "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+          echo "::warning::Created stg.jouster.org; run 'Secure Frontend Origins (HTTPS only)' for staging"
         else
           echo "Staging S3 bucket already exists"
         fi
@@ -120,7 +101,7 @@ jobs:
         echo "🚀 Staging Deployment Complete!"
         echo "Staging Environment URLs:"
         echo "- Custom Domain: https://stg.jouster.org"
-        echo "- S3 Direct: http://stg.jouster.org.s3-website-us-west-2.amazonaws.com"
+        echo "- S3 website endpoint: redirects to https://stg.jouster.org (bucket is private)"
         echo "- Build: ${{ github.sha }}"
         echo "- Branch: ${{ github.ref_name }}"
         echo "- Environment: GREEN (Staging)"

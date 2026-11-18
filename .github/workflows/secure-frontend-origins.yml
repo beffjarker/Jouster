@@ -1,0 +1,121 @@
+name: 'Secure Frontend Origins (HTTPS only)'
+run-name: "Secure ${{ inputs.target }} S3 origin${{ inputs.dry_run && ' (dry run)' || '' }}"
+
+# Makes a frontend reachable only through CloudFront over HTTPS. The bucket's public HTTP website
+# endpoint is replaced by a private S3 REST origin that CloudFront reads through Origin Access
+# Control, Block Public Access is turned on, and the website endpoint redirects to the HTTPS domain.
+# QA and PR previews do this on every deploy; run this once for staging and production
+# (dry run first). See .github/scripts/s3-origin-https.sh for the steps and the automatic rollback.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Environment to secure'
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+          - qa
+      dry_run:
+        description: 'Dry run (report what would change, change nothing)'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-west-2
+  PROD_DOMAIN: jouster.org
+  STAGING_BUCKET: stg.jouster.org
+  PROD_BUCKET_OVERRIDE: ${{ vars.PROD_FRONTEND_BUCKET }}
+  PROD_DISTRIBUTION_ID_OVERRIDE: ${{ vars.PROD_CLOUDFRONT_DISTRIBUTION_ID }}
+
+jobs:
+  secure:
+    name: Secure ${{ inputs.target }} origin
+    runs-on: ubuntu-latest
+    # Switching a distribution's origin waits for CloudFront to deploy (usually 5-15 min).
+    timeout-minutes: 45
+    # Shares the deploy concurrency group so an origin switch never overlaps a deploy or promotion.
+    concurrency:
+      group: frontend-${{ inputs.target }}
+      cancel-in-progress: false
+    environment:
+      name: ${{ inputs.target }}
+    env:
+      PROD_ROLE_ARN: ${{ inputs.target == 'production' && secrets.AWS_PROD_FRONTEND_ROLE_ARN || '' }}
+      DRY_RUN: ${{ inputs.dry_run }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Configure AWS credentials (OIDC)
+        if: env.PROD_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.PROD_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Configure AWS credentials (access keys)
+        if: env.PROD_ROLE_ARN == ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve bucket and domain
+        id: target
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in
+            qa) BUCKET=qa.jouster.org; HOST=qa.jouster.org ;;
+            staging) BUCKET="$STAGING_BUCKET"; HOST=stg.jouster.org ;;
+            production)
+              bash .github/scripts/frontend-release.sh resolve > resolve.env
+              BUCKET=$(sed -n 's/^PROD_BUCKET=//p' resolve.env)
+              PREFIX=$(sed -n 's/^PROD_PREFIX=//p' resolve.env)
+              if [ -n "$PREFIX" ]; then
+                echo "::warning::Production is served from ${BUCKET}${PREFIX}; the website redirect applies to the whole bucket"
+              fi
+              HOST="$PROD_DOMAIN" ;;
+            *) echo "::error::Unknown target ${TARGET}"; exit 1 ;;
+          esac
+          echo "bucket=$BUCKET" >> "$GITHUB_OUTPUT"
+          echo "host=$HOST" >> "$GITHUB_OUTPUT"
+          echo "Securing s3://${BUCKET} behind https://${HOST}"
+
+      - name: Lock bucket to CloudFront and redirect HTTP to HTTPS
+        run: bash .github/scripts/s3-origin-https.sh secure "${{ steps.target.outputs.bucket }}" "${{ steps.target.outputs.host }}"
+
+      - name: Summary
+        if: always()
+        env:
+          BUCKET: ${{ steps.target.outputs.bucket }}
+          HOST: ${{ steps.target.outputs.host }}
+        run: |
+          {
+            echo "## Secure frontend origin: ${{ inputs.target }}"
+            echo ""
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "> [!WARNING]"
+              echo "> **Dry run: nothing was changed.** Review the step log, then re-run with \`dry_run\` unchecked."
+              echo ""
+            fi
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Mode | ${{ inputs.dry_run && 'dry run' || 'live' }} |"
+            echo "| Bucket | \`${BUCKET:-?}\` |"
+            echo "| HTTPS domain | https://${HOST:-?} |"
+            echo "| Result | ${{ job.status }} |"
+          } >> "$GITHUB_STEP_SUMMARY"
