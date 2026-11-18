@@ -5,9 +5,9 @@ import { LANDMARKS } from './overworld-gen';
 /**
  * Companion spots are fixed places in the open world. Which companion waits at each spot is
  * rolled per new game (see `rollCompanions`): a random class that is never the hero's class
- * and never repeated, plus a random name for that class. Companions only appear once the Goblin
- * King falls (word of the victory draws them out); each then asks for a favour (a side quest) before
- * joining.
+ * and never repeated, plus a random name for that class. Most companions only appear once the Goblin
+ * King falls (word of the victory draws them out); the cave prisoner is already there, locked in a cell
+ * beside the king's throne. Each asks for a favour (a side quest) before joining.
  */
 export interface CompanionSlot {
   id: string;
@@ -26,6 +26,11 @@ export interface CompanionSlot {
   requiresFlag?: string;
   /** Why the companion is here (`{name}` is replaced). */
   intro: string[];
+  /**
+   * Set for a companion who is already there before the Goblin King falls (the cave prisoner): what they say
+   * until then. Companions without it only appear after the king's defeat.
+   */
+  beforeKing?: string[];
   /** Favour the companion asks before joining. */
   quest: CompanionQuest;
 }
@@ -148,6 +153,7 @@ export const COMPANION_SLOTS: readonly CompanionSlot[] = [
       '{name}: Over here, behind the bars! The goblins caught me poking around the dragon seal.',
       'The seal IS weakening. Get me out and I will fight beside you.',
     ],
+    beforeKing: ["{name}: Their king holds this cave and every key in it. Bring him down, then we'll talk."],
     quest: {
       title: 'The Cell Key',
       objective: "Take the cell key from the Goblin Jailer in his den off the cave's north tunnel.",

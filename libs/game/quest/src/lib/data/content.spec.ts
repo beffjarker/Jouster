@@ -146,14 +146,14 @@ describe('Jouster Quest content', () => {
     });
   });
 
-  it('hides every companion until the Goblin King falls, and finds the Thornwick one inside the ruins', () => {
+  it('hides companions (not the cave prisoner) until the Goblin King falls; the Thornwick one is in the ruins', () => {
     const s = newGameState('Hero', 'rogue');
     const visible = (mapId: string, id: string): boolean => {
       const npc = (MAPS.get(mapId) as MapDef).npcs.find((n) => n.id === id);
       return !!npc && (npc.visible ? npc.visible(s) : true);
     };
     const homes = COMPANION_SLOTS.map((slot) => [slot.mapId, slot.id] as const);
-    homes.forEach(([mapId, id]) => expect({ id, seen: visible(mapId, id) }).toEqual({ id, seen: false }));
+    homes.forEach(([mapId, id]) => expect({ id, seen: visible(mapId, id) }).toEqual({ id, seen: id === 'cave' }));
     s.flags['bossDefeated'] = true;
     homes.forEach(([mapId, id]) => expect({ id, seen: visible(mapId, id) }).toEqual({ id, seen: true }));
     expect(companionSlot('thornwick').mapId).toBe('thornwick');

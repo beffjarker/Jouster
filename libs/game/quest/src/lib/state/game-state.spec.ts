@@ -212,10 +212,10 @@ describe('recruiting', () => {
     return s;
   }
 
-  it('nobody shows up or joins before the Goblin King falls, even if their quest is done', () => {
+  it('only the cave prisoner shows up before the Goblin King falls, and nobody joins, even if their quest is done', () => {
     const s = withRoster('necromancer');
     COMPANION_SLOTS.forEach((slot) => (s.quests[slot.id] = 'done'));
-    COMPANION_SLOTS.forEach((slot) => expect(companionPresent(s, slot.id)).toBe(false));
+    COMPANION_SLOTS.forEach((slot) => expect(companionPresent(s, slot.id)).toBe(slot.id === 'cave'));
     expect(recruitCompanion(s, 'tavern')).toBe(false);
     expect(recruitCompanion(s, 'cave')).toBe(false);
     expect(questStage(s, 'thornwick')).toBe('done');
@@ -277,9 +277,10 @@ describe('recruiting', () => {
   it('includes a starter kit of at least 2 Herbs in every side-quest reward', () => {
     COMPANION_SLOTS.forEach((slot) => expect(slot.quest.reward.items?.['herb'] ?? 0).toBeGreaterThanOrEqual(2));
   });
-  it('reveals the cave prisoner only once the Goblin King is defeated', () => {
+  it('keeps the cave prisoner in the cell before the Goblin King falls, joining only afterwards', () => {
     const s = withRoster('necromancer');
-    expect(companionPresent(s, 'cave')).toBe(false);
+    expect(companionPresent(s, 'cave')).toBe(true);
+    expect(questStage(s, 'cave')).toBe('locked');
     expect(recruitCompanion(s, 'cave')).toBe(false);
     unlocked(s);
     expect(companionPresent(s, 'cave')).toBe(true);

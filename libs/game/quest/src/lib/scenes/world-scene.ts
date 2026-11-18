@@ -1186,8 +1186,8 @@ export class WorldScene implements Scene {
   }
 
   /**
-   * Companions only appear after the Goblin King falls. Each asks a favour (a side quest); once it is
-   * done they offer to join (and rejoin freely after leaving the party).
+   * Companions appear after the Goblin King falls (the cave prisoner is there before). Each asks a favour (a side
+   * quest); once it is done they offer to join (and rejoin freely after leaving the party).
    */
   private talkToCompanion(companionId: string): void {
     const { stack, audio } = this.ctx;
@@ -1196,8 +1196,11 @@ export class WorldScene implements Scene {
     const quest = companionSlot(companionId).quest;
     switch (questStage(s, companionId)) {
       case 'locked':
-        // Unreachable in play (companions are hidden until the Goblin King falls); kept for old saves.
-        say(stack, audio, companionIntro(companionId, c));
+        // Only the cave prisoner is met this early; other companions are hidden until the Goblin King falls.
+        say(stack, audio, [
+          ...companionIntro(companionId, c),
+          ...companionLines(companionSlot(companionId).beforeKing ?? [], c),
+        ]);
         return;
       case 'available': {
         const firstTime = s.quests[companionId] === undefined;
