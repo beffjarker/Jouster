@@ -9,7 +9,7 @@ import { CAVE_FOG_RADIUS, isExplored } from '../state/fog';
 import { ITEMS } from '../data/equipment';
 import { BAG_LIMIT, createGear } from '../state/equipment';
 import { GameState, addItem, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
-import { GearItem } from '../state/loot';
+import { GearItem, gearSellPrice } from '../state/loot';
 import { createMember } from '../state/party';
 import { SUNNY_SIGHT_RADIUS, weatherAt, weatherSeed, weatherSightRadius } from '../state/weather';
 import { InputDriver } from '../testing/input-driver';
@@ -499,7 +499,7 @@ describe('WorldScene', () => {
       return { ...h, shop: h.ctx.stack.top as ShopScene, choose };
     };
 
-    it('buys into the bag with LATER and sells the piece back for half', () => {
+    it('buys into the bag with LATER and sells the piece back at its sell price', () => {
       const h = openShop();
       h.tap('confirm'); // BUY
       h.tap('confirm'); // Cloth Robe
@@ -515,13 +515,15 @@ describe('WorldScene', () => {
       h.tap('down');
       h.tap('confirm'); // SELL
       expect(h.shop.shopMode).toBe('sell');
+      expect(h.shop.view).toBe('sell');
       const consumables = [...ITEMS.keys()].filter((id) => (h.state.inventory[id] ?? 0) > 0).length;
       for (let i = 0; i < consumables; i++) {
         h.tap('down');
       }
       h.tap('confirm'); // the robe
       expect(h.state.gear).toEqual([]);
-      expect(h.state.gold).toBe(485);
+      expect(h.state.gold).toBe(470 + gearSellPrice({ baseId: 'clothRobe', rarity: 'common', bonus: {} }));
+      expect(h.state.gold).toBeGreaterThan(470);
     });
 
     it('sells consumables one at a time for half their price', () => {
