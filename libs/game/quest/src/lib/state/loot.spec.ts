@@ -36,7 +36,7 @@ function counts(roll: () => Rarity): Record<Rarity, number> {
 }
 
 describe('loot and rarity (plan 33)', () => {
-  it.each(['common', 'miniBoss', 'boss'] as const)('rolls %s rarities at the planned odds (within 2%%)', (source) => {
+  it.each(['common', 'warden', 'miniBoss', 'boss'] as const)('rolls %s rarities at the planned odds (within 2%%)', (source) => {
     const rng = createRng(11);
     const c = counts(() => rollRarity(rng, RARITY_ODDS[source], true));
     for (const r of RARITY_ORDER) {
@@ -130,12 +130,13 @@ describe('loot and rarity (plan 33)', () => {
 
   it('never gives a Legendary from common monsters or mini-bosses', () => {
     const rng = createRng(17);
-    for (const id of ['slime', 'goblin', 'alphaWolf']) {
+    for (const id of ['slime', 'goblin', 'alphaWolf', 'goblinForeman']) {
       for (let i = 0; i < 500; i++) {
         expect(rollLoot(rng, id, ['cleric'], {}).rarity).not.toBe('legendary');
       }
     }
     expect(lootSource('alphaWolf')).toBe('miniBoss');
+    expect(lootSource('slimeMatron')).toBe('warden');
     expect(lootSource('slime')).toBe('common');
   });
 

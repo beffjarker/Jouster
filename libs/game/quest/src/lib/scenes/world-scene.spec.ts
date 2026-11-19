@@ -774,6 +774,18 @@ describe('WorldScene', () => {
     expect(h.state.flags['thornwickNight']).toBe(true);
   });
 
+  it('brings the Old Mine wardens back after an inn rest', () => {
+    const h = setup({ mapId: INN_RESPAWN.mapId, x: INN_RESPAWN.x, y: INN_RESPAWN.y, facing: 'up' });
+    h.state.flags['slimeMatronDefeated'] = true;
+    h.state.flags['goblinForemanDefeated'] = true;
+    h.state.flags['bossDefeated'] = true;
+    h.tap('confirm');
+    h.confirmUntilWorld();
+    expect(h.state.flags['slimeMatronDefeated']).toBeUndefined();
+    expect(h.state.flags['goblinForemanDefeated']).toBeUndefined();
+    expect(h.state.flags['bossDefeated']).toBe(true);
+  });
+
   it('fights a mini-boss NPC and sets its defeat flag on victory', () => {
     const den = mapDef('wolfDen');
     const wolf = den.npcs.find((n) => n.role === 'boss');

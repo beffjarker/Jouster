@@ -31,6 +31,8 @@ export const LANDMARKS = {
   southPass: { x: 60, y: 69 },
   /** Mountain pass on the northern rim, gated until Act II is complete (leads to the Frost Peaks). */
   northPass: { x: 36, y: 2 },
+  /** Abandoned mine in the hills north-east of Aldmere: a grind dungeon with respawning wardens (plan §36). */
+  oldMine: { x: 35, y: 27 },
 } as const satisfies Record<string, Point>;
 
 const GRASS = '.';
@@ -163,6 +165,17 @@ function placeLandmarks(g: Grid): void {
   g[brookhollow.y][brookhollow.x] = 'B';
   g[wolfDen.y][wolfDen.x] = 'W';
   placePass(g);
+}
+
+/** The Old Mine's shaft, cut into a mountain shoulder in the hills (like the Wolf Den). */
+function placeOldMine(g: Grid): void {
+  const { oldMine: mine } = LANDMARKS;
+  for (let x = mine.x - 2; x <= mine.x + 2; x++) {
+    g[mine.y - 1][x] = MOUNTAIN;
+  }
+  g[mine.y][mine.x - 1] = MOUNTAIN;
+  g[mine.y][mine.x + 1] = MOUNTAIN;
+  g[mine.y][mine.x] = 'M';
 }
 
 /** A notch in the southern mountains with a grass landing (and room for its guard) in front of it. */
@@ -324,6 +337,9 @@ export function generateOverworld(): string[] {
   carveRoad(g, below(aldmere), { x: northPass.x, y: northPass.y + 3 });
   g[northPass.y + 2][northPass.x] = ROAD;
   g[northPass.y + 1][northPass.x] = ROAD;
+  // Placed after the other roads so their routes (which break cost ties by search order) stay the same.
+  placeOldMine(g);
+  carveRoad(g, below(aldmere), below(LANDMARKS.oldMine));
   // The torn net that hints at the Giant Toad (lakeShore event).
   g[lakeshore.y][lakeshore.x] = CLUE_NET;
   return g.map((row) => row.join(''));

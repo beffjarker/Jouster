@@ -21,7 +21,7 @@ import { CharacterAction, SHADOW_W, fitScale, monsterVariant, spriteSize } from 
 import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
-import { BOSS_HP_SCALE, FINALE_BOSS_IDS, MINI_BOSS_IDS, MONSTERS } from '../data/monsters';
+import { BOSS_HP_SCALE, FINALE_BOSS_IDS, MINI_BOSS_IDS, MONSTERS, WARDEN_IDS } from '../data/monsters';
 import { addToBag, createGear } from '../state/equipment';
 import { GameState, addItem } from '../state/game-state';
 import { rarityName, rollLoot } from '../state/loot';
@@ -681,7 +681,7 @@ export class BattleScene implements Scene {
     if (!def?.boss) {
       return 2;
     }
-    return MINI_BOSS_IDS.includes(def.id) ? 3 : 4;
+    return MINI_BOSS_IDS.includes(def.id) || WARDEN_IDS.includes(def.id) ? 3 : 4;
   }
 
   private center(id: string): Point {

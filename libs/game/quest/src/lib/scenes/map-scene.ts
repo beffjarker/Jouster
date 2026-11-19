@@ -85,6 +85,7 @@ export const PLACES: Readonly<Record<string, ReadonlyArray<{ name: string; x: nu
     { name: 'Thornwick Ruins', ...LANDMARKS.thornwick },
     { name: 'Goblin Cave', ...LANDMARKS.goblinCave },
     { name: 'Wolf Den', ...LANDMARKS.wolfDen },
+    { name: 'Old Mine', ...LANDMARKS.oldMine },
     { name: 'West Lakeshore', ...LANDMARKS.lakeshore },
     { name: 'Southern Pass', ...LANDMARKS.southPass },
     { name: 'Northern Pass', ...LANDMARKS.northPass },

@@ -152,6 +152,50 @@ const LIST: MonsterDef[] = [
     drops: [{ itemId: 'herb', chance: 1 }],
     spriteId: 'goblinChief',
   },
+  // --- Old Mine wardens (plan §36): respawning grind bosses, about half a mini-boss ---------
+  {
+    id: 'slimeMatron',
+    name: 'Slime Matron',
+    stats: { hp: 75, mp: 0, atk: 13, def: 4, agi: 3, mag: 0 },
+    xp: 24,
+    gold: 18,
+    boss: true,
+    weaknesses: ['fire'],
+    resistances: [],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'herb', chance: 0.5 }],
+    spriteId: 'slime',
+  },
+  {
+    id: 'batBroodmother',
+    name: 'Bat Broodmother',
+    stats: { hp: 65, mp: 0, atk: 11, def: 5, agi: 11, mag: 0 },
+    xp: 30,
+    gold: 22,
+    boss: true,
+    weaknesses: ['lightning'],
+    resistances: [],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'herb', chance: 0.5 }],
+    spriteId: 'bat',
+  },
+  {
+    id: 'goblinForeman',
+    name: 'Goblin Foreman',
+    stats: { hp: 85, mp: 0, atk: 15, def: 8, agi: 6, mag: 0 },
+    xp: 38,
+    gold: 30,
+    boss: true,
+    weaknesses: ['ice'],
+    resistances: [],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 1 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'tonic', chance: 0.3 }],
+    spriteId: 'goblin',
+  },
   // --- Act II: the Southlands ---------------------------------------------------------------
   {
     id: 'scorpion',
@@ -387,6 +431,9 @@ const LIST: MonsterDef[] = [
 /** Side-quest mini-bosses (fought after the Goblin King, usually solo or as a pair). */
 export const MINI_BOSS_IDS: readonly string[] = ['alphaWolf', 'giantToad', 'boneCaptain', 'goblinChief'];
 
+/** Old Mine wardens (plan §36): small bosses that return after every inn rest, for grinding before the Goblin King. */
+export const WARDEN_IDS: readonly string[] = ['slimeMatron', 'batBroodmother', 'goblinForeman'];
+
 /** Act II shrine bosses (one per Southlands shrine). */
 export const ACT_TWO_BOSS_IDS: readonly string[] = ['sandWyrm', 'marshWitch'];
 
@@ -463,6 +510,19 @@ const TABLE_LIST: EncounterTable[] = [
       { monsterIds: ['wolf', 'wolf'], weight: 3 },
       { monsterIds: ['giantBat', 'wolf'], weight: 2 },
       { monsterIds: ['wolf', 'wolf', 'giantBat'], weight: 1 },
+    ],
+  },
+  {
+    id: 'mine',
+    rate: 1 / 12,
+    level: 4,
+    groups: [
+      { monsterIds: ['slime', 'slime'], weight: 3 },
+      { monsterIds: ['giantBat'], weight: 3 },
+      { monsterIds: ['goblin'], weight: 2 },
+      { monsterIds: ['wolf', 'giantBat'], weight: 2 },
+      { monsterIds: ['goblin', 'slime'], weight: 1 },
+      { monsterIds: ['goblin', 'goblin', 'giantBat'], weight: 1 },
     ],
   },
   // --- Act II -------------------------------------------------------------------------------
