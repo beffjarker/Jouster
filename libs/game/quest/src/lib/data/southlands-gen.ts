@@ -20,6 +20,8 @@ export const SOUTH_LANDMARKS = {
   sandhollow: { x: 16, y: 14 },
   sunShrine: { x: 12, y: 38 },
   mireShrine: { x: 52, y: 38 },
+  /** The Sunken Cistern, a grind dungeon south-west of Sandhollow (plan §36). */
+  cistern: { x: 8, y: 20 },
 } as const satisfies Record<string, Point>;
 
 const SAND = 's';
@@ -135,15 +137,28 @@ function carveRoad(g: Grid, marsh: boolean[][], from: Point, to: Point): void {
   }
 }
 
+/** The Sunken Cistern's stair, cut into a sandstone shelf (placed after the main roads so they keep their course). */
+function placeCistern(g: Grid): void {
+  const { cistern } = SOUTH_LANDMARKS;
+  for (let x = cistern.x - 2; x <= cistern.x + 2; x++) {
+    g[cistern.y - 1][x] = MESA;
+  }
+  g[cistern.y][cistern.x - 1] = MESA;
+  g[cistern.y][cistern.x + 1] = MESA;
+  g[cistern.y][cistern.x] = 'C';
+}
+
 /** Generates the Southlands rows (deterministic). */
 export function generateSouthlands(): string[] {
   const marsh = marshMask();
   const g = terrain(marsh);
   placeLandmarks(g, marsh);
-  const { pass, sandhollow, sunShrine, mireShrine } = SOUTH_LANDMARKS;
+  const { pass, sandhollow, sunShrine, mireShrine, cistern } = SOUTH_LANDMARKS;
   const below = (p: Point): Point => ({ x: p.x, y: p.y + 1 });
   carveRoad(g, marsh, below(pass), below(sandhollow));
   carveRoad(g, marsh, below(sandhollow), below(sunShrine));
   carveRoad(g, marsh, below(pass), below(mireShrine));
+  placeCistern(g);
+  carveRoad(g, marsh, below(sandhollow), below(cistern));
   return g.map((row) => row.join(''));
 }

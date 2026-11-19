@@ -329,6 +329,82 @@ const MINE_LEGEND: TileDef[] = [
   { char: 'x', id: 'crate@caveFloor', solid: true },
 ];
 
+/**
+ * Legend for the Act II-IV grind dungeons (plan §36): `,` is lit floor with no random encounters, `_` has them,
+ * `~` is the dungeon's liquid and each `decor` char is a solid prop on the floor.
+ */
+function grindLegend(wall: string, floor: string, encounterTableId: string, liquid: string, decor: Record<string, string>): TileDef[] {
+  return [
+    { char: '#', id: wall, solid: true },
+    { char: 't', id: 'torch', solid: true },
+    { char: '_', id: floor, solid: false, encounterTableId },
+    { char: ',', id: floor, solid: false },
+    { char: '~', id: liquid, solid: true },
+    { char: 'E', id: 'caveExit', solid: false },
+    ...Object.entries(decor).map(([char, object]) => ({ char, id: `${object}@${floor}`, solid: true })),
+  ];
+}
+
+// --- Sunken Cistern (22x15, plan §36) - Act II grind dungeon below Sandhollow ---------------
+
+const CISTERN_ROWS = [
+  '######################',
+  '#######tb,,,,bt#######',
+  '#######,,,,,,,,#######',
+  '#t,,,t##,,,,,,##t,,,t#',
+  '#,,,,,###,,,,###,,,,,#',
+  '#,b,,,~~##__##~~,,,b,#',
+  '##,,####~~__~~####,,##',
+  '##__________________##',
+  '##_~~_###~~~~###_~~_##',
+  '##_~~_###~~~~###_~~_##',
+  '##__________________##',
+  '#######,,,,,,,,#######',
+  '#######t,,,,,,t#######',
+  '##########E###########',
+  '######################',
+];
+
+// --- Frozen Quarry (22x15, plan §36) - Act III grind dungeon below Frostgate ----------------
+
+const QUARRY_ROWS = [
+  '######################',
+  '#t,,,t########t,,,,t##',
+  '#,,,,,###t,,t###,,,x##',
+  '#,r,,,###,,,,###,,,,##',
+  '##,,,####,,,,####,,###',
+  '###_####x,,,,r####_###',
+  '###_####,,,,,,####_###',
+  '###______##__##_____##',
+  '#####~~__~~__~~__~~_##',
+  '##____~~______~~____##',
+  '##_##____###_____##_##',
+  '##_#####,,,,,,####__##',
+  '##___###t,,,,t###__###',
+  '##########E###########',
+  '######################',
+];
+
+// --- Slag Pits (22x15, plan §36) - finale grind dungeon below Emberwatch --------------------
+
+const SLAG_ROWS = [
+  '######################',
+  '##t,,,t#t,,,,t#t,,,t##',
+  '##,,,r,#,,,,,,#,r,,,##',
+  '##,,,,,#,,,,r,#,,,,,##',
+  '###,,###,,,,,,###,,###',
+  '####_#####__#####_####',
+  '#~~_____~~__~~_____~~#',
+  '#~~_###_~~__~~_###_~~#',
+  '###_###____________###',
+  '###_____~~~~~~____####',
+  '#####_r_~~~~~~_r_#####',
+  '#####___,,,,,,___#####',
+  '########t,,,,t########',
+  '##########E###########',
+  '######################',
+];
+
 const CAVE_LEGEND: TileDef[] = [
   { char: '#', id: 'rock', solid: true },
   { char: 't', id: 'torch', solid: true },
@@ -363,6 +439,7 @@ const SOUTHLANDS_LEGEND: TileDef[] = [
   { char: 'S', id: 'town', solid: false },
   { char: 'U', id: 'shrineEntrance', solid: false },
   { char: 'M', id: 'mireEntrance', solid: false },
+  { char: 'C', id: 'cisternEntrance', solid: false },
   { char: 'r', id: 'mireRock', solid: true },
   { char: 'N', id: 'pass', solid: false },
 ];
@@ -457,6 +534,7 @@ const FROSTPEAKS_LEGEND: TileDef[] = [
   { char: 'i', id: 'frozenLake', solid: false, encounterTableId: 'snowfield' },
   { char: 'F', id: 'town', solid: false },
   { char: 'R', id: 'roostEntrance', solid: false },
+  { char: 'Q', id: 'quarryEntrance', solid: false },
   { char: 'N', id: 'pass', solid: false },
   { char: 'M', id: 'pass', solid: false },
 ];
@@ -524,6 +602,7 @@ const EMBER_LEGEND: TileDef[] = [
   { char: '~', id: 'lava', solid: true },
   { char: 'E', id: 'town', solid: false },
   { char: 'L', id: 'lairEntrance', solid: false },
+  { char: 'P', id: 'slagEntrance', solid: false },
   { char: 'S', id: 'pass', solid: false },
 ];
 
@@ -682,11 +761,23 @@ const {
   oldMine: MINE_AT,
 } = LANDMARKS;
 
-const { pass: FROST_PASS_AT, frostgate: FROSTGATE_AT, wyvernRoost: ROOST_AT, emberPass: EMBER_PASS_AT } = NORTH_LANDMARKS;
+const {
+  pass: FROST_PASS_AT,
+  frostgate: FROSTGATE_AT,
+  wyvernRoost: ROOST_AT,
+  emberPass: EMBER_PASS_AT,
+  quarry: QUARRY_AT,
+} = NORTH_LANDMARKS;
 
-const { pass: EMBER_SOUTH_AT, emberwatch: EMBERWATCH_AT, lair: LAIR_AT } = EMBER_LANDMARKS;
+const { pass: EMBER_SOUTH_AT, emberwatch: EMBERWATCH_AT, lair: LAIR_AT, slagPits: SLAG_AT } = EMBER_LANDMARKS;
 
-const { pass: SOUTH_PASS_AT, sandhollow: SANDHOLLOW_AT, sunShrine: SUN_AT, mireShrine: MIRE_AT } = SOUTH_LANDMARKS;
+const {
+  pass: SOUTH_PASS_AT,
+  sandhollow: SANDHOLLOW_AT,
+  sunShrine: SUN_AT,
+  mireShrine: MIRE_AT,
+  cistern: CISTERN_AT,
+} = SOUTH_LANDMARKS;
 
 const BASE_MAPS: MapDef[] = [
   {
@@ -1074,6 +1165,7 @@ const BASE_MAPS: MapDef[] = [
         { x: SANDHOLLOW_AT.x, y: SANDHOLLOW_AT.y, toMap: 'sandhollow', toX: 12, toY: 12, facing: 'up' },
         { x: SUN_AT.x, y: SUN_AT.y, toMap: 'sunShrine', toX: 9, toY: 13, facing: 'up' },
         { x: MIRE_AT.x, y: MIRE_AT.y, toMap: 'mireShrine', toX: 12, toY: 13, facing: 'up' },
+        { x: CISTERN_AT.x, y: CISTERN_AT.y, toMap: 'sunkenCistern', toX: 10, toY: 12, facing: 'up' },
       ],
       npcs: [],
       events: [],
@@ -1184,6 +1276,53 @@ const BASE_MAPS: MapDef[] = [
       fog: true,
     },
   {
+      id: 'sunkenCistern',
+      name: 'Sunken Cistern',
+      rows: CISTERN_ROWS,
+      legend: grindLegend('sunWall', 'sunFloor', 'cistern', 'caveWater', { b: 'bones' }),
+      warps: [{ x: 10, y: 13, toMap: 'southlands', toX: CISTERN_AT.x, toY: CISTERN_AT.y + 1, facing: 'down' }],
+      npcs: [
+        {
+          id: 'wellkeeper',
+          x: 8,
+          y: 11,
+          spriteId: 'elder',
+          facing: 'down',
+          role: 'talk',
+          lines: () => [
+            'OLD WELLKEEPER: Sandhollow drew its water here once. Now the cistern belongs to things that crawl.',
+            'Three brutes hold the dry chambers. Beat one and it stays down... until you sleep at an inn.',
+            'By morning another has crawled in. Good practice before the shrines, if your party is still green.',
+          ],
+        },
+        bossNpc('scorpionQueen', 3, 4, 'scorpion', {
+          monsterIds: ['scorpionQueen', 'scorpion'],
+          defeatFlag: 'scorpionQueenDefeated',
+          lines: ['A scorpion the size of a cart rattles out of the dark, a brood-sister scuttling at her side.'],
+          victory: ['The Scorpion Queen curls up and is still. The chamber is quiet... for now.'],
+          respawns: true,
+        }),
+        bossNpc('cisternWorm', 18, 4, 'sandWorm', {
+          monsterIds: ['cisternWorm', 'sandWorm'],
+          defeatFlag: 'cisternWormDefeated',
+          lines: ['The silt churns. A pale worm, fat on cistern water, rears up with a smaller one in its wake.'],
+          victory: ['The Cistern Worm sinks into the silt. Something else will crawl in... something always does.'],
+          respawns: true,
+        }),
+        bossNpc('drownedWraith', 10, 2, 'wraith', {
+          monsterIds: ['drownedWraith', 'wraith'],
+          defeatFlag: 'drownedWraithDefeated',
+          lines: ['Water drips from a shape that should not stand. A drowned wraith rises from the old well, and another follows.'],
+          victory: ['The Drowned Wraith sighs and sinks back into the well... for now.'],
+          respawns: true,
+        }),
+      ],
+      events: [],
+      outsideTile: '#',
+      backdrop: 'cave',
+      fog: true,
+    },
+  {
       id: 'frostpeaks',
       name: 'The Frost Peaks',
       rows: generateFrostPeaks(),
@@ -1192,6 +1331,7 @@ const BASE_MAPS: MapDef[] = [
         { x: FROST_PASS_AT.x, y: FROST_PASS_AT.y, toMap: 'overworld', toX: NORTH_PASS_AT.x, toY: NORTH_PASS_AT.y + 1, facing: 'down' },
         { x: FROSTGATE_AT.x, y: FROSTGATE_AT.y, toMap: 'frostgate', toX: 12, toY: 12, facing: 'up' },
         { x: ROOST_AT.x, y: ROOST_AT.y, toMap: 'wyvernRoost', toX: 10, toY: 13, facing: 'up' },
+        { x: QUARRY_AT.x, y: QUARRY_AT.y, toMap: 'frozenQuarry', toX: 10, toY: 12, facing: 'up' },
         {
           x: EMBER_PASS_AT.x,
           y: EMBER_PASS_AT.y,
@@ -1305,6 +1445,53 @@ const BASE_MAPS: MapDef[] = [
       fog: true,
     },
   {
+      id: 'frozenQuarry',
+      name: 'Frozen Quarry',
+      rows: QUARRY_ROWS,
+      legend: grindLegend('iceWall', 'iceFloor', 'quarry', 'iceWater', { r: 'rubble', x: 'crate' }),
+      warps: [{ x: 10, y: 13, toMap: 'frostpeaks', toX: QUARRY_AT.x, toY: QUARRY_AT.y + 1, facing: 'down' }],
+      npcs: [
+        {
+          id: 'oldQuarryman',
+          x: 12,
+          y: 11,
+          spriteId: 'elder',
+          facing: 'down',
+          role: 'talk',
+          lines: () => [
+            'OLD QUARRYMAN: We cut ice for Frostgate here, till the beasts moved into the galleries.',
+            'Three of them rule the upper cuts. Beat one and it stays down... until you sleep at an inn.',
+            'Then another takes its place. Train here before you climb to the Wyvern Roost.',
+          ],
+        },
+        bossNpc('yetiMatron', 3, 2, 'yeti', {
+          monsterIds: ['yetiMatron', 'yeti'],
+          defeatFlag: 'yetiMatronDefeated',
+          lines: ['A grizzled yeti beats her chest among the cut ice blocks. Her grown cub roars beside her.'],
+          victory: ['The Yeti Matron slumps into the snow. The gallery is quiet... for now.'],
+          respawns: true,
+        }),
+        bossNpc('frostHexer', 17, 2, 'frostMage', {
+          monsterIds: ['frostHexer', 'frostMage'],
+          defeatFlag: 'frostHexerDefeated',
+          lines: ['A robed figure traces frost runes on the quarry wall. "More meat for the cold," she tells her apprentice.'],
+          victory: ['The Frost Hexer shatters like an icicle. Her runes fade... for now.'],
+          respawns: true,
+        }),
+        bossNpc('trollQuarrymaster', 10, 4, 'iceTroll', {
+          monsterIds: ['trollQuarrymaster', 'iceTroll'],
+          defeatFlag: 'trollQuarrymasterDefeated',
+          lines: ['A huge ice troll hefts a quarry hammer. "Back to the cutting!" he roars at his crony.'],
+          victory: ['The Troll Quarrymaster drops his hammer. His crew will be back... they always come back.'],
+          respawns: true,
+        }),
+      ],
+      events: [],
+      outsideTile: '#',
+      backdrop: 'cave',
+      fog: true,
+    },
+  {
       id: 'embermountains',
       name: 'The Ember Mountains',
       rows: generateEmberMountains(),
@@ -1313,6 +1500,7 @@ const BASE_MAPS: MapDef[] = [
         { x: EMBER_SOUTH_AT.x, y: EMBER_SOUTH_AT.y, toMap: 'frostpeaks', toX: EMBER_PASS_AT.x, toY: EMBER_PASS_AT.y + 1, facing: 'down' },
         { x: EMBERWATCH_AT.x, y: EMBERWATCH_AT.y, toMap: 'emberwatch', toX: 12, toY: 12, facing: 'up' },
         { x: LAIR_AT.x, y: LAIR_AT.y, toMap: 'vyrmorthLair', toX: 10, toY: 13, facing: 'up' },
+        { x: SLAG_AT.x, y: SLAG_AT.y, toMap: 'slagPits', toX: 10, toY: 12, facing: 'up' },
       ],
       npcs: [],
       events: [],
@@ -1409,6 +1597,53 @@ const BASE_MAPS: MapDef[] = [
       backdrop: 'cave',
       fog: true,
     },
+  {
+      id: 'slagPits',
+      name: 'Slag Pits',
+      rows: SLAG_ROWS,
+      legend: grindLegend('obsidianWall', 'obsidianFloor', 'slagpits', 'lava', { r: 'rubble' }),
+      warps: [{ x: 10, y: 13, toMap: 'embermountains', toX: SLAG_AT.x, toY: SLAG_AT.y + 1, facing: 'down' }],
+      npcs: [
+        {
+          id: 'slagMiner',
+          x: 12,
+          y: 11,
+          spriteId: 'elder',
+          facing: 'down',
+          role: 'talk',
+          lines: () => [
+            "ESCAPED MINER: The cult made us dig these pits for Vyrmorth's gold. Its creatures still guard the slag.",
+            'Three of them hold the high galleries. Put one down and it stays down... until you sleep at an inn.',
+            'Then the mountain sends another. Toughen up here before you face the dragon.',
+          ],
+        },
+        bossNpc('cultistOverseer', 3, 3, 'dragonCultist', {
+          monsterIds: ['cultistOverseer', 'dragonCultist'],
+          defeatFlag: 'cultistOverseerDefeated',
+          lines: ['A masked cultist cracks a whip over the slag. "Vyrmorth demands his tribute!" His acolyte draws a blade.'],
+          victory: ['The Cultist Overseer falls. The pits are quiet... for now.'],
+          respawns: true,
+        }),
+        bossNpc('slagGolem', 18, 3, 'magmaGolem', {
+          monsterIds: ['slagGolem', 'magmaGolem'],
+          defeatFlag: 'slagGolemDefeated',
+          lines: ['A heap of cooling slag heaves itself upright. A smaller golem drips from its side.'],
+          victory: ['The Slag Golem cracks and cools. The heat will wake another... it always does.'],
+          respawns: true,
+        }),
+        bossNpc('cinderDrake', 10, 2, 'fireDrake', {
+          monsterIds: ['cinderDrake', 'fireDrake'],
+          defeatFlag: 'cinderDrakeDefeated',
+          lines: ['A scarred drake uncoils from a bed of cinders, its mate hissing beside it.'],
+          victory: ['The Cinder Drake sinks into the ash. Another will nest here soon... but for now, the pit is still.'],
+          respawns: true,
+        }),
+      ],
+      events: [],
+      outsideTile: '#',
+      backdrop: 'cave',
+      fog: true,
+    },
 ];
 
 /**
@@ -1436,10 +1671,19 @@ function withCompanions(m: MapDef): MapDef {
 
 export const MAPS: ReadonlyMap<string, MapDef> = new Map(BASE_MAPS.map((m) => [m.id, withCompanions(m)]));
 
-/** Defeat flags of the grind bosses (`respawns`) that every inn rest clears, so they return (plan §36). */
-export const RESPAWN_FLAGS: readonly string[] = BASE_MAPS.flatMap((m) =>
-  m.npcs.flatMap((n) => (n.boss?.respawns ? [n.boss.defeatFlag] : [])),
+/** Grind dungeon (map name) of each respawning boss's defeat flag (plan §36). */
+const RESPAWN_PLACES: ReadonlyMap<string, string> = new Map(
+  BASE_MAPS.flatMap((m) => m.npcs.flatMap((n) => (n.boss?.respawns ? [[n.boss.defeatFlag, m.name] as const] : []))),
 );
+
+/** Defeat flags of the grind bosses (`respawns`) that every inn rest clears, so they return (plan §36). */
+export const RESPAWN_FLAGS: readonly string[] = [...RESPAWN_PLACES.keys()];
+
+/** The inn's morning line naming the grind dungeons whose wardens an inn rest brought back (none: undefined). */
+export function respawnLine(clearedFlags: readonly string[]): string | undefined {
+  const places = [...new Set(clearedFlags.flatMap((f) => RESPAWN_PLACES.get(f) ?? []))];
+  return places.length ? `Deep in the ${places.join(' and the ')}, something stirs again...` : undefined;
+}
 
 export function mapDef(id: string): MapDef {
   const m = MAPS.get(id);

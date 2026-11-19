@@ -233,7 +233,7 @@ trio instead of a lone hero. A hero who stays alone gets no balance guarantee an
   the Necromancer gets 1 more. The Wizard, the frailest solo hero, gets 2 more Herbs **and 2 Tonics** (§31).
 - Running away is slightly easier when alone (+10%).
 - The **Old Mine** near Aldmere (§36) has three respawning wardens at levels 3, 4 and 5. They are a ladder of grind
-  fights for a solo hero before the Goblin King.
+  fights for a solo hero before the Goblin King. Each later act has its own grind dungeon for the party (36.2).
 
 ### 4.6 Balance targets (checked by the simulator)
 
@@ -256,6 +256,8 @@ trio instead of a lone hero. A hero who stays alone gets no balance guarantee an
 | Any pair (hero at the expected level, companion one level behind) in Act II / III areas, up to 3 enemies (4.4c) | ≥ 90% |
 | Any pair against each Act II shrine boss (levels 11 + 10) and the Matriarch (14 + 13) (4.4c) | ≥ 70% |
 | Any three-class party against each Act II / III boss (level 10 / 13) | ≥ 70% |
+| Any pair against each Act II–IV grind-dungeon warden at its rung; any three-class party one level under (36.2) | ≥ 70% |
+| Any pair at the top rung clearing a whole Act II–IV grind dungeon back to back, half the act kit (36.2) | ≥ 50% |
 | A lone hero after the unlock (4.4c) | No target; reported only (`BALANCE_REPORT=1`) |
 
 If a class misses a target, tune its numbers in `game-quest` data files (growth curve, weapon stats, skill costs)
@@ -372,7 +374,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32), the Old Mine grind dungeon (§36)). Open: giant toad art, post-unlock balance (4.4c), Act II–IV grind dungeons (36.2) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32), the Old Mine grind dungeon (§36), grind dungeons for Acts II–IV (36.2)). Open: giant toad art, post-unlock balance (4.4c) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -1519,6 +1521,8 @@ Daggers, Dune Knife) and armor, shields and accessories up to +6 DEF.
 - Every pair (levels 11 + 10) beats each shrine boss at least 70% of the time. (Was: every class solo at level 12,
   ≥ 60%.)
 - Every three-class party beats each shrine boss at least 70% of the time at level 10.
+- The Sunken Cistern's wardens (36.2): every pair beats each at its rung (levels 8 / 9 / 10) at least 70% of the
+  time, and clears all three back to back at level 10 at least 50% of the time.
 - Desert fights from level 8 to 11 earn enough gold for the most expensive tier-3 weapon.
 
 ### 17.6 Ending Act II
@@ -1646,6 +1650,8 @@ The catalogue test allows up to +12 HP and +9 for any other stat.
 - Every pair (levels 14 + 13) beats the Matriarch and her escort at least 70% of the time. (Was: every class solo
   at level 15, ≥ 60%.)
 - Every three-class party beats them at least 70% of the time at level 13.
+- The Frozen Quarry's wardens (36.2): every pair beats each at its rung (levels 11 / 12 / 13) at least 70% of the
+  time, and clears all three back to back at level 13 at least 50% of the time.
 - Snowfield fights from level 11 to 14 earn enough gold for the most expensive tier-4 weapon.
 
 ### 19.6 Ending Act III
@@ -1682,8 +1688,8 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~Inventory, monster gear drops, item rarity (Common to Legendary), random stat bonuses and selling at shops.~~
   Done in §33, with a simulator loot mode and drop-economy check (33.8). Watch item: well-looted Wizards end
   mini-boss fights in about half the rounds.
-- ~~Grind dungeons with respawning mini-mini bosses.~~ Act I's Old Mine done in §36. Act II–IV grind dungeons are
-  planned in 36.2.
+- ~~Grind dungeons with respawning mini-mini bosses.~~ Done in §36: the Old Mine (Act I), the Sunken Cistern,
+  the Frozen Quarry and the Slag Pits (36.2).
 
 ## 20. Revision 6: solo only before the unlock
 
@@ -1755,6 +1761,8 @@ Tier 5 is sold in Emberwatch:
   most pairs win 94–100% in about 7.5–11.5 rounds. The weakest pairs have no healer (rogue + ranger 72%,
   ranger + rogue 78%).
 - Every three-class party (level 17) beats both phases at least 70% of the time.
+- The Slag Pits' wardens (36.2): every pair beats each at its rung (levels 14 / 15 / 16) at least 70% of the time,
+  and clears all three back to back at level 16 at least 50% of the time.
 - Ash field fights from level 14 to 17 earn enough gold for a tier-5 weapon.
 - A lone hero is only reported, not required to win (§20).
 
@@ -1934,7 +1942,7 @@ Poison is the first lasting status effect. It gives the chapel something to cure
 
 | Rule | Detail |
 | --- | --- |
-| Sources | A landed melee hit from a venomous monster: Scorpion 30%, Marsh Witch 25%, Wyvern and Wyvern Matriarch 20%. Act I has none, so solo play before the unlock is unchanged (§20). |
+| Sources | A landed melee hit from a venomous monster: Scorpion and Scorpion Queen 30%, Marsh Witch 25%, Wyvern and Wyvern Matriarch 20%. Act I has none, so solo play before the unlock is unchanged (§20). |
 | In battle | At the end of each round a poisoned member loses `max(1, floor(maxHp / 12))` HP. Poison never knocks anyone out: it stops at 1 HP ("X is weakened by poison."). |
 | In the field | Lasts after battle. A poisoned member loses 1 HP every 4 steps on any map (never below 1) and gets no walking HP regen; MP regen is unchanged. |
 | Cures | **Heal** (Cleric; the Paladin's Heal too, until §31) also cures, even at full HP; **Antidote** (10 g, every item shop); the chapel's new **CURE** option (5 g per poisoned member); resting at the inn, a revive, a KO, or waking after defeat. |
@@ -2380,7 +2388,7 @@ the hero.
 - **Lightning strikes the ground:** each bolt ends on a fixed world spot, with a ground glow there, and scrolls with
   the map while it is visible. The screen-wide flash and tint stay as sky lighting.
 
-## 36. Grind dungeons and wardens (Act I implemented; later acts planned)
+## 36. Grind dungeons and wardens (implemented for every act)
 
 **Feedback:** add dungeons or towns with "mini-mini bosses" that help grind levels, especially for a solo Wizard, the
 hardest class to start alone.
@@ -2393,7 +2401,8 @@ hardest class to start alone.
   own `warden` source. Their `BossDef` has `respawns: true`. `RESPAWN_FLAGS` (in `maps.ts`) collects those defeat
   flags, and every inn rest clears them, so the wardens come back. Dying sends the party to the inn without a rest,
   so a defeat does not reset them.
-- Wardens form a ladder of rungs below the act boss, so a struggling solo hero always has a next fight that pays off.
+- Wardens form a ladder of rungs below the act boss, so a struggling hero (alone in Act I, a party after) always
+  has a next fight that pays off.
 
 ### 36.1 Act I: the Old Mine (implemented)
 
@@ -2421,15 +2430,62 @@ hardest class to start alone.
 - **Tests:** `content.spec.ts` (warp, safe chambers, respawn flags), `world-scene.spec.ts` (an inn rest clears the
   warden flags only), `loot.spec.ts` (`warden` odds and source).
 
-### 36.2 Later acts (planned, not built)
+### 36.2 Acts II–IV: the Sunken Cistern, the Frozen Quarry and the Slag Pits (implemented)
 
-| Act | Place | Wardens (ideas) | Rungs |
-| --- | --- | --- | --- |
-| II | Sandhollow's sunken cistern | Scarab Queen, Mire Lurker, Dune Raider Captain | levels 8 / 9 / 10 |
-| III | Frostgate ice quarry | Frost Wolf Matron, Ice Wisp Mother, Yeti Foreman | levels 11 / 12 / 13 |
-| IV | Emberwatch slag pits | Ember Imp Overseer, Magma Slime Matron, Cinder Drake | levels 14 / 15 / 16 |
+- **Where:** each is a landmark on its act's region map, joined to the town by its own road. Like the Old Mine, the
+  entrance notch is stamped **after** the main roads, so the other roads keep their course.
 
-- Each reuses existing monster art with a new name and stats, like the Act I wardens.
-- Each gets a `balance.spec` rung check for a pair (hero plus a companion one level behind) instead of a lone hero,
-  because companions can join after the Goblin King.
-- Each needs the same overworld caution: stamp it after the roads and check the tile diff.
+  | Act | Map (22x15, cave backdrop) | Landmark | Entrance tile | Talk NPC | Tunnel table |
+  | --- | --- | --- | --- | --- | --- |
+  | II | `sunkenCistern` | (8,20), south-west of Sandhollow | `cisternEntrance` in a sandstone shelf | Old Wellkeeper | `cistern` (level 9: scorpions, wraiths, sand worms) |
+  | III | `frozenQuarry` | (7,33), south-west of Frostgate | `quarryEntrance` in a glacier face | Old Quarryman | `quarry` (level 12: yetis, ice trolls, frost mages) |
+  | IV | `slagPits` | (52,39), south-east of Emberwatch | `slagEntrance` in a basalt ridge | Escaped Miner | `slagpits` (level 15: cultists, magma golems, fire drakes) |
+
+- **Wardens** (each fought with one minion of its kind; rung = hero level and gear tier for a pair, the companion
+  one level behind):
+
+  | Warden | Rung | Stats (HP/ATK/DEF/AGI) | XP / gold | Weakness | Minion |
+  | --- | --- | --- | --- | --- | --- |
+  | Scorpion Queen | level 8, tier 2 | 120 / 22 / 13 / 8 | 70 / 50 | ice | Scorpion |
+  | Cistern Worm | level 9, tier 2 | 140 / 23 / 12 / 4 | 80 / 60 | ice | Sand Worm |
+  | Drowned Wraith | level 10, tier 3 | 125 / 24 / 12 / 10 | 90 / 70 | holy, fire | Wraith |
+  | Yeti Matron | level 11, tier 3 | 210 / 30 / 14 / 7 | 110 / 80 | fire | Yeti |
+  | Frost Hexer | level 12, tier 3 | 190 / 31 / 12 / 11 | 120 / 90 | fire, holy | Frost Mage |
+  | Troll Quarrymaster | level 13, tier 4 | 240 / 32 / 16 / 5 | 130 / 100 | fire | Ice Troll |
+  | Cultist Overseer | level 14, tier 4 | 255 / 36 / 15 / 10 | 150 / 110 | holy | Dragon Cultist |
+  | Slag Golem | level 15, tier 4 | 300 / 36 / 19 / 4 | 165 / 120 | ice, lightning | Magma Golem |
+  | Cinder Drake | level 16, tier 5 | 270 / 37 / 18 / 11 | 180 / 130 | ice | Fire Drake |
+
+  Gear lags a tier because that tier is bought during the act. Each warden reuses its minion's art, drawn at
+  mini-boss size.
+- **Loot:** the `warden` source, with loot tiers 3 (Cistern), 4 (Quarry) and 5 (Slag Pits).
+- **Respawn:** `RESPAWN_PLACES` (in `maps.ts`) maps each of the 12 warden defeat flags to its dungeon.
+  `RESPAWN_FLAGS` is its key list. After a rest, the inn names every dungeon that stirred (`respawnLine`), e.g.
+  "Deep in the Old Mine and the Slag Pits, something stirs again...".
+- **XP:** one full clear pays about 1.2 levels' worth of XP at the first rung (split across the party). That is
+  generous on purpose: it is the grind reward, and each repeat needs a trip back to the inn.
+- **Balance check (`balance.spec.ts`, `grindDungeon`):** a grinding party carries half the act kit (rounded up) and
+  fights at `BOSS_HP_SCALE[1]`. Checks:
+  - every pair beats each warden ≥ 70% at its rung;
+  - every three-class party one level under the rung beats each warden ≥ 70%;
+  - every pair at the top rung clears the whole dungeon in one trip ≥ 50%, with all three wardens back to back
+    and HP, MP and items carried over;
+  - no warden has more HP than, or out-hits, the act's bosses.
+- **Tuning:** a single warden fight could not tell the dungeons apart (pairs win ~100% from level 9 up, and so
+  they do against the act bosses). The back-to-back clear was the useful measure. It showed the Quarry and Slag
+  Pits were trivial, so their wardens got ×1.4 HP / +4 ATK and ×1.5 HP / +5 ATK. Measured with 200 runs per pair:
+
+  | Dungeon | Clear at the middle rung (min / avg, worst pair) | Clear at the top rung (min / avg, worst pair) |
+  | --- | --- | --- |
+  | Sunken Cistern | 16% / 66%, ranger + rogue | 69% / 97%, necromancer + wizard |
+  | Frozen Quarry | 6% / 78%, ranger + rogue | 80% / 97%, ranger + wizard |
+  | Slag Pits | 7% / 80%, rogue + ranger | 77% / 97%, rogue + ranger |
+
+  So a full clear is a stretch one level early and comfortable at the top rung. Healer-less pairs struggle most.
+- **Solo (reported only, 4.4c):** alone at the rung, the Warrior and Cleric win 91–100% of warden fights, the
+  Rogue 63–99% and the Ranger 17–100% (weakest against the first two Cistern wardens). The Wizard wins 5–91%
+  (worst: the Scorpion Queen at level 8 and the Quarry's first two wardens) and the Necromancer 1–74%. This is
+  expected: from Act II on a party is assumed.
+- **Tests:** `content.spec.ts` (per dungeon: warp, encounter-free arrival and chambers, table, exits, three
+  respawning wardens, a talk NPC; 12 respawn flags), `world-scene.spec.ts` (the inn names the dungeons that
+  stirred), `balance.spec.ts` (above).

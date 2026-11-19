@@ -20,6 +20,8 @@ export const EMBER_LANDMARKS = {
   pass: { x: 30, y: 44 },
   emberwatch: { x: 46, y: 32 },
   lair: { x: 30, y: 7 },
+  /** The Slag Pits, a grind dungeon south-east of Emberwatch (plan §36). */
+  slagPits: { x: 52, y: 39 },
 } as const satisfies Record<string, Point>;
 
 const ASH = '.';
@@ -120,14 +122,27 @@ function carveRoad(g: Grid, from: Point, to: Point): void {
   }
 }
 
+/** The Slag Pits' adit, cut into a basalt ridge (placed after the main roads so they keep their course). */
+function placeSlagPits(g: Grid): void {
+  const { slagPits } = EMBER_LANDMARKS;
+  for (let x = slagPits.x - 2; x <= slagPits.x + 2; x++) {
+    g[slagPits.y - 1][x] = BASALT;
+  }
+  g[slagPits.y][slagPits.x - 1] = BASALT;
+  g[slagPits.y][slagPits.x + 1] = BASALT;
+  g[slagPits.y][slagPits.x] = 'P';
+}
+
 /** Generates the Ember Mountains rows (deterministic). */
 export function generateEmberMountains(): string[] {
   const g = terrain();
   placeLandmarks(g);
-  const { pass, emberwatch, lair } = EMBER_LANDMARKS;
+  const { pass, emberwatch, lair, slagPits } = EMBER_LANDMARKS;
   const above = (p: Point): Point => ({ x: p.x, y: p.y - 1 });
   const below = (p: Point): Point => ({ x: p.x, y: p.y + 1 });
   carveRoad(g, above(pass), below(emberwatch));
   carveRoad(g, below(emberwatch), below(lair));
+  placeSlagPits(g);
+  carveRoad(g, below(emberwatch), below(slagPits));
   return g.map((row) => row.join(''));
 }

@@ -284,6 +284,55 @@ const LIST: MonsterDef[] = [
     poisonChance: 0.25,
     spriteId: 'marshWitch',
   },
+  // Sunken Cistern wardens (plan §36): respawning grind bosses below Sandhollow.
+  {
+    id: 'scorpionQueen',
+    name: 'Scorpion Queen',
+    stats: { hp: 120, mp: 0, atk: 22, def: 13, agi: 8, mag: 0 },
+    xp: 70,
+    gold: 50,
+    boss: true,
+    weaknesses: ['ice'],
+    resistances: [],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'antidote', chance: 0.5 }],
+    poisonChance: 0.3,
+    spriteId: 'scorpion',
+  },
+  {
+    id: 'cisternWorm',
+    name: 'Cistern Worm',
+    stats: { hp: 140, mp: 0, atk: 23, def: 12, agi: 4, mag: 0 },
+    xp: 80,
+    gold: 60,
+    boss: true,
+    weaknesses: ['ice'],
+    resistances: ['fire'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 1 },
+    ],
+    drops: [{ itemId: 'potion', chance: 0.3 }],
+    spriteId: 'sandWorm',
+  },
+  {
+    id: 'drownedWraith',
+    name: 'Drowned Wraith',
+    stats: { hp: 125, mp: 0, atk: 24, def: 12, agi: 10, mag: 0 },
+    xp: 90,
+    gold: 70,
+    boss: true,
+    undead: true,
+    weaknesses: ['holy', 'fire'],
+    resistances: ['ice', 'dark'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 1 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'tonic', chance: 0.4 }],
+    spriteId: 'wraith',
+  },
   // --- Act III: the Frost Peaks -------------------------------------------------------------
   {
     id: 'iceTroll',
@@ -352,6 +401,53 @@ const LIST: MonsterDef[] = [
     critChance: 1 / 32,
     poisonChance: 0.2,
     spriteId: 'wyvernMatriarch',
+  },
+  // Frozen Quarry wardens (plan §36): respawning grind bosses below Frostgate.
+  {
+    id: 'yetiMatron',
+    name: 'Yeti Matron',
+    stats: { hp: 210, mp: 0, atk: 30, def: 14, agi: 7, mag: 0 },
+    xp: 110,
+    gold: 80,
+    boss: true,
+    weaknesses: ['fire'],
+    resistances: ['ice'],
+    actions: [{ action: 'attack', weight: 1 }],
+    drops: [{ itemId: 'herb', chance: 0.6 }],
+    spriteId: 'yeti',
+  },
+  {
+    id: 'frostHexer',
+    name: 'Frost Hexer',
+    stats: { hp: 190, mp: 0, atk: 31, def: 12, agi: 11, mag: 0 },
+    xp: 120,
+    gold: 90,
+    boss: true,
+    weaknesses: ['fire', 'holy'],
+    resistances: ['ice'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 1 },
+    ],
+    drops: [{ itemId: 'tonic', chance: 0.4 }],
+    spriteId: 'frostMage',
+  },
+  {
+    id: 'trollQuarrymaster',
+    name: 'Troll Quarrymaster',
+    stats: { hp: 240, mp: 0, atk: 32, def: 16, agi: 5, mag: 0 },
+    xp: 130,
+    gold: 100,
+    boss: true,
+    weaknesses: ['fire'],
+    resistances: ['ice'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 1 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'potion', chance: 0.4 }],
+    spriteId: 'iceTroll',
   },
   // --- Finale: the Ember Mountains ----------------------------------------------------------
   {
@@ -426,13 +522,79 @@ const LIST: MonsterDef[] = [
     critChance: 1 / 32,
     spriteId: 'vyrmorthUnbound',
   },
+  // Slag Pits wardens (plan §36): respawning grind bosses below Emberwatch.
+  {
+    id: 'cultistOverseer',
+    name: 'Cultist Overseer',
+    stats: { hp: 255, mp: 0, atk: 36, def: 15, agi: 10, mag: 0 },
+    xp: 150,
+    gold: 110,
+    boss: true,
+    weaknesses: ['holy'],
+    resistances: ['fire'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'tonic', chance: 0.5 }],
+    spriteId: 'dragonCultist',
+  },
+  {
+    id: 'slagGolem',
+    name: 'Slag Golem',
+    stats: { hp: 300, mp: 0, atk: 36, def: 19, agi: 4, mag: 0 },
+    xp: 165,
+    gold: 120,
+    boss: true,
+    weaknesses: ['ice', 'lightning'],
+    resistances: ['fire'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 1 },
+    ],
+    drops: [{ itemId: 'potion', chance: 0.5 }],
+    spriteId: 'magmaGolem',
+  },
+  {
+    id: 'cinderDrake',
+    name: 'Cinder Drake',
+    stats: { hp: 270, mp: 0, atk: 37, def: 18, agi: 11, mag: 0 },
+    xp: 180,
+    gold: 130,
+    boss: true,
+    weaknesses: ['ice'],
+    resistances: ['fire'],
+    actions: [
+      { action: 'attack', weight: 6 },
+      { action: 'cleave', weight: 1 },
+      { action: 'warcry', weight: 1 },
+    ],
+    drops: [{ itemId: 'potion', chance: 0.5 }],
+    spriteId: 'fireDrake',
+  },
 ];
 
 /** Side-quest mini-bosses (fought after the Goblin King, usually solo or as a pair). */
 export const MINI_BOSS_IDS: readonly string[] = ['alphaWolf', 'giantToad', 'boneCaptain', 'goblinChief'];
 
-/** Old Mine wardens (plan §36): small bosses that return after every inn rest, for grinding before the Goblin King. */
-export const WARDEN_IDS: readonly string[] = ['slimeMatron', 'batBroodmother', 'goblinForeman'];
+/**
+ * Grind-dungeon wardens (plan §36): small bosses that return after every inn rest, one dungeon per act
+ * (Old Mine, Sunken Cistern, Frozen Quarry, Slag Pits), three rungs each.
+ */
+export const WARDEN_IDS: readonly string[] = [
+  'slimeMatron',
+  'batBroodmother',
+  'goblinForeman',
+  'scorpionQueen',
+  'cisternWorm',
+  'drownedWraith',
+  'yetiMatron',
+  'frostHexer',
+  'trollQuarrymaster',
+  'cultistOverseer',
+  'slagGolem',
+  'cinderDrake',
+];
 
 /** Act II shrine bosses (one per Southlands shrine). */
 export const ACT_TWO_BOSS_IDS: readonly string[] = ['sandWyrm', 'marshWitch'];
@@ -562,6 +724,18 @@ const TABLE_LIST: EncounterTable[] = [
       { monsterIds: ['lizardman', 'wraith', 'scorpion'], weight: 1 },
     ],
   },
+  {
+    id: 'cistern',
+    rate: 1 / 12,
+    level: 9,
+    groups: [
+      { monsterIds: ['scorpion'], weight: 3 },
+      { monsterIds: ['wraith'], weight: 3 },
+      { monsterIds: ['sandWorm', 'scorpion'], weight: 2 },
+      { monsterIds: ['wraith', 'wraith'], weight: 2 },
+      { monsterIds: ['scorpion', 'scorpion', 'wraith'], weight: 1 },
+    ],
+  },
   // --- Act III ------------------------------------------------------------------------------
   {
     id: 'snowfield',
@@ -599,6 +773,18 @@ const TABLE_LIST: EncounterTable[] = [
       { monsterIds: ['wyvern', 'frostMage', 'iceTroll'], weight: 1 },
     ],
   },
+  {
+    id: 'quarry',
+    rate: 1 / 12,
+    level: 12,
+    groups: [
+      { monsterIds: ['yeti'], weight: 3 },
+      { monsterIds: ['iceTroll'], weight: 3 },
+      { monsterIds: ['yeti', 'frostMage'], weight: 2 },
+      { monsterIds: ['yeti', 'yeti'], weight: 2 },
+      { monsterIds: ['iceTroll', 'yeti', 'frostMage'], weight: 1 },
+    ],
+  },
   // --- Finale -------------------------------------------------------------------------------
   {
     id: 'ashfield',
@@ -634,6 +820,18 @@ const TABLE_LIST: EncounterTable[] = [
       { monsterIds: ['fireDrake', 'fireDrake'], weight: 2 },
       { monsterIds: ['magmaGolem', 'fireDrake'], weight: 2 },
       { monsterIds: ['fireDrake', 'dragonCultist', 'magmaGolem'], weight: 1 },
+    ],
+  },
+  {
+    id: 'slagpits',
+    rate: 1 / 12,
+    level: 15,
+    groups: [
+      { monsterIds: ['dragonCultist'], weight: 3 },
+      { monsterIds: ['magmaGolem'], weight: 3 },
+      { monsterIds: ['fireDrake', 'dragonCultist'], weight: 2 },
+      { monsterIds: ['magmaGolem', 'dragonCultist'], weight: 2 },
+      { monsterIds: ['dragonCultist', 'dragonCultist', 'fireDrake'], weight: 1 },
     ],
   },
 ];

@@ -250,7 +250,7 @@ describe('poison (plan 28)', () => {
   describe('content', () => {
     it('keeps Act I poison-free (solo balance) and gives venom to a few later monsters', () => {
       const venomous = [...MONSTERS.values()].filter((m) => (m.poisonChance ?? 0) > 0).map((m) => m.id);
-      expect(venomous.sort()).toEqual(['marshWitch', 'scorpion', 'wyvern', 'wyvernMatriarch']);
+      expect(venomous.sort()).toEqual(['marshWitch', 'scorpion', 'scorpionQueen', 'wyvern', 'wyvernMatriarch']);
     });
 
     it('sells Antidotes in every item shop', () => {

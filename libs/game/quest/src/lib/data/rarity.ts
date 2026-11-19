@@ -77,16 +77,25 @@ export const LOOT_TIER: Readonly<Record<string, number>> = {
   wraith: 3,
   sandWyrm: 3,
   marshWitch: 3,
+  scorpionQueen: 3,
+  cisternWorm: 3,
+  drownedWraith: 3,
   iceTroll: 4,
   wyvern: 4,
   yeti: 4,
   frostMage: 4,
   wyvernMatriarch: 4,
+  yetiMatron: 4,
+  frostHexer: 4,
+  trollQuarrymaster: 4,
   fireDrake: 5,
   magmaGolem: 5,
   dragonCultist: 5,
   vyrmorth: 5,
   vyrmorthUnbound: 5,
+  cultistOverseer: 5,
+  slagGolem: 5,
+  cinderDrake: 5,
 };
 
 /** The tier of gear a monster drops (1 for anything unlisted). */
@@ -94,7 +103,7 @@ export function lootTier(monsterId: string): number {
   return LOOT_TIER[monsterId] ?? 1;
 }
 
-/** Common monster, Old Mine warden, mini-boss or boss. */
+/** Common monster, grind-dungeon warden, mini-boss or boss. */
 export function lootSource(monsterId: string): LootSource {
   if (WARDEN_IDS.includes(monsterId)) {
     return 'warden';

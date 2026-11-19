@@ -22,6 +22,8 @@ export const NORTH_LANDMARKS = {
   wyvernRoost: { x: 46, y: 8 },
   /** Pass over the northern rim to the Ember Mountains, gated until Dragonbane is forged (finale). */
   emberPass: { x: 20, y: 2 },
+  /** The Frozen Quarry, a grind dungeon south-west of Frostgate (plan §36). */
+  quarry: { x: 7, y: 33 },
 } as const satisfies Record<string, Point>;
 
 const SNOW = '.';
@@ -129,15 +131,28 @@ function carveRoad(g: Grid, from: Point, to: Point): void {
   }
 }
 
+/** The Frozen Quarry's mouth, cut into a glacier face (placed after the main roads so they keep their course). */
+function placeQuarry(g: Grid): void {
+  const { quarry } = NORTH_LANDMARKS;
+  for (let x = quarry.x - 2; x <= quarry.x + 2; x++) {
+    g[quarry.y - 1][x] = PEAK;
+  }
+  g[quarry.y][quarry.x - 1] = PEAK;
+  g[quarry.y][quarry.x + 1] = PEAK;
+  g[quarry.y][quarry.x] = 'Q';
+}
+
 /** Generates the Frost Peaks rows (deterministic). */
 export function generateFrostPeaks(): string[] {
   const g = terrain();
   placeLandmarks(g);
-  const { pass, frostgate, wyvernRoost, emberPass } = NORTH_LANDMARKS;
+  const { pass, frostgate, wyvernRoost, emberPass, quarry } = NORTH_LANDMARKS;
   const above = (p: Point): Point => ({ x: p.x, y: p.y - 1 });
   const below = (p: Point): Point => ({ x: p.x, y: p.y + 1 });
   carveRoad(g, above(pass), below(frostgate));
   carveRoad(g, below(frostgate), below(wyvernRoost));
   carveRoad(g, below(frostgate), below(emberPass));
+  placeQuarry(g);
+  carveRoad(g, below(frostgate), below(quarry));
   return g.map((row) => row.join(''));
 }

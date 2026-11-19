@@ -28,6 +28,7 @@ import {
   exitRoads,
   mapDef,
   mapHasEncounters,
+  respawnLine,
   talkAcross,
   wanderBlocked,
 } from '../data/maps';
@@ -1113,12 +1114,13 @@ export class WorldScene implements Scene {
         // Grind wardens (plan §36) return after every rest.
         const stirred = RESPAWN_FLAGS.filter((f) => s.flags[f]);
         stirred.forEach((f) => delete s.flags[f]);
+        const stirLine = respawnLine(stirred);
         const saved = saveGame(this.ctx.storage, s);
         audio.play('heal');
         say(stack, audio, [
           'Good morning! Your party is fully rested.',
           ...(night ? ['You dreamed of cold lights drifting over the ruins of Thornwick...'] : []),
-          ...(stirred.length ? ['Somewhere in the hills, the old mine stirs again...'] : []),
+          ...(stirLine ? [stirLine] : []),
           saved ? 'Your journey has been recorded.' : 'Your journey could not be saved in this browser.',
         ]);
       },
