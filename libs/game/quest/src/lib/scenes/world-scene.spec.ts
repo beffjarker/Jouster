@@ -774,15 +774,23 @@ describe('WorldScene', () => {
     expect(h.state.flags['thornwickNight']).toBe(true);
   });
 
-  it('brings the Old Mine wardens back after an inn rest', () => {
+  it('brings the grind-dungeon wardens back after an inn rest, naming where they stir', () => {
     const h = setup({ mapId: INN_RESPAWN.mapId, x: INN_RESPAWN.x, y: INN_RESPAWN.y, facing: 'up' });
     h.state.flags['slimeMatronDefeated'] = true;
     h.state.flags['goblinForemanDefeated'] = true;
+    h.state.flags['slagGolemDefeated'] = true;
     h.state.flags['bossDefeated'] = true;
     h.tap('confirm');
+    const pagesOf = (): string =>
+      ((h.ctx.stack.top as unknown as { pages?: string[][] }).pages ?? []).flat().join(' ');
+    for (let i = 0; i < 10 && !pagesOf().includes('Good morning'); i++) {
+      h.tap('confirm');
+    }
+    expect(pagesOf()).toContain('Deep in the Old Mine and the Slag Pits, something stirs again');
     h.confirmUntilWorld();
     expect(h.state.flags['slimeMatronDefeated']).toBeUndefined();
     expect(h.state.flags['goblinForemanDefeated']).toBeUndefined();
+    expect(h.state.flags['slagGolemDefeated']).toBeUndefined();
     expect(h.state.flags['bossDefeated']).toBe(true);
   });
 

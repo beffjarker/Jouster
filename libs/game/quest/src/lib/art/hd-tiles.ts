@@ -493,6 +493,9 @@ const WALKWAY_LINKS: ReadonlySet<string> = new Set([
   'mireEntrance',
   'roostEntrance',
   'lairEntrance',
+  'cisternEntrance',
+  'quarryEntrance',
+  'slagEntrance',
 ]);
 
 /** Open water a deck spans across (it runs between the banks, not along the stream). */
@@ -1689,6 +1692,48 @@ function lairEntrance(p: Paint): void {
   });
 }
 
+/** Mine timbers (two posts and a lintel) framing a cave mouth. */
+function timberFrame(p: Paint, wood: string): void {
+  p.fill(box(9, 14.5, 1.8, 15.5), wood, { gradX: 1, bevel: 0 });
+  p.fill(box(21.2, 14.5, 1.8, 15.5), wood, { gradX: 1, bevel: 0 });
+  p.fill(box(8, 13, 16, 2), wood, { grad: 0.8, bevel: 0 });
+}
+
+/** The Sunken Cistern: a sandstone stair down into the dark, water seeping over the lowest step. */
+function cisternEntrance(p: Paint): void {
+  caveEntrance(p);
+  [
+    [23.5, 6, -3],
+    [26, 8.5, -1.5],
+    [28.5, 11, 0],
+  ].forEach(([y, w, t]) => p.fill(box(16 - w / 2, y, w, 1.3), tone('#c8a870', t), { gradX: 0.8, bevel: 0, dither: 0 }));
+  p.flat(ell(16, 30, 4.5, 1), '#4a8ab0', 0.55);
+  p.spot(14, 29.8, '#c8f0ff');
+  p.spot(18.5, 30.1, '#c8f0ff');
+}
+
+/** The Frozen Quarry: a timbered adit in a glacier face, rimed with frost, a rail line running in. */
+function quarryEntrance(p: Paint): void {
+  caveEntrance(p);
+  timberFrame(p, '#7a5a3a');
+  p.flat(box(8, 13, 16, 0.6), '#e8f6ff', 0.8);
+  p.flat(seg(13.5, 30, 15, 22, 0.35), '#8a8a94');
+  p.flat(seg(18.5, 30, 17, 22, 0.35), '#8a8a94');
+}
+
+/** The Slag Pits: a timbered adit in a basalt ridge, glowing with the heat of the pits, slag heaped by the door. */
+function slagEntrance(p: Paint): void {
+  caveEntrance(p);
+  p.flat(ell(16, 26, 4.5, 3.5), '#ff6a20', 0.3);
+  timberFrame(p, '#4a3428');
+  [
+    [6.5, 28.5, 2.4, 1.5],
+    [25.5, 28.8, 2, 1.3],
+  ].forEach(([x, y, rx, ry]) => p.fill(ell(x, y, rx, ry), '#3a3034', { sphere: true, bevel: 0 }));
+  p.spot(6, 28.2, '#ff8a30');
+  p.spot(25.8, 28.5, '#ff8a30');
+}
+
 function obsidianWall(p: Paint, _f: number, variant: number): void {
   rockWall(p, 70 + variant, '#241c24');
   fine(p, (x, y, fx, fy) => {
@@ -2733,6 +2778,7 @@ export const HD_TILES: ReadonlyMap<string, HdTile> = new Map<string, HdTile>([
   ['mireTree', { ground: marsh, object: mireTree }],
   ['bog', { ground: bog }],
   ['shrineEntrance', { ground: sand, object: shrineEntrance }],
+  ['cisternEntrance', { ground: sand, object: cisternEntrance }],
   ['mireEntrance', { ground: marsh, object: mireEntrance }],
   ['mireRock', { ground: marsh, object: mireRock }],
   ['pass', { ground: (p) => ground(p, '#c8a165', 4, 0.8, 0.3), object: pass }],
@@ -2748,6 +2794,7 @@ export const HD_TILES: ReadonlyMap<string, HdTile> = new Map<string, HdTile>([
   ['iceWater', { ground: iceWater }],
   ['frozenLake', { ground: frozenLake }],
   ['roostEntrance', { ground: snow, object: roostEntrance }],
+  ['quarryEntrance', { ground: snow, object: quarryEntrance }],
   ['iceWall', { ground: iceWall }],
   ['iceFloor', { ground: iceFloor }],
   ['ash', { ground: ash }],
@@ -2758,6 +2805,7 @@ export const HD_TILES: ReadonlyMap<string, HdTile> = new Map<string, HdTile>([
   ['basalt', { ground: ash, object: basalt }],
   ['lava', { ground: lava }],
   ['lairEntrance', { ground: ash, object: lairEntrance }],
+  ['slagEntrance', { ground: ash, object: slagEntrance }],
   ['obsidianWall', { ground: obsidianWall }],
   ['obsidianFloor', { ground: obsidianFloor }],
 ]);

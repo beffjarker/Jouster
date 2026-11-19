@@ -15,8 +15,11 @@ import {
   wanderBlocked,
 } from '../data/maps';
 import { COMPANION_SLOTS, companionRestSpot, companionSlot } from '../data/companions';
-import { ENCOUNTER_TABLES, MONSTERS } from '../data/monsters';
+import { ENCOUNTER_TABLES, MONSTERS, WARDEN_IDS } from '../data/monsters';
 import { LANDMARKS, OVERWORLD_H, OVERWORLD_W, generateOverworld } from '../data/overworld-gen';
+import { SOUTH_LANDMARKS } from '../data/southlands-gen';
+import { NORTH_LANDMARKS } from '../data/frostpeaks-gen';
+import { EMBER_LANDMARKS } from '../data/embermountains-gen';
 import { newGameState } from '../state/game-state';
 import { monsterVariantCount } from '../art/art';
 
@@ -198,11 +201,37 @@ describe('Jouster Quest content', () => {
       // Wardens stand in lit chambers, free of random fights.
       expect(map.tileAt(n.x, n.y)?.encounterTableId).toBeUndefined();
     });
-    expect(RESPAWN_FLAGS).toHaveLength(3);
+    expect(RESPAWN_FLAGS).toHaveLength(12);
     const s = newGameState('Hero', 'wizard');
     expect(wardens.every((n) => n.visible?.(s))).toBe(true);
     s.flags['slimeMatronDefeated'] = true;
     expect(wardens.find((n) => n.id === 'slimeMatron')?.visible?.(s)).toBe(false);
+  });
+
+  it.each([
+    ['southlands', 'sunkenCistern', SOUTH_LANDMARKS.cistern, 'cistern'],
+    ['frostpeaks', 'frozenQuarry', NORTH_LANDMARKS.quarry, 'quarry'],
+    ['embermountains', 'slagPits', EMBER_LANDMARKS.slagPits, 'slagpits'],
+  ])('places a grind dungeon in %s (%s) with three respawning wardens (plan §36)', (region, id, at, table) => {
+    const world = MAPS.get(region) as MapDef;
+    const warp = world.warps.find((w) => w.toMap === id);
+    expect(warp).toMatchObject({ x: at.x, y: at.y });
+    const dungeon = MAPS.get(id) as MapDef;
+    const map = tileMap(dungeon);
+    expect(map.tileAt(warp?.toX ?? 0, warp?.toY ?? 0)?.encounterTableId).toBeUndefined();
+    expect(dungeon.rows.some((row, y) => [...row].some((_, x) => map.tileAt(x, y)?.encounterTableId === table))).toBe(
+      true,
+    );
+    dungeon.warps.forEach((w) => expect(w).toMatchObject({ toMap: region, toX: at.x, toY: at.y + 1 }));
+    const wardens = dungeon.npcs.filter((n) => n.boss);
+    expect(wardens).toHaveLength(3);
+    wardens.forEach((n) => {
+      expect(n.boss?.respawns).toBe(true);
+      expect(RESPAWN_FLAGS).toContain(n.boss?.defeatFlag);
+      expect(WARDEN_IDS).toContain(n.boss?.monsterIds[0]);
+      expect(map.tileAt(n.x, n.y)?.encounterTableId).toBeUndefined();
+    });
+    expect(dungeon.npcs.some((n) => n.role === 'talk')).toBe(true);
   });
 
   it('marks clue spots with their own walkable tile', () => {

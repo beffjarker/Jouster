@@ -47,6 +47,7 @@ const TILE_COLORS: Readonly<Record<string, string>> = {
   bog: '#3a4a2a',
   boardwalk: '#8a6a3a',
   shrineEntrance: '#202020',
+  cisternEntrance: '#202020',
   mireEntrance: '#202020',
   mireRock: '#5a6050',
   sunWall: '#c08a4a',
@@ -61,6 +62,7 @@ const TILE_COLORS: Readonly<Record<string, string>> = {
   iceWater: '#2a5a8a',
   frozenLake: '#a8d0ea',
   roostEntrance: '#202020',
+  quarryEntrance: '#202020',
   iceWall: '#3e5470',
   iceFloor: '#8aa0bc',
   ash: '#5a5250',
@@ -71,6 +73,7 @@ const TILE_COLORS: Readonly<Record<string, string>> = {
   basalt: '#3a3436',
   lava: '#e05010',
   lairEntrance: '#100808',
+  slagEntrance: '#181010',
   obsidianWall: '#241c24',
   obsidianFloor: '#4a3a40',
 };
@@ -95,17 +98,20 @@ export const PLACES: Readonly<Record<string, ReadonlyArray<{ name: string; x: nu
     { name: 'Sandhollow', ...SOUTH_LANDMARKS.sandhollow },
     { name: 'Sun Shrine', ...SOUTH_LANDMARKS.sunShrine },
     { name: 'Mire Shrine', ...SOUTH_LANDMARKS.mireShrine },
+    { name: 'Sunken Cistern', ...SOUTH_LANDMARKS.cistern },
   ],
   frostpeaks: [
     { name: 'Southern Pass', ...NORTH_LANDMARKS.pass },
     { name: 'Frostgate', ...NORTH_LANDMARKS.frostgate },
     { name: 'Wyvern Roost', ...NORTH_LANDMARKS.wyvernRoost },
     { name: 'Ember Pass', ...NORTH_LANDMARKS.emberPass },
+    { name: 'Frozen Quarry', ...NORTH_LANDMARKS.quarry },
   ],
   embermountains: [
     { name: 'Ember Pass', ...EMBER_LANDMARKS.pass },
     { name: 'Emberwatch', ...EMBER_LANDMARKS.emberwatch },
     { name: "Vyrmorth's Lair", ...EMBER_LANDMARKS.lair },
+    { name: 'Slag Pits', ...EMBER_LANDMARKS.slagPits },
   ],
 };
 

@@ -176,6 +176,85 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     CLASS_ORDER.slice(i + 1).flatMap((b, j) => CLASS_ORDER.slice(i + j + 2).map((c) => [a, b, c] as const)),
   );
 
+  /** A grinding party has spent some supplies: half the act kit, rounded up. */
+  const grindKit = (kit: Record<string, number>): Record<string, number> =>
+    Object.fromEntries(Object.entries(kit).map(([k, v]) => [k, Math.ceil(v / 2)]));
+
+  /** All of a dungeon's wardens back to back, one inn trip: HP, MP and consumables carry over between the fights. */
+  const gauntlet = (party: PartyMember[], fights: string[][], kit: Record<string, number>, seed: number): FightResult => {
+    const rng = createRng(seed);
+    let members = party;
+    let inventory = kit;
+    let rounds = 0;
+    let last: FightResult | undefined;
+    for (const fight of fights) {
+      const r = simulateFight(members, [...fight], inventory, rng, { bossHpScale: BOSS_HP_SCALE[1] });
+      rounds += r.rounds;
+      last = r;
+      if (r.outcome !== 'victory') {
+        break;
+      }
+      members = members.map((m, i) => ({ ...m, hp: r.hp[i], mp: r.mp[i] }));
+      inventory = r.inventory;
+    }
+    return { ...(last ?? fail()), rounds };
+  };
+
+  /**
+   * Plan §36: from Act II on, each act has a grind dungeon of three respawning wardens. Each warden is a party's
+   * rung toward the act boss (gear a tier behind, since that tier is bought during the act), every pair can clear
+   * the whole dungeon in one inn trip at the top rung, and no warden outclasses the act's bosses.
+   */
+  function grindDungeon(
+    mapId: string,
+    rungs: Record<string, { level: number; tier: number }>,
+    actKit: Record<string, number>,
+    bossIds: readonly string[],
+    seed: number,
+  ): void {
+    const name = mapDef(mapId).name;
+    const fights = mapDef(mapId).npcs.flatMap((n) => (n.boss ? [n.boss.monsterIds] : []));
+    const kit = grindKit(actKit);
+
+    it(`places the three ${name} wardens`, () => {
+      expect(fights.map((f) => f[0]).sort()).toEqual(Object.keys(rungs).sort());
+    });
+
+    const pairCases = pairs.flatMap(([a, b]) => fights.map((fight) => [a, b, fight.join('+'), fight] as const));
+    it.each(pairCases)(`a %s + %s pair beats ${name}'s %s >= 70%% at its rung`, (a, b, _name, fight) => {
+      const { level, tier } = rungs[fight[0]];
+      const stats = runMany(N, (i) =>
+        simulateFight(duo(a, b, level, tier), [...fight], kit, createRng(seed + i), { bossHpScale: BOSS_HP_SCALE[1] }),
+      );
+      expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
+    });
+
+    const trioCases = trios.flatMap((t) => fights.map((fight) => [...t, fight.join('+'), fight] as const));
+    it.each(trioCases)(`a %s + %s + %s party one level under its rung beats ${name}'s %s >= 70%%`, (a, b, c, _name, fight) => {
+      const { level, tier } = rungs[fight[0]];
+      const party = [a, b, c].map((cls, i) => geared(createMember(`m${i}`, `M${i}`, cls, level - 1), tier));
+      const stats = runMany(N, (i) =>
+        simulateFight(party, [...fight], kit, createRng(seed + 1000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
+      );
+      expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
+    });
+
+    it.each(pairs)(`a %s + %s pair at the top rung clears the whole ${name} in one trip >= 50%%`, (a, b) => {
+      const top = rungs[fights[fights.length - 1][0]];
+      const stats = runMany(N / 2, (i) => gauntlet(duo(a, b, top.level, top.tier), fights, kit, seed + 2000 + i));
+      expect(stats.winRate).toBeGreaterThanOrEqual(0.5);
+    });
+
+    it(`keeps the ${name} wardens below the act's bosses`, () => {
+      const bosses = bossIds.map((id) => MONSTERS.get(id) ?? fail());
+      const wardens = fights.map((f) => MONSTERS.get(f[0]) ?? fail());
+      wardens.forEach((w) => {
+        expect(w.stats.hp).toBeLessThan(Math.min(...bosses.map((b) => b.stats.hp)));
+        expect(w.stats.atk).toBeLessThanOrEqual(Math.max(...bosses.map((b) => b.stats.atk)));
+      });
+    });
+  }
+
   it.each(pairs)('a %s hero + %s companion at level 5 beats the Goblin King >= 70%% of the time', (a, b) => {
     const party = [tier2(createMember('a', 'A', a, 5)), tier2(createMember('b', 'B', b, 5))];
     const stats = runMany(N, (i) =>
@@ -259,6 +338,14 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
 
+  grindDungeon(
+    'sunkenCistern',
+    { scorpionQueen: { level: 8, tier: 2 }, cisternWorm: { level: 9, tier: 2 }, drownedWraith: { level: 10, tier: 3 } },
+    actTwoKit,
+    ACT_TWO_BOSS_IDS,
+    35000,
+  );
+
   it('desert fights from level 8 to 11 pay for a tier-3 weapon (plan 17)', () => {
     const table = ENCOUNTER_TABLES.get('desert') ?? fail();
     const rng = createRng(78);
@@ -310,6 +397,14 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
+
+  grindDungeon(
+    'frozenQuarry',
+    { yetiMatron: { level: 11, tier: 3 }, frostHexer: { level: 12, tier: 3 }, trollQuarrymaster: { level: 13, tier: 4 } },
+    actThreeKit,
+    ACT_THREE_BOSS_IDS,
+    45000,
+  );
 
   it('snowfield fights from level 11 to 14 pay for a tier-4 weapon (plan 19)', () => {
     const table = ENCOUNTER_TABLES.get('snowfield') ?? fail();
@@ -368,6 +463,14 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     const stats = runMany(N, (i) => vyrmorth(party, { herb: 6, tonic: 2, potion: 3 }, 64000 + i, BOSS_HP_SCALE[2]));
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
+
+  grindDungeon(
+    'slagPits',
+    { cultistOverseer: { level: 14, tier: 4 }, slagGolem: { level: 15, tier: 4 }, cinderDrake: { level: 16, tier: 5 } },
+    finaleKit,
+    FINALE_BOSS_IDS,
+    65000,
+  );
 
   it('ashfield fights from level 14 to 17 pay for a tier-5 weapon (plan 21)', () => {
     const table = ENCOUNTER_TABLES.get('ashfield') ?? fail();
@@ -434,10 +537,13 @@ const STAGES: Stage[] = [
 /** Plan 4.4c: post-unlock content, reported for a hero who stays alone but not asserted (a party is expected). */
 const POST_UNLOCK: Stage[] = [
   ...['desert', 'marsh', 'shrine'].map((id) => tableStage(id, 10, 3, soloKitII)),
+  ...bossStages(['sunkenCistern'], 10, 3, soloKitII),
   ...bossStages(['sunShrine', 'mireShrine'], 12, 3, soloKitII),
   ...['snowfield', 'pines', 'roost'].map((id) => tableStage(id, 13, 4, soloKitIII)),
+  ...bossStages(['frozenQuarry'], 13, 4, soloKitIII),
   ...bossStages(['wyvernRoost'], 15, 4, soloKitIII),
   ...['ashfield', 'cinderwood', 'lair'].map((id) => tableStage(id, 16, 5, soloKitIII)),
+  ...bossStages(['slagPits'], 16, 5, soloKitIII),
   ...bossStages(['vyrmorthLair'], 18, 5, soloKitIII),
 ];
 
