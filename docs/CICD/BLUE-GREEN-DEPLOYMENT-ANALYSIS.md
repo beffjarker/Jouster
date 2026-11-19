@@ -33,7 +33,8 @@
 
 **Current Configuration**:
 - **Distribution ID**: E3EQJ0O0PJTVVX
-- **Current Origin**: `jouster-org-west.s3-website-us-west-2.amazonaws.com`
+- **Current Origin**: `jouster-org-west.s3.us-west-2.amazonaws.com` (private S3 REST origin, read through the
+  `jouster-s3-oac` Origin Access Control since 2026-11-18; the S3 website endpoint redirects to https://jouster.org)
 - **Viewer Protocol**: `redirect-to-https`
 - **Aliases**: jouster.org, www.jouster.org
 
