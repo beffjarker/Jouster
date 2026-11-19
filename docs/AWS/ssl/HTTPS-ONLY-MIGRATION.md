@@ -254,7 +254,7 @@ curl -I https://jouster.org
 - 🔄 HSTS headers (force HTTPS in browser)
 - 🔄 CSP headers (prevent mixed content)
 - 🔄 Security headers (XSS, clickjacking protection)
-- 🔄 Block direct S3 access
+- ✅ Block direct S3 access (done 2026-11-18, see section D)
 - 🔄 Update app links to use https://
 
 ---
@@ -284,7 +284,7 @@ Current status:
 - [ ] HSTS headers (recommended)
 - [ ] CSP headers (recommended)
 - [ ] Security headers (recommended)
-- [ ] Block direct S3 access (recommended)
+- [x] Block direct S3 access ✅ (preview, QA, staging and production buckets are private; S3 website endpoints redirect to HTTPS)
 - [ ] Update internal links to HTTPS (recommended)
 
 ---
@@ -301,8 +301,10 @@ Current status:
 **Next Steps (Optional)**:
 1. Add security headers for enhanced protection
 2. Update application links to use https://
-3. Block direct S3 access
-4. Test thoroughly after DNS propagates
+3. Test thoroughly after DNS propagates
+
+Direct S3 access is blocked: every frontend bucket is private behind CloudFront (Origin Access Control),
+and each S3 website endpoint redirects to its HTTPS domain.
 
 **Confidence**: ~99% (Very High)
 - CloudFront config verified
