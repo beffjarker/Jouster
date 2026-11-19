@@ -38,6 +38,10 @@ All steps are idempotent.
 
 Set `DRY_RUN=true` to print the planned changes without applying them.
 
+`s3-origin-https.sh retire <bucket> <https-host>` is for a leftover bucket that no CloudFront distribution
+uses (it refuses otherwise). It removes public read, turns on S3 Block Public Access and redirects the website
+endpoint to `https://<https-host>`, then checks that anonymous S3 reads return 403.
+
 ## Required permissions (QA deploy credentials)
 
 - `cloudfront:ListDistributions`, `cloudfront:CreateDistribution`, `cloudfront:GetDistribution`,

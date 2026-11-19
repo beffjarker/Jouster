@@ -6,6 +6,8 @@ run-name: "Secure ${{ inputs.target }} S3 origin${{ inputs.dry_run && ' (dry run
 # Control, Block Public Access is turned on, and the website endpoint redirects to the HTTPS domain.
 # QA and PR previews do this on every deploy; run this once for staging and production
 # (dry run first). See .github/scripts/s3-origin-https.sh for the steps and the automatic rollback.
+# legacy-www-bucket retires the old www.jouster.org bucket, which no distribution uses: it is made
+# private and its website endpoint redirects to https://jouster.org.
 
 on:
   workflow_dispatch:
@@ -18,6 +20,7 @@ on:
           - staging
           - production
           - qa
+          - legacy-www-bucket
       dry_run:
         description: 'Dry run (report what would change, change nothing)'
         required: false
@@ -46,9 +49,10 @@ jobs:
       group: frontend-${{ inputs.target }}
       cancel-in-progress: false
     environment:
-      name: ${{ inputs.target }}
+      # The legacy bucket serves the production domain, so it uses the production approval gate.
+      name: ${{ inputs.target == 'legacy-www-bucket' && 'production' || inputs.target }}
     env:
-      PROD_ROLE_ARN: ${{ inputs.target == 'production' && secrets.AWS_PROD_FRONTEND_ROLE_ARN || '' }}
+      PROD_ROLE_ARN: ${{ (inputs.target == 'production' || inputs.target == 'legacy-www-bucket') && secrets.AWS_PROD_FRONTEND_ROLE_ARN || '' }}
       DRY_RUN: ${{ inputs.dry_run }}
 
     steps:
@@ -78,9 +82,11 @@ jobs:
           TARGET: ${{ inputs.target }}
         run: |
           set -euo pipefail
+          COMMAND=secure
           case "$TARGET" in
             qa) BUCKET=qa.jouster.org; HOST=qa.jouster.org ;;
             staging) BUCKET="$STAGING_BUCKET"; HOST=stg.jouster.org ;;
+            legacy-www-bucket) BUCKET=www.jouster.org; HOST="$PROD_DOMAIN"; COMMAND=retire ;;
             production)
               bash .github/scripts/frontend-release.sh resolve > resolve.env
               BUCKET=$(sed -n 's/^PROD_BUCKET=//p' resolve.env)
@@ -91,12 +97,15 @@ jobs:
               HOST="$PROD_DOMAIN" ;;
             *) echo "::error::Unknown target ${TARGET}"; exit 1 ;;
           esac
-          echo "bucket=$BUCKET" >> "$GITHUB_OUTPUT"
-          echo "host=$HOST" >> "$GITHUB_OUTPUT"
-          echo "Securing s3://${BUCKET} behind https://${HOST}"
+          {
+            echo "bucket=$BUCKET"
+            echo "host=$HOST"
+            echo "command=$COMMAND"
+          } >> "$GITHUB_OUTPUT"
+          echo "Running '${COMMAND}' for s3://${BUCKET} behind https://${HOST}"
 
-      - name: Lock bucket to CloudFront and redirect HTTP to HTTPS
-        run: bash .github/scripts/s3-origin-https.sh secure "${{ steps.target.outputs.bucket }}" "${{ steps.target.outputs.host }}"
+      - name: Lock bucket and redirect HTTP to HTTPS
+        run: bash .github/scripts/s3-origin-https.sh "${{ steps.target.outputs.command }}" "${{ steps.target.outputs.bucket }}" "${{ steps.target.outputs.host }}"
 
       - name: Summary
         if: always()
@@ -115,6 +124,7 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Mode | ${{ inputs.dry_run && 'dry run' || 'live' }} |"
+            echo "| Command | \`${{ steps.target.outputs.command || '?' }}\` |"
             echo "| Bucket | \`${BUCKET:-?}\` |"
             echo "| HTTPS domain | https://${HOST:-?} |"
             echo "| Result | ${{ job.status }} |"

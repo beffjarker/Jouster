@@ -61,6 +61,11 @@ for the steps it performs.
    `301 Location: https://stg.jouster.org/`, and `https://stg.jouster.org` still loads.
 4. Repeat with `target` = `production`.
 
+The `legacy-www-bucket` target handles the old `www.jouster.org` bucket, which no CloudFront distribution
+uses (production is served from `jouster-org-west`). It runs the script's `retire` command: public read is
+removed, Block Public Access is turned on and the website endpoint redirects to `https://jouster.org`. It
+uses the production approval gate.
+
 ## Blue-Green Deployment Strategy
 
 ### Environment Mapping:
