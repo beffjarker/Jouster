@@ -10,7 +10,9 @@
 #   oac                      Print the shared OAC ID, creating it if it doesn't exist.
 #   secure <bucket> <host>   Lock <bucket> to the CloudFront distributions that use it as an origin:
 #                              1. Switch each bucket origin to the REST endpoint signed with the shared
-#                                 OAC; add 403/404 -> /index.html SPA rules and DefaultRootObject.
+#                                 OAC; add 403/404 -> /index.html SPA rules and DefaultRootObject; attach the
+#                                 managed SecurityHeadersPolicy (HSTS etc.) to bucket behaviors that have no
+#                                 response headers policy.
 #                              2. Prove each switched distribution reads through OAC (probe object
 #                                 that anonymous requests are denied); roll back if it doesn't.
 #                              3. Replace public-read policy statements with an OAC-only grant and
@@ -35,6 +37,8 @@ PROBE_SID="DenyOriginCheckUnlessCloudFront"
 PROBE_PREFIX=".origin-check"
 # Managed origin request policies that forward the viewer Host header, which S3 REST + OAC rejects.
 ALL_VIEWER_POLICIES='["216adef6-5c7f-47e4-b989-5492eafa07d3","33f36d7e-f396-46d9-90e0-52428a34d9dc"]'
+# Managed SecurityHeadersPolicy: HSTS (max-age=31536000), nosniff, SAMEORIGIN frames, referrer policy.
+SECURITY_HEADERS_POLICY="67f7725c-6f97-4210-82d7-5512b31e9d03"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -65,7 +69,7 @@ cmd_oac() {
 
 # Prints the desired DistributionConfig for $1 (a get-distribution-config response).
 desired_config() {
-  jq --argjson domains "$DOMAINS" --arg rest "$REST" --arg oac "$OAC_ID" \
+  jq --argjson domains "$DOMAINS" --arg rest "$REST" --arg oac "$OAC_ID" --arg headers "$SECURITY_HEADERS_POLICY" \
     --argjson enable "$([[ "$ENSURE_ENABLED" == "true" ]] && echo true || echo false)" '
     def in_bucket: .DomainName as $d | any($domains[]; . == $d);
     .DistributionConfig
@@ -84,6 +88,12 @@ desired_config() {
         | .CustomErrorResponses.Quantity = (.CustomErrorResponses.Items | length)
         | if (.DefaultRootObject // "") == "" then .DefaultRootObject = "index.html" else . end
       else . end
+    | [.Origins.Items[] | select(.DomainName == $rest) | .Id] as $bucketIds
+    | def with_headers:
+        if (.TargetOriginId as $t | $bucketIds | index($t)) and (.ResponseHeadersPolicyId // "") == ""
+        then .ResponseHeadersPolicyId = $headers else . end;
+      .DefaultCacheBehavior |= with_headers
+    | if .CacheBehaviors.Items then .CacheBehaviors.Items |= map(with_headers) else . end
     | if $enable then .Enabled = true else . end' "$1"
 }
 
@@ -205,6 +215,11 @@ verify_https_only() {
   code=$(curl -sS -o /dev/null --max-time 15 -w '%{http_code}' "https://${HOST}/" || true)
   if [[ "$code" == "200" ]]; then
     log "https://${HOST}/ -> 200"
+    if curl -sSI --max-time 15 "https://${HOST}/" 2>/dev/null | grep -qi '^strict-transport-security:'; then
+      log "https://${HOST}/ sends Strict-Transport-Security"
+    else
+      log "::warning::https://${HOST}/ does not send Strict-Transport-Security"
+    fi
   else
     # DNS for a new preview may not point at CloudFront yet; the caller verifies the domain later.
     log "::warning::https://${HOST}/ returned ${code}"
@@ -294,18 +309,18 @@ cmd_secure() {
     desired_config "$WORK/${id}.current.json" > "$WORK/${id}.desired.json"
     needs=$(jq -n --slurpfile a "$WORK/${id}.orig.json" --slurpfile b "$WORK/${id}.desired.json" '$a[0] != $b[0]')
     if [[ "$needs" == "true" ]]; then
-      log "Distribution $id needs the private OAC origin. Changes:"
+      log "Distribution $id needs updating (private OAC origin, SPA errors, or security headers). Changes:"
       diff <(jq -S . "$WORK/${id}.orig.json") <(jq -S . "$WORK/${id}.desired.json") >&2 || true
       UPDATED+=("$id")
     else
-      log "Distribution $id already reads ${BUCKET} through OAC"
+      log "Distribution $id already reads ${BUCKET} through OAC with security headers"
     fi
   done
 
   if is_dry; then
     build_policy false false > "$WORK/policy.final.json"
     log_current_access
-    log "Dry run: would switch ${#UPDATED[@]} distribution(s), lock the bucket to OAC, turn Block Public Access on,"
+    log "Dry run: would update ${#UPDATED[@]} distribution(s), lock the bucket to OAC, turn Block Public Access on,"
     log "and redirect http://${BUCKET}.s3-website-${REGION}.amazonaws.com to https://${HOST}."
     return 0
   fi

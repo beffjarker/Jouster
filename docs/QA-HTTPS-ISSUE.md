@@ -30,11 +30,14 @@ All steps are idempotent.
 
 1. Refuses to continue if a behavior for the bucket forwards the `Host` header (S3 REST would reject it).
 2. Switches the origin from the S3 website endpoint to the S3 REST endpoint with the `jouster-s3-oac`
-   Origin Access Control, and adds the SPA 403/404 → `/index.html` rules.
+   Origin Access Control, and adds the SPA 403/404 → `/index.html` rules. Bucket behaviors without a
+   response headers policy get the managed `SecurityHeadersPolicy` (HSTS `max-age=31536000`, `nosniff`,
+   `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy`); a custom policy that is already attached is kept.
 3. Keeps public read during the switch (no downtime), then fetches a probe object through CloudFront that
    only OAC-signed requests may read. If the probe fails, the distributions and bucket policy are restored.
 4. Removes public read, turns on S3 Block Public Access, and changes the S3 website endpoint into a
-   permanent redirect to `https://<https-host>`.
+   permanent redirect to `https://<https-host>`, then warns if `https://<https-host>/` does not send
+   `Strict-Transport-Security`.
 
 Set `DRY_RUN=true` to print the planned changes without applying them.
 

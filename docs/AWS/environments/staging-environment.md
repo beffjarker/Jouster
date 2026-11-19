@@ -51,14 +51,16 @@ cd aws/scripts
 
 Staging and production buckets are made private with the **Secure Frontend Origins (HTTPS only)** workflow
 (`.github/workflows/secure-frontend-origins.yml`). It moves each CloudFront origin to the S3 REST endpoint
-with Origin Access Control, verifies it, removes public read and turns the S3 website endpoint into a
-redirect to HTTPS. It is safe to re-run. See [QA HTTPS](../../QA-HTTPS-ISSUE.md#private-s3-origins-s3-origin-httpssh)
+with Origin Access Control, attaches the managed `SecurityHeadersPolicy` (HSTS and other security headers),
+verifies it, removes public read and turns the S3 website endpoint into a redirect to HTTPS. It is safe to
+re-run. See [QA HTTPS](../../QA-HTTPS-ISSUE.md#private-s3-origins-s3-origin-httpssh)
 for the steps it performs.
 
 1. Run it with `target` = `staging` and `dry_run` = `true`; review the planned changes in the log.
 2. Run it again with `dry_run` = `false`.
 3. Check: `curl -I http://stg.jouster.org.s3-website-us-west-2.amazonaws.com/` returns
-   `301 Location: https://stg.jouster.org/`, and `https://stg.jouster.org` still loads.
+   `301 Location: https://stg.jouster.org/`, `https://stg.jouster.org` still loads, and
+   `curl -I https://stg.jouster.org/` shows `strict-transport-security: max-age=31536000`.
 4. Repeat with `target` = `production`.
 
 The `legacy-www-bucket` target handles the old `www.jouster.org` bucket, which no CloudFront distribution
