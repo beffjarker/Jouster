@@ -37,7 +37,11 @@
 These will further strengthen your HTTPS-only setup:
 
 #### A. HTTP Strict Transport Security (HSTS)
-Add HSTS headers to force browsers to always use HTTPS.
+Add HSTS headers to force browsers to always use HTTPS. Done: every frontend distribution (previews, QA,
+staging, production) attaches the managed CloudFront `SecurityHeadersPolicy`, which sends
+`Strict-Transport-Security: max-age=31536000` plus `X-Content-Type-Options`, `X-Frame-Options`,
+`Referrer-Policy` and `X-XSS-Protection`. Staging and production get it from the **Secure Frontend Origins**
+workflow; QA and previews get it when their distribution is created.
 
 #### B. Update Application Links
 Ensure all internal links use HTTPS.
@@ -57,6 +61,10 @@ target). See [Staging: HTTPS only](../environments/staging-environment.md#https-
 ## 🔒 Implementation Steps
 
 ### Step 1: Add Security Headers (Recommended)
+
+> **Done another way:** the distributions use the managed `SecurityHeadersPolicy` instead of a CloudFront
+> Function (see section A). The function below is only needed for headers that policy lacks, such as CSP;
+> if you add one, set only those headers so the two do not overlap.
 
 Create a CloudFront Function to add security headers:
 
@@ -252,9 +260,9 @@ curl -I https://jouster.org
 - ✅ Automatic certificate renewal
 
 ### Optional Enhancements 🔄
-- 🔄 HSTS headers (force HTTPS in browser)
+- ✅ HSTS headers (done 2026-11-18, managed `SecurityHeadersPolicy`, see section A)
 - 🔄 CSP headers (prevent mixed content)
-- 🔄 Security headers (XSS, clickjacking protection)
+- ✅ Security headers (XSS, clickjacking protection; same managed policy)
 - ✅ Block direct S3 access (done 2026-11-18, see section D)
 - 🔄 Update app links to use https://
 
@@ -282,9 +290,9 @@ Current status:
 - [x] HTTPS redirect enabled ✅
 - [x] TLS 1.2+ minimum ✅
 - [x] Certificate auto-renewal ✅
-- [ ] HSTS headers (recommended)
+- [x] HSTS headers ✅ (`Strict-Transport-Security: max-age=31536000` on every frontend)
 - [ ] CSP headers (recommended)
-- [ ] Security headers (recommended)
+- [x] Security headers ✅ (managed CloudFront `SecurityHeadersPolicy`)
 - [x] Block direct S3 access ✅ (preview, QA, staging and production buckets are private; S3 website endpoints redirect to HTTPS)
 - [ ] Update internal links to HTTPS (recommended)
 
@@ -300,7 +308,7 @@ Current status:
 - Secure connection enforced
 
 **Next Steps (Optional)**:
-1. Add security headers for enhanced protection
+1. Add a Content Security Policy (HSTS and the other security headers are in place)
 2. Update application links to use https://
 3. Test thoroughly after DNS propagates
 
