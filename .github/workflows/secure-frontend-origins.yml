@@ -4,6 +4,7 @@ run-name: "Secure ${{ inputs.target }} S3 origin${{ inputs.dry_run && ' (dry run
 # Makes a frontend reachable only through CloudFront over HTTPS. The bucket's public HTTP website
 # endpoint is replaced by a private S3 REST origin that CloudFront reads through Origin Access
 # Control, Block Public Access is turned on, and the website endpoint redirects to the HTTPS domain.
+# Bucket behaviors also get the managed SecurityHeadersPolicy (HSTS) unless they already have a policy.
 # QA and PR previews do this on every deploy; run this once for staging and production
 # (dry run first). See .github/scripts/s3-origin-https.sh for the steps and the automatic rollback.
 # legacy-www-bucket retires the old www.jouster.org bucket, which no distribution uses: it is made
