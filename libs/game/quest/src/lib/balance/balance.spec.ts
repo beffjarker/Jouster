@@ -10,7 +10,7 @@ import { FightResult, expectedDamage, runMany, simulateFight } from './simulator
 import { MONSTERS } from '../data/monsters';
 import { monstersToCombatants } from '../state/party';
 import { mapDef } from '../data/maps';
-import { duo, geared, tier2 } from './kits';
+import { armed, duo, geared, tier2 } from './kits';
 
 const N = 400;
 
@@ -144,6 +144,29 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
       }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.6);
+  });
+
+  // Grind wardens in the Old Mine (plan §36): each is a solo hero's next rung toward the Goblin King.
+  const wardenFights = mapDef('oldMine').npcs.flatMap((n) => (n.boss ? [n.boss.monsterIds] : []));
+  const wardenRungs: Record<string, { level: number; tier: number }> = {
+    slimeMatron: { level: 3, tier: 1 },
+    batBroodmother: { level: 4, tier: 1 },
+    goblinForeman: { level: 5, tier: 2 },
+  };
+
+  it('places the three Old Mine wardens', () => {
+    expect(wardenFights.map((f) => f[0]).sort()).toEqual(Object.keys(wardenRungs).sort());
+  });
+
+  const wardenCases = CLASS_ORDER.flatMap((id) => wardenFights.map((fight) => [id, fight.join('+'), fight] as const));
+  it.each(wardenCases)('%s solo beats %s >= 70%% at its rung with shop gear', (id, _name, fight) => {
+    const { level, tier } = wardenRungs[fight[0]];
+    const hero = armed(createMember('h', 'Hero', id, level), tier);
+    const kit = { ...startKit(id), herb: 4 };
+    const stats = runMany(N, (i) =>
+      simulateFight([hero], [...fight], kit, createRng(70000 + i), { bossHpScale: BOSS_HP_SCALE[0] }),
+    );
+    expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
 
   // Companions are rolled per game: any class except the hero's, never repeated. So every hero is

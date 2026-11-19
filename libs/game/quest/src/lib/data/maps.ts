@@ -45,6 +45,8 @@ export interface BossDef {
    * set, and `victory` only shown, once this form falls too.
    */
   phaseTwo?: { monsterIds: string[]; lines: string[] };
+  /** A grind boss (Old Mine warden, plan §36): its `defeatFlag` is cleared by every inn rest, so it returns. */
+  respawns?: boolean;
 }
 
 /** A boss NPC that stays on the map until its `defeatFlag` is set (plus any extra condition). */
@@ -133,6 +135,7 @@ const OVERWORLD_LEGEND: TileDef[] = [
   { char: 'B', id: 'town', solid: false },
   { char: 'O', id: 'caveEntrance', solid: false },
   { char: 'W', id: 'caveEntrance', solid: false },
+  { char: 'M', id: 'caveEntrance', solid: false },
   { char: 'V', id: 'ruins', solid: false },
   { char: 'P', id: 'pass', solid: false },
   { char: 'n', id: 'tornNet@grass', solid: false, encounterTableId: 'greenwood' },
@@ -291,6 +294,39 @@ const DEN_LEGEND: TileDef[] = [
   { char: '~', id: 'caveWater', solid: true },
   { char: 'E', id: 'caveExit', solid: false },
   { char: 'n', id: 'boneNest@caveFloor', solid: false, encounterTableId: 'den' },
+];
+
+// --- Old Mine (22x15, plan §36) -------------------------------------------------------------
+// A grind dungeon near Aldmere. Three lit chambers each hold a warden that returns after an inn
+// rest; the tunnels between them have random encounters. The miner waits in the lit entry hall.
+
+const MINE_ROWS = [
+  '######################',
+  '#t,,,,###########,,,t#',
+  '#,,,,,,####~####,,,,,#',
+  '##,,,,_____~_____,,,##',
+  '#####_###__~__###_####',
+  '#####_###_____###_####',
+  '#####___________x_####',
+  '#,,t######_######_####',
+  '#,,,,,_____________###',
+  '#,,,,#####_###########',
+  '##,,######_###########',
+  '#########,,,,#########',
+  '########t,,,,t########',
+  '##########E###########',
+  '######################',
+];
+
+const MINE_LEGEND: TileDef[] = [
+  { char: '#', id: 'rock', solid: true },
+  { char: 't', id: 'torch', solid: true },
+  { char: '_', id: 'caveFloor', solid: false, encounterTableId: 'mine' },
+  // Lit chambers and the entry hall: no random encounters.
+  { char: ',', id: 'caveFloor', solid: false },
+  { char: '~', id: 'caveWater', solid: true },
+  { char: 'E', id: 'caveExit', solid: false },
+  { char: 'x', id: 'crate@caveFloor', solid: true },
 ];
 
 const CAVE_LEGEND: TileDef[] = [
@@ -643,6 +679,7 @@ const {
   lakeshore: LAKE_AT,
   southPass: PASS_AT,
   northPass: NORTH_PASS_AT,
+  oldMine: MINE_AT,
 } = LANDMARKS;
 
 const { pass: FROST_PASS_AT, frostgate: FROSTGATE_AT, wyvernRoost: ROOST_AT, emberPass: EMBER_PASS_AT } = NORTH_LANDMARKS;
@@ -663,6 +700,7 @@ const BASE_MAPS: MapDef[] = [
         { x: BROOK_AT.x, y: BROOK_AT.y, toMap: 'brookhollow', toX: 10, toY: 12, facing: 'up' },
         { x: DEN_AT.x, y: DEN_AT.y, toMap: 'wolfDen', toX: 8, toY: 11, facing: 'up' },
         { x: RUINS_AT.x, y: RUINS_AT.y, toMap: 'thornwick', toX: 12, toY: 13, facing: 'up' },
+        { x: MINE_AT.x, y: MINE_AT.y, toMap: 'oldMine', toX: 10, toY: 12, facing: 'up' },
         {
           x: PASS_AT.x,
           y: PASS_AT.y,
@@ -884,6 +922,53 @@ const BASE_MAPS: MapDef[] = [
         ),
       ],
       events: [{ x: 10, y: 2, id: 'denNest' }],
+      outsideTile: '#',
+      backdrop: 'cave',
+      fog: true,
+    },
+  {
+      id: 'oldMine',
+      name: 'Old Mine',
+      rows: MINE_ROWS,
+      legend: MINE_LEGEND,
+      warps: [{ x: 10, y: 13, toMap: 'overworld', toX: MINE_AT.x, toY: MINE_AT.y + 1, facing: 'down' }],
+      npcs: [
+        {
+          id: 'oldMiner',
+          x: 12,
+          y: 11,
+          spriteId: 'elder',
+          facing: 'down',
+          role: 'talk',
+          lines: () => [
+            'OLD MINER: This mine ran dry years ago. Now beasts nest in the tunnels.',
+            'Three big brutes hold the lit chambers. Beat one and it stays down... until you sleep at an inn.',
+            "By morning something else has crawled in to take its place. Good practice, if you're not ready for the Goblin King.",
+          ],
+        },
+        bossNpc('slimeMatron', 2, 9, 'slime', {
+          monsterIds: ['slimeMatron', 'slime'],
+          defeatFlag: 'slimeMatronDefeated',
+          lines: ['A bloated slime the size of a cart quivers in the torchlight. Smaller slimes bud from its sides.'],
+          victory: ['The Slime Matron bursts. The chamber is quiet... for now.'],
+          respawns: true,
+        }),
+        bossNpc('batBroodmother', 3, 1, 'bat', {
+          monsterIds: ['batBroodmother', 'giantBat'],
+          defeatFlag: 'batBroodmotherDefeated',
+          lines: ['Leathery wings unfold from the ceiling. A huge bat shrieks, and one of her brood answers.'],
+          victory: ['The Bat Broodmother falls from the dark. The roost is still... for now.'],
+          respawns: true,
+        }),
+        bossNpc('goblinForeman', 18, 1, 'goblin', {
+          monsterIds: ['goblinForeman', 'goblin'],
+          defeatFlag: 'goblinForemanDefeated',
+          lines: ['A burly goblin in a miner\'s helm hefts a pick. "Back to work!" he barks at his crony.'],
+          victory: ['The Goblin Foreman drops his pick. His crew will be back... they always come back.'],
+          respawns: true,
+        }),
+      ],
+      events: [],
       outsideTile: '#',
       backdrop: 'cave',
       fog: true,
@@ -1350,6 +1435,11 @@ function withCompanions(m: MapDef): MapDef {
 }
 
 export const MAPS: ReadonlyMap<string, MapDef> = new Map(BASE_MAPS.map((m) => [m.id, withCompanions(m)]));
+
+/** Defeat flags of the grind bosses (`respawns`) that every inn rest clears, so they return (plan §36). */
+export const RESPAWN_FLAGS: readonly string[] = BASE_MAPS.flatMap((m) =>
+  m.npcs.flatMap((n) => (n.boss?.respawns ? [n.boss.defeatFlag] : [])),
+);
 
 export function mapDef(id: string): MapDef {
   const m = MAPS.get(id);

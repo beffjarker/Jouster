@@ -232,6 +232,8 @@ trio instead of a lone hero. A hero who stays alone gets no balance guarantee an
 - Starting kit for every class: 3 Herbs and 50 gold. Classes without spells (Warrior, Rogue) get 2 more Herbs;
   the Necromancer gets 1 more. The Wizard, the frailest solo hero, gets 2 more Herbs **and 2 Tonics** (§31).
 - Running away is slightly easier when alone (+10%).
+- The **Old Mine** near Aldmere (§36) has three respawning wardens at levels 3, 4 and 5. They are a ladder of grind
+  fights for a solo hero before the Goblin King.
 
 ### 4.6 Balance targets (checked by the simulator)
 
@@ -247,6 +249,7 @@ trio instead of a lone hero. A hero who stays alone gets no balance guarantee an
 | Any hero + any two companions (all classes different) at level 5 against the Goblin King | ≥ 70% (regression check only, as above) |
 | Solo hero at level 6 with shop gear against the Goblin King, every class (revision 3: the real path) | ≥ 60%, aim 65–80% |
 | Solo hero at level 7 with tier-2 gear against each side-quest mini-boss fight, every class (revision 3) | ≥ 60% |
+| Solo hero of every class against each Old Mine warden at its rung (levels 3 / 4 / 5, §36) | ≥ 70% |
 | Level-6 hero + a newly joined companion (join level 3) in Forest/Hills (16.1) | ≥ 90% wins; ally reaches level 4 in ≤ 15 fights on average |
 | Solo Wizard at every pre-unlock checkpoint: Greenwood, Forest, Hills, Goblin Cave, Goblin King, mini-bosses (4.4b, revision 6) | ≥ 70% at the expected level, ≥ 50% one level under, avg rounds ≤ 1.5× the Warrior's |
 | Solo hero of every class, fights in a row without an inn in each pre-unlock area (4.4b, revision 6) | ≥ 10 in Greenwood, ≥ 4 in Forest, Hills and the Goblin Cave |
@@ -369,7 +372,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32)). Open: giant toad art, post-unlock balance (4.4c) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32), the Old Mine grind dungeon (§36)). Open: giant toad art, post-unlock balance (4.4c), Act II–IV grind dungeons (36.2) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -1679,6 +1682,8 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~Inventory, monster gear drops, item rarity (Common to Legendary), random stat bonuses and selling at shops.~~
   Done in §33, with a simulator loot mode and drop-economy check (33.8). Watch item: well-looted Wizards end
   mini-boss fights in about half the rounds.
+- ~~Grind dungeons with respawning mini-mini bosses.~~ Act I's Old Mine done in §36. Act II–IV grind dungeons are
+  planned in 36.2.
 
 ## 20. Revision 6: solo only before the unlock
 
@@ -2374,3 +2379,57 @@ the hero.
   walking up or down no longer slides the rain sideways. Splashes stay on fixed ground spots.
 - **Lightning strikes the ground:** each bolt ends on a fixed world spot, with a ground glow there, and scrolls with
   the map while it is visible. The screen-wide flash and tint stay as sky lighting.
+
+## 36. Grind dungeons and wardens (Act I implemented; later acts planned)
+
+**Feedback:** add dungeons or towns with "mini-mini bosses" that help grind levels, especially for a solo Wizard, the
+hardest class to start alone.
+
+**Design:**
+
+- A **grind dungeon** is a small side map next to a town: random-encounter tunnels between lit, encounter-free
+  chambers. Each chamber holds a **warden**, a boss a step below the side-quest mini-bosses.
+- Wardens are `boss: true` (no running away, solo ×0.75 HP), give boss-sized XP and gold, and roll loot from their
+  own `warden` source. Their `BossDef` has `respawns: true`. `RESPAWN_FLAGS` (in `maps.ts`) collects those defeat
+  flags, and every inn rest clears them, so the wardens come back. Dying sends the party to the inn without a rest,
+  so a defeat does not reset them.
+- Wardens form a ladder of rungs below the act boss, so a struggling solo hero always has a next fight that pays off.
+
+### 36.1 Act I: the Old Mine (implemented)
+
+- **Where:** landmark `oldMine` at (35,27) on the overworld, a short road north-east of Aldmere. The mountain notch
+  is stamped **after** every other road is carved (`placeOldMine` in `overworld-gen.ts`), because changing tile
+  costs earlier reorders Dijkstra ties and moves roads and bridges across the whole map. Only the 15 tiles around
+  the mine changed. The world map labels it "Old Mine".
+- **Map:** `oldMine`, 22x15, cave backdrop with fog. A lit entry hall (an old miner explains the wardens), tunnels
+  with the `mine` encounter table (level 4: slimes, giant bats, goblins, a wolf with a bat) and three lit chambers.
+- **Wardens** (each fought with one minion):
+
+  | Warden | Rung | Stats (HP/ATK/DEF/AGI) | XP / gold | Weakness | Minion |
+  | --- | --- | --- | --- | --- | --- |
+  | Slime Matron | level 3, tier-1 weapon | 75 / 13 / 4 / 3 | 24 / 18 | fire | Slime |
+  | Bat Broodmother | level 4, tier-1 weapon | 65 / 11 / 5 / 11 | 30 / 22 | lightning | Giant Bat |
+  | Goblin Foreman | level 5, tier-2 weapon | 85 / 15 / 8 / 6 | 38 / 30 | ice | Goblin |
+
+  The Foreman also has Cleave and Warcry. Wardens are drawn at mini-boss size (×3) in battle.
+- **Loot:** source `warden`: 50% gear chance, Common 35% / Uncommon 50% / Rare 15% (never Epic or Legendary).
+  Loot tiers 1, 1 and 2.
+- **Balance check (`balance.spec.ts`):** every class beats each warden solo ≥ 70% at its rung with the starting kit
+  plus 4 Herbs. Tuning run (200 fights each): the Wizard wins 97% / 91% / 99%. The weakest is the Necromancer against
+  the Foreman, at 77%. The Wizard is at 47% against the Broodmother one level early (level 3), so the ladder order
+  matters.
+- **Tests:** `content.spec.ts` (warp, safe chambers, respawn flags), `world-scene.spec.ts` (an inn rest clears the
+  warden flags only), `loot.spec.ts` (`warden` odds and source).
+
+### 36.2 Later acts (planned, not built)
+
+| Act | Place | Wardens (ideas) | Rungs |
+| --- | --- | --- | --- |
+| II | Sandhollow's sunken cistern | Scarab Queen, Mire Lurker, Dune Raider Captain | levels 8 / 9 / 10 |
+| III | Frostgate ice quarry | Frost Wolf Matron, Ice Wisp Mother, Yeti Foreman | levels 11 / 12 / 13 |
+| IV | Emberwatch slag pits | Ember Imp Overseer, Magma Slime Matron, Cinder Drake | levels 14 / 15 / 16 |
+
+- Each reuses existing monster art with a new name and stats, like the Act I wardens.
+- Each gets a `balance.spec` rung check for a pair (hero plus a companion one level behind) instead of a lone hero,
+  because companions can join after the Goblin King.
+- Each needs the same overworld caution: stamp it after the roads and check the tile diff.

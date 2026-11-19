@@ -1,4 +1,4 @@
-import { ACT_THREE_BOSS_IDS, ACT_TWO_BOSS_IDS, FINALE_BOSS_IDS, MINI_BOSS_IDS, MONSTERS } from './monsters';
+import { ACT_THREE_BOSS_IDS, ACT_TWO_BOSS_IDS, FINALE_BOSS_IDS, MINI_BOSS_IDS, MONSTERS, WARDEN_IDS } from './monsters';
 
 /** Item rarity, lowest first (plan 33.2). */
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
@@ -32,17 +32,23 @@ export const RARITY_ORDER: readonly Rarity[] = ['common', 'uncommon', 'rare', 'e
 export const COMMON_DROP_BONUS_CHANCE = 0.3;
 
 /** Who dropped a piece, which picks the rarity odds. */
-export type LootSource = 'common' | 'miniBoss' | 'boss';
+export type LootSource = 'common' | 'warden' | 'miniBoss' | 'boss';
 
 /** Rarity odds per source (plan 33.6); weights add up to 100. */
 export const RARITY_ODDS: Readonly<Record<LootSource, Readonly<Partial<Record<Rarity, number>>>>> = {
   common: { common: 75, uncommon: 20, rare: 5 },
+  warden: { common: 35, uncommon: 50, rare: 15 },
   miniBoss: { uncommon: 50, rare: 38, epic: 12 },
   boss: { rare: 60, epic: 35, legendary: 5 },
 };
 
 /** Default gear drop chance per source; a monster's `gearChance` overrides it. */
-export const GEAR_DROP_CHANCE: Readonly<Record<LootSource, number>> = { common: 0.15, miniBoss: 0.6, boss: 1 };
+export const GEAR_DROP_CHANCE: Readonly<Record<LootSource, number>> = {
+  common: 0.15,
+  warden: 0.5,
+  miniBoss: 0.6,
+  boss: 1,
+};
 
 /** Bosses that may drop a Legendary (once each, on the first win); other bosses roll Epic instead. */
 export const LEGENDARY_BOSS_IDS: readonly string[] = ['goblinKing', ...ACT_TWO_BOSS_IDS, ...ACT_THREE_BOSS_IDS, ...FINALE_BOSS_IDS];
@@ -62,6 +68,9 @@ export const LOOT_TIER: Readonly<Record<string, number>> = {
   giantToad: 2,
   boneCaptain: 2,
   goblinChief: 2,
+  slimeMatron: 1,
+  batBroodmother: 1,
+  goblinForeman: 2,
   scorpion: 3,
   sandWorm: 3,
   lizardman: 3,
@@ -85,8 +94,11 @@ export function lootTier(monsterId: string): number {
   return LOOT_TIER[monsterId] ?? 1;
 }
 
-/** Common monster, mini-boss or boss. */
+/** Common monster, Old Mine warden, mini-boss or boss. */
 export function lootSource(monsterId: string): LootSource {
+  if (WARDEN_IDS.includes(monsterId)) {
+    return 'warden';
+  }
   if (MINI_BOSS_IDS.includes(monsterId)) {
     return 'miniBoss';
   }

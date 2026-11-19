@@ -6,6 +6,7 @@ import {
   INN_RESPAWN,
   MAPS,
   MapDef,
+  RESPAWN_FLAGS,
   SIGN_TEXT,
   SignKind,
   exitRoads,
@@ -178,6 +179,30 @@ describe('Jouster Quest content', () => {
     expect(captain?.visible?.(s)).toBe(false);
     s.flags['thornwickNight'] = true;
     expect(captain?.visible?.(s)).toBe(true);
+  });
+
+  it('places the Old Mine near Aldmere, with three respawning wardens and a lit, safe entry hall', () => {
+    const world = MAPS.get('overworld') as MapDef;
+    const warp = world.warps.find((w) => w.toMap === 'oldMine');
+    expect(warp).toMatchObject({ x: LANDMARKS.oldMine.x, y: LANDMARKS.oldMine.y });
+    const mine = MAPS.get('oldMine') as MapDef;
+    expect(mapHasEncounters(mine)).toBe(true);
+    const map = tileMap(mine);
+    expect(map.tileAt(warp?.toX ?? 0, warp?.toY ?? 0)?.encounterTableId).toBeUndefined();
+    mine.warps.forEach((w) => expect(w).toMatchObject({ toMap: 'overworld', toX: LANDMARKS.oldMine.x }));
+    const wardens = mine.npcs.filter((n) => n.boss);
+    expect(wardens).toHaveLength(3);
+    wardens.forEach((n) => {
+      expect(n.boss?.respawns).toBe(true);
+      expect(RESPAWN_FLAGS).toContain(n.boss?.defeatFlag);
+      // Wardens stand in lit chambers, free of random fights.
+      expect(map.tileAt(n.x, n.y)?.encounterTableId).toBeUndefined();
+    });
+    expect(RESPAWN_FLAGS).toHaveLength(3);
+    const s = newGameState('Hero', 'wizard');
+    expect(wardens.every((n) => n.visible?.(s))).toBe(true);
+    s.flags['slimeMatronDefeated'] = true;
+    expect(wardens.find((n) => n.id === 'slimeMatron')?.visible?.(s)).toBe(false);
   });
 
   it('marks clue spots with their own walkable tile', () => {
