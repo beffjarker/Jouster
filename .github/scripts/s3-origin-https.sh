@@ -16,6 +16,9 @@
 #                              3. Replace public-read policy statements with an OAC-only grant and
 #                                 turn S3 Block Public Access fully on.
 #                              4. Redirect the website endpoint (HTTP) to https://<host>, then verify.
+#   retire <bucket> <host>   For a leftover bucket that no CloudFront distribution uses: remove public-read
+#                            policy statements, turn S3 Block Public Access fully on, and redirect the
+#                            website endpoint (HTTP) to https://<host>. Refuses if a distribution uses it.
 #
 # Env: DRY_RUN=true          Report what would change; change nothing.
 #      ENSURE_ENABLED=true   Also re-enable disabled distributions (used by PR previews).
@@ -98,17 +101,21 @@ check_host_forwarding() {
   [[ -z "$bad" ]] || die "Distribution $2 forwards the Host header to the bucket (${bad}); S3 REST + OAC would reject it"
 }
 
+# jq definitions shared by the policy builders. public_read matches statements that let anyone read objects.
+POLICY_JQ_DEFS='
+  def as_list: if type == "array" then . else [.] end;
+  def public_read:
+    .Effect == "Allow"
+    and (.Principal == "*" or (.Principal | type == "object" and ((.AWS // null) | as_list | index("*"))))
+    and (.Action | as_list | any(. == "s3:GetObject" or . == "s3:*" or . == "*"));
+'
+
 # Prints a bucket policy built from the current one: statements this script manages are replaced,
 # public s3:GetObject grants are kept only when $1 == true (transition), and the probe deny is
 # added when $2 == true.
 build_policy() {
   jq --arg bucket "$BUCKET" --argjson arns "$DIST_ARNS" --argjson keepPublic "$1" --argjson probe "$2" \
-    --arg oacSid "$OAC_SID" --arg probeSid "$PROBE_SID" --arg prefix "$PROBE_PREFIX" '
-    def as_list: if type == "array" then . else [.] end;
-    def public_read:
-      .Effect == "Allow"
-      and (.Principal == "*" or (.Principal | type == "object" and ((.AWS // null) | as_list | index("*"))))
-      and (.Action | as_list | any(. == "s3:GetObject" or . == "s3:*" or . == "*"));
+    --arg oacSid "$OAC_SID" --arg probeSid "$PROBE_SID" --arg prefix "$PROBE_PREFIX" "${POLICY_JQ_DEFS}"'
     {
       Version: "2012-10-17",
       Statement: (
@@ -204,36 +211,26 @@ verify_https_only() {
   fi
 }
 
-cmd_secure() {
-  BUCKET="${1:?bucket required}"
-  HOST="${2:?https host required}"
-  local id etag needs
-
+# Sets REGION, REST and DOMAINS (every S3 endpoint a CloudFront origin may use) for $BUCKET.
+bucket_endpoints() {
   REGION=$(aws s3api get-bucket-location --bucket "$BUCKET" --query LocationConstraint --output text)
   [[ -n "$REGION" && "$REGION" != "None" && "$REGION" != "null" ]] || REGION="us-east-1"
   REST="${BUCKET}.s3.${REGION}.amazonaws.com"
   DOMAINS=$(jq -cn --arg b "$BUCKET" --arg r "$REGION" \
     '["\($b).s3-website-\($r).amazonaws.com", "\($b).s3-website.\($r).amazonaws.com",
       "\($b).s3.\($r).amazonaws.com", "\($b).s3.amazonaws.com"]')
-  OAC_ID=$(cmd_oac)
-  local account
-  account=$(aws sts get-caller-identity --query Account --output text)
+}
 
-  local attempt
-  for attempt in 1 2 3 4 5 6; do
-    aws cloudfront list-distributions --output json > "$WORK/dists.json"
-    mapfile -t DIST_IDS < <(jq -r --argjson domains "$DOMAINS" '
-      (.DistributionList.Items // [])[]
-      | select(any(.Origins.Items[]; .DomainName as $d | any($domains[]; . == $d))) | .Id' "$WORK/dists.json")
-    # A distribution created moments ago can take a few seconds to appear in the list.
-    [[ "${#DIST_IDS[@]}" -gt 0 ]] && break
-    [[ "$attempt" -lt 6 ]] && { log "No distribution uses ${BUCKET} yet; retrying in 10s"; sleep 10; }
-  done
-  [[ "${#DIST_IDS[@]}" -gt 0 ]] || die "No CloudFront distribution uses ${BUCKET} as an origin"
-  DIST_ARNS=$(printf '%s\n' "${DIST_IDS[@]}" \
-    | jq -R --arg a "$account" '"arn:aws:cloudfront::\($a):distribution/\(.)"' | jq -cs .)
-  log "Bucket ${BUCKET} (${REGION}) is an origin of: ${DIST_IDS[*]}"
+# Sets DIST_IDS to the CloudFront distributions that have an origin on $BUCKET.
+find_distributions() {
+  aws cloudfront list-distributions --output json > "$WORK/dists.json"
+  mapfile -t DIST_IDS < <(jq -r --argjson domains "$DOMAINS" '
+    (.DistributionList.Items // [])[]
+    | select(any(.Origins.Items[]; .DomainName as $d | any($domains[]; . == $d))) | .Id' "$WORK/dists.json")
+}
 
+# Saves the bucket policy to policy.raw.json and policy.orig.json ({} if none) and sets HAD_POLICY.
+read_policy() {
   if aws s3api get-bucket-policy --bucket "$BUCKET" --query Policy --output text > "$WORK/policy.raw.json" 2>"$WORK/policy.err"; then
     HAD_POLICY=true
     cp "$WORK/policy.raw.json" "$WORK/policy.orig.json"
@@ -244,6 +241,50 @@ cmd_secure() {
     cat "$WORK/policy.err" >&2
     die "Could not read the bucket policy of ${BUCKET}"
   fi
+}
+
+# Turns S3 Block Public Access fully on and makes the website endpoint (HTTP) redirect to https://$HOST.
+block_public_and_redirect() {
+  aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration \
+    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+
+  log "Redirecting the S3 website endpoint (HTTP) to https://${HOST}..."
+  jq -n --arg host "$HOST" '{ RedirectAllRequestsTo: { HostName: $host, Protocol: "https" } }' > "$WORK/website.json"
+  aws s3api put-bucket-website --bucket "$BUCKET" --website-configuration "file://$WORK/website.json"
+}
+
+log_current_access() {
+  log "Bucket policy now:"; jq . "$WORK/policy.orig.json" >&2
+  log "Bucket policy after:"; jq . "$WORK/policy.final.json" >&2
+  log "Block Public Access now:"
+  aws s3api get-public-access-block --bucket "$BUCKET" --output json >&2 2>/dev/null || log "(not set)"
+  log "Website configuration now:"
+  aws s3api get-bucket-website --bucket "$BUCKET" --output json >&2 2>/dev/null || log "(not set)"
+}
+
+cmd_secure() {
+  BUCKET="${1:?bucket required}"
+  HOST="${2:?https host required}"
+  local id etag needs
+
+  bucket_endpoints
+  OAC_ID=$(cmd_oac)
+  local account
+  account=$(aws sts get-caller-identity --query Account --output text)
+
+  local attempt
+  for attempt in 1 2 3 4 5 6; do
+    find_distributions
+    # A distribution created moments ago can take a few seconds to appear in the list.
+    [[ "${#DIST_IDS[@]}" -gt 0 ]] && break
+    [[ "$attempt" -lt 6 ]] && { log "No distribution uses ${BUCKET} yet; retrying in 10s"; sleep 10; }
+  done
+  [[ "${#DIST_IDS[@]}" -gt 0 ]] || die "No CloudFront distribution uses ${BUCKET} as an origin"
+  DIST_ARNS=$(printf '%s\n' "${DIST_IDS[@]}" \
+    | jq -R --arg a "$account" '"arn:aws:cloudfront::\($a):distribution/\(.)"' | jq -cs .)
+  log "Bucket ${BUCKET} (${REGION}) is an origin of: ${DIST_IDS[*]}"
+
+  read_policy
 
   UPDATED=()
   for id in "${DIST_IDS[@]}"; do
@@ -263,12 +304,7 @@ cmd_secure() {
 
   if is_dry; then
     build_policy false false > "$WORK/policy.final.json"
-    log "Bucket policy now:"; jq . "$WORK/policy.orig.json" >&2
-    log "Bucket policy after:"; jq . "$WORK/policy.final.json" >&2
-    log "Block Public Access now:"
-    aws s3api get-public-access-block --bucket "$BUCKET" --output json >&2 2>/dev/null || log "(not set)"
-    log "Website configuration now:"
-    aws s3api get-bucket-website --bucket "$BUCKET" --output json >&2 2>/dev/null || log "(not set)"
+    log_current_access
     log "Dry run: would switch ${#UPDATED[@]} distribution(s), lock the bucket to OAC, turn Block Public Access on,"
     log "and redirect http://${BUCKET}.s3-website-${REGION}.amazonaws.com to https://${HOST}."
     return 0
@@ -293,19 +329,64 @@ cmd_secure() {
   log "Locking ${BUCKET} to CloudFront (OAC only, Block Public Access on)..."
   build_policy false false > "$WORK/policy.final.json"
   put_policy "$WORK/policy.final.json"
-  aws s3api put-public-access-block --bucket "$BUCKET" --public-access-block-configuration \
-    "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
-
-  log "Redirecting the S3 website endpoint (HTTP) to https://${HOST}..."
-  jq -n --arg host "$HOST" '{ RedirectAllRequestsTo: { HostName: $host, Protocol: "https" } }' > "$WORK/website.json"
-  aws s3api put-bucket-website --bucket "$BUCKET" --website-configuration "file://$WORK/website.json"
+  block_public_and_redirect
 
   verify_https_only
+}
+
+# Anonymous reads through the S3 REST API must be denied. Path-style URL: dotted bucket names fail TLS on
+# virtual-hosted URLs.
+verify_private() {
+  local url="https://s3.${REGION}.amazonaws.com/${BUCKET}/index.html" code attempt
+  for attempt in 1 2 3 4 5 6; do
+    code=$(curl -sS -o /dev/null --max-time 15 -w '%{http_code}' "$url" || true)
+    [[ "$code" == "403" ]] && break
+    log "Private check ${attempt}: ${url} returned ${code}; retrying in 10s"
+    sleep 10
+  done
+  [[ "$code" == "403" ]] || die "${url} returned ${code}, expected 403"
+  log "${url} -> 403"
+}
+
+cmd_retire() {
+  BUCKET="${1:?bucket required}"
+  HOST="${2:?https host required}"
+
+  bucket_endpoints
+  find_distributions
+  if [[ "${#DIST_IDS[@]}" -gt 0 ]]; then
+    die "${BUCKET} is an origin of CloudFront distribution(s) ${DIST_IDS[*]}; use 'secure' instead"
+  fi
+  log "No CloudFront distribution uses ${BUCKET} (${REGION})"
+
+  read_policy
+  jq "${POLICY_JQ_DEFS}"'. + { Statement: [(.Statement // [])[] | select(public_read | not)] }' \
+    "$WORK/policy.orig.json" > "$WORK/policy.final.json"
+  local remaining
+  remaining=$(jq '.Statement | length' "$WORK/policy.final.json")
+
+  if is_dry; then
+    log_current_access
+    log "Dry run: would remove public read access (${remaining} policy statement(s) left), turn Block Public Access on,"
+    log "and redirect http://${BUCKET}.s3-website-${REGION}.amazonaws.com to https://${HOST}."
+    return 0
+  fi
+
+  log "Removing public read access from ${BUCKET}..."
+  if [[ "$remaining" -gt 0 ]]; then
+    put_policy "$WORK/policy.final.json"
+  elif [[ "$HAD_POLICY" == "true" ]]; then
+    aws s3api delete-bucket-policy --bucket "$BUCKET"
+  fi
+  block_public_and_redirect
+
+  verify_https_only
+  verify_private
 }
 
 command="${1:-}"
 shift || true
 case "$command" in
-  oac | secure) "cmd_${command}" "$@" ;;
+  oac | secure | retire) "cmd_${command}" "$@" ;;
   *) die "Unknown command '${command}'. See header of $0 for usage." ;;
 esac
