@@ -68,7 +68,7 @@ const LIST: MonsterDef[] = [
   {
     id: 'goblinKing',
     name: 'Goblin King',
-    stats: { hp: 180, mp: 0, atk: 22, def: 12, agi: 7, mag: 0 },
+    stats: { hp: 180, mp: 0, atk: 21, def: 12, agi: 7, mag: 0 },
     xp: 80,
     gold: 100,
     boss: true,
@@ -87,7 +87,7 @@ const LIST: MonsterDef[] = [
   {
     id: 'alphaWolf',
     name: 'Alpha Wolf',
-    stats: { hp: 110, mp: 0, atk: 18, def: 8, agi: 12, mag: 0 },
+    stats: { hp: 110, mp: 0, atk: 16, def: 8, agi: 12, mag: 0 },
     xp: 50,
     gold: 40,
     boss: true,
@@ -169,7 +169,7 @@ const LIST: MonsterDef[] = [
   {
     id: 'batBroodmother',
     name: 'Bat Broodmother',
-    stats: { hp: 65, mp: 0, atk: 11, def: 5, agi: 11, mag: 0 },
+    stats: { hp: 65, mp: 0, atk: 10, def: 5, agi: 11, mag: 0 },
     xp: 30,
     gold: 22,
     boss: true,
@@ -182,7 +182,7 @@ const LIST: MonsterDef[] = [
   {
     id: 'goblinForeman',
     name: 'Goblin Foreman',
-    stats: { hp: 85, mp: 0, atk: 15, def: 8, agi: 6, mag: 0 },
+    stats: { hp: 85, mp: 0, atk: 14, def: 8, agi: 6, mag: 0 },
     xp: 38,
     gold: 30,
     boss: true,

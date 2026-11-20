@@ -327,7 +327,7 @@ export class WorldScene implements Scene {
       next();
       return;
     }
-    if (!this.moving && this.offerPendingGear()) {
+    if (!this.moving && (this.offerPendingGear() || this.spotBoss())) {
       return;
     }
     this.updateNpcs(dt);
@@ -788,6 +788,9 @@ export class WorldScene implements Scene {
       this.walkGoal = null;
       this.handleEvent(event.id);
     }
+    if (this.spotBoss()) {
+      return;
+    }
     const tableId = this.tiles.tileAt(s.x, s.y)?.encounterTableId;
     const table = tableId ? ENCOUNTER_TABLES.get(tableId) : undefined;
     // Monsters shy away from a party that far out-levels the area.
@@ -894,6 +897,35 @@ export class WorldScene implements Scene {
     return this.map.backdrop;
   }
 
+  /**
+   * Bosses attack on sight (plan §37): once a visible boss NPC is inside the party's sight radius
+   * (the same circle that lifts the fog), its taunt plays and the fight starts - no choice to retreat.
+   * Returns true when a fight was started, so the caller stops this update.
+   */
+  private spotBoss(): boolean {
+    if (this.ctx.stack.top !== this || this.ctx.stack.transitioning || this.pending.length > 0) {
+      return false;
+    }
+    const radius = this.sightRadius;
+    const { x, y } = this.state;
+    const npc = this.npcs.find(
+      (n) => n.def.role === 'boss' && n.def.boss && this.npcVisible(n) && inSight(n.x - x, n.y - y, radius),
+    );
+    if (!npc?.def.boss) {
+      return false;
+    }
+    if (npc.moveT >= 1) {
+      npc.facing = Math.abs(x - npc.x) > Math.abs(y - npc.y) ? (x > npc.x ? 'right' : 'left') : y > npc.y ? 'down' : 'up';
+    }
+    this.engageBoss(npc.def.boss);
+    return true;
+  }
+
+  private engageBoss(boss: BossDef): void {
+    this.walkGoal = null;
+    say(this.ctx.stack, this.ctx.audio, boss.lines, () => this.startBattle(boss.monsterIds, boss));
+  }
+
   private startBattle(monsterIds: string[], boss?: BossDef): void {
     const battle = new BattleScene(this.ctx, {
       monsterIds,
@@ -993,17 +1025,11 @@ export class WorldScene implements Scene {
       case 'church':
         this.talkToPriest();
         return;
-      case 'boss': {
-        const boss = def.boss;
-        if (boss) {
-          ask(stack, audio, boss.lines, ['FIGHT', 'RETREAT'], (choice) => {
-            if (choice === 0) {
-              this.startBattle(boss.monsterIds, boss);
-            }
-          });
+      case 'boss':
+        if (def.boss) {
+          this.engageBoss(def.boss);
         }
         return;
-      }
       case 'companion':
         if (def.companionId) {
           this.talkToCompanion(def.companionId);

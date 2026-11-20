@@ -1737,8 +1737,8 @@ backdrop.
 
 ### 21.4 Two-phase final boss
 
-- Talking to Vyrmorth offers FIGHT or RETREAT. Winning the first fight shows his "unbound" lines and starts the
-  second fight at once, with no rest in between (`BossDef.phaseTwo`).
+- Vyrmorth attacks as soon as the party can see him (plan §37), with no FIGHT or RETREAT choice. Winning the first
+  fight shows his "unbound" lines and starts the second fight at once, with no rest in between (`BossDef.phaseTwo`).
 - `vyrmorthDefeated` is set only after the second phase. Losing either phase is a normal defeat (wake at the
   Aldmere inn, half the gold lost).
 - The first stats (380/280 HP) made the fight trivial (about 4 rounds), so both forms were raised until a duo
@@ -2358,8 +2358,9 @@ Thornwick should be a real ruin to walk through, with its companion inside the r
   gone. A save from before this change that is still in the old `locked` stage only hears the intro.
 - **Cave prisoner stays in his cell:** he is part of the king's throne room. Slots with `beforeKing` lines are
   present before the king falls, so he is always behind the bars. Before the victory he gives his intro plus his
-  `beforeKing` line ("Bring him down, then we'll talk.") with no quest. `companionAvailable` also requires
-  `bossDefeated`, so nobody can join early.
+  `beforeKing` line ("Bring him down, then we'll talk.") with no quest. Since bosses attack on sight (§37), the King
+  spots the party at the throne-room door, so in play that line is only a fallback. `companionAvailable` also
+  requires `bossDefeated`, so nobody can join early.
 - **Dialog up to the king:**
   - On the first meeting, the King says few dare the roads while goblins raid, so the hero must go alone until
     their king falls. He no longer promises travelers.
@@ -2417,8 +2418,8 @@ hardest class to start alone.
   | Warden | Rung | Stats (HP/ATK/DEF/AGI) | XP / gold | Weakness | Minion |
   | --- | --- | --- | --- | --- | --- |
   | Slime Matron | level 3, tier-1 weapon | 75 / 13 / 4 / 3 | 24 / 18 | fire | Slime |
-  | Bat Broodmother | level 4, tier-1 weapon | 65 / 11 / 5 / 11 | 30 / 22 | lightning | Giant Bat |
-  | Goblin Foreman | level 5, tier-2 weapon | 85 / 15 / 8 / 6 | 38 / 30 | ice | Goblin |
+  | Bat Broodmother | level 4, tier-1 weapon | 65 / 10 / 5 / 11 | 30 / 22 | lightning | Giant Bat |
+  | Goblin Foreman | level 5, tier-2 weapon | 85 / 14 / 8 / 6 | 38 / 30 | ice | Goblin |
 
   The Foreman also has Cleave and Warcry. Wardens are drawn at mini-boss size (×3) in battle.
 - **Loot:** source `warden`: 50% gear chance, Common 35% / Uncommon 50% / Rare 15% (never Epic or Legendary).
@@ -2489,3 +2490,67 @@ hardest class to start alone.
 - **Tests:** `content.spec.ts` (per dungeon: warp, encounter-free arrival and chambers, table, exits, three
   respawning wardens, a talk NPC; 12 respawn flags), `world-scene.spec.ts` (the inn names the dungeons that
   stirred), `balance.spec.ts` (above).
+
+## 37. Bosses attack on sight (implemented)
+
+**Goal:** every map boss (act bosses, mini-bosses and wardens) attacks as soon as the party can see it. There is no
+FIGHT or RETREAT choice and no way to walk up rested; a party meets a boss worn from the walk in.
+
+- **Rule (`WorldScene.spotBoss`):** a boss is in sight when it is inside the circle that lifts the fog of war:
+  `CAVE_FOG_RADIUS` (3, +1 near a torch) in caves, else the weather's sight radius (8 on a sunny day). Sight
+  ignores walls, like the fog. The check runs on each world update while the party stands still and after every
+  step, as long as the world is the top scene, nothing is queued and no transition is running. So a boss that is
+  already in sight on arrival attacks at once. On a step, a boss in sight wins over the random-encounter roll. The
+  boss turns to face the party, its taunt (`BossDef.lines`) plays, then the battle starts (`engageBoss`). Talking
+  to a boss (e.g. tapping it) starts the same fight. Boss battles can't be fled, as before. A defeated or hidden
+  boss (e.g. the Alpha Wolf before its quest) is ignored.
+- **Cave prisoner:** he sits two tiles from the Goblin King, so the King always spots the party first. The prisoner
+  is still drawn in his cell (§34); his `beforeKing` line is now only a fallback.
+- **Dungeon layouts:** in the Sunken Cistern, Frozen Quarry and Slag Pits, the central chamber that holds the top
+  warden lost its old approach from the south (now walled off or flooded) and opens off the first warden's chamber
+  instead. So the top warden is never sighted before the first one. The Old Mine already worked that way.
+- **Sight order** (tiles walked from the entrance until each boss is first seen; every dungeon's wardens rise in
+  rung order):
+
+  | Map | Steps to sight |
+  | --- | --- |
+  | Overworld / Thornwick | Giant Toad 13 (from Brookhollow), Bone Captain 3 (an ambush soon after entering) |
+  | Goblin Cave / Wolf Den | Goblin Chief 16, Goblin King 31, Alpha Wolf 18 |
+  | Old Mine | Slime Matron 9, Bat Broodmother 13, Goblin Foreman 16 |
+  | Sunken Cistern | 12 / 13 / 19 |
+  | Frozen Quarry | 15 / 16 / 20 |
+  | Slag Pits | 13 / 14 / 18 |
+
+- **Arrival model (`balance/arrival.ts`):** boss balance is now measured after the walk in.
+  - `findSightRoute` does a breadth-first search from the entrance (or from a previous boss) to the first tile
+    where the boss is in sight, avoiding the sight of other given bosses. It records each random-encounter tile
+    on the way.
+  - `expectedFights` counts the fights expected on that route (grace steps and `scaledEncounterRate`); the trek is
+    `max(1, round(expected))` fights when the route has encounter tiles.
+  - `walkIn` plays those fights in order. Between fights the party uses its consumables in the field
+    (`fieldTopUp`) and regenerates for 16 steps (`STEPS_BETWEEN_FIGHTS`). `arrivalFight` then fights the boss
+    with the HP, MP and items that are left.
+  - Every boss test in `balance.spec.ts` (solo stages, pairs and trios, act bosses, wardens and the back-to-back
+    dungeon clears) uses it, as does the mini-boss win-rate test in `loot-balance.spec.ts`. The loot "still a
+    fight" tests stay at full HP, since they compare loot against no loot under the same conditions. The §36.2
+    clear-rate table was measured before this change.
+- **Rebalance:** six targets fell short once the walk in was counted. Four ATK cuts fixed them (same seeds, 400
+  runs):
+
+  | Boss | ATK | Shortfall before → after |
+  | --- | --- | --- |
+  | Goblin King | 22 → 21 | rogue + ranger pair 64.5% → 78.8%, ranger + rogue 62.3% → 82.5% (≥ 70%) |
+  | Alpha Wolf | 18 → 16 | solo Necromancer at level 7 50.7% → 74.8% (≥ 60%); solo Wizard one level under 40.3% → 63.2% (≥ 50%) |
+  | Bat Broodmother | 11 → 10 | solo Wizard at its rung 68.3% → 82.5% (≥ 70%) |
+  | Goblin Foreman | 15 → 14 | solo Necromancer at its rung 67.3% → 83.3% (≥ 70%) |
+
+  Solo report after the change (4.4b, level 7 unless noted): Goblin King at level 6 — Wizard 92% (69% one level
+  under), Warrior 98%; Giant Toad, Bone Captain and Goblin Chief — Wizard ≥ 99%; Alpha Wolf — Wizard 89% (63% one
+  level under), Warrior 100%.
+- **Tests:**
+  - `world-scene.spec.ts`: a boss attacks when the party steps into sight (taunt, then the battle) and stays gone
+    after the victory; defeated and hidden bosses are ignored; a boss already in sight attacks on arrival; a boss
+    in sight wins over a random encounter on the same step; the cave prisoner is drawn before the King falls, but
+    the King attacks first. The Vyrmorth and Alpha Wolf tests no longer confirm a choice.
+  - `balance.spec.ts`: the Old Mine and each grind dungeon sight their wardens in rung order, and the top warden
+    can't be sighted without passing the first one; all boss win rates use the arrival model.
