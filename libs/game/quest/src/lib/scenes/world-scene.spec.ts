@@ -8,7 +8,7 @@ import { SOUTH_LANDMARKS } from '../data/southlands-gen';
 import { CAVE_FOG_RADIUS, isExplored } from '../state/fog';
 import { ITEMS } from '../data/equipment';
 import { BAG_LIMIT, createGear } from '../state/equipment';
-import { GameState, addItem, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
+import { GameState, addItem, companionPresent, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
 import { GearItem, gearSellPrice } from '../state/loot';
 import { createMember } from '../state/party';
 import { SUNNY_SIGHT_RADIUS, weatherAt, weatherSeed, weatherSightRadius } from '../state/weather';
@@ -189,13 +189,18 @@ describe('WorldScene', () => {
     expect(rolled.classId).not.toBe('cleric');
   });
 
-  it('lets the cave prisoner talk through the bars before the Goblin King falls, without a quest yet', () => {
+  it('shows the cave prisoner before the Goblin King falls, but the king attacks before anyone can talk', () => {
     const h = setup({ mapId: 'goblinCave', x: 19, y: 4, facing: 'up' });
-    h.tap('confirm');
+    expect(companionPresent(h.state, 'cave')).toBe(true);
+    h.run(0.1);
     const pages = (h.ctx.stack.top as unknown as { pages: string[][] }).pages.flat().join(' ');
-    expect(pages).toContain('behind the bars');
-    expect(pages).toContain('Bring him down');
-    h.confirmUntilWorld();
+    expect(pages).toContain('GOBLIN KING');
+    expect(pages).not.toContain('behind the bars');
+    for (let i = 0; i < 10 && h.ctx.stack.top?.id === 'message'; i++) {
+      h.tap('confirm');
+    }
+    h.run(1);
+    expect(h.ctx.stack.top?.id).toBe('battle');
     expect(h.state.quests['cave']).toBeUndefined();
     expect(h.state.party).toHaveLength(1);
   });
@@ -324,7 +329,9 @@ describe('WorldScene', () => {
     const h = setup({ mapId: 'vyrmorthLair', x: npc.x, y: npc.y + 1, facing: 'up' });
     interface BattleTop { id: string; options: { monsterIds: string[]; onEnd(outcome: string): void } }
     const top = (): BattleTop => h.ctx.stack.top as unknown as BattleTop;
-    h.tap('confirm');
+    // Plan §37: he attacks on sight; there is no choice to make.
+    h.run(0.1);
+    expect(h.ctx.stack.top?.id).toBe('message');
     for (let i = 0; i < 10 && h.ctx.stack.top?.id === 'message'; i++) {
       h.tap('confirm');
     }
@@ -804,7 +811,7 @@ describe('WorldScene', () => {
     h.state.flags['bossDefeated'] = true;
     h.state.quests['tavern'] = 'active';
     h.ctx.rng = createRng(5);
-    h.tap('confirm');
+    h.run(0.1);
     expect(h.ctx.stack.top?.id).toBe('message');
     for (let i = 0; i < 10 && h.ctx.stack.top?.id === 'message'; i++) {
       h.tap('confirm');
@@ -824,6 +831,73 @@ describe('WorldScene', () => {
 
     expect(h.state.flags[wolf.boss.defeatFlag]).toBe(true);
     expect(h.state.quests['tavern']).toBe('ready');
+  });
+
+  describe('bosses attack on sight (plan §37)', () => {
+    interface BattleTop { id: string; options: { monsterIds: string[]; onEnd(outcome: string): void } }
+    const pagesOf = (h: Harness): string => ((h.ctx.stack.top as unknown as { pages?: string[][] }).pages ?? []).flat().join(' ');
+    // In the Old Mine the Slime Matron (2, 9) comes into torchlit sight from (6, 8), but not from (7, 8).
+    const approach = (h: Harness): void => {
+      h.hold('left', STEP_TIME);
+      h.run(0.3);
+    };
+
+    it('starts the fight as soon as a boss comes into sight, with no choice to make', () => {
+      const h = setup({ mapId: 'oldMine', x: 7, y: 8, facing: 'left' });
+      h.run(0.1);
+      expect(h.ctx.stack.top?.id).toBe('world');
+      approach(h);
+      expect(h.state.x).toBe(6);
+      expect(h.ctx.stack.top?.id).toBe('message');
+      expect(pagesOf(h)).toContain('A bloated slime the size of a cart');
+      for (let i = 0; i < 10 && h.ctx.stack.top?.id === 'message'; i++) {
+        h.tap('confirm');
+      }
+      h.run(1);
+      const top = h.ctx.stack.top as unknown as BattleTop;
+      expect(top.id).toBe('battle');
+      expect(top.options.monsterIds).toEqual(['slimeMatron', 'slime']);
+      top.options.onEnd('victory');
+      expect(h.state.flags['slimeMatronDefeated']).toBe(true);
+      // The victory lines play once the world is back on top; the beaten warden does not attack again.
+      h.run(1);
+      h.confirmUntilWorld();
+      h.run(1);
+      expect(h.ctx.stack.top?.id).toBe('world');
+    });
+
+    it('ignores a defeated boss', () => {
+      const h = setup({ mapId: 'oldMine', x: 7, y: 8, facing: 'left' });
+      h.state.flags['slimeMatronDefeated'] = true;
+      approach(h);
+      expect(h.state.x).toBe(6);
+      expect(h.ctx.stack.top?.id).toBe('world');
+    });
+
+    it('ignores a boss that has not appeared yet', () => {
+      const den = mapDef('wolfDen');
+      const wolf = den.npcs.find((n) => n.role === 'boss');
+      if (!wolf) {
+        throw new Error('no den boss');
+      }
+      const h = setup({ mapId: 'wolfDen', x: wolf.x, y: wolf.y + 1, facing: 'up' });
+      h.run(1);
+      expect(h.ctx.stack.top?.id).toBe('world');
+    });
+
+    it('attacks on arrival when the boss is already in sight', () => {
+      const h = setup({ mapId: 'oldMine', x: 5, y: 8, facing: 'left' });
+      h.run(0.1);
+      expect(h.ctx.stack.top?.id).toBe('message');
+      expect(pagesOf(h)).toContain('A bloated slime the size of a cart');
+    });
+
+    it('meets a boss in sight before any random encounter on the same step', () => {
+      const h = setup({ mapId: 'oldMine', x: 7, y: 8, facing: 'left' }, true);
+      h.state.stepsSinceBattle = 10;
+      approach(h);
+      expect(pagesOf(h)).toContain('A bloated slime the size of a cart');
+    });
   });
 
   it('enters the Thornwick ruins from the overworld', () => {

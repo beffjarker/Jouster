@@ -9,6 +9,7 @@ import { MAX_PARTY, STARTING_GOLD } from '../state/game-state';
 import { gearSellPrice, rollLoot } from '../state/loot';
 import { FightResult, runMany, simulateFight } from './simulator';
 import { duo, geared, tier2 } from './kits';
+import { arrivalFight, bossTrek } from './arrival';
 import { LOOT_SLOTS, LootStep, expectedHaul, expectedRolls, withExpectedLoot } from './loot-mode';
 
 // Plan 33.8: drops add power and gold, and the 4.6 targets were tuned without them. These checks re-run the key
@@ -80,14 +81,18 @@ describe('Jouster Quest balance with expected loot (plan 33.8)', () => {
   });
 
   const miniFights = ['overworld', 'thornwick', 'goblinCave', 'wolfDen']
-    .flatMap(bossFights)
-    .filter((f) => !f.includes('goblinKing'));
-  const miniCases = CLASS_ORDER.flatMap((id) => miniFights.map((fight) => [id, fight.join('+'), fight] as const));
-  // Side-quest mini-bosses already fall in 4-6 rounds without loot, so only the 4.6 win-rate target applies. With
-  // this generous model a Wizard's fights shrink from about 4 rounds to 2 (MAG on every slot); see plan 33.8.
-  it.each(miniCases)('%s solo still beats %s >= 60%% at level 7 with tier-2 weapon and loot', (id, _name, fight) => {
+    .flatMap((map) => bossFights(map).map((fight) => [map, fight] as const))
+    .filter(([, f]) => !f.includes('goblinKing'));
+  const miniCases = CLASS_ORDER.flatMap((id) => miniFights.map(([map, fight]) => [id, fight.join('+'), map, fight] as const));
+  // Side-quest mini-bosses already fall in 4-6 rounds without loot, so only the 4.6 win-rate target applies, reached
+  // on foot through the random fights before the boss sees the hero (plan §37). With this generous model a Wizard's
+  // fights shrink from about 4 rounds to 2 (MAG on every slot); see plan 33.8.
+  it.each(miniCases)('%s solo still beats %s >= 60%% at level 7 with tier-2 weapon and loot', (id, _name, map, fight) => {
     const m = looted(TO_MINI)(tier2(createMember('h', 'Hero', id, 7)));
-    const stats = runMany(N, (i) => simulateFight([m], [...fight], { herb: 6, tonic: 1 }, createRng(11000 + i), { bossHpScale: BOSS_HP_SCALE[0] }));
+    const trek = bossTrek(map, fight[0], 7);
+    const stats = runMany(N, (i) =>
+      arrivalFight([m], trek, [...fight], { herb: 6, tonic: 1 }, createRng(11000 + i), { bossHpScale: BOSS_HP_SCALE[0] }),
+    );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.6);
   });
 

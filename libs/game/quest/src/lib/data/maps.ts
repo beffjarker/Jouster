@@ -36,12 +36,12 @@ export interface BossDef {
   monsterIds: string[];
   /** Set when the boss is beaten (the NPC disappears). */
   defeatFlag: string;
-  /** Taunt before the FIGHT / RETREAT choice. */
+  /** Taunt shown when the party first sees the boss; the fight starts straight after (plan §37). */
   lines: string[];
   /** Shown after winning. */
   victory: string[];
   /**
-   * A second form fought straight after the first is beaten (no rest, no retreat). The `defeatFlag` is only
+   * A second form fought straight after the first is beaten (no rest in between). The `defeatFlag` is only
    * set, and `victory` only shown, once this form falls too.
    */
   phaseTwo?: { monsterIds: string[]; lines: string[] };
@@ -352,9 +352,9 @@ const CISTERN_ROWS = [
   '#######tb,,,,bt#######',
   '#######,,,,,,,,#######',
   '#t,,,t##,,,,,,##t,,,t#',
-  '#,,,,,###,,,,###,,,,,#',
-  '#,b,,,~~##__##~~,,,b,#',
-  '##,,####~~__~~####,,##',
+  '#,,,,,,,,,,,,###,,,,,#',
+  '#,b,,,~~######~~,,,b,#',
+  '##,,####~~~~~~####,,##',
   '##__________________##',
   '##_~~_###~~~~###_~~_##',
   '##_~~_###~~~~###_~~_##',
@@ -371,12 +371,12 @@ const QUARRY_ROWS = [
   '######################',
   '#t,,,t########t,,,,t##',
   '#,,,,,###t,,t###,,,x##',
-  '#,r,,,###,,,,###,,,,##',
+  '#,r,,,,,,,,,,###,,,,##',
   '##,,,####,,,,####,,###',
   '###_####x,,,,r####_###',
-  '###_####,,,,,,####_###',
-  '###______##__##_____##',
-  '#####~~__~~__~~__~~_##',
+  '###_#####,,,,,####_###',
+  '###______######_____##',
+  '#####~~__~~~~~~__~~_##',
   '##____~~______~~____##',
   '##_##____###_____##_##',
   '##_#####,,,,,,####__##',
@@ -391,11 +391,11 @@ const SLAG_ROWS = [
   '######################',
   '##t,,,t#t,,,,t#t,,,t##',
   '##,,,r,#,,,,,,#,r,,,##',
-  '##,,,,,#,,,,r,#,,,,,##',
+  '##,,,,,,,,,,r,#,,,,,##',
   '###,,###,,,,,,###,,###',
-  '####_#####__#####_####',
-  '#~~_____~~__~~_____~~#',
-  '#~~_###_~~__~~_###_~~#',
+  '####_############_####',
+  '#~~_____~~~~~~_____~~#',
+  '#~~_###_~~~~~~_###_~~#',
   '###_###____________###',
   '###_____~~~~~~____####',
   '#####_r_~~~~~~_r_#####',

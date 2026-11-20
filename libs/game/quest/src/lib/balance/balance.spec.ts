@@ -1,4 +1,4 @@
-import { ClassId, createRng, statBudget, totalXpForLevel } from '@jouster/game/engine';
+import { ClassId, EncounterTable, createRng, statBudget, totalXpForLevel } from '@jouster/game/engine';
 import { CLASS_ORDER, classDef } from '../data/classes';
 import { ACT_THREE_BOSS_IDS, ACT_TWO_BOSS_IDS, FINALE_BOSS_IDS, ENCOUNTER_TABLES, BOSS_HP_SCALE, SOLO_MAX_ENEMIES } from '../data/monsters';
 import { ITEMS, WEAPONS } from '../data/equipment';
@@ -11,6 +11,7 @@ import { MONSTERS } from '../data/monsters';
 import { monstersToCombatants } from '../state/party';
 import { mapDef } from '../data/maps';
 import { armed, duo, geared, tier2 } from './kits';
+import { arrivalFight, bossNpc, bossTrek, fieldTopUp, findSightRoute, sightRoute, trekTables, walkIn } from './arrival';
 
 const N = 400;
 
@@ -21,6 +22,20 @@ function startKit(classId: ClassId): Record<string, number> {
 function killRounds(classId: ClassId, level: number, monsterId: string): number {
   return runMany(N, (i) => simulateFight([createMember('h', 'Hero', classId, level)], [monsterId], {}, createRng(1000 + i)))
     .avgRounds;
+}
+
+/** Plan §37: steps from the entrance until each warden (by lead monster id) comes into sight. */
+function sightSteps(mapId: string, ids: string[]): number[] {
+  return ids.map((id) => sightRoute(mapId, bossNpc(mapId, id).id).steps);
+}
+
+function expectRising(values: number[]): void {
+  values.slice(1).forEach((v, i) => expect(v).toBeGreaterThan(values[i]));
+}
+
+/** The walk-in fights before each of a dungeon's wardens taken back to back: entrance to the first, then onwards. */
+function gauntletTreks(mapId: string, ids: string[], level: number): EncounterTable[][] {
+  return ids.map((id, i) => bossTrek(mapId, id, level, i === 0 ? undefined : bossNpc(mapId, ids[i - 1])));
 }
 
 describe('Jouster Quest balance (plan section 4.6)', () => {
@@ -108,9 +123,11 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     expect(expectedDamage(c, goblin(), ability('bolt')) * 2).toBeGreaterThan(fire);
   });
 
+  // Plan §37: bosses attack on sight, so every boss fight below starts with the random fights on the way in.
   it.each(CLASS_ORDER)('%s solo beats the Goblin King >= 60%% at level 6 with shop gear', (id) => {
+    const trek = bossTrek('goblinCave', 'goblinKing', 6);
     const stats = runMany(N, (i) =>
-      simulateFight([tier2(createMember('h', 'Hero', id, 6))], ['goblinKing'], { herb: 6, tonic: 1 }, createRng(9000 + i), {
+      arrivalFight([tier2(createMember('h', 'Hero', id, 6))], trek, ['goblinKing'], { herb: 6, tonic: 1 }, createRng(9000 + i), {
         bossHpScale: BOSS_HP_SCALE[0],
       }),
     );
@@ -128,18 +145,19 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
   });
 
   // Side-quest mini-bosses (with their minions) as placed in the world.
-  const miniBossFights = ['overworld', 'thornwick', 'goblinCave', 'wolfDen']
-    .flatMap((id) => mapDef(id).npcs)
-    .flatMap((n) => (n.boss && !n.boss.monsterIds.includes('goblinKing') ? [n.boss.monsterIds] : []));
+  const miniBossFights = ['overworld', 'thornwick', 'goblinCave', 'wolfDen'].flatMap((mapId) =>
+    mapDef(mapId).npcs.flatMap((n) => (n.boss && !n.boss.monsterIds.includes('goblinKing') ? [[mapId, n.boss.monsterIds] as const] : [])),
+  );
 
   it('places all four mini-boss fights', () => {
-    expect(miniBossFights.map((f) => f[0]).sort()).toEqual(['alphaWolf', 'boneCaptain', 'giantToad', 'goblinChief']);
+    expect(miniBossFights.map(([, f]) => f[0]).sort()).toEqual(['alphaWolf', 'boneCaptain', 'giantToad', 'goblinChief']);
   });
 
-  const miniCases = CLASS_ORDER.flatMap((id) => miniBossFights.map((fight) => [id, fight.join('+'), fight] as const));
-  it.each(miniCases)('%s solo beats %s >= 60%% at level 7 with shop gear', (id, _name, fight) => {
+  const miniCases = CLASS_ORDER.flatMap((id) => miniBossFights.map(([mapId, fight]) => [id, fight.join('+'), mapId, fight] as const));
+  it.each(miniCases)('%s solo beats %s >= 60%% at level 7 with shop gear', (id, _name, mapId, fight) => {
+    const trek = bossTrek(mapId, fight[0], 7);
     const stats = runMany(N, (i) =>
-      simulateFight([tier2(createMember('h', 'Hero', id, 7))], [...fight], { herb: 6, tonic: 1 }, createRng(11000 + i), {
+      arrivalFight([tier2(createMember('h', 'Hero', id, 7))], trek, fight, { herb: 6, tonic: 1 }, createRng(11000 + i), {
         bossHpScale: BOSS_HP_SCALE[0],
       }),
     );
@@ -158,13 +176,18 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     expect(wardenFights.map((f) => f[0]).sort()).toEqual(Object.keys(wardenRungs).sort());
   });
 
+  it('sights the Old Mine wardens in rung order (plan §37)', () => {
+    expectRising(sightSteps('oldMine', Object.keys(wardenRungs)));
+  });
+
   const wardenCases = CLASS_ORDER.flatMap((id) => wardenFights.map((fight) => [id, fight.join('+'), fight] as const));
   it.each(wardenCases)('%s solo beats %s >= 70%% at its rung with shop gear', (id, _name, fight) => {
     const { level, tier } = wardenRungs[fight[0]];
     const hero = armed(createMember('h', 'Hero', id, level), tier);
     const kit = { ...startKit(id), herb: 4 };
+    const trek = bossTrek('oldMine', fight[0], level);
     const stats = runMany(N, (i) =>
-      simulateFight([hero], [...fight], kit, createRng(70000 + i), { bossHpScale: BOSS_HP_SCALE[0] }),
+      arrivalFight([hero], trek, fight, kit, createRng(70000 + i), { bossHpScale: BOSS_HP_SCALE[0] }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
@@ -180,21 +203,34 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
   const grindKit = (kit: Record<string, number>): Record<string, number> =>
     Object.fromEntries(Object.entries(kit).map(([k, v]) => [k, Math.ceil(v / 2)]));
 
-  /** All of a dungeon's wardens back to back, one inn trip: HP, MP and consumables carry over between the fights. */
-  const gauntlet = (party: PartyMember[], fights: string[][], kit: Record<string, number>, seed: number): FightResult => {
+  /**
+   * All of a dungeon's wardens back to back, one inn trip, with the random fights on the way to each (plan §37):
+   * HP, MP and consumables carry over throughout.
+   */
+  const gauntlet = (
+    party: PartyMember[],
+    fights: string[][],
+    treks: EncounterTable[][],
+    kit: Record<string, number>,
+    seed: number,
+  ): FightResult => {
     const rng = createRng(seed);
     let members = party;
     let inventory = kit;
     let rounds = 0;
     let last: FightResult | undefined;
-    for (const fight of fights) {
-      const r = simulateFight(members, [...fight], inventory, rng, { bossHpScale: BOSS_HP_SCALE[1] });
+    for (const [k, fight] of fights.entries()) {
+      const arrival = walkIn(members, treks[k], inventory, rng);
+      if (arrival.lost) {
+        return { ...arrival.lost, rounds: rounds + arrival.lost.rounds };
+      }
+      const r = simulateFight(arrival.party, [...fight], arrival.inventory, rng, { bossHpScale: BOSS_HP_SCALE[1] });
       rounds += r.rounds;
       last = r;
       if (r.outcome !== 'victory') {
         break;
       }
-      members = members.map((m, i) => ({ ...m, hp: r.hp[i], mp: r.mp[i] }));
+      members = arrival.party.map((m, i) => ({ ...m, hp: Math.max(0, r.hp[i]), mp: r.mp[i] }));
       inventory = r.inventory;
     }
     return { ...(last ?? fail()), rounds };
@@ -203,7 +239,9 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
   /**
    * Plan §36: from Act II on, each act has a grind dungeon of three respawning wardens. Each warden is a party's
    * rung toward the act boss (gear a tier behind, since that tier is bought during the act), every pair can clear
-   * the whole dungeon in one inn trip at the top rung, and no warden outclasses the act's bosses.
+   * the whole dungeon in one inn trip at the top rung, and no warden outclasses the act's bosses. Plan §37: the
+   * wardens attack on sight, so the top one is sighted last and only past the first, and every fight is measured
+   * after the walk in.
    */
   function grindDungeon(
     mapId: string,
@@ -213,18 +251,27 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     seed: number,
   ): void {
     const name = mapDef(mapId).name;
-    const fights = mapDef(mapId).npcs.flatMap((n) => (n.boss ? [n.boss.monsterIds] : []));
+    const order = Object.keys(rungs).sort((a, b) => rungs[a].level - rungs[b].level);
+    const fights = order.map((id) => [...(bossNpc(mapId, id).boss?.monsterIds ?? fail())]);
     const kit = grindKit(actKit);
 
     it(`places the three ${name} wardens`, () => {
-      expect(fights.map((f) => f[0]).sort()).toEqual(Object.keys(rungs).sort());
+      const placed = mapDef(mapId).npcs.flatMap((n) => (n.boss ? [n.boss.monsterIds[0]] : []));
+      expect(placed.sort()).toEqual([...order].sort());
+    });
+
+    it(`sights the ${name} wardens in rung order, the top one only past the first`, () => {
+      expectRising(sightSteps(mapId, order));
+      const top = bossNpc(mapId, order[order.length - 1]).id;
+      expect(findSightRoute(mapId, top, undefined, [bossNpc(mapId, order[0]).id])).toBeUndefined();
     });
 
     const pairCases = pairs.flatMap(([a, b]) => fights.map((fight) => [a, b, fight.join('+'), fight] as const));
     it.each(pairCases)(`a %s + %s pair beats ${name}'s %s >= 70%% at its rung`, (a, b, _name, fight) => {
       const { level, tier } = rungs[fight[0]];
+      const trek = bossTrek(mapId, fight[0], level);
       const stats = runMany(N, (i) =>
-        simulateFight(duo(a, b, level, tier), [...fight], kit, createRng(seed + i), { bossHpScale: BOSS_HP_SCALE[1] }),
+        arrivalFight(duo(a, b, level, tier), trek, fight, kit, createRng(seed + i), { bossHpScale: BOSS_HP_SCALE[1] }),
       );
       expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
     });
@@ -233,15 +280,17 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     it.each(trioCases)(`a %s + %s + %s party one level under its rung beats ${name}'s %s >= 70%%`, (a, b, c, _name, fight) => {
       const { level, tier } = rungs[fight[0]];
       const party = [a, b, c].map((cls, i) => geared(createMember(`m${i}`, `M${i}`, cls, level - 1), tier));
+      const trek = bossTrek(mapId, fight[0], level - 1);
       const stats = runMany(N, (i) =>
-        simulateFight(party, [...fight], kit, createRng(seed + 1000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
+        arrivalFight(party, trek, fight, kit, createRng(seed + 1000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
       );
       expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
     });
 
     it.each(pairs)(`a %s + %s pair at the top rung clears the whole ${name} in one trip >= 50%%`, (a, b) => {
-      const top = rungs[fights[fights.length - 1][0]];
-      const stats = runMany(N / 2, (i) => gauntlet(duo(a, b, top.level, top.tier), fights, kit, seed + 2000 + i));
+      const top = rungs[order[order.length - 1]];
+      const treks = gauntletTreks(mapId, order, top.level);
+      const stats = runMany(N / 2, (i) => gauntlet(duo(a, b, top.level, top.tier), fights, treks, kit, seed + 2000 + i));
       expect(stats.winRate).toBeGreaterThanOrEqual(0.5);
     });
 
@@ -257,16 +306,18 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
 
   it.each(pairs)('a %s hero + %s companion at level 5 beats the Goblin King >= 70%% of the time', (a, b) => {
     const party = [tier2(createMember('a', 'A', a, 5)), tier2(createMember('b', 'B', b, 5))];
+    const trek = bossTrek('goblinCave', 'goblinKing', 5);
     const stats = runMany(N, (i) =>
-      simulateFight(party, ['goblinKing'], { herb: 3 }, createRng(15000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
+      arrivalFight(party, trek, ['goblinKing'], { herb: 3 }, createRng(15000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
 
   it.each(trios)('a %s + %s + %s party at level 5 beats the Goblin King >= 70%% of the time', (...classes) => {
     const party = classes.map((c, i) => tier2(createMember(`m${i}`, `M${i}`, c, 5)));
+    const trek = bossTrek('goblinCave', 'goblinKing', 5);
     const stats = runMany(N, (i) =>
-      simulateFight(party, ['goblinKing'], { herb: 3 }, createRng(12000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
+      arrivalFight(party, trek, ['goblinKing'], { herb: 3 }, createRng(12000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
@@ -320,20 +371,24 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     expect(stats.winRate).toBeGreaterThanOrEqual(0.9);
   });
 
-  const shrineFights = ['sunShrine', 'mireShrine'].flatMap((id) => mapDef(id).npcs).flatMap((n) => (n.boss ? [n.boss.monsterIds] : []));
-  const shrinePairs = pairs.flatMap(([a, b]) => shrineFights.map((fight) => [a, b, fight.join('+'), fight] as const));
-  it.each(shrinePairs)('a level-11 %s + level-10 %s beat %s >= 70%% with tier-3 gear', (a, b, _name, fight) => {
+  const shrineFights = ['sunShrine', 'mireShrine'].flatMap((mapId) =>
+    mapDef(mapId).npcs.flatMap((n) => (n.boss ? [[mapId, n.boss.monsterIds] as const] : [])),
+  );
+  const shrinePairs = pairs.flatMap(([a, b]) => shrineFights.map(([mapId, fight]) => [a, b, fight.join('+'), mapId, fight] as const));
+  it.each(shrinePairs)('a level-11 %s + level-10 %s beat %s >= 70%% with tier-3 gear', (a, b, _name, mapId, fight) => {
+    const trek = bossTrek(mapId, fight[0], 11);
     const stats = runMany(N, (i) =>
-      simulateFight(duo(a, b, 11, 3), [...fight], actTwoKit, createRng(33000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
+      arrivalFight(duo(a, b, 11, 3), trek, fight, actTwoKit, createRng(33000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
 
-  const shrineTrios = trios.flatMap((t) => shrineFights.map((fight) => [...t, fight.join('+'), fight] as const));
-  it.each(shrineTrios)('a %s + %s + %s party at level 10 beats %s >= 70%%', (a, b, c, _name, fight) => {
+  const shrineTrios = trios.flatMap((t) => shrineFights.map(([mapId, fight]) => [...t, fight.join('+'), mapId, fight] as const));
+  it.each(shrineTrios)('a %s + %s + %s party at level 10 beats %s >= 70%%', (a, b, c, _name, mapId, fight) => {
     const party = [a, b, c].map((cls, i) => geared(createMember(`m${i}`, `M${i}`, cls, 10), 3));
+    const trek = bossTrek(mapId, fight[0], 10);
     const stats = runMany(N, (i) =>
-      simulateFight(party, [...fight], { herb: 4 }, createRng(34000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
+      arrivalFight(party, trek, fight, { herb: 4 }, createRng(34000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
@@ -383,8 +438,9 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
   const roostFights = mapDef('wyvernRoost').npcs.flatMap((n) => (n.boss ? [n.boss.monsterIds] : []));
   const roostPairs = pairs.flatMap(([a, b]) => roostFights.map((fight) => [a, b, fight.join('+'), fight] as const));
   it.each(roostPairs)('a level-14 %s + level-13 %s beat %s >= 70%% with tier-4 gear', (a, b, _name, fight) => {
+    const trek = bossTrek('wyvernRoost', fight[0], 14);
     const stats = runMany(N, (i) =>
-      simulateFight(duo(a, b, 14, 4), [...fight], actThreeKit, createRng(43000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
+      arrivalFight(duo(a, b, 14, 4), trek, fight, actThreeKit, createRng(43000 + i), { bossHpScale: BOSS_HP_SCALE[1] }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
@@ -392,8 +448,9 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
   const roostTrios = trios.flatMap((t) => roostFights.map((fight) => [...t, fight.join('+'), fight] as const));
   it.each(roostTrios)('a %s + %s + %s party at level 13 beats %s >= 70%%', (a, b, c, _name, fight) => {
     const party = [a, b, c].map((cls, i) => geared(createMember(`m${i}`, `M${i}`, cls, 13), 4));
+    const trek = bossTrek('wyvernRoost', fight[0], 13);
     const stats = runMany(N, (i) =>
-      simulateFight(party, [...fight], { herb: 4, potion: 2 }, createRng(44000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
+      arrivalFight(party, trek, fight, { herb: 4, potion: 2 }, createRng(44000 + i), { bossHpScale: BOSS_HP_SCALE[2] }),
     );
     expect(stats.winRate).toBeGreaterThanOrEqual(0.7);
   });
@@ -440,15 +497,20 @@ describe('Jouster Quest balance (plan section 4.6)', () => {
     expect(stats.winRate).toBeGreaterThanOrEqual(0.9);
   });
 
-  /** Vyrmorth then, with no rest, Vyrmorth Unbound: HP, MP and consumables carry over between the phases. */
+  /**
+   * The walk in, then Vyrmorth, then with no rest Vyrmorth Unbound: HP, MP and consumables carry over throughout.
+   */
   const vyrmorth = (party: PartyMember[], kit: Record<string, number>, seed: number, scale: number): FightResult => {
     const boss = mapDef('vyrmorthLair').npcs.find((n) => n.boss)?.boss ?? fail();
     const rng = createRng(seed);
-    const first = simulateFight(party, [...boss.monsterIds], kit, rng, { bossHpScale: scale });
+    const level = Math.max(...party.map((m) => m.level));
+    const first = arrivalFight(party, bossTrek('vyrmorthLair', 'vyrmorth', level), boss.monsterIds, kit, rng, {
+      bossHpScale: scale,
+    });
     if (first.outcome !== 'victory') {
       return first;
     }
-    const worn = party.map((m, i) => ({ ...m, hp: first.hp[i], mp: first.mp[i] }));
+    const worn = party.map((m, i) => ({ ...m, hp: Math.max(0, first.hp[i]), mp: first.mp[i] }));
     const second = simulateFight(worn, [...(boss.phaseTwo?.monsterIds ?? [])], first.inventory, rng, { bossHpScale: scale });
     return { ...second, rounds: first.rounds + second.rounds };
   };
@@ -503,6 +565,8 @@ interface Stage {
   kit?: Record<string, number>;
   fight(rng: ReturnType<typeof createRng>): string[];
   bossHpScale?: number;
+  /** Plan §37: random fights on the way in to a boss, which attacks on sight. */
+  trek?: EncounterTable[];
 }
 
 const fromTable = (id: string): ((rng: ReturnType<typeof createRng>) => string[]) => {
@@ -516,12 +580,17 @@ const tableStage = (id: string, level: number, tier: number, kit?: Record<string
   kit,
   fight: fromTable(id),
 });
-/** Every boss fight placed on the given maps (minus excluded leads), as solo stages. */
+/** Every boss fight placed on the given maps (minus excluded leads), as solo stages reached on foot. */
 const bossStages = (maps: string[], level: number, tier: number, kit: Record<string, number>, skip: string[] = []): Stage[] =>
-  maps
-    .flatMap((id) => mapDef(id).npcs)
-    .flatMap((n) => (n.boss && !skip.includes(n.boss.monsterIds[0]) ? [n.boss.monsterIds] : []))
-    .map((ids) => ({ name: ids.join('+'), level, tier, kit, fight: () => [...ids], bossHpScale: BOSS_HP_SCALE[0] }));
+  maps.flatMap((mapId) =>
+    mapDef(mapId)
+      .npcs.flatMap((n) => (n.boss && !skip.includes(n.boss.monsterIds[0]) ? [n] : []))
+      .map((n) => {
+        const ids = n.boss?.monsterIds ?? fail();
+        const trek = trekTables(sightRoute(mapId, n.id), level);
+        return { name: ids.join('+'), level, tier, kit, fight: () => [...ids], bossHpScale: BOSS_HP_SCALE[0], trek };
+      }),
+  );
 const soloKitI = { herb: 6, tonic: 1 };
 const soloKitII = { herb: 8, tonic: 2 };
 const soloKitIII = { herb: 8, tonic: 2, potion: 2 };
@@ -531,7 +600,15 @@ const STAGES: Stage[] = [
   tableStage('forest', 4, 1, soloKitI),
   tableStage('hills', 5, 2, soloKitI),
   tableStage('cave', 6, 2, soloKitI),
-  { name: 'goblinKing', level: 6, tier: 2, kit: soloKitI, fight: () => ['goblinKing'], bossHpScale: BOSS_HP_SCALE[0] },
+  {
+    name: 'goblinKing',
+    level: 6,
+    tier: 2,
+    kit: soloKitI,
+    fight: () => ['goblinKing'],
+    bossHpScale: BOSS_HP_SCALE[0],
+    trek: bossTrek('goblinCave', 'goblinKing', 6),
+  },
   ...bossStages(['overworld', 'thornwick', 'goblinCave', 'wolfDen'], 7, 2, soloKitI, ['goblinKing']),
 ];
 /** Plan 4.4c: post-unlock content, reported for a hero who stays alone but not asserted (a party is expected). */
@@ -556,7 +633,9 @@ function stageStats(classId: ClassId, stage: Stage, levelOffset = 0): { winRate:
   const m = hero(classId, stage.level + levelOffset, stage.tier);
   const kit = stage.kit ?? startKit(classId);
   return runMany(N, (i) =>
-    simulateFight([m], stage.fight(createRng(51000 + i)), kit, createRng(52000 + i), { bossHpScale: stage.bossHpScale }),
+    arrivalFight([m], stage.trek ?? [], stage.fight(createRng(51000 + i)), kit, createRng(52000 + i), {
+      bossHpScale: stage.bossHpScale,
+    }),
   );
 }
 
@@ -581,28 +660,6 @@ function streak(classId: ClassId, stage: Stage, seed: number, cap = 25): number 
     }
   }
   return cap;
-}
-
-/** What a careful player does between fights: patch HP up to 60% (Heal spell first, then Herbs, then Potions). */
-function fieldTopUp(m: PartyMember, inv: Record<string, number>): void {
-  const c = memberToCombatant(m);
-  const healCost = ABILITIES.get('heal')?.mpCost ?? 3;
-  const canHeal = c.abilityIds.includes('heal');
-  while (m.hp < c.maxHp * 0.6) {
-    if (canHeal && m.mp >= healCost * 2) {
-      m.mp -= healCost;
-      m.hp += 10 + c.mag * 2;
-    } else if ((inv['herb'] ?? 0) > 0) {
-      inv['herb']--;
-      m.hp += ITEMS.get('herb')?.amount ?? 25;
-    } else if ((inv['potion'] ?? 0) > 0) {
-      inv['potion']--;
-      m.hp += ITEMS.get('potion')?.amount ?? 70;
-    } else {
-      break;
-    }
-  }
-  m.hp = Math.min(m.hp, c.maxHp);
 }
 
 function avgStreak(classId: ClassId, stage: Stage): number {
