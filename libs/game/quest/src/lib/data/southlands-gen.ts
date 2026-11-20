@@ -12,6 +12,11 @@ import { Grid, Point, cheapestPath, fill, valueNoise } from './overworld-gen';
 export const SOUTHLANDS_W = 64;
 export const SOUTHLANDS_H = 48;
 export const SOUTHLANDS_SEED = 0x50_7a_1d;
+/**
+ * The desert gives way to marsh around this column (the shore wavers about 5 tiles either side). The marsh's
+ * weather zone starts here too (plan §38): only ~1% of walkable tiles end up under the other region's sky.
+ */
+export const SOUTH_MARSH_LINE = 34;
 
 /** Hand-placed landmarks (tile coordinates). */
 export const SOUTH_LANDMARKS = {
@@ -40,7 +45,7 @@ const BOARDWALK = ';';
 function marshMask(): boolean[][] {
   const wobble = valueNoise(SOUTHLANDS_SEED + 9, 8, SOUTHLANDS_W, SOUTHLANDS_H);
   return Array.from({ length: SOUTHLANDS_H }, (_, y) =>
-    Array.from({ length: SOUTHLANDS_W }, (_, x) => x > 34 + Math.round((wobble(x, y) - 0.5) * 10)),
+    Array.from({ length: SOUTHLANDS_W }, (_, x) => x > SOUTH_MARSH_LINE + Math.round((wobble(x, y) - 0.5) * 10)),
   );
 }
 

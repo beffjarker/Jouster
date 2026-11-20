@@ -1,13 +1,42 @@
 import { Renderer, createCanvas } from '@jouster/game/engine';
-import { Season, WeatherKind } from '../state/weather';
+import { Climate, Season, WeatherKind } from '../state/weather';
 import { SCREEN_H, SCREEN_W } from './widgets';
 
-/** Colour wash over outdoor ground for each season (spring is the natural palette). */
-const SEASON_TINT: Readonly<Record<Season, string | undefined>> = {
-  spring: undefined,
-  summer: 'rgba(255,214,120,0.07)',
-  autumn: 'rgba(214,110,30,0.16)',
-  winter: 'rgba(228,238,255,0.3)',
+/**
+ * Colour wash over outdoor ground for each climate and season (spring is the natural palette). Only temperate
+ * and alpine winters frost the land white; the desert cools, the marsh greys and the volcanic lands darken.
+ */
+const SEASON_TINT: Readonly<Record<Climate, Readonly<Record<Season, string | undefined>>>> = {
+  temperate: {
+    spring: undefined,
+    summer: 'rgba(255,214,120,0.07)',
+    autumn: 'rgba(214,110,30,0.16)',
+    winter: 'rgba(228,238,255,0.3)',
+  },
+  desert: {
+    spring: undefined,
+    summer: 'rgba(255,190,90,0.12)',
+    autumn: 'rgba(230,150,70,0.07)',
+    winter: 'rgba(190,205,235,0.1)',
+  },
+  marsh: {
+    spring: undefined,
+    summer: 'rgba(210,220,120,0.07)',
+    autumn: 'rgba(170,120,50,0.14)',
+    winter: 'rgba(170,185,200,0.16)',
+  },
+  alpine: {
+    spring: undefined,
+    summer: 'rgba(255,230,170,0.05)',
+    autumn: 'rgba(210,180,150,0.06)',
+    winter: 'rgba(228,238,255,0.3)',
+  },
+  volcanic: {
+    spring: undefined,
+    summer: 'rgba(255,140,60,0.08)',
+    autumn: 'rgba(170,90,40,0.1)',
+    winter: 'rgba(90,90,110,0.14)',
+  },
 };
 
 /**
@@ -30,15 +59,18 @@ export function fadeColor(color: string, strength: number): string {
   return color;
 }
 
-/** The season's ground wash at `strength` (0..1), or undefined when the season has none or it has faded out. */
-export function seasonTint(season: Season, strength = 1): string | undefined {
-  const tint = SEASON_TINT[season];
+/**
+ * The season's ground wash in a climate at `strength` (0..1), or undefined when that season has none there or it
+ * has faded out.
+ */
+export function seasonTint(season: Season, strength = 1, climate: Climate = 'temperate'): string | undefined {
+  const tint = SEASON_TINT[climate][season];
   return tint && strength > 0 ? fadeColor(tint, strength) : undefined;
 }
 
 /** Tints the outdoor ground for the season (draw after tiles, before sprites). `strength` fades it in or out. */
-export function drawSeasonTint(r: Renderer, season: Season, strength = 1): void {
-  const tint = seasonTint(season, strength);
+export function drawSeasonTint(r: Renderer, season: Season, strength = 1, climate: Climate = 'temperate'): void {
+  const tint = seasonTint(season, strength, climate);
   if (tint) {
     r.fillRect(0, 0, SCREEN_W, SCREEN_H, tint);
   }
@@ -248,7 +280,8 @@ function rain(
 
 /**
  * Snowflakes with depth: big near flakes fall faster and brighter; some are little crosses. Like rain, they thin
- * out between snow cells fixed to the ground (`floor` is the lightest a gap gets).
+ * out between snow cells fixed to the ground (`floor` is the lightest a gap gets). `rgb` recolours the flakes, so
+ * the same drift carries blown sand and falling ash.
  */
 function snow(
   r: Renderer,
@@ -258,6 +291,7 @@ function snow(
   speed: number,
   drift: number,
   floor: number,
+  rgb = '255,255,255',
 ): void {
   const span = SCREEN_H + 16;
   const gust = drift === 0 ? 0 : drift * (0.75 + Math.sin(time * 0.7) * 0.35);
@@ -271,7 +305,7 @@ function snow(
       continue;
     }
     const alpha = 0.45 + depth * 0.5;
-    const color = `rgba(255,255,255,${alpha.toFixed(2)})`;
+    const color = `rgba(${rgb},${alpha.toFixed(2)})`;
     if (drift !== 0 && depth > 0.5) {
       r.fillRect(x, y, 3 + Math.floor(depth * 3), 1, color);
     } else if (depth > 0.85) {
@@ -386,6 +420,18 @@ export function drawWeather(
     case 'fog':
       tint('rgba(205,210,220,0.26)');
       clouds(r, time, cam, 8, '#eef0f4', 0.35 * s, true, 7);
+      break;
+    case 'sandstorm':
+      // A blizzard's gusts carrying sand: a flickering ochre haze, pale dust banks racing low and streaking grains.
+      tint(`rgba(176,116,54,${(0.4 + Math.sin(time * 1.1) * 0.06).toFixed(3)})`);
+      clouds(r, time, cam, 7, '#ecd09a', 0.38 * s, true, -90);
+      snow(r, time, cam, n(260), 30, -200, 0.4, '250,232,192');
+      break;
+    case 'ashfall':
+      // Grey flakes drifting down slowly under a dim, smoky sky.
+      tint('rgba(70,45,40,0.22)');
+      clouds(r, time, cam, 4, '#1e1818', 0.2 * s, false, 6);
+      snow(r, time, cam, n(170), 16, 0, 0.25, '196,190,184');
       break;
     default:
       break;
