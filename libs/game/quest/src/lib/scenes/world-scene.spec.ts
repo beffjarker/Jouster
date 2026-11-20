@@ -4,14 +4,14 @@ import { INN_RESPAWN, mapDef } from '../data/maps';
 import { ENCOUNTER_TABLES } from '../data/monsters';
 import { NORTH_LANDMARKS } from '../data/frostpeaks-gen';
 import { LANDMARKS } from '../data/overworld-gen';
-import { SOUTH_LANDMARKS } from '../data/southlands-gen';
+import { SOUTH_LANDMARKS, SOUTH_MARSH_LINE } from '../data/southlands-gen';
 import { CAVE_FOG_RADIUS, isExplored } from '../state/fog';
 import { ITEMS } from '../data/equipment';
 import { BAG_LIMIT, createGear } from '../state/equipment';
 import { GameState, addItem, companionPresent, hasSave, loadGame, memoryStorage, newGameState, recruitCompanion } from '../state/game-state';
 import { GearItem, gearSellPrice } from '../state/loot';
 import { createMember } from '../state/party';
-import { SUNNY_SIGHT_RADIUS, weatherAt, weatherSeed, weatherSightRadius } from '../state/weather';
+import { STEPS_PER_WEATHER, SUNNY_SIGHT_RADIUS, WEATHER, weatherAt, weatherSeed, weatherSightRadius } from '../state/weather';
 import { InputDriver } from '../testing/input-driver';
 import { SCREEN_H, SCREEN_W } from '../ui/widgets';
 import { GameContext } from './context';
@@ -715,11 +715,12 @@ describe('WorldScene', () => {
     const start = grassRun();
     const probe = newGameState('TEST', 'cleric');
     const seed = weatherSeed(probe);
+    const temperate = (s: number): string => weatherAt(s, seed, 'temperate');
     let steps = 0;
-    while (steps < 100000 && weatherAt(steps, seed) !== 'fog' && weatherAt(steps, seed) !== 'blizzard') {
+    while (steps < 100000 && temperate(steps) !== 'fog' && temperate(steps) !== 'blizzard') {
       steps += 40;
     }
-    const radius = weatherSightRadius(weatherAt(steps, seed));
+    const radius = weatherSightRadius(weatherAt(steps, seed, 'temperate'));
     expect(radius).toBeLessThanOrEqual(4);
     const h = setup({ ...probe, mapId: 'overworld', ...start, facing: 'right', steps });
     const width = mapDef('overworld').rows[0].length;
@@ -732,10 +733,10 @@ describe('WorldScene', () => {
     const probe = newGameState('TEST', 'cleric');
     const seed = weatherSeed(probe);
     let steps = 39;
-    while (weatherAt(steps, seed) === weatherAt(steps + 1, seed)) {
+    while (weatherAt(steps, seed, 'temperate') === weatherAt(steps + 1, seed, 'temperate')) {
       steps += 40;
     }
-    const before = weatherAt(steps, seed);
+    const before = weatherAt(steps, seed, 'temperate');
     const h = setup({ ...probe, mapId: 'overworld', ...start, facing: 'right', steps });
     const sky = h.world as unknown as { skyFade: number; skyFrom: { weather: string } | null };
     expect(sky.skyFade).toBe(1);
@@ -746,6 +747,33 @@ describe('WorldScene', () => {
     expect(sky.skyFade).toBeLessThan(1);
     h.run(SKY_FADE_SECONDS);
     expect(sky.skyFade).toBe(1);
+  });
+
+  it('changes the sky when walking from the desert into the Southlands marsh (plan §38)', () => {
+    const def = mapDef('southlands');
+    const legend = new Map(def.legend.map((t) => [t.char, t]));
+    const open = (x: number, y: number): boolean => legend.get(def.rows[y][x])?.solid === false;
+    const y = def.rows.findIndex((_, row) => open(SOUTH_MARSH_LINE - 1, row) && open(SOUTH_MARSH_LINE, row));
+    expect(y).toBeGreaterThan(0);
+    const probe = newGameState('TEST', 'cleric');
+    const seed = weatherSeed(probe);
+    // Mid-period, so the step itself can't change the weather: only the climate underfoot does.
+    let steps = STEPS_PER_WEATHER + 5;
+    while (weatherAt(steps, seed, 'desert') === weatherAt(steps + 1, seed, 'marsh')) {
+      steps += STEPS_PER_WEATHER;
+    }
+    const desert = weatherAt(steps, seed, 'desert');
+    const marsh = weatherAt(steps + 1, seed, 'marsh');
+    const h = setup({ ...probe, mapId: 'southlands', x: SOUTH_MARSH_LINE - 1, y, facing: 'right', steps });
+    const sky = h.world as unknown as { skyFade: number; skyFrom: { weather: string; climate: string } | null; toast: string };
+    expect(sky.skyFade).toBe(1);
+    h.hold('right', STEP_TIME * 1.2);
+    // One step finished (onto the marsh line); the next has just begun, which moves `x` on already.
+    expect(h.state.steps).toBe(steps + 1);
+    expect(h.state.x).toBeGreaterThanOrEqual(SOUTH_MARSH_LINE);
+    expect(sky.skyFrom).toMatchObject({ weather: desert, climate: 'desert' });
+    expect(sky.skyFade).toBeLessThan(1);
+    expect(sky.toast).toBe(WEATHER[marsh].message);
   });
 
   it('chains held steps without pausing at each tile', () => {

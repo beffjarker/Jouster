@@ -1,6 +1,6 @@
 import { Renderer } from '@jouster/game/engine';
-import { WeatherKind } from '../state/weather';
-import { WeatherCamera, drawSeasonTint, drawWeather, fadeColor } from './weather-fx';
+import { CLIMATES, Climate, Season, WeatherKind } from '../state/weather';
+import { WeatherCamera, drawSeasonTint, drawWeather, fadeColor, seasonTint } from './weather-fx';
 import { SCREEN_H, SCREEN_W } from './widgets';
 
 interface Call {
@@ -62,7 +62,7 @@ describe('world-anchored weather', () => {
       .filter((c) => c.x >= margin && c.y >= margin && c.x < SCREEN_W - margin && c.y < SCREEN_H - margin)
       .map((c) => `${(c.x + cam.x).toFixed(2)},${(c.y + cam.y).toFixed(2)}`);
 
-  it.each(['rain', 'storm', 'snow', 'blizzard'] as WeatherKind[])(
+  it.each(['rain', 'storm', 'snow', 'blizzard', 'sandstorm', 'ashfall'] as WeatherKind[])(
     'keeps %s fixed to the ground as the camera moves, in either direction',
     (kind) => {
       const a = { x: 400, y: 300 };
@@ -103,6 +103,36 @@ describe('world-anchored weather', () => {
   it('keeps the screen tint full-screen whatever the camera', () => {
     const calls = frame('cloudy', 1, { x: 500, y: 700 });
     expect(calls[0]).toMatchObject({ x: 0, y: 0, w: SCREEN_W, h: SCREEN_H });
+  });
+
+  it.each([
+    ['sandstorm', 'rgba(250,232,192,'],
+    ['ashfall', 'rgba(196,190,184,'],
+  ] as Array<[WeatherKind, string]>)('blows %s grains in their own colour, not white snow', (kind, rgb) => {
+    const grains = small(frame(kind, 2, { x: 0, y: 0 }));
+    expect(grains.length).toBeGreaterThan(20);
+    grains.forEach((c) => expect(c.color?.startsWith(rgb) ? rgb : c.color).toBe(rgb));
+  });
+});
+
+describe('regional season tints (plan §38)', () => {
+  const wash = (season: Season, climate: Climate): string | undefined => {
+    const { r, calls } = recorder();
+    drawSeasonTint(r, season, 1, climate);
+    return calls[0]?.color;
+  };
+
+  it('frosts the ground white in winter only in temperate and alpine lands', () => {
+    const frost = wash('winter', 'temperate');
+    expect(frost).toBeDefined();
+    expect(wash('winter', 'alpine')).toBe(frost);
+    (['desert', 'marsh', 'volcanic'] as Climate[]).forEach((c) => expect(wash('winter', c)).not.toBe(frost));
+  });
+
+  it('leaves spring untinted everywhere and matches the old temperate year', () => {
+    CLIMATES.forEach((c) => expect(wash('spring', c)).toBeUndefined());
+    expect(seasonTint('autumn')).toBe(seasonTint('autumn', 1, 'temperate'));
+    expect(seasonTint('autumn', 1, 'temperate')).toBe('rgba(214,110,30,0.16)');
   });
 });
 

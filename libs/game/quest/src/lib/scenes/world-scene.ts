@@ -25,6 +25,7 @@ import {
   RESPAWN_FLAGS,
   SIGN_TEXT,
   Warp,
+  climateAt,
   exitRoads,
   mapDef,
   mapHasEncounters,
@@ -58,6 +59,7 @@ import { addToBag, removeFromBag } from '../state/equipment';
 import { GearItem, isPrecious, itemName, rarityName } from '../state/loot';
 import { PartyMember, applyFieldRegen, restoreMember, setPoisoned } from '../state/party';
 import {
+  Climate,
   SEASON_NAMES,
   Season,
   WEATHER,
@@ -159,6 +161,13 @@ interface NpcRuntime extends Walker {
   wanderTimer: number;
 }
 
+/** What the sky shows: the weather and the season's ground wash in the climate underfoot. */
+interface Sky {
+  weather: WeatherKind;
+  season: Season;
+  climate: Climate;
+}
+
 /** Top-down exploration: movement, NPCs, warps, events and random encounters. */
 export class WorldScene implements Scene {
   public readonly id = 'world';
@@ -182,9 +191,11 @@ export class WorldScene implements Scene {
   private readonly torches: ReadonlyArray<{ x: number; y: number }>;
   private toast = '';
   private toastTimer = 0;
-  /** The sky being faded out after a weather or season change; `skyFade` runs 0..1 toward the current sky. */
-  private skyFrom: { weather: WeatherKind; season: Season } | null = null;
+  /** The sky being faded out after a weather, season or climate change; `skyFade` runs 0..1 toward the current sky. */
+  private skyFrom: Sky | null = null;
   private skyFade = 1;
+  /** The sky as of the last finished step, compared after each step to announce and fade in changes. */
+  private sky: Sky;
   private walkGoal: WalkGoal | null = null;
   /** Pointer press that started the current walk; dragging while it is held steers the party. */
   private steerPress = -1;
@@ -215,6 +226,7 @@ export class WorldScene implements Scene {
       strides: 0,
       wanderTimer: 1 + ctx.rng.next() * 2,
     }));
+    this.sky = this.currentSky();
     this.reveal();
   }
 
@@ -223,8 +235,17 @@ export class WorldScene implements Scene {
     return this.map.backdrop !== 'cave';
   }
 
+  /** The climate where the party stands (plan §38); temperate stands in underground, where no sky is drawn. */
+  private get climate(): Climate {
+    return climateAt(this.map, this.state.x, this.state.y) ?? 'temperate';
+  }
+
   private get weather(): WeatherKind {
-    return weatherAt(this.state.steps, this.seed);
+    return weatherAt(this.state.steps, this.seed, this.climate);
+  }
+
+  private currentSky(): Sky {
+    return { weather: this.weather, season: seasonAt(this.state.steps), climate: this.climate };
   }
 
   /**
@@ -547,25 +568,26 @@ export class WorldScene implements Scene {
       }
     }
     const season = seasonAt(this.state.steps);
+    const climate = this.climate;
     const from = this.outdoors && this.skyFade < 1 ? this.skyFrom : null;
     const tints: string[] = [];
     if (this.outdoors) {
-      const washes: Array<[Season, number]> =
-        from && from.season !== season
+      const washes: Array<[Season, Climate, number]> =
+        from && (from.season !== season || from.climate !== climate)
           ? [
-              [from.season, 1 - this.skyFade],
-              [season, this.skyFade],
+              [from.season, from.climate, 1 - this.skyFade],
+              [season, climate, this.skyFade],
             ]
-          : [[season, 1]];
-      washes.forEach(([s, strength]) => {
-        const tint = seasonTint(s, strength);
+          : [[season, climate, 1]];
+      washes.forEach(([s, c, strength]) => {
+        const tint = seasonTint(s, strength, c);
         if (tint) {
           tints.push(tint);
           r.fillRect(0, 0, SCREEN_W, SCREEN_H, tint);
         }
       });
     }
-    const windy = this.outdoors && (this.weather === 'storm' || this.weather === 'blizzard');
+    const windy = this.outdoors && (['storm', 'blizzard', 'sandstorm'] as WeatherKind[]).includes(this.weather);
     (this.map.signs ?? []).forEach((s, i) => {
       const sway = windy ? Math.round(Math.sin(this.time * 6 + i)) : 0;
       r.draw(this.ctx.art.sign(s.kind), s.x * TILE - camX + sway, s.y * TILE - camY);
@@ -764,10 +786,9 @@ export class WorldScene implements Scene {
 
   private finishStep(): void {
     const s = this.state;
-    const before = { season: seasonAt(s.steps), weather: this.weather };
     s.steps++;
     s.stepsSinceBattle++;
-    this.announceSky(before.season, before.weather);
+    this.announceSky();
     const encounterMap = mapHasEncounters(this.map);
     const poisonTicks = s.party.filter((m) => applyFieldRegen(m, s.steps, encounterMap));
     if (poisonTicks.length > 0) {
@@ -803,18 +824,22 @@ export class WorldScene implements Scene {
     }
   }
 
-  /** Shows a short banner when the season turns or the weather changes (outdoors only). */
-  private announceSky(season: Season, weather: WeatherKind): void {
-    const nextSeason = seasonAt(this.state.steps);
-    const next = this.weather;
-    if (nextSeason !== season || next !== weather) {
-      this.skyFrom = { weather, season };
+  /**
+   * Fades in any change of sky since the last step and shows a short banner when the season turns or the weather
+   * changes (outdoors only). Stepping into another climate (the Southlands' marsh) changes the sky as well.
+   */
+  private announceSky(): void {
+    const before = this.sky;
+    const next = this.currentSky();
+    this.sky = next;
+    if (next.season !== before.season || next.weather !== before.weather || next.climate !== before.climate) {
+      this.skyFrom = before;
       this.skyFade = 0;
     }
-    if (nextSeason !== season) {
-      this.showToast(`${SEASON_NAMES[nextSeason]} has come.`);
-    } else if (next !== weather) {
-      this.showToast(WEATHER[next].message);
+    if (next.season !== before.season) {
+      this.showToast(`${SEASON_NAMES[next.season]} has come.`);
+    } else if (next.weather !== before.weather) {
+      this.showToast(WEATHER[next.weather].message);
     } else {
       return;
     }

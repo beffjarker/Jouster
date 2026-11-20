@@ -1,6 +1,6 @@
 import { InputManager, Renderer, Scene, createCanvas, wrapText } from '@jouster/game/engine';
 import { COMPANION_SLOTS } from '../data/companions';
-import { MapDef, mapDef } from '../data/maps';
+import { MapDef, climateAt, mapDef } from '../data/maps';
 import { LANDMARKS } from '../data/overworld-gen';
 import { EMBER_LANDMARKS } from '../data/embermountains-gen';
 import { NORTH_LANDMARKS } from '../data/frostpeaks-gen';
@@ -307,10 +307,10 @@ export class MapScene implements Scene {
         y += 9;
       }
     }
-    const sky =
-      this.map.backdrop === 'cave'
-        ? 'UNDERGROUND'
-        : `${SEASON_NAMES[seasonAt(this.state.steps)]} - ${WEATHER[currentWeather(this.state)].name}`.toUpperCase();
+    const climate = climateAt(this.map, this.state.x, this.state.y);
+    const sky = climate
+      ? `${SEASON_NAMES[seasonAt(this.state.steps)]} - ${WEATHER[currentWeather(this.state, climate)].name}`.toUpperCase()
+      : 'UNDERGROUND';
     r.text(sky, x + 8, SCREEN_H - 29, COLORS.gold);
     r.text('M / X: CLOSE', x + 8, SCREEN_H - 18, COLORS.dim);
   }

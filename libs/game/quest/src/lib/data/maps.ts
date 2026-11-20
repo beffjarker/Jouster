@@ -6,7 +6,8 @@ import { EMBER_WEAPON_STOCK, NORTH_WEAPON_STOCK, SOUTH_WEAPON_STOCK } from './eq
 import { NORTH_LANDMARKS, generateFrostPeaks } from './frostpeaks-gen';
 import { EMBER_ARMOR_STOCK, NORTH_ARMOR_STOCK, SOUTH_ARMOR_STOCK } from './gear';
 import { LANDMARKS, generateOverworld } from './overworld-gen';
-import { SOUTH_LANDMARKS, generateSouthlands } from './southlands-gen';
+import { SOUTHLANDS_H, SOUTHLANDS_W, SOUTH_LANDMARKS, SOUTH_MARSH_LINE, generateSouthlands } from './southlands-gen';
+import type { Climate } from '../state/weather';
 
 export type NpcRole = 'talk' | 'king' | 'inn' | 'itemShop' | 'weaponShop' | 'armorShop' | 'church' | 'boss' | 'companion';
 
@@ -102,6 +103,13 @@ export interface MapEvent {
 
 export type Backdrop = 'field' | 'forest' | 'hills' | 'cave' | 'desert' | 'marsh' | 'snow' | 'volcano';
 
+/** A rectangle of a map (inclusive tile ranges) whose sky follows another climate than the map's own. */
+export interface ClimateZone {
+  climate: Climate;
+  x: readonly [number, number];
+  y: readonly [number, number];
+}
+
 export interface MapDef {
   id: string;
   name: string;
@@ -113,6 +121,8 @@ export interface MapDef {
   /** Tile drawn outside the map edges. */
   outsideTile: string;
   backdrop: Backdrop;
+  /** Parts of the map with their own climate (first match wins); elsewhere the backdrop's climate applies. */
+  climateZones?: readonly ClimateZone[];
   /** Hidden under fog of war until explored (wilds and caves; towns are never fogged). */
   fog?: boolean;
   /** Building signs, each on a wall tile (towns only). */
@@ -1171,6 +1181,8 @@ const BASE_MAPS: MapDef[] = [
       events: [],
       outsideTile: '^',
       backdrop: 'desert',
+      // The marsh east of the wavering desert shore has a wet, foggy sky of its own.
+      climateZones: [{ climate: 'marsh', x: [SOUTH_MARSH_LINE, SOUTHLANDS_W - 1], y: [0, SOUTHLANDS_H - 1] }],
       fog: true,
     },
   {
@@ -1696,6 +1708,26 @@ export function mapDef(id: string): MapDef {
 /** True for wilds, caves and dens (any map with a tile that can trigger encounters); false for towns. */
 export function mapHasEncounters(def: MapDef): boolean {
   return def.legend.some((t) => t.encounterTableId !== undefined);
+}
+
+/** The climate each outdoor backdrop stands for (plan §38). */
+export const BACKDROP_CLIMATE: Readonly<Record<Exclude<Backdrop, 'cave'>, Climate>> = {
+  field: 'temperate',
+  forest: 'temperate',
+  hills: 'temperate',
+  desert: 'desert',
+  marsh: 'marsh',
+  snow: 'alpine',
+  volcano: 'volcanic',
+};
+
+/** The climate whose weather falls at tile (x, y) of a map, or undefined underground (caves have no sky). */
+export function climateAt(map: MapDef, x: number, y: number): Climate | undefined {
+  if (map.backdrop === 'cave') {
+    return undefined;
+  }
+  const zone = map.climateZones?.find((z) => x >= z.x[0] && x <= z.x[1] && y >= z.y[0] && y <= z.y[1]);
+  return zone?.climate ?? BACKDROP_CLIMATE[map.backdrop];
 }
 
 /**

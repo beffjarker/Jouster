@@ -582,9 +582,10 @@ class below it.
 Weather and seasons apply outdoors only; caves have no weather. Both are derived from the step counter plus a
 per-journey seed (hash of the hero name and companion roster), so they need no extra save fields and never use the
 battle RNG. Weather does not affect encounters or battles. Clouds, fog banks and precipitation will be anchored
-to the world rather than the screen (15.1).
+to the world rather than the screen (15.1). Each region rolls from its own climate's table (§38); the table below
+is the temperate year of Greenwood Vale and its towns.
 
-| Season | Steps (repeats every 1200) | Look | Possible weather |
+| Season | Steps (repeats every 1200) | Look | Possible weather (temperate) |
 | --- | --- | --- | --- |
 | Spring | 0–299 | No tint | clear, cloudy, rain, storm, fog |
 | Summer | 300–599 | Warm tint | clear, cloudy, rain, storm |
@@ -599,8 +600,11 @@ to the world rather than the screen (15.1).
 | Storm | 3 | 5 | Heavy rain with lightning flashes |
 | Fog | 4 | 4 | Drifting fog bands |
 | Blizzard | 5 | 3 | Dense, wind-driven snow |
+| Sandstorm (desert only, §38) | 4 | 4 | Ochre haze, racing dust banks, blown grains |
+| Ashfall (volcanic only, §38) | 3 | 5 | Smoky tint, grey flakes drifting down |
 
-- Weather is rolled every 40 steps from the season's weighted table; every journey opens with clear skies.
+- Weather is rolled every 40 steps from the climate's weighted table for the season; every journey opens with clear
+  skies.
 - A banner announces each change ("Summer has come.", "It starts to rain."). The field HUD and the `M` map
   legend show `SEASON - WEATHER` (or `UNDERGROUND` in caves).
 - Changes fade rather than pop: over 3 seconds (`SKY_FADE_SECONDS`) the old weather and season tint fade out while
@@ -2554,3 +2558,63 @@ FIGHT or RETREAT choice and no way to walk up rested; a party meets a boss worn 
     the King attacks first. The Vyrmorth and Alpha Wolf tests no longer confirm a choice.
   - `balance.spec.ts`: the Old Mine and each grind dungeon sight their wardens in rung order, and the top warden
     can't be sighted without passing the first one; all boss win rates use the arrival model.
+
+## 38. Regional weather (implemented)
+
+**Problem:** weather was one table per season for the whole world, so the Southlands desert could get snow and
+blizzards in winter, and the volcanic Ember Mountains too.
+
+**Rule:** each outdoor tile has a **climate**, and the weather rolls from that climate's table for the season.
+
+- **Climate of a tile (`climateAt` in `maps.ts`):** caves have none (still no weather underground). Elsewhere the
+  map's backdrop decides (`BACKDROP_CLIMATE`), unless the tile is in one of the map's `climateZones`:
+
+  | Climate | Maps |
+  | --- | --- |
+  | Temperate | Greenwood Vale (overworld), Aldmere, Brookhollow, Thornwick |
+  | Desert | The Southlands west of the marsh line, Sandhollow |
+  | Marsh | The Southlands from column 34 east (`SOUTH_MARSH_LINE`, the middle of the wavering shore) |
+  | Alpine | The Frost Peaks, Frostgate |
+  | Volcanic | The Ember Mountains, Emberwatch |
+
+  The straight zone line puts about 1% of the Southlands' walkable tiles under the other land's sky.
+- **Weather per climate (`CLIMATE_WEATHER`, weights per season):**
+
+  | Climate | Spring | Summer | Autumn | Winter |
+  | --- | --- | --- | --- | --- |
+  | Temperate | unchanged (14.1.1) | unchanged | unchanged | unchanged |
+  | Desert | clear 55, cloudy 20, sandstorm 20, storm 5 | clear 70, cloudy 10, sandstorm 20 | clear 55, cloudy 20, rain 5, sandstorm 20 | clear 45, cloudy 30, rain 15, sandstorm 10 |
+  | Marsh | clear 25, cloudy 25, rain 25, fog 20, storm 5 | clear 35, cloudy 20, rain 15, fog 10, storm 20 | clear 20, cloudy 25, rain 25, fog 25, storm 5 | clear 20, cloudy 30, rain 25, fog 25 |
+  | Alpine | clear 30, cloudy 25, snow 30, fog 10, blizzard 5 | clear 50, cloudy 25, snow 15, fog 10 | clear 25, cloudy 25, snow 30, fog 10, blizzard 10 | clear 15, cloudy 20, snow 30, fog 10, blizzard 25 |
+  | Volcanic | clear 35, cloudy 25, ashfall 30, storm 10 | clear 40, cloudy 20, ashfall 30, storm 10 | clear 30, cloudy 25, ashfall 35, storm 10 | clear 25, cloudy 30, ashfall 35, storm 10 |
+
+  So snow and blizzards fall only in temperate winters and the alpine north; the north never rains; sandstorms are
+  desert-only and ashfall volcanic-only. Every table sums to 100 and starts with clear, so the period's one roll is
+  a percentile shared by all climates: a roll low enough to be clear in both lands gives clear skies on both sides
+  of a climate line.
+- **New weather:**
+
+  | Weather | Severity | Sight radius | Look |
+  | --- | --- | --- | --- |
+  | Sandstorm | 4 | 4 | Flickering ochre haze, pale dust banks racing low, wind-driven grains (signs sway) |
+  | Ashfall | 3 | 5 | Dim, smoky tint, dark smoke clouds, grey flakes drifting down |
+
+  Both reuse the anchored snow drift with their own colour, so they stay fixed to the ground like the rest (§35).
+- **Season tints per climate:** only temperate and alpine winters frost the ground white. A desert winter cools the
+  sand slightly, a marsh winter greys it, and a volcanic winter darkens it; summers warm each land differently.
+- **Crossing a climate line:** the world scene keeps the sky of the last step (weather, season and climate). When a
+  step lands in another climate, the old sky (weather and ground wash) fades out over `SKY_FADE_SECONDS` and the
+  new weather is announced, as for any weather change. Warps start a new scene, so arriving in a new region simply
+  shows its sky.
+- **HUD and `M` map:** `SEASON - WEATHER` uses the climate underfoot (`currentWeather(state, climate)`).
+- **Saves:** unchanged; weather is still derived from the step count and the journey seed. Temperate weather is
+  exactly as before, so Act I skies don't change in existing saves.
+- **Tests:**
+  - `weather.spec.ts`: each climate rolls only its season's kinds and every kind shows up; no snow or blizzard in
+    the desert, marsh or volcanic lands; no rain or storms in the alpine north; sandstorms and ashfall stay in their
+    lands; the temperate year keeps snow to winter; every table sums to 100 and starts clear; each map's climate,
+    no climate in caves; the Southlands split, with under 2% of walkable tiles under the other land's sky.
+  - `weather-fx.spec.ts`: sandstorms and ashfall stay fixed to the ground as the camera moves and draw in their own
+    colours; only temperate and alpine winters frost the ground; spring stays untinted everywhere.
+  - `world-scene.spec.ts`: a step from the desert into the marsh fades the old sky out and announces the marsh's
+    weather.
