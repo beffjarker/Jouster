@@ -21,9 +21,14 @@ export const SHADOW_W = 32;
 export { SHADOW_CASTERS, WALKWAY_TILES, castsShadow, decorTopOf, walkwayMask } from './hd-tiles';
 import { LPC_CELL, LpcObject, LpcSheetId, lpcGroundCell, lpcObjectFor, lpcTileFor } from './lpc-manifest';
 import {
-  LPC_ACTIONS,
-  LPC_ACTION_CELL,
-  LPC_ACTION_ORIGIN,
+  PAPERDOLL_CELL,
+  PAPERDOLL_CLASS_POSES,
+  PAPERDOLL_PARTS,
+  PAPERDOLL_POSE_CELL,
+  PAPERDOLL_POSE_ORIGIN,
+  PAPERDOLL_STRIPS,
+} from './lpc-paperdoll.generated';
+import {
   LPC_CHARACTER_CELL,
   LPC_CHARACTER_FACINGS,
   LPC_CHARACTER_ROWS,
@@ -32,6 +37,7 @@ import {
   LPC_MONSTERS,
   LPC_MONSTER_CELL,
 } from './lpc-sprites.generated';
+import { Outfit, isClassId, outfitKey, outfitLook, startingOutfit } from './outfit';
 
 /** Frames in the LPC walk cycle (every sheet column after the standing one). */
 const LPC_WALK_CYCLE = LPC_CHARACTER_STEPS - 1;
@@ -75,8 +81,14 @@ export function tileAnchor(image: Sized, scale = 1): { x: number; y: number } {
   return { x: (s.width * scale - TILE) / 2, y: s.height * scale - TILE };
 }
 
-/** Every humanoid look id (classes and NPCs); each has a row in the LPC `characters.png`. */
+/**
+ * Every humanoid look id (classes and NPCs). NPC looks have a row in the LPC `characters.png`; class ids are drawn
+ * as party members in their starting gear (see {@link Outfit}).
+ */
 export const CHARACTER_LOOK_IDS: readonly string[] = [...LOOKS.keys()];
+
+/** A humanoid to draw: an NPC look id, a class id (its starting outfit) or a party member's {@link Outfit}. */
+export type CharacterLook = string | Outfit;
 
 /** Battle pose of a playable class: its weapon attack (slash, thrust or bow shot) or a spell cast. */
 export type CharacterAction = 'attack' | 'cast';
@@ -316,6 +328,14 @@ function mirrored(source: HTMLCanvasElement): HTMLCanvasElement {
   return setImageDensity(canvas, imageDensity(source));
 }
 
+/** The outfit to layer for a look: a member's outfit as given, a class id's starting outfit, none for NPC looks. */
+function outfitFor(look: CharacterLook): Outfit | undefined {
+  if (typeof look !== 'string') {
+    return look;
+  }
+  return isClassId(look) ? startingOutfit(look) : undefined;
+}
+
 /**
  * Lazily rendered and cached 2x-density art (tiles, humanoid sprites, monster sprites).
  * With sheets (see {@link useSheets}) tiles listed in `LPC_TILES` use LPC ground art drawn 1:1,
@@ -419,22 +439,25 @@ export class Art {
   }
 
   /**
-   * Humanoid sprite for any facing; `frame` 0 stands, 1 is the step pose (idle bob). LPC sheets give a
-   * 32x32 logical frame (stand it on a tile with {@link tileAnchor}); procedural art is one tile, with `left`
+   * Humanoid sprite for any facing; `frame` 0 stands, 1 is the step pose (idle bob). LPC sheets give a 32x32
+   * logical frame (stand it on a tile with {@link tileAnchor}): NPC looks come from `characters.png`, party members
+   * are layered from `paperdoll.png` in the gear they wear (plan §39). Procedural art is one tile, with `left`
    * mirrored from `right`. Walking uses {@link characterWalk}.
    */
-  public character(spriteId: string, facing: Facing, frame = 0): HTMLCanvasElement {
+  public character(look: CharacterLook, facing: Facing, frame = 0): HTMLCanvasElement {
     const f = frame % 2;
+    const outfit = outfitFor(look);
+    if (outfit) {
+      return this.sheets?.get('paperdoll')
+        ? this.dollWalk(outfit, facing, f ? LPC_CHARACTER_STEP_POSE : 0)
+        : this.procedural(`outfit:${outfitKey(outfit)}`, outfitLook(outfit), facing, f);
+    }
+    const spriteId = look as string;
     const row = this.lpcCharacterRow(spriteId);
     if (row !== undefined) {
       return this.lpcCharacter(spriteId, row, facing, f ? LPC_CHARACTER_STEP_POSE : 0);
     }
-    if (facing === 'left') {
-      return this.cached(`chr:${spriteId}:left:${f}`, () => mirrored(this.character(spriteId, 'right', f)));
-    }
-    return this.cached(`chr:${spriteId}:${facing}:${f}`, () =>
-      paintHumanoid(LOOKS.get(spriteId) ?? (LOOKS.get('villager') as HumanoidLook), facing, f).toCanvas(),
-    );
+    return this.procedural(spriteId, LOOKS.get(spriteId) ?? (LOOKS.get('villager') as HumanoidLook), facing, f);
   }
 
   /**
@@ -442,13 +465,18 @@ export class Art {
    * wraps. LPC art plays its whole 8-frame cycle, offset so each tile ends on a passing pose and stopping
    * lands next to the standing frame; procedural art swaps its two frames mid-tile.
    */
-  public characterWalk(spriteId: string, facing: Facing, phase: number): HTMLCanvasElement {
+  public characterWalk(look: CharacterLook, facing: Facing, phase: number): HTMLCanvasElement {
     const p = phase - Math.floor(phase);
-    const row = this.lpcCharacterRow(spriteId);
-    if (row !== undefined) {
-      return this.lpcCharacter(spriteId, row, facing, 1 + ((Math.floor(p * LPC_WALK_CYCLE) + 1) % LPC_WALK_CYCLE));
+    const step = 1 + ((Math.floor(p * LPC_WALK_CYCLE) + 1) % LPC_WALK_CYCLE);
+    const outfit = outfitFor(look);
+    if (outfit && this.sheets?.get('paperdoll')) {
+      return this.dollWalk(outfit, facing, step);
     }
-    return this.character(spriteId, facing, Math.floor(p * 2 + 0.5) % 2);
+    const row = outfit ? undefined : this.lpcCharacterRow(look as string);
+    if (row !== undefined) {
+      return this.lpcCharacter(look as string, row, facing, step);
+    }
+    return this.character(look, facing, Math.floor(p * 2 + 0.5) % 2);
   }
 
   private lpcCharacterRow(spriteId: string): number | undefined {
@@ -456,22 +484,28 @@ export class Art {
   }
 
   /**
-   * Frame of a class's battle pose (facing right) at `progress` (0 to 1) through it. Draw the sprite at the
-   * `character` frame's top-left plus the offset (times the draw scale) so the body stays put while the weapon
-   * swings out. Undefined without LPC sheets or for looks without that pose; keep the normal frame then.
+   * Frame of a party member's battle pose (facing right) at `progress` (0 to 1) through it, in the gear they wear.
+   * Draw the sprite at the `character` frame's top-left plus the offset (times the draw scale) so the body stays
+   * put while the weapon swings out. Undefined without LPC sheets, for NPC looks, or when the class has no such
+   * pose (only spell casters cast); keep the normal frame then.
    */
-  public characterAction(spriteId: string, action: CharacterAction, progress: number): CharacterPose | undefined {
-    const pose = this.sheets?.get('actions') ? LPC_ACTIONS.get(`${spriteId}:${action}`) : undefined;
-    if (!pose) {
+  public characterAction(look: CharacterLook, action: CharacterAction, progress: number): CharacterPose | undefined {
+    const outfit = outfitFor(look);
+    const anim = outfit && PAPERDOLL_CLASS_POSES.get(outfit.classId)?.[action];
+    if (!outfit || !anim || !this.sheets?.get('paperdoll')) {
       return undefined;
     }
-    const step = Math.min(pose.frames - 1, Math.max(0, Math.floor(progress * pose.frames)));
-    const { width, height } = LPC_ACTION_CELL;
-    const sprite = this.cached(`lpcact:${spriteId}:${action}:${step}`, () =>
-      this.sheetSprite('actions', step * width, pose.row * height, width, height),
+    const layers = this.dollLayers(outfit, anim);
+    const frames = Math.max(0, ...layers.map((s) => PAPERDOLL_STRIPS[s][6]));
+    if (frames < 2) {
+      return undefined;
+    }
+    const step = Math.min(frames - 1, Math.max(0, Math.floor(progress * frames)));
+    const sprite = this.cached(`dollpose:${outfitKey(outfit)}:${anim}:${step}`, () =>
+      this.dollSprite(PAPERDOLL_POSE_CELL, layers, step),
     );
     const d = imageDensity(sprite);
-    return { sprite, offsetX: -LPC_ACTION_ORIGIN.x / d, offsetY: -LPC_ACTION_ORIGIN.y / d };
+    return { sprite, offsetX: -PAPERDOLL_POSE_ORIGIN.x / d, offsetY: -PAPERDOLL_POSE_ORIGIN.y / d };
   }
 
   private lpcCharacter(spriteId: string, row: number, facing: Facing, step: number): HTMLCanvasElement {
@@ -480,6 +514,57 @@ export class Art {
     return this.cached(`lpcchr:${spriteId}:${facing}:${step}`, () =>
       this.sheetSprite('characters', col * width, row * height, width, height),
     );
+  }
+
+  /** A procedural humanoid, cached under `key`; `left` mirrors `right`. */
+  private procedural(key: string, look: HumanoidLook, facing: Facing, f: number): HTMLCanvasElement {
+    if (facing === 'left') {
+      return this.cached(`chr:${key}:left:${f}`, () => mirrored(this.procedural(key, look, 'right', f)));
+    }
+    return this.cached(`chr:${key}:${facing}:${f}`, () => paintHumanoid(look, facing, f).toCanvas());
+  }
+
+  /**
+   * The `paperdoll.png` strips that make up an outfit, lowest first: the class's plain base, then its armour,
+   * shield, accessory and weapon, ordered by ULPC z-order (ties keep that order). Walk strips, or the strips of
+   * battle animation `anim`.
+   */
+  private dollLayers(outfit: Outfit, anim?: string): number[] {
+    const layers: Array<{ z: number; i: number; strip: number }> = [];
+    ['base', outfit.armor, outfit.shield, outfit.accessory, outfit.weapon].forEach((id) => {
+      const part = id ? PAPERDOLL_PARTS.get(`${id}@${outfit.classId}`) : undefined;
+      (anim ? part?.poses[anim] : part?.walk)?.forEach(([z, strip]) => layers.push({ z, i: layers.length, strip }));
+    });
+    return layers.sort((a, b) => a.z - b.z || a.i - b.i).map((l) => l.strip);
+  }
+
+  /** A party member's walk frame: facing, then step (0 stands, 1-8 walk), as in `characters.png`. */
+  private dollWalk(outfit: Outfit, facing: Facing, step: number): HTMLCanvasElement {
+    const col = LPC_CHARACTER_FACINGS.indexOf(facing) * LPC_CHARACTER_STEPS + step;
+    return this.cached(`doll:${outfitKey(outfit)}:${facing}:${step}`, () =>
+      this.dollSprite(PAPERDOLL_CELL, this.dollLayers(outfit), col),
+    );
+  }
+
+  /** Frame `frame` of each strip (low to high) drawn at its offset in a `cell`-sized, 2x-density canvas. */
+  private dollSprite(
+    cell: { width: number; height: number },
+    strips: readonly number[],
+    frame: number,
+  ): HTMLCanvasElement {
+    const canvas = createCanvas(cell.width, cell.height);
+    const ctx = canvas.getContext('2d');
+    const image = this.sheets?.get('paperdoll');
+    if (ctx && image) {
+      ctx.imageSmoothingEnabled = false;
+      strips.forEach((s) => {
+        const [x, y, w, h, dx, dy, frames] = PAPERDOLL_STRIPS[s];
+        if (frame < frames) {
+          ctx.drawImage(image, x + frame * w, y, w, h, dx, dy, w, h);
+        }
+      });
+    }
+    return setImageDensity(canvas, 2);
   }
 
   /**

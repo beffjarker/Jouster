@@ -9,11 +9,13 @@ Wolf are recoloured from "[LPC] Wolf Animation" on OpenGameArt. Downloads are ca
 (gitignored).
 
 Outputs:
-  apps/jouster-ui/public/game-assets/lpc/characters.png   one row per look, cols = facing x frame
+  apps/jouster-ui/public/game-assets/lpc/characters.png   one row per NPC look, cols = facing x frame; then monsters
   apps/jouster-ui/public/game-assets/lpc/monsters.png     one cell per small monster look
-  apps/jouster-ui/public/game-assets/lpc/actions.png      one row per class battle pose (attack/cast), facing right
+  apps/jouster-ui/public/game-assets/lpc/paperdoll.png    party members' layers (plan §39): walk and battle-pose
+                                                          strips (attack/cast, facing right), each cropped to its art
   apps/jouster-ui/public/game-assets/lpc/CREDITS.md       the generated section between markers
   libs/game/quest/src/lib/art/lpc-sprites.generated.ts    row and cell maps used by Art
+  libs/game/quest/src/lib/art/lpc-paperdoll.generated.ts  each base, weapon and gear part's layers
 
 Usage (from the repo root; needs Pillow):  python tools/game-assets/build-lpc-sprites.py
 """
@@ -21,6 +23,7 @@ from __future__ import annotations
 
 import colorsys
 import csv
+import hashlib
 import io
 import json
 import os
@@ -35,6 +38,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 CACHE = os.path.join(ROOT, 'tmp', 'lpc-cache')
 OUT_DIR = os.path.join(ROOT, 'apps', 'jouster-ui', 'public', 'game-assets', 'lpc')
 TS_OUT = os.path.join(ROOT, 'libs', 'game', 'quest', 'src', 'lib', 'art', 'lpc-sprites.generated.ts')
+PAPERDOLL_TS_OUT = os.path.join(ROOT, 'libs', 'game', 'quest', 'src', 'lib', 'art', 'lpc-paperdoll.generated.ts')
 ULPC = 'https://raw.githubusercontent.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator/master/'
 ULPC_REPO = 'https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator'
 BASE_ASSETS = 'https://opengameart.org/sites/default/files/lpc_base_assets.zip'
@@ -101,6 +105,47 @@ HOOD = 'headwear/coverings/hoods/hat_hood_cloth'
 CAP = 'headwear/hats/caps/hat_cap_leather'
 WIZARD_HAT = 'headwear/hats/magic/hat_magic_wizard'
 CROWN = 'headwear/hats/formal/hat_formal_crown'
+# Gear layers for the paperdoll (plan §39).
+ROBE = 'torso/shirts/torso_clothes_robe'
+BOOTS_FOLD = 'feet/boots/feet_boots_fold'
+ARMS_PLATE = 'arms/arms_armour'
+LEGS_PLATE = 'legs/legs_armour'
+FEET_PLATE = 'feet/feet_armour'
+TABARD = 'torso/jacket/torso_jacket_tabard'
+BELT_LEATHER = 'torso/waist/belt_leather'
+BELT_ROBE = 'torso/waist/belt_robe'
+MAIL_HELM = 'headwear/helmets/helmets/hat_helmet_mail'
+GREATHELM = 'headwear/helmets/helmets/hat_helmet_greathelm'
+HORNED = 'headwear/helmets/helmets/hat_helmet_horned'
+CELESTIAL = 'headwear/hats/magic/hat_magic_celestial'
+NECKLACE = 'headwear/neck/neck_necklace_simple'
+CHARM_OVAL = 'headwear/neck/charms/neck_charm_oval'
+AMULET = 'headwear/neck/charms/neck_amulet_dangle'
+GEM_ROUND = 'headwear/neck/charms/neck_gem_round'
+GEM_TRILLIANT = 'headwear/neck/charms/neck_gem_trilliant'
+SHIELD_ROUND = 'weapons/shields/shield_round'
+SHIELD_KITE = 'weapons/shields/shield_kite'
+SHIELD_SCUTUM = 'weapons/shields/scutum/shield_scutum'
+SHIELD_SCUTUM_TRIM = 'weapons/shields/scutum/shield_scutum_trim'
+SHIELD_HEATER = 'weapons/shields/heater/shield_heater_wood'
+SHIELD_HEATER_TRIM = 'weapons/shields/heater/shield_heater_trim'
+SHIELD_SPARTAN = 'weapons/shields/shield_spartan'
+GLOWSWORD = 'weapons/sword/weapon_sword_glowsword'
+LONGSWORD = 'weapons/sword/weapon_sword_longsword'
+FLAIL = 'weapons/blunt/weapon_blunt_flail'
+STAFF_LOOP = 'weapons/magic/weapon_magic_loop'
+STAFF_DIAMOND = 'weapons/magic/weapon_magic_diamond'
+STAFF_S = 'weapons/magic/weapon_magic_s'
+BOW_RECURVE = 'weapons/ranged/bow/weapon_ranged_bow_recurve'
+BOW_GREAT = 'weapons/ranged/bow/weapon_ranged_bow_great'
+
+# Metal colours ULPC has no palette for, derived from its steel ramp: (hue in degrees, saturation, value scale).
+CUSTOM_METALS = {
+    'frost': (200, 0.4, 1.05),
+    'dragon': (358, 0.75, 0.72),
+    'obsidian': (265, 0.3, 0.45),
+    'cinder': (18, 0.35, 0.55),
+}
 
 
 def human(body: str, skin: str, head: str, *items) -> dict:
@@ -116,19 +161,6 @@ def skeleton(*items) -> dict:
 
 
 LOOKS = {
-    'warrior': human('male', 'light', HEAD_M, (HAIR_PLAIN, 'hair:chestnut'), (PANTS, 'cloth:brown'), (BOOTS, 'cloth:leather'),
-                     (LEATHER, None), (NASAL, 'metal:iron'), (SWORD, 'v:steel')),
-    'wizard': human('male', 'light', HEAD_OLD, (BEARD_LONG, 'hair:white'), (SKIRT, 'cloth:navy'), (SHOES, 'cloth:brown'),
-                    (LONG, 'cloth:blue'), (WIZARD_HAT, 'v:blue'), (STAFF, 'v:medium')),
-    'necromancer': human('male', 'light', HEAD_M, (HAIR_PLAIN, 'hair:black'), (SKIRT, 'cloth:black'), (SHOES, 'cloth:black'),
-                         (LONG, 'cloth:black'), (HOOD, 'cloth:black'), (SCYTHE, 'v:scythe')),
-    'cleric': human('female', 'light', HEAD_F, (HAIR_BOB, 'hair:light_brown'), (SHOES, 'cloth:tan'),
-                    ('torso/shirts/torso_clothes_robe', 'v:white'), ('torso/waist/belt_robe', 'v:white'), (MACE, 'v:mace')),
-    'rogue': human('male', 'olive', HEAD_M, (HAIR_MESSY, 'hair:black'), (PANTS, 'cloth:charcoal'), (BOOTS, 'cloth:black'),
-                   (LONG, 'cloth:charcoal'), ('torso/vest/torso_clothes_vest', 'v:maroon'), (HOOD, 'cloth:charcoal'),
-                   (DAGGER, 'v:dagger')),
-    'ranger': human('female', 'light', HEAD_F, (HAIR_PONY, 'hair:ginger'), (PANTS, 'cloth:brown'), (BOOTS, 'cloth:brown'),
-                    ('torso/shirts/torso_clothes_tunic', 'v:forest'), (CAP, 'v:forest'), (BOW, 'v:medium')),
     'king': human('male', 'light', HEAD_OLD, (BEARD_LONG, 'hair:gray'), (SKIRT, 'cloth:purple'), (SHOES, 'cloth:black'),
                   (LONG, 'cloth:purple'), (CAPE, 'cloth:red'), (CROWN, 'v:crown_gold')),
     'guard': human('male', 'light', HEAD_M, (HAIR_BUZZ, 'hair:dark_brown'), (PANTS, 'cloth:navy'), (BOOTS, 'cloth:black'),
@@ -154,6 +186,149 @@ LOOKS = {
                       (SLEEVELESS, 'v:gray')),
     'goblinKingNpc': goblin('green', (PANTS, 'cloth:purple'), (BOOTS, 'cloth:black'), (LONG, 'cloth:purple'),
                             (CAPE, 'cloth:purple'), (CROWN, 'v:crown_gold')),
+}
+
+# ---------------------------------------------------------------------------------------------------------
+# Paperdoll (plan §39): party members are layered at run time, so the armour, shield, accessory and weapon they
+# wear show on them. Each class has a plain base (body, head, hair and basic clothes, what a new hero wears); every
+# weapon and piece of gear adds its layers for each class that can use it. `paperdoll.png` holds every layer once
+# (walk and battle-pose strips); `lpc-paperdoll.generated.ts` lists each part's layers.
+# ---------------------------------------------------------------------------------------------------------
+CLASS_BODIES = {'warrior': 'male', 'wizard': 'male', 'necromancer': 'male', 'cleric': 'female', 'rogue': 'male',
+                'ranger': 'female'}
+CLASSES = tuple(CLASS_BODIES)
+CASTERS = ('wizard', 'necromancer', 'cleric')
+SCOUTS = ('rogue', 'ranger')
+LEATHER_WEARERS = ('warrior', 'necromancer', 'cleric', 'rogue', 'ranger')
+MAIL_WEARERS = ('warrior', 'cleric', 'ranger')
+
+
+def plain(body: str, skin: str, head: str, shirt: str, *hair) -> dict:
+    """An unarmoured party member: an undyed shirt, brown trousers and plain shoes."""
+    return human(body, skin, head, *hair, (SHORT, f'cloth:{shirt}'), (PANTS, 'cloth:brown'), (SHOES, 'cloth:brown'))
+
+
+PARTY_BASES = {
+    'warrior': plain('male', 'light', HEAD_M, 'tan', (HAIR_PLAIN, 'hair:chestnut')),
+    'wizard': plain('male', 'light', HEAD_OLD, 'white', (HAIR_BALD, 'hair:white'), (BEARD_LONG, 'hair:white')),
+    'necromancer': plain('male', 'light', HEAD_M, 'gray', (HAIR_PLAIN, 'hair:black')),
+    'cleric': plain('female', 'light', HEAD_F, 'white', (HAIR_BOB, 'hair:light_brown')),
+    'rogue': plain('male', 'olive', HEAD_M, 'charcoal', (HAIR_MESSY, 'hair:black')),
+    'ranger': plain('female', 'light', HEAD_F, 'tan', (HAIR_PONY, 'hair:ginger')),
+}
+
+
+def worn(classes, *items, **extra):
+    """A gear look: the same layers for every class that can use it, plus `extra` layers per class."""
+    return tuple(classes), lambda cls: [*items, *extra.get(cls, ())]
+
+
+def robe(male_cloth: str, female_robe: str, hat: tuple, hood: str = 'black'):
+    """A caster's robe (long sleeves and a skirt on male bodies, a robe on female ones), the Wizard's hat and the
+    Necromancer's hood."""
+    def items(cls: str) -> list:
+        out = ([(ROBE, f'v:{female_robe}'), (BELT_ROBE, 'v:white')] if CLASS_BODIES[cls] == 'female'
+               else [(LONG, f'cloth:{male_cloth}'), (SKIRT, f'cloth:{male_cloth}')])
+        if cls == 'wizard':
+            out.append(hat)
+        if cls == 'necromancer':
+            out.append((HOOD, f'cloth:{hood}'))
+        return out
+    return CASTERS, items
+
+
+def leather(classes, colour: str):
+    """Leather armour (recoloured from the shipped brown), with the Rogue's hood and the Ranger's cap to match."""
+    spec = None if colour == 'leather' else f'cloth:leather>{colour}'
+    cap = 'forest' if colour == 'leather' else colour
+    hood = 'charcoal' if colour == 'leather' else colour
+    return worn(classes, (LEATHER, spec), rogue=[(HOOD, f'cloth:{hood}')], ranger=[(CAP, f'v:{cap}')])
+
+
+def mail(metal: str, tabard: str | None = None):
+    """Mail over the shirt (and a tabard from tier 3), with a mail coif for the Warrior and a cap for the Ranger."""
+    items = [(CHAIN, f'metal:{metal}')] + ([(TABARD, f'v:{tabard}')] if tabard else [])
+    return worn(MAIL_WEARERS, *items, warrior=[(MAIL_HELM, f'metal:{metal}')], ranger=[(CAP, 'v:forest')])
+
+
+def plate(metal: str, helm: str):
+    """Full plate: cuirass, arms, legs, sabatons and a helm, all of one metal."""
+    return worn(('warrior',), *[(p, f'metal:{metal}') for p in (PLATE, ARMS_PLATE, LEGS_PLATE, FEET_PLATE, helm)])
+
+
+def weapon(cls: str, def_path: str, spec: str):
+    return worn((cls,), (def_path, spec))
+
+
+# Every weapon and gear id in data/equipment.ts and data/gear.ts. An empty look (a ring) draws nothing.
+GEAR_LOOKS = {
+    # Armour
+    'clothRobe': worn(CLASSES, (LONG, 'cloth:walnut'), (BELT_LEATHER, 'v:leather')),
+    'leatherArmor': leather(LEATHER_WEARERS, 'leather'),
+    'sageRobe': robe('blue', 'blue', (WIZARD_HAT, 'v:blue')),
+    'chainMail': mail('steel'),
+    'plateArmor': plate('steel', ARMET),
+    'mirageRobe': robe('tan', 'brown', (WIZARD_HAT, 'v:tan'), hood='maroon'),
+    'shadowLeather': leather(SCOUTS, 'black'),
+    'scaleMail': mail('gold'),
+    'sunPlate': plate('gold', ARMET),
+    'auroraRobe': robe('sky', 'white', (CELESTIAL, 'v:sky'), hood='slate'),
+    'snowcatLeather': leather(SCOUTS, 'white'),
+    'frostMail': mail('silver', 'sky'),
+    'glacierPlate': plate('frost', GREATHELM),
+    'emberSilk': robe('red', 'red', (WIZARD_HAT, 'v:red'), hood='maroon'),
+    'drakehide': leather(SCOUTS, 'maroon'),
+    'cinderMail': mail('cinder', 'maroon'),
+    'dragonPlate': plate('dragon', HORNED),
+    # Shields (Warrior)
+    'buckler': worn(('warrior',), (SHIELD_ROUND, 'v:brown')),
+    'kiteShield': worn(('warrior',), (SHIELD_KITE, 'v:kite gray blue')),
+    'towerShield': worn(('warrior',), (SHIELD_SCUTUM, 'v:scutum+cloth:white>maroon'), (SHIELD_SCUTUM_TRIM, 'v:scutum_trim')),
+    'wyvernShield': worn(('warrior',), (SHIELD_HEATER, 'wood:walnut'), (SHIELD_HEATER_TRIM, 'metal:silver')),
+    'basaltShield': worn(('warrior',), (SHIELD_SPARTAN, 'v:spartan')),
+    # Accessories (anyone)
+    'vigorRing': worn(CLASSES),
+    'swiftBoots': worn(CLASSES, (BOOTS_FOLD, 'cloth:walnut')),
+    'sageCharm': worn(CLASSES, (CHARM_OVAL, 'v:bronze')),
+    'scarabAmulet': worn(CLASSES, (AMULET, 'v:gold_blue')),
+    'frostCharm': worn(CLASSES, (NECKLACE, 'v:silver'), (GEM_TRILLIANT, 'v:blue')),
+    'emberHeart': worn(CLASSES, (NECKLACE, 'v:gold'), (GEM_ROUND, 'v:red')),
+    # Weapons: swords (Warrior)
+    'bronzeSword': weapon('warrior', SWORD, 'v:bronze'),
+    'ironSword': weapon('warrior', SWORD, 'v:iron'),
+    'sunSteelSword': weapon('warrior', SWORD, 'v:gold'),
+    'frostbrandSword': weapon('warrior', GLOWSWORD, 'v:blue'),
+    'dragonfangSword': weapon('warrior', LONGSWORD, 'v:longsword'),
+    # Scythes (Necromancer): one shape, the blade recoloured per tier
+    'boneScythe': weapon('necromancer', SCYTHE, 'v:scythe+metal:steel>ceramic'),
+    'graveScythe': weapon('necromancer', SCYTHE, 'v:scythe+metal:steel>iron'),
+    'duneReaper': weapon('necromancer', SCYTHE, 'v:scythe+metal:steel>gold'),
+    'frostreapScythe': weapon('necromancer', SCYTHE, 'v:scythe+metal:steel>frost'),
+    'soulfireScythe': weapon('necromancer', SCYTHE, 'v:scythe+metal:steel>obsidian'),
+    # Staves (Wizard)
+    'oakStaff': weapon('wizard', STAFF, 'v:medium'),
+    'runeStaff': weapon('wizard', STAFF_LOOP, 'v:medium'),
+    'mirageStaff': weapon('wizard', STAFF_DIAMOND, 'v:gold'),
+    'auroraStaff': weapon('wizard', STAFF_DIAMOND, 'v:silver'),
+    'cinderStaff': weapon('wizard', STAFF_S, 'v:dark'),
+    # Maces (Cleric): the mace's head is repainted per tier
+    'woodMace': weapon('cleric', MACE, 'v:mace+tone:wood:oak'),
+    'ironMace': weapon('cleric', MACE, 'v:mace+tone:metal:iron'),
+    'sunMace': weapon('cleric', FLAIL, 'v:flail+tone:metal:gold'),
+    'rimeMace': weapon('cleric', FLAIL, 'v:flail+tone:metal:frost'),
+    'obsidianMace': weapon('cleric', MACE, 'v:mace+tone:metal:obsidian'),
+    # Daggers (Rogue)
+    'twinDaggers': weapon('rogue', DAGGER, 'v:dagger+metal:steel>bronze'),
+    'steelDaggers': weapon('rogue', DAGGER, 'v:dagger'),
+    'fangDaggers': weapon('rogue', DAGGER, 'v:dagger+metal:steel>gold'),
+    'icicleDaggers': weapon('rogue', DAGGER, 'v:dagger+metal:steel>frost'),
+    'emberDaggers': weapon('rogue', DAGGER, 'v:dagger+metal:steel>dragon'),
+    # Knives (Ranger): the bow on the back is what shows, and it is what she shoots with
+    'huntKnife': weapon('ranger', BOW, 'v:medium'),
+    'longKnife': weapon('ranger', BOW, 'v:dark'),
+    'duneKnife': weapon('ranger', BOW_RECURVE, 'v:light'),
+    'wolfsbaneKnife': weapon('ranger', BOW_RECURVE, 'v:silver'),
+    'drakeKnife': weapon('ranger', BOW_GREAT, 'v:red'),
 }
 
 # Humanoid monsters: one look per variant (index order matches monsterVariantCount; bosses have one).
@@ -197,7 +372,7 @@ BEASTS = {
 # Battle poses for the playable classes (plan 16.4 item 4c), facing right like the party: the class weapon's
 # attack animation and, for spell casters, `spellcast`. Weapons with oversized custom animations (frames
 # bigger than 64 px, base frames centred in them) are composited on a POSE_CANVAS square, then every pose frame
-# is cropped to one shared box for actions.png.
+# is cropped to one shared box (the pose cell) before its layer strip is cropped to its art for paperdoll.png.
 POSE_FACING = 'right'
 POSES = {
     'warrior': {'attack': 'slash'},
@@ -238,6 +413,15 @@ def definition(def_path: str) -> dict:
 
 
 def palette(material: str, name: str) -> list[tuple[int, int, int]]:
+    if material == 'metal' and name in CUSTOM_METALS:
+        hue, sat, scale = CUSTOM_METALS[name]
+        out = []
+        for r, g, b in palette('metal', 'steel'):
+            v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)[2]
+            # Shadows take the full tint and highlights stay paler, like polished metal.
+            r2, g2, b2 = colorsys.hsv_to_rgb(hue / 360, min(1.0, sat * (1.25 - v * 0.6)), min(1.0, v * scale))
+            out.append((round(r2 * 255), round(g2 * 255), round(b2 * 255)))
+        return out
     pal = json.loads(ulpc(f'palette_definitions/{material}/{material}_ulpc.json'))
     if name not in pal:
         sys.exit(f'Unknown {material} palette colour {name!r}; choose from {sorted(pal)}')
@@ -263,12 +447,45 @@ def recolor(img: Image.Image, src: list, dst: list) -> Image.Image:
     return img
 
 
+def tone(img: Image.Image, pal: list) -> Image.Image:
+    """
+    Repaints the grey (metal) pixels of a pre-coloured layer along `pal` by brightness, keeping coloured pixels
+    (wooden hafts, leather grips) as drawn. For weapons whose ULPC art has one colour and no palette to swap.
+    """
+    img = img.copy()
+    px = img.load()
+    ramp = sorted(pal, key=lambda c: c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11)
+    greys = {}
+    for y in range(img.height):
+        for x in range(img.width):
+            r, g, b, a = px[x, y]
+            if a and colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)[1] < 0.3:
+                greys[(x, y)] = r * 0.3 + g * 0.59 + b * 0.11
+    if not greys:
+        return img
+    lo, hi = min(greys.values()), max(greys.values())
+    for (x, y), lum in greys.items():
+        t = (lum - lo) / (hi - lo) if hi > lo else 0.5
+        px[x, y] = (*ramp[round(t * (len(ramp) - 1))], px[x, y][3])
+    return img
+
+
 def spec_variant(spec: str | None) -> str | None:
-    return spec[2:].replace(' ', '_') if spec and spec.startswith('v:') else None
+    return spec[2:].split('+')[0].replace(' ', '_') if spec and spec.startswith('v:') else None
 
 
 def apply_spec(img: Image.Image, spec: str | None, d: dict) -> Image.Image:
-    """Recolours a layer image per a '<material>:[<from>>]<to>' spec (variant specs are pre-coloured files)."""
+    """
+    Recolours a layer image per a '<material>:[<from>>]<to>' spec (variant specs are pre-coloured files). A variant
+    may add '+<material>:<from>><to>' (a palette swap on the variant) or '+tone:<material>:<name>' (see `tone`).
+    """
+    if spec and '+' in spec:
+        spec, extra = spec.split('+', 1)
+        img = apply_spec(img, spec, d)
+        if extra.startswith('tone:'):
+            material, name = extra[len('tone:'):].split(':', 1)
+            return tone(img, palette(material, name))
+        return apply_spec(img, extra, {})
     if spec and not spec.startswith('v:'):
         material, colours = spec.split(':', 1)
         src_name, dst_name = colours.split('>') if '>' in colours else (None, colours)
@@ -356,25 +573,94 @@ def pose_layers(def_path: str, spec: str | None, body: str, anim: str, used: set
     return out
 
 
-def pose_frames(name: str, anim: str, used: set[str], missing: list[str]) -> list[Image.Image]:
-    look = LOOKS[name]
-    layers = []
-    for def_path, spec in look['items']:
-        layers += pose_layers(def_path, spec, look['body'], anim, used, missing)
-    layers.sort(key=lambda zl: zl[0])
-    count = len(layers[0][1])
-    for _, fs in layers:
-        if len(fs) != count:
-            missing.append(f'{anim}: {name} layer has {len(fs)} frames, body has {count}')
-    frames = []
-    nudge = POSE_NUDGE.get(anim, (0, 0))
-    for i in range(count):
-        cell = Image.new('RGBA', (POSE_CANVAS, POSE_CANVAS))
-        for _, fs in layers:
-            if i < len(fs):
-                cell.alpha_composite(fs[i], nudge)
-        frames.append(cell)
-    return frames
+def paperdoll_parts() -> dict[str, tuple[str, str, list]]:
+    """Every part to layer, as `part@class` -> (body, class, items): each class's base, then each gear look for every
+    class that can use it."""
+    parts = {f'base@{cls}': (look['body'], cls, look['items']) for cls, look in PARTY_BASES.items()}
+    for gid, (classes, items) in GEAR_LOOKS.items():
+        for cls in classes:
+            parts[f'{gid}@{cls}'] = (CLASS_BODIES[cls], cls, items(cls))
+    return parts
+
+
+def digest(frames: list[Image.Image]) -> str:
+    h = hashlib.sha1()
+    for f in frames:
+        h.update(f.tobytes())
+    return h.hexdigest()
+
+
+def nudged(frames: list[Image.Image], by: tuple[int, int]) -> list[Image.Image]:
+    if by == (0, 0):
+        return frames
+    out = []
+    for f in frames:
+        cell = Image.new('RGBA', f.size)
+        cell.alpha_composite(f, by)
+        out.append(cell)
+    return out
+
+
+def build_paperdoll(used: set[str], missing: list[str]):
+    """
+    Walk rows (36 frames: facing x step) and battle-pose strips for every layer of every part, each stored once, and
+    the manifest: part -> (walk layers [(z, row)], poses {anim: [(z, strip)]}). Fully transparent layers are dropped.
+    """
+    walk_rows: list[list[Image.Image]] = []
+    walk_index: dict[str, int] = {}
+    strips: list[list[Image.Image]] = []
+    strip_index: dict[str, int] = {}
+    manifest = {}
+    for key, (body, cls, items) in paperdoll_parts().items():
+        walk, poses = [], {}
+        for def_path, spec in items:
+            for z, sheet in layer_images(def_path, spec, body, used):
+                frames = [frame(sheet, f, c) for f in FACINGS for c in STEP_COLS]
+                if not any(f.getbbox() for f in frames):
+                    continue
+                h = digest(frames)
+                if h not in walk_index:
+                    walk_index[h] = len(walk_rows)
+                    walk_rows.append(frames)
+                walk.append((z, walk_index[h]))
+            for anim in POSES[cls].values():
+                for z, fs in pose_layers(def_path, spec, body, anim, used, missing):
+                    fs = nudged(fs, POSE_NUDGE.get(anim, (0, 0)))
+                    if not any(f.getbbox() for f in fs):
+                        continue
+                    h = digest(fs)
+                    if h not in strip_index:
+                        strip_index[h] = len(strips)
+                        strips.append(fs)
+                    poses.setdefault(anim, []).append((z, strip_index[h]))
+        manifest[key] = (walk, poses)
+    return walk_rows, strips, manifest
+
+
+def pack_shelves(sizes: list[tuple[int, int]], width: int) -> tuple[list[tuple[int, int]], int]:
+    """Shelf packing, tallest strips first: (x, y) per strip and the sheet height."""
+    at: list[tuple[int, int]] = [(0, 0)] * len(sizes)
+    shelves: list[list[int]] = []  # [y, height, used width]
+    for i in sorted(range(len(sizes)), key=lambda i: (-sizes[i][1], -sizes[i][0])):
+        w, h = sizes[i]
+        shelf = next((s for s in shelves if s[2] + w <= width and h <= s[1]), None)
+        if shelf is None:
+            shelf = [shelves[-1][0] + shelves[-1][1] if shelves else 0, h, 0]
+            shelves.append(shelf)
+        at[i] = (shelf[2], shelf[0])
+        shelf[2] += w
+    return at, (shelves[-1][0] + shelves[-1][1] if shelves else 0)
+
+
+def tight_strip(frames: list[Image.Image], box: tuple[int, int, int, int]) -> tuple[list[Image.Image], int, int]:
+    """Frames cropped to the cell `box`, then to their union bounding box: (frames, x and y offset in the cell)."""
+    cells = [f.crop(box) for f in frames]
+    left, top, right, bottom = cells[0].width, cells[0].height, 0, 0
+    for c in cells:
+        bb = c.getbbox()
+        if bb:
+            left, top, right, bottom = min(left, bb[0]), min(top, bb[1]), max(right, bb[2]), max(bottom, bb[3])
+    return [c.crop((left, top, right, bottom)) for c in cells], left, top
 
 
 def pose_box(frames: list[Image.Image]) -> tuple[int, int, int, int]:
@@ -527,27 +813,35 @@ def main() -> None:
     monsters.save(os.path.join(OUT_DIR, 'monsters.png'), optimize=True)
 
     missing: list[str] = []
-    poses = {f'{name}:{action}': pose_frames(name, anim, used, missing)
-             for name, actions in POSES.items() for action, anim in actions.items()}
-    abox = pose_box([f for fs in poses.values() for f in fs])
-    aw, ah = abox[2] - abox[0], abox[3] - abox[1]
-    actions = Image.new('RGBA', (aw * max(len(fs) for fs in poses.values()), ah * len(poses)))
-    for row, fs in enumerate(poses.values()):
-        for col, img in enumerate(fs):
-            actions.paste(img.crop(abox), (col * aw, row * ah))
-    actions.save(os.path.join(OUT_DIR, 'actions.png'), optimize=True)
-    origin = (POSE_CANVAS // 2 - FRAME // 2 + box[0] - abox[0], POSE_CANVAS // 2 - FRAME // 2 + box[1] - abox[1])
+    walk_rows, pose_strips, manifest = build_paperdoll(used, missing)
+    wbox = crop_box([f for fs in walk_rows for f in fs])
+    abox = pose_box([f for fs in pose_strips for f in fs])
+    # Every layer strip is cropped to its own art (most layers cover a small part of the figure), then all strips
+    # share one sheet: walk strips first, then pose strips.
+    strips = [tight_strip(fs, wbox) for fs in walk_rows] + [tight_strip(fs, abox) for fs in pose_strips]
+    sizes = [(fs[0].width * len(fs), fs[0].height) for fs, _, _ in strips]
+    sheet_w = max(2048, max(w for w, _ in sizes))
+    at, sheet_h = pack_shelves(sizes, sheet_w)
+    doll = Image.new('RGBA', (sheet_w, sheet_h))
+    for (fs, _, _), (x, y) in zip(strips, at):
+        for k, img in enumerate(fs):
+            doll.paste(img, (x + k * img.width, y))
+    doll.save(os.path.join(OUT_DIR, 'paperdoll.png'), optimize=True)
+    origin = (POSE_CANVAS // 2 - FRAME // 2 + wbox[0] - abox[0], POSE_CANVAS // 2 - FRAME // 2 + wbox[1] - abox[1])
     for line in missing:
         print(f'  pose layer skipped: {line}')
 
-    write_ts(names, cw, ch, small_keys, small_anims, (aw, ah), origin, {k: len(fs) for k, fs in poses.items()})
+    write_ts(names, cw, ch, small_keys, small_anims)
+    strip_rows = [(x, y, fs[0].width, fs[0].height, dx, dy, len(fs)) for (fs, dx, dy), (x, y) in zip(strips, at)]
+    write_paperdoll_ts((wbox[2] - wbox[0], wbox[3] - wbox[1]), (abox[2] - abox[0], abox[3] - abox[1]), origin,
+                       manifest, len(walk_rows), strip_rows)
     write_credits(credits_for(used))
     print(f'characters.png {characters.size} ({len(names)} rows, cell {cw}x{ch}); monsters.png {monsters.size}; '
-          f'actions.png {actions.size} ({len(poses)} rows, cell {aw}x{ah}, origin {origin})')
+          f'paperdoll.png {doll.size} ({len(walk_rows)} walk and {len(pose_strips)} pose strips, walk cell {wbox}, '
+          f'pose cell {abox}, origin {origin}); {len(manifest)} parts')
 
 
-def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str], small_anims: dict[str, tuple[int, int]],
-             acell: tuple[int, int], origin: tuple[int, int], poses: dict[str, int]) -> None:
+def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str], small_anims: dict[str, tuple[int, int]]) -> None:
     looks = [n for n in names if ':' not in n]
     humanoid = [n for n in names if ':' in n]
     lines = [
@@ -586,19 +880,81 @@ def write_ts(names: list[str], cw: int, ch: int, small_keys: list[str], small_an
           for i, k in enumerate(small_keys)],
         ']);',
         '',
-        '/** Real-pixel size of one `actions.png` cell (a battle pose frame, facing right). */',
-        f'export const LPC_ACTION_CELL = {{ width: {acell[0]}, height: {acell[1]} }} as const;',
+    ]
+    with open(TS_OUT, 'w', newline='\n', encoding='utf-8') as f:
+        f.write('\n'.join(lines))
+
+
+def write_paperdoll_ts(cell: tuple[int, int], pose_cell: tuple[int, int], origin: tuple[int, int], manifest: dict,
+                       walk_count: int, strips: list[tuple[int, ...]]) -> None:
+    def part(key: str) -> list[str]:
+        walk, poses = manifest[key]
+        out = [f"  ['{key}', {{", f"    walk: [{', '.join(f'[{z}, {i}]' for z, i in walk)}],"]
+        if poses:
+            out.append('    poses: {')
+            for anim, layers in poses.items():
+                out.append(f"      {anim}: [{', '.join(f'[{z}, {walk_count + i}]' for z, i in layers)}],")
+            out.append('    },')
+        else:
+            out.append('    poses: {},')
+        out.append('  }],')
+        return out
+
+    lines = [
+        '// Generated by tools/game-assets/build-lpc-sprites.py; do not edit by hand.',
         '',
-        '/** Real-pixel offset of the `characters.png` cell inside an `actions.png` cell (the body lines up). */',
-        f'export const LPC_ACTION_ORIGIN = {{ x: {origin[0]}, y: {origin[1]} }} as const;',
+        '/** Real-pixel size of a composed walk frame: a 64x64 ULPC walk frame cropped to every layer\'s art. */',
+        f'export const PAPERDOLL_CELL = {{ width: {cell[0]}, height: {cell[1]} }} as const;',
         '',
-        '/** `actions.png` row and frame count per `look:action` (action `attack` or `cast`). */',
-        'export const LPC_ACTIONS: ReadonlyMap<string, { row: number; frames: number }> = new Map([',
-        *[f"  ['{k}', {{ row: {i}, frames: {n} }}]," for i, (k, n) in enumerate(poses.items())],
+        '/** Real-pixel size of a composed battle pose frame (facing right). */',
+        f'export const PAPERDOLL_POSE_CELL = {{ width: {pose_cell[0]}, height: {pose_cell[1]} }} as const;',
+        '',
+        '/** Real-pixel offset of the walk cell inside a pose cell, so the body stays put as the pose starts. */',
+        f'export const PAPERDOLL_POSE_ORIGIN = {{ x: {origin[0]}, y: {origin[1]} }} as const;',
+        '',
+        '/** Each class\'s battle animations (plan §29): its weapon attack and, for spell casters, the cast. */',
+        'export const PAPERDOLL_CLASS_POSES: ReadonlyMap<string, { attack: string; cast?: string }> = new Map([',
+        *[f"  ['{cls}', {{ {', '.join(f'{a}: {anim!r}' for a, anim in POSES[cls].items())} }}]," for cls in CLASSES],
+        ']);',
+        '',
+        '/**',
+        ' * A strip of one layer\'s frames in `paperdoll.png`, side by side: where its first frame is (x, y), the frame',
+        ' * size (w, h, cropped to the layer\'s art), where that crop sits in the walk or pose cell (dx, dy) and how many',
+        ' * frames it has. Walk strips have 36 (facing, then step frame, as in `characters.png`).',
+        ' */',
+        'export type PaperdollStrip = readonly [',
+        '  x: number,',
+        '  y: number,',
+        '  w: number,',
+        '  h: number,',
+        '  dx: number,',
+        '  dy: number,',
+        '  frames: number,',
+        '];',
+        '',
+        'export const PAPERDOLL_STRIPS: readonly PaperdollStrip[] = [',
+        *[f"  [{', '.join(str(v) for v in s)}]," for s in strips],
+        '];',
+        '',
+        '/** A layer: its ULPC z-order (layers draw low to high) and its strip. */',
+        'export type PaperdollLayer = readonly [z: number, strip: number];',
+        '',
+        'export interface PaperdollPart {',
+        '  walk: readonly PaperdollLayer[];',
+        '  /** By animation (`slash`, `thrust`, `spellcast` or `shoot`); layers without that animation are left out. */',
+        '  poses: Readonly<Record<string, readonly PaperdollLayer[]>>;',
+        '}',
+        '',
+        '/**',
+        ' * Layers per `<part>@<class>` (plan §39): `base@<class>` is the plain look every member starts in, and each',
+        ' * weapon and gear id has an entry for every class that can use it (empty when it is too small to see).',
+        ' */',
+        'export const PAPERDOLL_PARTS: ReadonlyMap<string, PaperdollPart> = new Map<string, PaperdollPart>([',
+        *[line for key in manifest for line in part(key)],
         ']);',
         '',
     ]
-    with open(TS_OUT, 'w', newline='\n', encoding='utf-8') as f:
+    with open(PAPERDOLL_TS_OUT, 'w', newline='\n', encoding='utf-8') as f:
         f.write('\n'.join(lines))
 
 
@@ -613,8 +969,9 @@ def write_credits(rows: list[dict]) -> None:
         '',
         '`characters.png` is composited, recoloured and cropped from layers of the',
         f'[Universal LPC Spritesheet Character Generator]({ULPC_REPO}) and is distributed under **CC-BY-SA 3.0**.',
-        '`actions.png` (the playable classes\' battle attack and spell poses) is built the same way from the same',
-        'generator\'s slash, thrust, shoot and spellcast layers.',
+        '`paperdoll.png` (the party members\' layers: plain clothes, armour, shields, accessories and weapons, each',
+        'with its slash, thrust, shoot and spellcast battle poses) is cut and recoloured from the same generator\'s',
+        'layers, which the game stacks on each party member.',
         'Each layer is available under the licences listed below (CC0, CC-BY, OGA-BY, CC-BY-SA and/or GPL).',
         '',
         f'`monsters.png` crops, reorders and hue-shifts the left-facing frames of `slime.png` and `bat.png` from the',

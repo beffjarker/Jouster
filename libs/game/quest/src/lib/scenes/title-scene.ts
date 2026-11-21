@@ -1,6 +1,7 @@
 import { CELL_WIDTH, InputManager, PointerPoint, Renderer, Scene } from '@jouster/game/engine';
 import { TILE, fitScale, spriteSize, tileAnchor } from '../art/art';
 import { titleTwinkles } from '../art/hd-backdrops';
+import { showcaseOutfit } from '../art/outfit';
 import { CLASS_ORDER, classDef } from '../data/classes';
 import { ABILITIES } from '../data/abilities';
 import { GameState, hasSave, loadGame, newGameState } from '../state/game-state';
@@ -111,7 +112,7 @@ export class TitleScene implements Scene {
     r.textCentered('THE DRAGON SEAL', SCREEN_W / 2, 70 + OY, COLORS.text);
     CLASS_ORDER.forEach((id, i) => {
       const frame = Math.floor(this.time * 3 + i) % 2;
-      const sprite = this.ctx.art.character(id, 'down', frame);
+      const sprite = this.ctx.art.character(showcaseOutfit(id), 'down', frame);
       const gap = Math.max(24, spriteSize(sprite).width);
       const a = tileAnchor(sprite);
       r.draw(sprite, SCREEN_W / 2 - (CLASS_ORDER.length * gap) / 2 + (gap - TILE) / 2 + i * gap - a.x, 104 + OY - a.y);

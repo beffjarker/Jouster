@@ -10,7 +10,10 @@
 > fixes, one art style, a smoke test, poison, LPC battle poses and animated slimes and bats are implemented (§22–§30),
 > and the Necromancer has replaced the Paladin (§31; see [17.8 Next](#178-next) for what is still open).
 > An inventory with monster gear drops, item rarity, random stat bonuses, selling at shops and a simulator loot
-> mode is implemented ([33](#33-inventory-loot-and-item-rarity-implemented)).
+> mode is implemented ([33](#33-inventory-loot-and-item-rarity-implemented)). Since then: the Thornwick ruins and
+> companion pacing (§34), weather anchored to the ground (§35), grind dungeons with respawning wardens in every act
+> (§36, PR #225), bosses that attack on sight (§37, PR #227), regional weather (§38, PR #228) and party members
+> drawn in the gear they wear (§39).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -374,7 +377,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32), the Old Mine grind dungeon (§36), grind dungeons for Acts II–IV (36.2)). Open: giant toad art, post-unlock balance (4.4c) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32), the Thornwick ruins (§34), ground-anchored weather (§35), the Old Mine grind dungeon (§36), grind dungeons for Acts II–IV (36.2), bosses that attack on sight (§37), regional weather (§38), gear shown on party members (§39)). Open: giant toad art, post-unlock balance (4.4c) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -1356,6 +1359,8 @@ avoids laying out sprites twice.
 - **Default art:** LPC is the default (the `?art=classic` opt-out was later removed, see §26). Sheets still
   load non-blockingly, with procedural fallback if a sheet fails.
 - **Known limitation:** ULPC has no child hair, so the child NPC is bald.
+- **Since §39:** the six class rows moved out of `characters.png`; party members are layered from `paperdoll.png`
+  in the gear they wear.
 - **Tests:** every humanoid look has a row, every converted monster has all of its variants (and no extra ones),
   every cell is inside the shipped PNGs, credits list the sheets, anchor / fit helpers, sheet vs procedural
   fallback, and (until §26) the `?art=` switch.
@@ -1694,6 +1699,11 @@ Every Act III asset is procedural, at the §16.10 density:
   mini-boss fights in about half the rounds.
 - ~~Grind dungeons with respawning mini-mini bosses.~~ Done in §36: the Old Mine (Act I), the Sunken Cistern,
   the Frozen Quarry and the Slag Pits (36.2).
+- ~~Encounters seen through the fog start at once, bosses included.~~ Done in §37 (no FIGHT / RETREAT choice;
+  bosses rebalanced for a party worn by the walk in).
+- ~~Region-specific weather (no snow in the desert).~~ Done in §38.
+- ~~Show each party member's armour, shield, accessory and weapon, with a plain look before any armour.~~ Done in
+  §39.
 
 ## 20. Revision 6: solo only before the unlock
 
@@ -1964,7 +1974,8 @@ scorpion poison someone, walk a few steps, then try the chapel's CURE, an Antido
 ## 29. Attack and cast animations (implemented)
 
 Party members now swing, thrust, shoot and cast with the ULPC action rows instead of only stepping in or hopping
-(16.4 item 4c). Merged in PR #212.
+(16.4 item 4c). Merged in PR #212. Since §39 the poses are layered from `paperdoll.png` in each member's gear, and
+`actions.png` is gone; the timing and fallbacks below are unchanged.
 
 | Class | Attack (and damaging skills at enemies) | Spells |
 | --- | --- | --- |
@@ -2395,6 +2406,8 @@ the hero.
 
 ## 36. Grind dungeons and wardens (implemented for every act)
 
+Merged in PR #225.
+
 **Feedback:** add dungeons or towns with "mini-mini bosses" that help grind levels, especially for a solo Wizard, the
 hardest class to start alone.
 
@@ -2497,6 +2510,8 @@ hardest class to start alone.
 
 ## 37. Bosses attack on sight (implemented)
 
+Merged in PR #227.
+
 **Goal:** every map boss (act bosses, mini-bosses and wardens) attacks as soon as the party can see it. There is no
 FIGHT or RETREAT choice and no way to walk up rested; a party meets a boss worn from the walk in.
 
@@ -2561,6 +2576,8 @@ FIGHT or RETREAT choice and no way to walk up rested; a party meets a boss worn 
 
 ## 38. Regional weather (implemented)
 
+In PR #228.
+
 **Problem:** weather was one table per season for the whole world, so the Southlands desert could get snow and
 blizzards in winter, and the volcanic Ember Mountains too.
 
@@ -2618,3 +2635,52 @@ blizzards in winter, and the volcanic Ember Mountains too.
     colours; only temperate and alpine winters frost the ground; spring stays untinted everywhere.
   - `world-scene.spec.ts`: a step from the desert into the marsh fades the old sky out and announces the marsh's
     weather.
+
+## 39. Party members wear their gear (implemented)
+
+**Feedback:** each character's art should show the armour and gear they wear. With nothing equipped (a new game),
+they should look very basic until they equip something.
+
+- **Look:** every party member is drawn in layers: the class's plain base (body, head, hair and beard, an undyed
+  shirt, brown trousers and plain shoes) under the armour, shield, accessory and weapon they wear. A new hero, and a
+  companion waiting to join or rejoining (their gear went back to the bag), wears only the plain base and the
+  class's starting weapon. Equipping, removing or swapping a piece changes the sprite at once: on the map, in
+  battle (standing, walking and the attack and cast poses of §29) and in the status portrait.
+- **Gear looks:**
+
+  | Gear | Look |
+  | --- | --- |
+  | Cloth Robe (anyone) | Padded walnut long sleeves and a leather belt |
+  | Leather, Shadow Leather, Snowcat Leather, Drakehide | Leather cuirass in brown, black, white or maroon; the Rogue adds a matching hood, the Ranger a feathered cap |
+  | Sage, Mirage, Aurora Robe, Ember Silk (casters) | Blue, tan, sky and red robes (the Cleric's: blue, brown, white, red, with a white belt); the Wizard's hat matches (the Aurora hat is starry), the Necromancer adds a hood |
+  | Chain, Scale, Frost, Cinder Mail | Steel, gold, frost-blue and cinder mail; Frost and Cinder add a sky or maroon tabard; the Warrior adds a mail coif, the Ranger her cap |
+  | Plate, Sun, Glacier, Dragon Plate (Warrior) | Cuirass, arms, legs and sabatons in steel, gold, frost-blue and dragon-red, with an armet, gold armet, great helm or horned helm |
+  | Shields (Warrior) | Buckler: round wooden. Kite: blue heraldic kite. Tower: maroon scutum with bronze trim. Wyvern: walnut heater with silver trim. Basalt: bronze spartan |
+  | Accessories | Swift Boots: folded boots. Sage Charm: oval charm. Scarab Amulet: gold amulet with a blue stone. Frost Charm: silver chain with a blue gem. Ember Heart: gold chain with a red gem. Ring of Vigor: too small to see |
+  | Weapons | Swords: bronze, iron and gold arming swords, Frostbrand's glowing blue blade, the Dragonfang longsword. Scythes: one blade in bone, iron, gold, frost and obsidian. Staves: gnarled, loop, gold and silver diamond, dark S. Maces: oak-, iron- and obsidian-headed maces, gold and frost flails. Daggers: bronze, steel, gold, frost, dragon-red. The Ranger's knives show as her bow: plain, dark, light and silver recurve, red great bow |
+
+- **Title screen:** the line-up shows each class in typical Act I gear (`showcaseOutfit`); the class-select
+  portrait shows the plain starting look the player actually gets.
+- **Build (`tools/game-assets/build-lpc-sprites.py`):** `PARTY_BASES` and `GEAR_LOOKS` list ULPC layers per base
+  and per weapon or gear id. For each class that can use a piece (on that class's male or female body), the script
+  cuts each layer's 36 walk frames and the class's attack and cast pose frames, crops every strip to its art,
+  stores identical strips once, and packs them into `paperdoll.png` (2304×2978, about 830 KB, 183 walk and 258
+  pose strips). `lpc-paperdoll.generated.ts` lists each `part@class` with its layers (ULPC z-order and strip).
+  Recolours added for gear: metal ramps ULPC lacks (frost, dragon, obsidian, cinder, derived from steel), palette
+  swaps on pre-coloured weapons (`v:scythe+metal:steel>gold`) and `tone`, which repaints a weapon's grey metal
+  along a palette by brightness (the mace and flail have no metal palette to swap).
+- **Runtime (`Art`, `art/outfit.ts`):** `character`, `characterWalk` and `characterAction` take an `Outfit`
+  (`outfitOf(member)`) or a look id; a class id means its starting outfit. Layers are sorted by z-order (ties keep
+  the base, armour, shield, accessory, weapon order), drawn into a 64×64 walk frame or a 114×68 pose frame, and
+  cached per outfit and frame. NPC looks still come from `characters.png`.
+- **Replaced:** `actions.png` and the six class rows of `characters.png`.
+- **Without the sheets** (procedural fallback): a plain shirt and trousers with no hat until armour is worn, then
+  the class's familiar outfit; the weapon follows its family.
+- **Known gaps:** ULPC weapons have no spellcast frames, so weapons are sheathed while casting (as before §39).
+  The heater shield's back half and the great bow's back half have no slash or shoot frames.
+- **Tests (`lpc-sprites.spec.ts`):** every weapon is drawn for its class and no other; every armour, shield and
+  accessory for each class that can wear it and no other; only the ring is unseen; strips fit the sheet and cells;
+  every class base has its attack (and cast) pose on every layer; a new member is the base plus the starting weapon;
+  layers stack in z-order; poses use the same gear; the sprite changes with the gear and is cached per outfit;
+  `outfitOf` reads a member; the procedural look stays plain until armour. `battle-scene.spec.ts` checks that poses
+  are asked for in the member's outfit.

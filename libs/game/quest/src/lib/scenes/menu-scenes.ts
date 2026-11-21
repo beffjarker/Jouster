@@ -1,4 +1,5 @@
 import { TILE, fitScale } from '../art/art';
+import { outfitOf } from '../art/outfit';
 import { InputAction, InputManager, ItemEffect, Renderer, Scene, Stats, cappedRestore, healAmount, totalXpForLevel, MAX_LEVEL } from '@jouster/game/engine';
 import { ABILITIES } from '../data/abilities';
 import { classDef } from '../data/classes';
@@ -601,7 +602,7 @@ export class FieldMenuScene implements Scene {
     const cls = classDef(m.classId);
     const x = 88;
     r.window(x, 8, SCREEN_W - x - 8, SCREEN_H - 16);
-    const portrait = this.ctx.art.character(m.classId, 'down', 0);
+    const portrait = this.ctx.art.character(outfitOf(m), 'down', 0);
     r.draw(portrait, x + 8, 14, { scale: fitScale(portrait, TILE * 2) });
     r.text(m.name.toUpperCase(), x + 44, 16, COLORS.gold);
     r.text(`${cls.name.toUpperCase()} L${m.level}`, x + 44, 28);
