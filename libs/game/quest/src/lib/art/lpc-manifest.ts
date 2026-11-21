@@ -14,7 +14,8 @@ export const LPC_SHEETS = {
   /** Built by `tools/game-assets/build-lpc-sprites.py`; layout in `lpc-sprites.generated.ts`. */
   characters: 'characters.png',
   monsters: 'monsters.png',
-  actions: 'actions.png',
+  /** Party members' layers (plan §39); layout in `lpc-paperdoll.generated.ts`. */
+  paperdoll: 'paperdoll.png',
 } as const;
 
 export type LpcSheetId = keyof typeof LPC_SHEETS;

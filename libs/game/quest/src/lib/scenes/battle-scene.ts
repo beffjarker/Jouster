@@ -17,7 +17,8 @@ import {
   isAlive,
   wrapText,
 } from '@jouster/game/engine';
-import { CharacterAction, SHADOW_W, fitScale, monsterVariant, spriteSize } from '../art/art';
+import { CharacterAction, CharacterLook, SHADOW_W, fitScale, monsterVariant, spriteSize } from '../art/art';
+import { outfitOf } from '../art/outfit';
 import { ABILITIES } from '../data/abilities';
 import { ITEMS } from '../data/equipment';
 import { Backdrop } from '../data/maps';
@@ -852,11 +853,17 @@ export class BattleScene implements Scene {
    */
   private startPose(actor: Combatant, fx: Extract<BattleFx, { type: 'act' }>, melee: boolean): boolean {
     const action = this.poseFor(actor, fx);
-    if (!action || !this.ctx.art.characterAction(actor.sourceId, action, 0)) {
+    if (!action || !this.ctx.art.characterAction(this.lookOf(actor), action, 0)) {
       return false;
     }
     this.poses.set(actor.id, { action, t: 0, dur: melee ? LUNGE_TIME : POSE_TIME[action] });
     return true;
+  }
+
+  /** What a combatant is drawn as: a party member in the gear they wear (plan §39), anyone else by sprite id. */
+  private lookOf(c: Combatant): CharacterLook {
+    const member = c.side === 'party' ? this.members.find((m) => m.id === c.id) : undefined;
+    return member ? outfitOf(member) : c.sourceId;
   }
 
   /** Party spells cast; attacks and damaging skills at enemies swing the weapon (or shoot, for rangers). */
@@ -1104,11 +1111,12 @@ export class BattleScene implements Scene {
     const fleeing = this.motions.get(c.id)?.kind === 'flee';
     const walking = this.motions.has(c.id) || this.phase === 'intro' || this.isActing(c);
     const frame = walking ? Math.floor(this.time * 6) % 2 : 0;
-    const raw = this.ctx.art.character(c.sourceId, fleeing ? 'left' : 'right', frame);
+    const look = this.lookOf(c);
+    const raw = this.ctx.art.character(look, fleeing ? 'left' : 'right', frame);
     const scale = fitScale(raw, spot.size);
     const flashing = this.flash.has(c.id) && Math.floor(this.time * 20) % 2 === 0;
     const posing = down || fleeing ? undefined : this.poses.get(c.id);
-    const action = posing && this.ctx.art.characterAction(c.sourceId, posing.action, posing.t / posing.dur);
+    const action = posing && this.ctx.art.characterAction(look, posing.action, posing.t / posing.dur);
     if (action) {
       const x = p.x + action.offsetX * scale;
       const y = p.y + action.offsetY * scale;

@@ -12,24 +12,18 @@ export const LPC_CHARACTER_STEP_POSE = 4;
 
 /** `characters.png` row per humanoid look id. */
 export const LPC_CHARACTER_ROWS: ReadonlyMap<string, number> = new Map<string, number>([
-  ['warrior', 0],
-  ['wizard', 1],
-  ['necromancer', 2],
-  ['cleric', 3],
-  ['rogue', 4],
-  ['ranger', 5],
-  ['king', 6],
-  ['guard', 7],
-  ['priest', 8],
-  ['merchant', 9],
-  ['smith', 10],
-  ['innkeeper', 11],
-  ['recruit', 12],
-  ['villager', 13],
-  ['elder', 14],
-  ['child', 15],
-  ['prisoner', 16],
-  ['goblinKingNpc', 17],
+  ['king', 0],
+  ['guard', 1],
+  ['priest', 2],
+  ['merchant', 3],
+  ['smith', 4],
+  ['innkeeper', 5],
+  ['recruit', 6],
+  ['villager', 7],
+  ['elder', 8],
+  ['child', 9],
+  ['prisoner', 10],
+  ['goblinKingNpc', 11],
 ]);
 
 /** Real-pixel size of one `monsters.png` cell. */
@@ -43,19 +37,19 @@ export const LPC_MONSTERS: ReadonlyMap<
   string,
   { sheet: 'characters' | 'monsters'; index: number; frames: number; fps: number }
 > = new Map([
-  ['goblin:0', { sheet: 'characters' as const, index: 18, frames: 1, fps: 0 }],
-  ['goblin:1', { sheet: 'characters' as const, index: 19, frames: 1, fps: 0 }],
-  ['goblin:2', { sheet: 'characters' as const, index: 20, frames: 1, fps: 0 }],
-  ['skeleton:0', { sheet: 'characters' as const, index: 21, frames: 1, fps: 0 }],
-  ['skeleton:1', { sheet: 'characters' as const, index: 22, frames: 1, fps: 0 }],
-  ['skeleton:2', { sheet: 'characters' as const, index: 23, frames: 1, fps: 0 }],
-  ['goblinKing:0', { sheet: 'characters' as const, index: 24, frames: 1, fps: 0 }],
-  ['goblinChief:0', { sheet: 'characters' as const, index: 25, frames: 1, fps: 0 }],
-  ['boneCaptain:0', { sheet: 'characters' as const, index: 26, frames: 1, fps: 0 }],
-  ['wolf:0', { sheet: 'characters' as const, index: 27, frames: 1, fps: 0 }],
-  ['wolf:1', { sheet: 'characters' as const, index: 28, frames: 1, fps: 0 }],
-  ['wolf:2', { sheet: 'characters' as const, index: 29, frames: 1, fps: 0 }],
-  ['alphaWolf:0', { sheet: 'characters' as const, index: 30, frames: 1, fps: 0 }],
+  ['goblin:0', { sheet: 'characters' as const, index: 12, frames: 1, fps: 0 }],
+  ['goblin:1', { sheet: 'characters' as const, index: 13, frames: 1, fps: 0 }],
+  ['goblin:2', { sheet: 'characters' as const, index: 14, frames: 1, fps: 0 }],
+  ['skeleton:0', { sheet: 'characters' as const, index: 15, frames: 1, fps: 0 }],
+  ['skeleton:1', { sheet: 'characters' as const, index: 16, frames: 1, fps: 0 }],
+  ['skeleton:2', { sheet: 'characters' as const, index: 17, frames: 1, fps: 0 }],
+  ['goblinKing:0', { sheet: 'characters' as const, index: 18, frames: 1, fps: 0 }],
+  ['goblinChief:0', { sheet: 'characters' as const, index: 19, frames: 1, fps: 0 }],
+  ['boneCaptain:0', { sheet: 'characters' as const, index: 20, frames: 1, fps: 0 }],
+  ['wolf:0', { sheet: 'characters' as const, index: 21, frames: 1, fps: 0 }],
+  ['wolf:1', { sheet: 'characters' as const, index: 22, frames: 1, fps: 0 }],
+  ['wolf:2', { sheet: 'characters' as const, index: 23, frames: 1, fps: 0 }],
+  ['alphaWolf:0', { sheet: 'characters' as const, index: 24, frames: 1, fps: 0 }],
   ['slime:0', { sheet: 'monsters' as const, index: 0, frames: 4, fps: 6 }],
   ['slime:1', { sheet: 'monsters' as const, index: 1, frames: 4, fps: 6 }],
   ['slime:2', { sheet: 'monsters' as const, index: 2, frames: 4, fps: 6 }],
@@ -65,23 +59,4 @@ export const LPC_MONSTERS: ReadonlyMap<
   ['bat:0', { sheet: 'monsters' as const, index: 6, frames: 4, fps: 10 }],
   ['bat:1', { sheet: 'monsters' as const, index: 7, frames: 4, fps: 10 }],
   ['bat:2', { sheet: 'monsters' as const, index: 8, frames: 4, fps: 10 }],
-]);
-
-/** Real-pixel size of one `actions.png` cell (a battle pose frame, facing right). */
-export const LPC_ACTION_CELL = { width: 74, height: 60 } as const;
-
-/** Real-pixel offset of the `characters.png` cell inside an `actions.png` cell (the body lines up). */
-export const LPC_ACTION_ORIGIN = { x: -10, y: -6 } as const;
-
-/** `actions.png` row and frame count per `look:action` (action `attack` or `cast`). */
-export const LPC_ACTIONS: ReadonlyMap<string, { row: number; frames: number }> = new Map([
-  ['warrior:attack', { row: 0, frames: 6 }],
-  ['wizard:attack', { row: 1, frames: 8 }],
-  ['wizard:cast', { row: 2, frames: 7 }],
-  ['necromancer:attack', { row: 3, frames: 6 }],
-  ['necromancer:cast', { row: 4, frames: 7 }],
-  ['cleric:attack', { row: 5, frames: 6 }],
-  ['cleric:cast', { row: 6, frames: 7 }],
-  ['rogue:attack', { row: 7, frames: 6 }],
-  ['ranger:attack', { row: 8, frames: 13 }],
 ]);

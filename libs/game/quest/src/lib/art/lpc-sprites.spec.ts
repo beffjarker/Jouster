@@ -4,6 +4,10 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { createCanvas, setImageDensity } from '@jouster/game/engine';
+import { CLASS_ORDER, classDef } from '../data/classes';
+import { WEAPONS } from '../data/equipment';
+import { GEAR, gearUsableBy } from '../data/gear';
+import { createMember } from '../state/party';
 import {
   Art,
   CHARACTER_LOOK_IDS,
@@ -16,9 +20,14 @@ import {
 } from './art';
 import { LpcSheetId } from './lpc-manifest';
 import {
-  LPC_ACTIONS,
-  LPC_ACTION_CELL,
-  LPC_ACTION_ORIGIN,
+  PAPERDOLL_CELL,
+  PAPERDOLL_CLASS_POSES,
+  PAPERDOLL_PARTS,
+  PAPERDOLL_POSE_CELL,
+  PAPERDOLL_POSE_ORIGIN,
+  PAPERDOLL_STRIPS,
+} from './lpc-paperdoll.generated';
+import {
   LPC_CHARACTER_CELL,
   LPC_CHARACTER_FACINGS,
   LPC_CHARACTER_ROWS,
@@ -27,6 +36,7 @@ import {
   LPC_MONSTERS,
   LPC_MONSTER_CELL,
 } from './lpc-sprites.generated';
+import { Outfit, isClassId, outfitLook, outfitOf, showcaseOutfit, startingOutfit } from './outfit';
 
 const assetDir = resolve(__dirname, '../../../../../../apps/jouster-ui/public/game-assets/lpc');
 
@@ -44,13 +54,28 @@ function fakeSheets(): Map<LpcSheetId, CanvasImageSource> {
     ['outside', img],
     ['characters', img],
     ['monsters', img],
-    ['actions', img],
+    ['paperdoll', img],
   ]);
 }
 
+type DollCall = [cell: { width: number; height: number }, strips: number[], frame: number];
+
+/** Spies on Art's layer compositor (`dollSprite`), which gets the cell, the strips low to high and the frame. */
+function spyDoll(art: Art): jest.SpyInstance<HTMLCanvasElement, DollCall> {
+  return jest.spyOn(art as unknown as { dollSprite(...a: DollCall): HTMLCanvasElement }, 'dollSprite');
+}
+
+function lastDoll(spy: jest.SpyInstance<HTMLCanvasElement, DollCall>): DollCall {
+  return spy.mock.calls[spy.mock.calls.length - 1];
+}
+
 describe('LPC sprite layout', () => {
-  it('has a characters.png row for every humanoid look', () => {
-    CHARACTER_LOOK_IDS.forEach((id) => expect(LPC_CHARACTER_ROWS.has(id)).toBe(true));
+  it('has a characters.png row for every NPC look, and a paperdoll base for every class', () => {
+    CHARACTER_LOOK_IDS.filter((id) => !isClassId(id)).forEach((id) => expect(LPC_CHARACTER_ROWS.has(id)).toBe(true));
+    CLASS_ORDER.forEach((id) => {
+      expect(LPC_CHARACTER_ROWS.has(id)).toBe(false);
+      expect(PAPERDOLL_PARTS.get(`base@${id}`)?.walk.length).toBeGreaterThanOrEqual(5);
+    });
   });
 
   it('covers every variant of each converted monster, and nothing more', () => {
@@ -83,27 +108,49 @@ describe('LPC sprite layout', () => {
     expect((Math.max(...rows) + 1) * LPC_CHARACTER_CELL.height).toBeLessThanOrEqual(chars.height);
   });
 
-  it('gives every class an attack pose and the spell casters a cast pose, inside actions.png', () => {
+  it('gives every class an attack pose and the spell casters a cast pose, on every layer of their plain look', () => {
     const casters = ['wizard', 'necromancer', 'cleric'];
-    ['warrior', 'wizard', 'necromancer', 'cleric', 'rogue', 'ranger'].forEach((id) => {
-      expect(LPC_ACTIONS.has(`${id}:attack`)).toBe(true);
-      expect(LPC_ACTIONS.has(`${id}:cast`)).toBe(casters.includes(id));
+    CLASS_ORDER.forEach((id) => {
+      const poses = PAPERDOLL_CLASS_POSES.get(id);
+      expect(poses?.attack).toBeDefined();
+      expect(poses?.cast !== undefined).toBe(casters.includes(id));
+      const base = PAPERDOLL_PARTS.get(`base@${id}`);
+      [poses?.attack, poses?.cast].forEach((anim) => {
+        if (anim) {
+          expect(base?.poses[anim]?.length).toBe(base?.walk.length);
+        }
+      });
     });
-    const sheet = pngSize('actions.png');
-    const rows = new Set<number>();
-    LPC_ACTIONS.forEach(({ row, frames }) => {
-      rows.add(row);
-      expect(frames).toBeGreaterThan(1);
-      expect(frames * LPC_ACTION_CELL.width).toBeLessThanOrEqual(sheet.width);
-      expect((row + 1) * LPC_ACTION_CELL.height).toBeLessThanOrEqual(sheet.height);
-    });
-    expect(rows.size).toBe(LPC_ACTIONS.size);
   });
 
-  it('keeps pose offsets on whole logical pixels', () => {
-    [LPC_ACTION_CELL.width, LPC_ACTION_CELL.height, LPC_ACTION_ORIGIN.x, LPC_ACTION_ORIGIN.y].forEach((n) =>
-      expect(Math.abs(n % 2)).toBe(0),
-    );
+  it('only references strips inside paperdoll.png, with 36 walk frames each', () => {
+    const sheet = pngSize('paperdoll.png');
+    PAPERDOLL_STRIPS.forEach(([x, y, w, h, , , frames]) => {
+      expect(x + w * frames).toBeLessThanOrEqual(sheet.width);
+      expect(y + h).toBeLessThanOrEqual(sheet.height);
+    });
+    PAPERDOLL_PARTS.forEach((part) => {
+      part.walk.forEach(([, s]) => {
+        const [, , w, h, dx, dy, frames] = PAPERDOLL_STRIPS[s];
+        expect(frames).toBe(LPC_CHARACTER_FACINGS.length * LPC_CHARACTER_STEPS);
+        expect(dx + w).toBeLessThanOrEqual(PAPERDOLL_CELL.width);
+        expect(dy + h).toBeLessThanOrEqual(PAPERDOLL_CELL.height);
+      });
+      Object.values(part.poses).forEach((layers) =>
+        layers.forEach(([, s]) => {
+          const [, , w, h, dx, dy, frames] = PAPERDOLL_STRIPS[s];
+          expect(frames).toBeGreaterThan(1);
+          expect(dx + w).toBeLessThanOrEqual(PAPERDOLL_POSE_CELL.width);
+          expect(dy + h).toBeLessThanOrEqual(PAPERDOLL_POSE_CELL.height);
+        }),
+      );
+    });
+  });
+
+  it('keeps cells and the pose offset on whole logical pixels', () => {
+    [PAPERDOLL_CELL, PAPERDOLL_POSE_CELL].forEach((c) => [c.width, c.height].forEach((n) => expect(n % 2).toBe(0)));
+    [PAPERDOLL_POSE_ORIGIN.x, PAPERDOLL_POSE_ORIGIN.y].forEach((n) => expect(Math.abs(n % 2)).toBe(0));
+    expect(PAPERDOLL_CELL).toEqual(LPC_CHARACTER_CELL);
   });
 
   it('credits the generated sheets', () => {
@@ -111,7 +158,60 @@ describe('LPC sprite layout', () => {
     expect(credits).toContain('lpc-sprites:start');
     expect(credits).toContain('characters.png');
     expect(credits).toContain('monsters.png');
-    expect(credits).toContain('actions.png');
+    expect(credits).toContain('paperdoll.png');
+  });
+});
+
+describe('paperdoll parts (plan §39)', () => {
+  /** The class whose starting weapon shares a family with `weaponId` (each family belongs to one class). */
+  const wielder = (weaponId: string): string | undefined =>
+    CLASS_ORDER.find((c) => WEAPONS.get(classDef(c).startingWeaponId)?.family === WEAPONS.get(weaponId)?.family);
+
+  it('draws every weapon for the class that wields it, and only that class', () => {
+    WEAPONS.forEach((w) =>
+      CLASS_ORDER.forEach((c) => {
+        const part = PAPERDOLL_PARTS.get(`${w.id}@${c}`);
+        expect(part ? `${w.id}@${c}` : undefined).toBe(c === wielder(w.id) ? `${w.id}@${c}` : undefined);
+        if (part) {
+          expect(part.walk.length).toBeGreaterThan(0);
+        }
+      }),
+    );
+  });
+
+  it('draws every armour, shield and accessory for each class that can wear it, and only those', () => {
+    GEAR.forEach((g) =>
+      CLASS_ORDER.forEach((c) => {
+        const key = `${g.id}@${c}`;
+        expect(PAPERDOLL_PARTS.has(key) ? key : undefined).toBe(gearUsableBy(g, c) ? key : undefined);
+      }),
+    );
+  });
+
+  it('shows all worn armour and shields; only a ring is too small to see', () => {
+    const unseen = [...GEAR.values()].flatMap((g) =>
+      CLASS_ORDER.filter((c) => gearUsableBy(g, c) && !PAPERDOLL_PARTS.get(`${g.id}@${c}`)?.walk.length).map(
+        (c) => `${g.id}@${c}`,
+      ),
+    );
+    expect(unseen).toEqual(CLASS_ORDER.map((c) => `vigorRing@${c}`));
+  });
+
+  it('lists no part that is not a base, weapon or gear id', () => {
+    PAPERDOLL_PARTS.forEach((_, key) => {
+      const [id, cls] = key.split('@');
+      expect(isClassId(cls)).toBe(true);
+      expect(id === 'base' || WEAPONS.has(id) || GEAR.has(id)).toBe(true);
+    });
+  });
+
+  it('dresses the title screen line-up only in gear each class can use', () => {
+    CLASS_ORDER.forEach((c) => {
+      const o = showcaseOutfit(c);
+      [o.weapon, o.armor, o.shield, o.accessory].filter(Boolean).forEach((id) =>
+        expect(PAPERDOLL_PARTS.has(`${id}@${c}`)).toBe(true),
+      );
+    });
   });
 });
 
@@ -280,16 +380,31 @@ describe('Art sprites', () => {
     const crop = jest.spyOn(art as unknown as { sheetSprite(...a: unknown[]): HTMLCanvasElement }, 'sheetSprite');
     const base = LPC_CHARACTER_FACINGS.indexOf('down') * LPC_CHARACTER_STEPS;
     const cols = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
-      art.characterWalk('warrior', 'down', i / 8);
+      art.characterWalk('guard', 'down', i / 8);
       return (crop.mock.calls[crop.mock.calls.length - 1][1] as number) / LPC_CHARACTER_CELL.width - base;
     });
     expect(cols).toEqual([2, 3, 4, 5, 6, 7, 8, 1]);
-    expect(art.characterWalk('warrior', 'down', 1.25)).toBe(art.characterWalk('warrior', 'down', 0.25));
-    art.character('warrior', 'up', 1);
+    expect(art.characterWalk('guard', 'down', 1.25)).toBe(art.characterWalk('guard', 'down', 0.25));
+    art.character('guard', 'up', 1);
     const upBase = LPC_CHARACTER_FACINGS.indexOf('up') * LPC_CHARACTER_STEPS;
     expect((crop.mock.calls[crop.mock.calls.length - 1][1] as number) / LPC_CHARACTER_CELL.width - upBase).toBe(
       LPC_CHARACTER_STEP_POSE,
     );
+  });
+
+  it('walks party members through the same cycle from their layers', () => {
+    const art = new Art(fakeSheets());
+    const doll = spyDoll(art);
+    const base = LPC_CHARACTER_FACINGS.indexOf('down') * LPC_CHARACTER_STEPS;
+    const cols = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+      art.characterWalk('warrior', 'down', i / 8);
+      return lastDoll(doll)[2] - base;
+    });
+    expect(cols).toEqual([2, 3, 4, 5, 6, 7, 8, 1]);
+    expect(art.characterWalk('warrior', 'down', 1.25)).toBe(art.characterWalk('warrior', 'down', 0.25));
+    art.character('warrior', 'up', 1);
+    expect(lastDoll(doll)[2]).toBe(LPC_CHARACTER_FACINGS.indexOf('up') * LPC_CHARACTER_STEPS + LPC_CHARACTER_STEP_POSE);
+    expect(lastDoll(doll)[0]).toBe(PAPERDOLL_CELL);
   });
 
   it('swaps procedural walk frames mid-tile, as before', () => {
@@ -305,25 +420,21 @@ describe('Art sprites', () => {
     ]);
   });
 
-  it('plays battle poses frame by frame from actions.png, offset so the body lines up', () => {
+  it('plays battle poses frame by frame from the layers, offset so the body lines up', () => {
     const art = new Art(fakeSheets());
-    const crop = jest.spyOn(art as unknown as { sheetSprite(...a: unknown[]): HTMLCanvasElement }, 'sheetSprite');
-    const slash = LPC_ACTIONS.get('warrior:attack');
+    const doll = spyDoll(art);
+    const parts = ['base@warrior', 'bronzeSword@warrior'].map((k) => PAPERDOLL_PARTS.get(k));
+    const frames = Math.max(...parts.flatMap((p) => p?.poses['slash'] ?? []).map(([, s]) => PAPERDOLL_STRIPS[s][6]));
     const pose = art.characterAction('warrior', 'attack', 0.55);
     expect(pose).toBeDefined();
-    expect(crop).toHaveBeenLastCalledWith(
-      'actions',
-      Math.floor(0.55 * (slash?.frames ?? 0)) * LPC_ACTION_CELL.width,
-      (slash?.row ?? 0) * LPC_ACTION_CELL.height,
-      LPC_ACTION_CELL.width,
-      LPC_ACTION_CELL.height,
-    );
+    expect(lastDoll(doll)[0]).toBe(PAPERDOLL_POSE_CELL);
+    expect(lastDoll(doll)[2]).toBe(Math.floor(0.55 * frames));
     expect(spriteSize(pose?.sprite as HTMLCanvasElement)).toEqual({
-      width: LPC_ACTION_CELL.width / 2,
-      height: LPC_ACTION_CELL.height / 2,
+      width: PAPERDOLL_POSE_CELL.width / 2,
+      height: PAPERDOLL_POSE_CELL.height / 2,
     });
-    expect(pose?.offsetX).toBe(-LPC_ACTION_ORIGIN.x / 2);
-    expect(pose?.offsetY).toBe(-LPC_ACTION_ORIGIN.y / 2);
+    expect(pose?.offsetX).toBe(-PAPERDOLL_POSE_ORIGIN.x / 2);
+    expect(pose?.offsetY).toBe(-PAPERDOLL_POSE_ORIGIN.y / 2);
     expect(art.characterAction('warrior', 'attack', 0)?.sprite).not.toBe(pose?.sprite);
     expect(art.characterAction('warrior', 'attack', 1)?.sprite).toBe(art.characterAction('warrior', 'attack', 0.99)?.sprite);
   });
@@ -334,5 +445,79 @@ describe('Art sprites', () => {
     expect(art.characterAction('warrior', 'cast', 0)).toBeUndefined();
     expect(art.characterAction('king', 'attack', 0)).toBeUndefined();
     expect(art.characterAction('wizard', 'cast', 0.5)).toBeDefined();
+  });
+});
+
+describe('party members drawn in their gear (plan §39)', () => {
+  /** Walk strips of the given parts for a class, in the order Art layers them (z, then part and layer order). */
+  const layered = (cls: string, ids: string[]): number[] =>
+    ids
+      .flatMap((id) => PAPERDOLL_PARTS.get(`${id}@${cls}`)?.walk ?? [])
+      .map(([z, strip], i) => ({ z, i, strip }))
+      .sort((a, b) => a.z - b.z || a.i - b.i)
+      .map((l) => l.strip);
+
+  it('starts every class plain: its base and starting weapon, nothing else', () => {
+    const art = new Art(fakeSheets());
+    const doll = spyDoll(art);
+    CLASS_ORDER.forEach((c) => {
+      art.character(c, 'down');
+      expect(lastDoll(doll)[1]).toEqual(layered(c, ['base', classDef(c).startingWeaponId]));
+    });
+  });
+
+  it('layers armour, shield, accessory and weapon over the base in ULPC z-order', () => {
+    const art = new Art(fakeSheets());
+    const doll = spyDoll(art);
+    const outfit: Outfit = {
+      classId: 'warrior',
+      weapon: 'ironSword',
+      armor: 'plateArmor',
+      shield: 'kiteShield',
+      accessory: 'swiftBoots',
+    };
+    art.character(outfit, 'right');
+    const strips = lastDoll(doll)[1];
+    expect(strips).toEqual(layered('warrior', ['base', 'plateArmor', 'kiteShield', 'swiftBoots', 'ironSword']));
+    expect(strips.length).toBeGreaterThan(layered('warrior', ['base', 'ironSword']).length + 4);
+  });
+
+  it('poses in the same gear', () => {
+    const art = new Art(fakeSheets());
+    const doll = spyDoll(art);
+    art.characterAction({ classId: 'cleric', weapon: 'ironMace', armor: 'sageRobe' }, 'cast', 0);
+    const robe = PAPERDOLL_PARTS.get('sageRobe@cleric')?.poses['spellcast'] ?? [];
+    expect(robe.length).toBeGreaterThan(0);
+    robe.forEach(([, s]) => expect(lastDoll(doll)[1]).toContain(s));
+  });
+
+  it('changes the sprite when the gear changes, and caches each outfit', () => {
+    const art = new Art(fakeSheets());
+    const plain = art.character('warrior', 'down');
+    expect(art.character(startingOutfit('warrior'), 'down')).toBe(plain);
+    const mail = art.character({ ...startingOutfit('warrior'), armor: 'chainMail' }, 'down');
+    expect(mail).not.toBe(plain);
+    expect(art.character({ ...startingOutfit('warrior'), armor: 'chainMail' }, 'down')).toBe(mail);
+    expect(art.character({ ...startingOutfit('warrior'), armor: 'chainMail', shield: 'buckler' }, 'down')).not.toBe(mail);
+  });
+
+  it('reads the outfit off a party member', () => {
+    const m = createMember('h', 'Hero', 'cleric', 3);
+    expect(outfitOf(m)).toEqual({ classId: 'cleric', weapon: 'woodMace' });
+    m.armorId = 'chainMail';
+    m.accessoryId = 'sageCharm';
+    expect(outfitOf(m)).toEqual({ classId: 'cleric', weapon: 'woodMace', armor: 'chainMail', accessory: 'sageCharm' });
+  });
+
+  it('draws a plain procedural look until armour is worn, when the sheets are missing', () => {
+    const plain = outfitLook(startingOutfit('wizard'));
+    expect(plain.hat).toBeUndefined();
+    expect(plain.robe).toBe(false);
+    expect(plain.weapon).toBe('staff');
+    expect(outfitLook({ ...startingOutfit('wizard'), armor: 'sageRobe' }).hat).toBe('wizard');
+    expect(outfitLook(startingOutfit('ranger')).weapon).toBe('bow');
+    const art = new Art();
+    const robed = art.character({ ...startingOutfit('wizard'), armor: 'sageRobe' }, 'down');
+    expect(art.character('wizard', 'down')).not.toBe(robed);
   });
 });

@@ -194,8 +194,8 @@ describe('BattleScene', () => {
   });
 
   it('plays LPC attack and cast poses in place of the hop, and drops them when they finish', () => {
-    const characterAction = jest.fn((id: string, action: string) =>
-      id === 'warrior' && action === 'attack' ? ({} as never) : undefined,
+    const characterAction = jest.fn((look: string | { classId: string }, action: string) =>
+      typeof look !== 'string' && look.classId === 'warrior' && action === 'attack' ? ({} as never) : undefined,
     );
     const { internals, driver } = setup(0, { characterAction });
     const t = internals as unknown as BattleInternals & {
@@ -221,7 +221,8 @@ describe('BattleScene', () => {
     t.playAct({ type: 'act', actorId: hero.id, act: 'defend' });
     t.playAct({ type: 'act', actorId: enemy.id, act: 'attack', targetId: hero.id, melee: true });
     expect(t.poses.size).toBe(0);
-    expect(characterAction).toHaveBeenCalledWith('warrior', 'attack', 0);
+    // The hero poses in the gear they wear (plan §39): a new Warrior's outfit is the Bronze Sword alone.
+    expect(characterAction).toHaveBeenCalledWith({ classId: 'warrior', weapon: 'bronzeSword' }, 'attack', 0);
   });
 
   it('casts with a pose and skips the hop when the caster has one', () => {

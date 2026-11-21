@@ -11,6 +11,7 @@ import {
   scaledEncounterRate,
 } from '@jouster/game/engine';
 import { TILE, WALKWAY_TILES, castsShadow, decorTopOf, tileAnchor, tileVariant, walkwayMask } from '../art/art';
+import { outfitOf } from '../art/outfit';
 import { groundVariant } from '../art/lpc-manifest';
 import { classDef } from '../data/classes';
 import { companionIntro, companionLines, companionRestSpot, companionSlot } from '../data/companions';
@@ -639,9 +640,10 @@ export class WorldScene implements Scene {
       }
       const px = this.lerp(w.fromX, w.x, t) * TILE - camX;
       const py = this.lerp(w.fromY, w.y, t) * TILE - camY;
+      const outfit = outfitOf(member);
       const sprite = this.moving
-        ? this.ctx.art.characterWalk(member.classId, w.facing, walkPhase)
-        : this.ctx.art.character(member.classId, w.facing, frame);
+        ? this.ctx.art.characterWalk(outfit, w.facing, walkPhase)
+        : this.ctx.art.character(outfit, w.facing, frame);
       const a = tileAnchor(sprite);
       // Depth comes from the lower of the two rows a step spans, so a walker passing a tree isn't covered by it
       // for most of the step and then popped in front at the end.
