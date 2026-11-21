@@ -13,7 +13,7 @@
 > mode is implemented ([33](#33-inventory-loot-and-item-rarity-implemented)). Since then: the Thornwick ruins and
 > companion pacing (§34), weather anchored to the ground (§35), grind dungeons with respawning wardens in every act
 > (§36, PR #225), bosses that attack on sight (§37, PR #227), regional weather (§38, PR #228) and party members
-> drawn in the gear they wear (§39).
+> drawn in the gear they wear (§39, PR #229) and a shop comparison against the worn gear (§40).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -377,7 +377,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32), the Thornwick ruins (§34), ground-anchored weather (§35), the Old Mine grind dungeon (§36), grind dungeons for Acts II–IV (36.2), bosses that attack on sight (§37), regional weather (§38), gear shown on party members (§39)). Open: giant toad art, post-unlock balance (4.4c) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32), the Thornwick ruins (§34), ground-anchored weather (§35), the Old Mine grind dungeon (§36), grind dungeons for Acts II–IV (36.2), bosses that attack on sight (§37), regional weather (§38), gear shown on party members (§39), shop comparison against worn gear (§40)). Open: giant toad art, post-unlock balance (4.4c) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -2207,6 +2207,7 @@ and anything bought in a shop is Common.
   Under the list, a comparison window (`scenes/gear-compare.ts`) shows NOW (the worn piece) and NEW (the
   highlighted piece, or REMOVE), each with its rarity colour and own stats, then every member stat as
   `before > after` with the change in green (gain) or red (loss), and the new piece's description.
+- **BUY list:** since §40, each piece is compared with what every party member wears.
 - **ITEM menu (`I`):** two tabs, ITEMS (consumables, as today) and GEAR (all pieces in the bag, sorted by slot,
   then tier, then rarity, with who can use each piece).
 
@@ -2684,3 +2685,24 @@ they should look very basic until they equip something.
   layers stack in z-order; poses use the same gear; the sprite changes with the gear and is cached per outfit;
   `outfitOf` reads a member; the procedural look stays plain until armour. `battle-scene.spec.ts` checks that poses
   are asked for in the member's outfit.
+
+## 40. Shop comparison against worn gear (implemented)
+
+**Feedback:** while shopping it is hard to tell whether a piece is better than what each member wears.
+
+- **Party panel** (`drawShopCompare` in `scenes/gear-compare.ts`), under the BUY list of the smith and armorer, for
+  the highlighted piece: one block per party member with their name, what they wear in that slot now (in its rarity
+  colour, or NOTHING) and a verdict, then each stat that would change as `before > after` with the change in green
+  (gain) or red (loss). The piece is compared as the plain Common the shop sells, against the worn piece with its
+  rarity bonuses, so a Rare with a bonus can make a shop piece MIXED or WORSE.
+- **Verdicts** (`shopCompare`): BETTER (only gains, green), WORSE (only losses, red), MIXED (gains and losses,
+  gold), SAME (no change), WORN (already wearing it) and CAN'T USE (the class can't use it).
+- **BUY list:** pieces that are BETTER for anyone are listed in green with `+` before the price (dim as usual when
+  unaffordable). The marks update after an equip.
+- **Info window:** the third line now reads `UPGRADE FOR: <names>` (green), `NOT A CLEAR UPGRADE FOR ANYONE`, or
+  `NO ONE IN YOUR PARTY CAN USE THIS` (red), instead of listing everyone who can use it.
+- **Equip it now?** each name in the choice list shows what that member would gain or lose (`ROWAN ATK+4`).
+- **Tests (`gear-compare.spec.ts`):** BETTER, WORSE, MIXED, WORN and CAN'T USE verdicts and the change text; the
+  BUY view draws every member, the worn piece, the verdict, coloured `before > after` stats, the green upgrade
+  line and list mark, with the panel above the info window and no text overflowing or overlapping; the equip prompt
+  shows the gain next to each name.

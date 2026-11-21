@@ -40,7 +40,7 @@ import {
 } from '../ui/widgets';
 import { VOLUME_ROWS, adjustVolumeRow, rememberVolumes, volumeLabel } from '../ui/volume-rows';
 import { GameContext, memberStatus, requireState } from './context';
-import { drawGearCompare } from './gear-compare';
+import { changesText, drawGearCompare, drawShopCompare, shopCompare } from './gear-compare';
 import { GearGroup, gearDescription, gearMenuItem, gearStatsText, groupGear } from './gear-pick-scene';
 import { MapScene, questLog } from './map-scene';
 
@@ -733,6 +733,8 @@ const SHOP_TOP = ['BUY', 'SELL', 'LEAVE'] as const;
 /** A line of the SELL list: a consumable id or a group of bag gear. */
 type SellLine = { id: string } | { group: GearGroup };
 const SHOP_LIST_X = 104;
+/** Top of the party comparison panel under the BUY list. */
+const SHOP_PANEL_Y = 96;
 
 /**
  * Item shop, weapon shop and armorer: BUY, SELL or LEAVE (plan 33.5). Bought gear goes into the bag as a plain
@@ -840,13 +842,16 @@ export class ShopScene implements Scene {
     const stats = gearStatsText({ baseId: id, rarity: 'common', bonus: {} });
     const bonus = g ? `${stats}  WORN BY: ${gearUsersText(g)}` : stats;
     r.text(bonus.slice(0, SHOP_CHARS), 16, y + 12, COLORS.dim);
-    const users = this.state.party.filter((m) => canEquip(m, id));
-    r.text(
-      users.length ? `FOR: ${users.map((m) => m.name.toUpperCase()).join(', ')}` : 'NO ONE IN YOUR PARTY CAN USE THIS',
-      16,
-      y + 26,
-      users.length ? COLORS.text : COLORS.hpLow,
-    );
+    drawShopCompare(r, this.state.party, id, 8, SHOP_PANEL_Y, SCREEN_W - 16);
+    const compares = this.state.party.map((m) => shopCompare(m, id));
+    const better = compares.filter((c) => c.verdict === 'better').map((c) => c.member.name.toUpperCase());
+    const usable = compares.some((c) => c.verdict !== 'cannot');
+    const [summary, color] = better.length
+      ? [`UPGRADE FOR: ${better.join(', ')}`, COLORS.hp]
+      : usable
+        ? ['NOT A CLEAR UPGRADE FOR ANYONE', COLORS.dim]
+        : ['NO ONE IN YOUR PARTY CAN USE THIS', COLORS.hpLow];
+    r.text(summary.slice(0, SHOP_CHARS), 16, y + 26, color);
   }
 
   private renderSellInfo(r: Renderer, y: number): void {
@@ -869,7 +874,13 @@ export class ShopScene implements Scene {
   private refresh(): void {
     const items: MenuItem[] = this.stock.map((id) => {
       const { name, price } = shopEntry(id);
-      return { label: name.toUpperCase(), right: `${price}G`, enabled: price <= this.state.gold };
+      const upgrade = this.state.party.some((m) => shopCompare(m, id).verdict === 'better');
+      return {
+        label: name.toUpperCase(),
+        right: `${upgrade ? '+ ' : ''}${price}G`,
+        enabled: price <= this.state.gold,
+        color: upgrade ? COLORS.hp : undefined,
+      };
     });
     items.push({ label: 'BACK' });
     this.menu.setItems(items);
@@ -963,16 +974,21 @@ export class ShopScene implements Scene {
     if (!item) {
       return;
     }
+    const choices = users.map((m) => {
+      const gain = changesText(shopCompare(m, id).changes);
+      return gain ? `${m.name.toUpperCase()} ${gain}` : m.name.toUpperCase();
+    });
     this.state.gold -= price;
     audio.play('coin');
     this.refresh();
-    ask(stack, audio, [`Bought the ${name}. Equip it now?`], [...users.map((m) => m.name.toUpperCase()), 'LATER'], (i) => {
+    ask(stack, audio, [`Bought the ${name}. Equip it now?`], [...choices, 'LATER'], (i) => {
       const user = users[i];
       if (!user) {
         say(stack, audio, [`The ${name} is in your bag. Equip it from the menu (E).`]);
         return;
       }
       const old = equipItem(this.state, user, item.uid);
+      this.refresh();
       const note = old ? ` The ${itemName(old)} is in your bag.` : '';
       say(stack, audio, [`${user.name} equips the ${name}!${note}`]);
     });
