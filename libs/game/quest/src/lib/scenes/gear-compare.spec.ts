@@ -8,8 +8,17 @@ import { memberStats } from '../state/party';
 import { InputDriver } from '../testing/input-driver';
 import { COLORS, SCREEN_H, SCREEN_W } from '../ui/widgets';
 import { GameContext } from './context';
-import { GEAR_COMPARE_H, compareColor, gearCompareRows } from './gear-compare';
-import { FieldMenuScene } from './menu-scenes';
+import { ARMOR_SHOP_STOCK } from '../data/gear';
+import {
+  GEAR_COMPARE_H,
+  SHOP_VERDICTS,
+  changesText,
+  compareColor,
+  gearCompareRows,
+  shopCompare,
+  shopCompareH,
+} from './gear-compare';
+import { FieldMenuScene, ShopScene } from './menu-scenes';
 
 interface Span {
   s: string;
@@ -49,7 +58,7 @@ function setup(): { ctx: GameContext; state: GameState; driver: InputDriver } {
 }
 
 /** Renders the scene with a recorder and returns every text run and window. */
-function capture(scene: FieldMenuScene): { spans: Span[]; windows: Box[] } {
+function capture(scene: { render(r: Renderer): void }): { spans: Span[]; windows: Box[] } {
   const spans: Span[] = [];
   const windows: Box[] = [];
   const width = (s: string): number => s.length * CELL_WIDTH;
@@ -155,5 +164,91 @@ describe('equip comparison', () => {
     driver.tap('up'); // wraps to REMOVE (the bag has no other armor)
     const texts = capture(scene).spans.map((sp) => sp.s);
     expect(texts).toEqual(expect.arrayContaining(['NEW', 'REMOVE']));
+  });
+});
+
+describe('shop comparison', () => {
+  /** Adds a Wizard to the party (it cannot wear mail or leather). */
+  function withWizard(state: GameState): void {
+    state.party.push(newGameState('ZED', 'wizard', createRng(4)).party[0]);
+  }
+
+  it('calls a piece BETTER when it only gains on what the member wears', () => {
+    const { state } = setup();
+    const c = shopCompare(state.party[0], 'chainMail');
+    expect(c.worn).toBeUndefined();
+    expect(c.verdict).toBe('better');
+    expect(changesText(c.changes)).toBe('DEF+3');
+  });
+
+  it('calls a piece WORSE, MIXED, WORN or CANNOT USE against the worn one', () => {
+    const { state } = setup();
+    withWizard(state);
+    const [hero, wiz] = state.party;
+    equipItem(state, hero, give(state, 'chainMail').uid);
+    expect(shopCompare(hero, 'leatherArmor').verdict).toBe('worse');
+    expect(shopCompare(hero, 'chainMail').verdict).toBe('worn');
+    expect(shopCompare(wiz, 'chainMail')).toEqual(expect.objectContaining({ verdict: 'cannot', changes: [] }));
+    const quick = createGear(state, { baseId: 'leatherArmor', rarity: 'rare', bonus: { agi: 3 } });
+    addToBag(state, quick);
+    equipItem(state, hero, quick.uid);
+    const mixed = shopCompare(hero, 'chainMail');
+    expect(mixed.verdict).toBe('mixed');
+    expect(changesText(mixed.changes)).toBe('DEF+1 AGI-3');
+  });
+
+  it('draws each member, what they wear and the verdict under the BUY list', () => {
+    const { ctx, state, driver } = setup();
+    withWizard(state);
+    state.gold = 500;
+    const hero = state.party[0];
+    equipItem(state, hero, give(state, 'leatherArmor').uid);
+    const shop = new ShopScene(ctx, 'armor', ARMOR_SHOP_STOCK);
+    ctx.stack.push(shop);
+    driver.tap('confirm'); // BUY
+    while (ARMOR_SHOP_STOCK[shop['menu'].cursor] !== 'chainMail') {
+      driver.tap('down');
+    }
+    const { spans, windows } = capture(shop);
+    const texts = spans.map((sp) => sp.s);
+    expect(texts).toEqual(expect.arrayContaining(['PARTY', 'ANA', 'ZED', 'LEATHER ARMOR', 'NOTHING', 'BETTER', "CAN'T USE"]));
+    expect(spans.find((sp) => sp.s === 'BETTER')?.color).toBe(SHOP_VERDICTS.better.color);
+    const def = spans.find((sp) => sp.s === 'DEF' && sp.y > 96);
+    const row = spans.filter((sp) => def && sp.y === def.y && sp.x0 > def.x0);
+    expect(row.map((sp) => sp.s)).toEqual(expect.arrayContaining(['>', '+1']));
+    expect(row.find((sp) => sp.s === '+1')?.color).toBe(COLORS.hp);
+    expect(texts).toContain('UPGRADE FOR: ANA');
+    // The buy list marks upgrades in green with a '+' before the price.
+    expect(spans.find((sp) => sp.s === 'CHAIN MAIL')?.color).toBe(COLORS.hp);
+    expect(texts).toContain('+ 160G');
+
+    const panel = windows.find((w) => w.h === shopCompareH(2));
+    if (!panel) {
+      throw new Error('no party panel');
+    }
+    const info = windows.find((w) => w.y > panel.y);
+    expect(panel.y + panel.h).toBeLessThanOrEqual(info?.y ?? SCREEN_H);
+    const inside = spans.filter((sp) => sp.y >= panel.y && sp.y < panel.y + panel.h);
+    inside.forEach((sp) => expect({ s: sp.s, fits: sp.x1 <= panel.x + panel.w - 4 }).toEqual({ s: sp.s, fits: true }));
+    inside.forEach((a, i) =>
+      inside.slice(i + 1).forEach((b) => {
+        const clash = Math.abs(a.y - b.y) < 8 && a.x0 < b.x1 && b.x0 < a.x1;
+        expect({ a: a.s, b: b.s, clash }).toEqual({ a: a.s, b: b.s, clash: false });
+      }),
+    );
+  });
+
+  it('shows the gain next to each name when offering to equip a purchase', () => {
+    const { ctx, state, driver } = setup();
+    state.gold = 500;
+    const shop = new ShopScene(ctx, 'armor', ARMOR_SHOP_STOCK);
+    ctx.stack.push(shop);
+    driver.tap('confirm'); // BUY
+    while (ARMOR_SHOP_STOCK[shop['menu'].cursor] !== 'chainMail') {
+      driver.tap('down');
+    }
+    driver.tap('confirm');
+    const msg = ctx.stack.top as unknown as { menu: { items: { label: string }[] } };
+    expect(msg.menu.items.map((i) => i.label)).toEqual(['ANA DEF+3', 'LATER']);
   });
 });
