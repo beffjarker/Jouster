@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>City Builder & Traffic</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <h1>City Builder & Traffic</h1>
+      <div id="stats">
+        <span id="money">$800</span>
+        <span id="happiness">70%</span>
+        <span id="turn">0/300</span>
+        <span id="population">Pop: 0</span>
+      </div>
+      <div id="progressBarContainer">
+        <div id="progressBar"></div>
+      </div>
+    </header>
+
+    <div id="gameContainer">
+      <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="toolbar"></div>
+
+    <div id="controls">
+      <button id="pauseBtn">⏸ Pause</button>
+      <button id="speedBtn">Speed: 1x</button>
+      <button id="saveBtn">💾 Save</button>
+      <button id="loadBtn">📂 Load</button>
+      <button id="resetBtn">🔄 Reset</button>
+      <button id="toggleStats">📊 Stats</button>
+    </div>
+
+    <div id="statsPanel" class="hidden">
+      <h3>City Statistics</h3>
+    </div>
+
+    <div id="message"></div>
+
+    <div id="gameOverOverlay">
+      <div id="gameOverBox">
+        <h2 id="gameResult"></h2>
+        <p id="finalScore"></p>
+        <p id="finalTurns"></p>
+        <button id="playAgainBtn">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="logic.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
