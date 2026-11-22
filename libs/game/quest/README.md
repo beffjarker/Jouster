@@ -5,7 +5,7 @@ Content and scenes for **Jouster Quest**, a top-down retro RPG hosted at `/joust
 - `data/` — classes, abilities, equipment, monsters, encounter tables, randomly rolled companions (never the hero's class), seeded 96x72 overworld generator, maps (all balance numbers live here)
 - `art/` — original procedural pixel art, upscaled to 32x32 per tile at 2x density (no third-party assets)
 - `scenes/` — title, name entry, world, battle, menus
-- `state/` — party, save/load (versioned JSON in `localStorage`, including volume settings), gear bag and loot rolls
+- `state/` — party, save/load (versioned JSON in `localStorage`, three save slots picked on the title screen, including volume settings), gear bag and loot rolls
 - `balance/` — seeded battle simulator that enforces class balance targets, plus a loot mode and drop-economy check
 - `JousterQuestGame` — entry point: `new JousterQuestGame(canvas, { keySource, onSceneChange, onViewChange }).start()`;
   the host mirrors the top scene id and its sub-view (e.g. a shop's `sell` list) onto the canvas as `data-scene` /

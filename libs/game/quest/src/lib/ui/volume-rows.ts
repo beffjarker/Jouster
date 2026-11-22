@@ -1,6 +1,6 @@
 import { AUDIO_CHANNELS } from '@jouster/game/engine';
 import type { AudioChannel, AudioManager, InputManager } from '@jouster/game/engine';
-import { GameState, SaveStorage, VolumeSettings, saveVolumes } from '../state/game-state';
+import { GameState, SaveStorage, VolumeSettings, saveVolumes, stateSlot } from '../state/game-state';
 
 /** Volume rows in the order they appear in the volume submenus, with their labels. */
 export const VOLUME_ROWS: readonly { readonly channel: AudioChannel; readonly label: string }[] = [
@@ -44,11 +44,14 @@ export function applyVolumes(audio: AudioManager, volumes: VolumeSettings | unde
   });
 }
 
-/** After a volume change: keeps the levels in the game in progress and in the stored save. */
+/**
+ * After a volume change: keeps the levels in the game in progress and in its stored save (every stored save
+ * when no game is in progress, e.g. on the title screen).
+ */
 export function rememberVolumes(audio: AudioManager, storage: SaveStorage, state: GameState | null): void {
   const volumes = currentVolumes(audio);
   if (state) {
     state.volumes = { ...volumes };
   }
-  saveVolumes(storage, volumes);
+  saveVolumes(storage, volumes, state ? stateSlot(state) : undefined);
 }

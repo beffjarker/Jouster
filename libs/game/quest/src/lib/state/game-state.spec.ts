@@ -5,6 +5,7 @@ import {
   GameState,
   MAX_PARTY,
   SAVE_KEY,
+  SAVE_SLOTS,
   SAVE_VERSION,
   addItem,
   answerCompanionQuest,
@@ -13,6 +14,7 @@ import {
   companionPresent,
   completeCompanionQuest,
   hasSave,
+  latestSlot,
   loadGame,
   markQuestReady,
   memoryStorage,
@@ -22,6 +24,9 @@ import {
   recruitCompanion,
   saveGame,
   saveVolumes,
+  slotKey,
+  slotSummaries,
+  stateSlot,
 } from './game-state';
 import { applyRestore } from '../scenes/menu-scenes';
 import { BAG_LIMIT } from './equipment';
@@ -385,5 +390,101 @@ describe('saved volume settings', () => {
     expect(cleanVolumes(null)).toBeUndefined();
     expect(cleanVolumes({})).toBeUndefined();
     expect(cleanVolumes({ music: Number.NaN })).toBeUndefined();
+  });
+
+  it('saveVolumes writes every filled slot from the title screen, or only the given slot', () => {
+    const storage = memoryStorage();
+    saveGame(storage, newGameState('ANA', 'warrior'));
+    saveGame(storage, { ...newGameState('BEA', 'wizard'), slot: 2 });
+    expect(saveVolumes(storage, { music: 0.2 })).toBe(true);
+    expect(loadGame(storage, 0)?.volumes).toEqual({ music: 0.2 });
+    expect(loadGame(storage, 1)).toBeNull();
+    expect(loadGame(storage, 2)?.volumes).toEqual({ music: 0.2 });
+    expect(saveVolumes(storage, { music: 0.7 }, 2)).toBe(true);
+    expect(loadGame(storage, 0)?.volumes).toEqual({ music: 0.2 });
+    expect(loadGame(storage, 2)?.volumes).toEqual({ music: 0.7 });
+    expect(saveVolumes(storage, { music: 0.7 }, 1)).toBe(false);
+  });
+});
+
+describe('save slots', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  it('keeps slot 1 on the original key and gives the others their own', () => {
+    expect(SAVE_SLOTS).toBe(3);
+    expect(slotKey(0)).toBe(SAVE_KEY);
+    expect(new Set(Array.from({ length: SAVE_SLOTS }, (_, i) => slotKey(i))).size).toBe(SAVE_SLOTS);
+  });
+
+  it('loads a save written before slots existed into slot 1', () => {
+    const storage = memoryStorage();
+    const old = newGameState('OLD', 'cleric');
+    storage.setItem(SAVE_KEY, JSON.stringify(old));
+    const loaded = loadGame(storage);
+    expect(loaded?.party[0].name).toBe('OLD');
+    expect(loaded?.slot).toBeUndefined();
+    expect(loaded?.savedAt).toBeUndefined();
+    expect(slotSummaries(storage)[0]).toMatchObject({ slot: 0, heroName: 'OLD', savedAt: 0 });
+  });
+
+  it('saves each journey to its own slot and stamps the time', () => {
+    const storage = memoryStorage();
+    jest.spyOn(Date, 'now').mockReturnValue(5000);
+    const b = { ...newGameState('BEA', 'wizard'), slot: 1 };
+    expect(saveGame(storage, b)).toBe(true);
+    expect(b.savedAt).toBe(5000);
+    expect(loadGame(storage, 0)).toBeNull();
+    expect(storage.getItem(SAVE_KEY)).toBeNull();
+    const loaded = loadGame(storage, 1);
+    expect(loaded?.party[0].name).toBe('BEA');
+    expect(loaded?.slot).toBe(1);
+    expect(loaded?.savedAt).toBe(5000);
+    expect(hasSave(storage)).toBe(true);
+  });
+
+  it('falls back to slot 1 for a missing or invalid slot number', () => {
+    expect(stateSlot({})).toBe(0);
+    expect(stateSlot({ slot: 2 })).toBe(2);
+    expect(stateSlot({ slot: SAVE_SLOTS })).toBe(0);
+    expect(stateSlot({ slot: -1 })).toBe(0);
+    expect(stateSlot({ slot: 1.5 })).toBe(0);
+  });
+
+  it('a save copied to another slot key writes back to the slot it was loaded from', () => {
+    const storage = memoryStorage();
+    saveGame(storage, { ...newGameState('CAL', 'necromancer'), slot: 2 });
+    storage.setItem(slotKey(1), storage.getItem(slotKey(2)) ?? '');
+    expect(loadGame(storage, 1)?.slot).toBe(1);
+  });
+
+  it('summarizes each slot and finds the newest save', () => {
+    const storage = memoryStorage();
+    expect(slotSummaries(storage)).toEqual([null, null, null]);
+    expect(latestSlot(storage)).toBe(-1);
+    const now = jest.spyOn(Date, 'now');
+    now.mockReturnValue(100);
+    const a = newGameState('ANA', 'warrior');
+    a.mapId = 'overworld';
+    a.playSeconds = 3720;
+    saveGame(storage, a);
+    now.mockReturnValue(300);
+    saveGame(storage, { ...newGameState('BEA', 'wizard'), slot: 2 });
+    storage.setItem(slotKey(1), '{broken');
+    const sums = slotSummaries(storage);
+    expect(sums[0]).toEqual({
+      slot: 0,
+      heroName: 'ANA',
+      classId: 'warrior',
+      level: 1,
+      mapId: 'overworld',
+      playSeconds: 3720,
+      savedAt: 100,
+    });
+    expect(sums[1]).toBeNull();
+    expect(sums[2]).toMatchObject({ slot: 2, heroName: 'BEA', classId: 'wizard' });
+    expect(latestSlot(storage)).toBe(2);
+    now.mockReturnValue(500);
+    saveGame(storage, a);
+    expect(latestSlot(storage)).toBe(0);
   });
 });
