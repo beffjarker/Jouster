@@ -1,11 +1,12 @@
 import { CELL_WIDTH, Renderer, SceneStack, createRng } from '@jouster/game/engine';
 import { Art } from '../art/art';
 import { CLASS_ORDER } from '../data/classes';
-import { loadGame, memoryStorage, newGameState, saveGame } from '../state/game-state';
+import { MAPS } from '../data/maps';
+import { GameState, loadGame, memoryStorage, newGameState, saveGame } from '../state/game-state';
 import { InputDriver } from '../testing/input-driver';
 import { SCREEN_W } from '../ui/widgets';
 import { GameContext } from './context';
-import { ClassSelectScene, NAME_KEYS, NameEntryScene, TitleScene, nameKeyAt } from './title-scene';
+import { ClassSelectScene, NAME_KEYS, NameEntryScene, TitleScene, formatPlayTime, nameKeyAt, slotRow } from './title-scene';
 
 function setup(): { ctx: GameContext; driver: InputDriver } {
   const ctx: GameContext = {
@@ -57,6 +58,128 @@ describe('title flow', () => {
     driver.run(0.6);
     expect(ctx.stack.top?.id).toBe('world');
     expect(ctx.state?.party[0].name).toBe('SAVED');
+  });
+});
+
+describe('save slots on the title screen', () => {
+  function seed(ctx: GameContext, name: string, slot: number, savedAt: number): void {
+    jest.spyOn(Date, 'now').mockReturnValue(savedAt);
+    saveGame(ctx.storage, { ...newGameState(name, 'wizard'), slot });
+    jest.restoreAllMocks();
+  }
+
+  it('lets CONTINUE pick between saves, starting on the newest', () => {
+    const { ctx, driver } = setup();
+    seed(ctx, 'OLDER', 0, 100);
+    seed(ctx, 'NEWER', 2, 200);
+    const title = new TitleScene(ctx);
+    ctx.stack.push(title);
+    driver.tap('confirm');
+    expect(title.slotPicker).toBe('continue');
+    driver.tap('cancel');
+    expect(title.slotPicker).toBeNull();
+    driver.tap('confirm');
+    driver.tap('confirm');
+    driver.run(0.6);
+    expect(ctx.stack.top?.id).toBe('world');
+    expect(ctx.state?.party[0].name).toBe('NEWER');
+    expect(ctx.state?.slot).toBe(2);
+  });
+
+  it('continues from an older slot and saves back into it', () => {
+    const { ctx, driver } = setup();
+    seed(ctx, 'OLDER', 0, 100);
+    seed(ctx, 'NEWER', 2, 200);
+    ctx.stack.push(new TitleScene(ctx));
+    driver.tap('confirm');
+    driver.tap('up');
+    driver.tap('up');
+    driver.tap('confirm');
+    driver.run(0.6);
+    expect(ctx.state?.party[0].name).toBe('OLDER');
+    const state = ctx.state as GameState;
+    state.gold = 999;
+    saveGame(ctx.storage, state);
+    expect(loadGame(ctx.storage, 0)?.gold).toBe(999);
+    expect(loadGame(ctx.storage, 2)?.gold).not.toBe(999);
+  });
+
+  it('starts a new game in the first empty slot and leaves the old save alone', () => {
+    const { ctx, driver } = setup();
+    seed(ctx, 'FIRST', 0, 100);
+    const title = new TitleScene(ctx);
+    ctx.stack.push(title);
+    driver.tap('up');
+    driver.tap('confirm');
+    expect(title.slotPicker).toBe('new');
+    driver.tap('confirm');
+    driver.run(0.6);
+    expect(ctx.stack.top?.id).toBe('class-select');
+    driver.tap('confirm');
+    driver.run(0.6);
+    driver.type('Enter');
+    driver.run(0.6);
+    expect(ctx.state?.slot).toBe(1);
+    expect(loadGame(ctx.storage, 0)?.party[0].name).toBe('FIRST');
+  });
+
+  it('asks before a new game takes over a filled slot', () => {
+    const { ctx, driver } = setup();
+    seed(ctx, 'FIRST', 0, 100);
+    const title = new TitleScene(ctx);
+    ctx.stack.push(title);
+    driver.tap('up');
+    driver.tap('confirm');
+    driver.tap('up');
+    driver.tap('confirm');
+    expect(title.slotPicker).toBe('overwrite');
+    driver.tap('confirm');
+    expect(title.slotPicker).toBe('new');
+    driver.tap('confirm');
+    driver.tap('down');
+    driver.tap('confirm');
+    driver.run(0.6);
+    expect(ctx.stack.top?.id).toBe('class-select');
+    driver.tap('confirm');
+    driver.run(0.6);
+    driver.type('Enter');
+    driver.run(0.6);
+    expect(ctx.state?.slot).toBe(0);
+    expect(loadGame(ctx.storage, 0)?.party[0].name).toBe('FIRST');
+  });
+
+  it('keeps the slot when backing out of name entry', () => {
+    const { ctx, driver } = setup();
+    ctx.stack.push(new NameEntryScene(ctx, 'warrior', 2));
+    driver.type('Escape');
+    driver.run(0.6);
+    expect(ctx.stack.top?.id).toBe('class-select');
+    driver.tap('confirm');
+    driver.run(0.6);
+    driver.type('Enter');
+    driver.run(0.6);
+    expect(ctx.state?.slot).toBe(2);
+  });
+
+  it('formats play time and fits every slot row in the list', () => {
+    expect(formatPlayTime(0)).toBe('0:00');
+    expect(formatPlayTime(3725)).toBe('1:02');
+    expect(formatPlayTime(36000)).toBe('10:00');
+    expect(slotRow(1, null)).toEqual({ label: '2 - EMPTY -', right: '' });
+    for (const [id, map] of MAPS) {
+      const row = slotRow(2, {
+        slot: 2,
+        heroName: 'WWWWWWW',
+        classId: 'necromancer',
+        level: 99,
+        mapId: id,
+        playSeconds: 999 * 3600,
+        savedAt: 1,
+      });
+      expect(row.label.startsWith('3 WWWWWWW NECROMANCER')).toBe(true);
+      expect({ id, fits: (row.label.length + row.right.length + 2) * CELL_WIDTH <= 360 - 22 }).toEqual({ id, fits: true });
+      expect(map.name.toUpperCase().startsWith(row.right.split('  ')[0])).toBe(true);
+    }
   });
 });
 

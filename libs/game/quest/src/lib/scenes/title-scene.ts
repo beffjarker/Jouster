@@ -4,7 +4,8 @@ import { titleTwinkles } from '../art/hd-backdrops';
 import { showcaseOutfit } from '../art/outfit';
 import { CLASS_ORDER, classDef } from '../data/classes';
 import { ABILITIES } from '../data/abilities';
-import { GameState, hasSave, loadGame, newGameState } from '../state/game-state';
+import { MAPS } from '../data/maps';
+import { GameState, SlotSummary, latestSlot, loadGame, newGameState, slotSummaries } from '../state/game-state';
 import { createMember, memberStats, weaponDef } from '../state/party';
 import { COLORS, ListMenu, SCREEN_H, SCREEN_W, charsFit, inRect } from '../ui/widgets';
 import { VOLUME_ROWS, adjustVolumeRow, applyVolumes, currentVolumes, rememberVolumes, volumeLabel } from '../ui/volume-rows';
@@ -20,23 +21,54 @@ const TWINKLES = titleTwinkles(SCREEN_W, HORIZON, 24).filter((t) => Math.hypot(t
 
 const OPTIONS_INDEX = 2;
 
-/** Title screen: New Game / Continue / Options. */
+/** Width of the save-slot list on the title screen. */
+const SLOT_MENU_W = 360;
+
+/** Play time as hours and minutes, e.g. 3725 s becomes '1:02'. */
+export function formatPlayTime(seconds: number): string {
+  const minutes = Math.max(0, Math.floor(seconds / 60));
+  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/**
+ * One save-slot row: number, hero, class and level on the left; where they saved and the play time on the
+ * right, the place name cut to fit the row.
+ */
+export function slotRow(slot: number, s: SlotSummary | null): { label: string; right: string } {
+  if (!s) {
+    return { label: `${slot + 1} - EMPTY -`, right: '' };
+  }
+  const label = `${slot + 1} ${s.heroName.padEnd(7)} ${classDef(s.classId).name.toUpperCase().padEnd(11)} LV${s.level}`;
+  const time = formatPlayTime(s.playSeconds);
+  const room = charsFit(SLOT_MENU_W - 22) - label.length - time.length - 4;
+  const place = (MAPS.get(s.mapId)?.name ?? s.mapId).toUpperCase().slice(0, Math.max(0, room));
+  return { label, right: `${place}  ${time}` };
+}
+
+/** Title screen: New Game / Continue / Options, with a save-slot picker (plan §41). */
 export class TitleScene implements Scene {
   public readonly id = 'title';
   public readonly music = 'title';
   private readonly menu: ListMenu;
   private volumeMenu: ListMenu | null = null;
+  /** Save-slot picker, open after NEW GAME or CONTINUE when there is a choice to make. */
+  private slotMenu: ListMenu | null = null;
+  private slotMode: 'new' | 'continue' = 'continue';
+  /** NO / YES before a new game takes over a filled slot. */
+  private overwriteMenu: ListMenu | null = null;
+  private summaries: Array<SlotSummary | null> = [];
   private time = 0;
 
   constructor(private readonly ctx: GameContext) {
+    this.summaries = slotSummaries(ctx.storage);
     this.menu = new ListMenu(
-      [{ label: 'NEW GAME' }, { label: 'CONTINUE', enabled: hasSave(ctx.storage) }, { label: 'OPTIONS' }],
+      [{ label: 'NEW GAME' }, { label: 'CONTINUE', enabled: this.summaries.some((s) => s !== null) }, { label: 'OPTIONS' }],
       ctx.audio,
     );
-    const saved = loadGame(ctx.storage);
-    if (saved) {
+    const latest = latestSlot(ctx.storage);
+    if (latest >= 0) {
       this.menu.cursor = 1;
-      applyVolumes(ctx.audio, saved.volumes);
+      applyVolumes(ctx.audio, loadGame(ctx.storage, latest)?.volumes);
     }
   }
 
@@ -46,19 +78,91 @@ export class TitleScene implements Scene {
       this.updateVolume(input);
       return;
     }
-    const res = this.menu.update(input);
-    if (res?.kind !== 'select') {
+    if (this.overwriteMenu) {
+      this.updateOverwrite(input);
       return;
     }
-    if (res.index === 0) {
-      this.ctx.stack.replace(new ClassSelectScene(this.ctx), true);
+    if (this.slotMenu) {
+      this.updateSlots(input);
+      return;
+    }
+    const res = this.menu.update(input);
+    if (res?.kind !== 'select') {
       return;
     }
     if (res.index === OPTIONS_INDEX) {
       this.openVolume();
       return;
     }
-    const state = loadGame(this.ctx.storage);
+    this.summaries = slotSummaries(this.ctx.storage);
+    const filled = this.summaries.filter((s): s is SlotSummary => s !== null);
+    if (res.index === 0) {
+      if (filled.length === 0) {
+        this.newGame(0);
+      } else {
+        this.openSlots('new');
+      }
+      return;
+    }
+    if (filled.length === 1) {
+      this.continueSlot(filled[0].slot);
+    } else if (filled.length > 1) {
+      this.openSlots('continue');
+    }
+  }
+
+  /** The open slot picker's mode, or null when it is closed (for tests). */
+  public get slotPicker(): 'new' | 'continue' | 'overwrite' | null {
+    return this.overwriteMenu ? 'overwrite' : this.slotMenu ? this.slotMode : null;
+  }
+
+  /** Lists every slot. CONTINUE skips empty slots and starts on the newest save; NEW GAME starts on the first empty one. */
+  private openSlots(mode: 'new' | 'continue'): void {
+    this.slotMode = mode;
+    this.slotMenu = new ListMenu(
+      this.summaries.map((s, i) => ({ ...slotRow(i, s), enabled: mode === 'new' || s !== null })),
+      this.ctx.audio,
+    );
+    const firstEmpty = this.summaries.findIndex((s) => s === null);
+    this.slotMenu.cursor = mode === 'new' && firstEmpty >= 0 ? firstEmpty : Math.max(0, latestSlot(this.ctx.storage));
+  }
+
+  private updateSlots(input: InputManager): void {
+    const menu = this.slotMenu;
+    const res = menu?.update(input);
+    if (!menu || !res) {
+      return;
+    }
+    if (res.kind === 'cancel') {
+      this.slotMenu = null;
+      return;
+    }
+    if (this.slotMode === 'continue') {
+      this.continueSlot(res.index);
+    } else if (this.summaries[res.index]) {
+      this.overwriteMenu = new ListMenu([{ label: 'NO' }, { label: 'YES' }], this.ctx.audio);
+    } else {
+      this.newGame(res.index);
+    }
+  }
+
+  private updateOverwrite(input: InputManager): void {
+    const res = this.overwriteMenu?.update(input);
+    if (!res) {
+      return;
+    }
+    this.overwriteMenu = null;
+    if (res.kind === 'select' && res.index === 1 && this.slotMenu) {
+      this.newGame(this.slotMenu.cursor);
+    }
+  }
+
+  private newGame(slot: number): void {
+    this.ctx.stack.replace(new ClassSelectScene(this.ctx, slot), true);
+  }
+
+  private continueSlot(slot: number): void {
+    const state = loadGame(this.ctx.storage, slot);
     if (state) {
       applyVolumes(this.ctx.audio, state.volumes);
       state.volumes = currentVolumes(this.ctx.audio);
@@ -122,6 +226,22 @@ export class TitleScene implements Scene {
       r.textCentered('UP/DOWN ROW  LEFT/RIGHT LEVEL  X/ESC BACK', SCREEN_W / 2, SCREEN_H - 16, COLORS.dim);
       return;
     }
+    if (this.slotMenu) {
+      const x = SCREEN_W / 2 - SLOT_MENU_W / 2;
+      const title = this.slotMode === 'new' ? 'NEW GAME: CHOOSE A SLOT' : 'CONTINUE: CHOOSE A SLOT';
+      this.slotMenu.render(r, x, 150 + OY, SLOT_MENU_W, !this.overwriteMenu, title);
+      if (this.overwriteMenu) {
+        const s = this.summaries[this.slotMenu.cursor];
+        const y = 150 + OY + this.slotMenu.height() + 2;
+        r.window(x, y, SLOT_MENU_W, 40);
+        r.text(`REPLACE ${s?.heroName ?? ''}'S JOURNEY IN SLOT ${this.slotMenu.cursor + 1}?`, x + 8, y + 8, COLORS.gold);
+        r.text('THE OLD SAVE IS LOST AT YOUR FIRST SAVE.', x + 8, y + 22, COLORS.dim);
+        this.overwriteMenu.render(r, x + SLOT_MENU_W - 58, y + 4, 50);
+        return;
+      }
+      r.textCentered('UP/DOWN SLOT  Z/ENTER OK  X/ESC BACK', SCREEN_W / 2, SCREEN_H - 16, COLORS.dim);
+      return;
+    }
     this.menu.render(r, SCREEN_W / 2 - 44, 150 + OY, 88);
     r.textCentered('ARROWS/WASD MOVE  Z/ENTER OK  X/ESC BACK  M MAP', SCREEN_W / 2, SCREEN_H - 16, COLORS.dim);
   }
@@ -140,7 +260,11 @@ export class ClassSelectScene implements Scene {
   private readonly menu: ListMenu;
   private time = 0;
 
-  constructor(private readonly ctx: GameContext) {
+  constructor(
+    private readonly ctx: GameContext,
+    /** Save slot the new journey will be written to (plan §41). */
+    private readonly slot = 0,
+  ) {
     this.menu = new ListMenu(
       CLASS_ORDER.map((id) => ({ label: classDef(id).name.toUpperCase() })),
       ctx.audio,
@@ -151,7 +275,7 @@ export class ClassSelectScene implements Scene {
     this.time += dt;
     const res = this.menu.update(input);
     if (res?.kind === 'select') {
-      this.ctx.stack.replace(new NameEntryScene(this.ctx, CLASS_ORDER[res.index]), true);
+      this.ctx.stack.replace(new NameEntryScene(this.ctx, CLASS_ORDER[res.index], this.slot), true);
     } else if (res?.kind === 'cancel') {
       this.ctx.stack.replace(new TitleScene(this.ctx), true);
     }
@@ -269,6 +393,8 @@ export class NameEntryScene implements Scene {
   constructor(
     private readonly ctx: GameContext,
     private readonly classId: (typeof CLASS_ORDER)[number],
+    /** Save slot the new journey will be written to (plan §41). */
+    private readonly slot = 0,
   ) {
     this.name = 'HERO';
   }
@@ -284,7 +410,7 @@ export class NameEntryScene implements Scene {
       }
       if (key === 'Escape') {
         this.ctx.audio.play('cancel');
-        this.ctx.stack.replace(new ClassSelectScene(this.ctx), true);
+        this.ctx.stack.replace(new ClassSelectScene(this.ctx, this.slot), true);
         return;
       }
       if (key === 'Backspace') {
@@ -329,6 +455,7 @@ export class NameEntryScene implements Scene {
     this.ctx.audio.play('confirm');
     const state: GameState = newGameState(name, this.classId, this.ctx.rng);
     state.volumes = currentVolumes(this.ctx.audio);
+    state.slot = this.slot;
     this.ctx.state = state;
     const world = new WorldScene(this.ctx);
     this.ctx.stack.replace(world, true);

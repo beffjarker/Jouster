@@ -55,6 +55,7 @@ import {
   questStage,
   recruitCompanion,
   saveGame,
+  stateSlot,
 } from '../state/game-state';
 import { addToBag, removeFromBag } from '../state/equipment';
 import { GearItem, isPrecious, itemName, rarityName } from '../state/loot';
@@ -1174,7 +1175,7 @@ export class WorldScene implements Scene {
           'Good morning! Your party is fully rested.',
           ...(night ? ['You dreamed of cold lights drifting over the ruins of Thornwick...'] : []),
           ...(stirLine ? [stirLine] : []),
-          saved ? 'Your journey has been recorded.' : 'Your journey could not be saved in this browser.',
+          saved ? `Your journey has been recorded in slot ${stateSlot(s) + 1}.` : 'Your journey could not be saved in this browser.',
         ]);
       },
     );
@@ -1191,7 +1192,9 @@ export class WorldScene implements Scene {
       }
       if (choices[c] === 'SAVE') {
         const saved = saveGame(this.ctx.storage, s);
-        say(stack, audio, [saved ? 'PRIEST: Your deeds are recorded in the book of adventure.' : 'The book will not open...']);
+        say(stack, audio, [
+          saved ? `PRIEST: Your deeds are recorded in the book of adventure, page ${stateSlot(s) + 1}.` : 'The book will not open...',
+        ]);
         return;
       }
       if (choices[c] !== 'REVIVE') {

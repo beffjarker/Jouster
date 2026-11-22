@@ -13,7 +13,8 @@
 > mode is implemented ([33](#33-inventory-loot-and-item-rarity-implemented)). Since then: the Thornwick ruins and
 > companion pacing (§34), weather anchored to the ground (§35), grind dungeons with respawning wardens in every act
 > (§36, PR #225), bosses that attack on sight (§37, PR #227), regional weather (§38, PR #228) and party members
-> drawn in the gear they wear (§39, PR #229) and a shop comparison against the worn gear (§40).
+> drawn in the gear they wear (§39, PR #229), a shop comparison against the worn gear (§40, PR #233) and three
+> save slots (§41).
 > **Genre:** Top-down 2D fantasy RPG, inspired by NES *Dragon Warrior* and *The Legend of Zelda*
 > **Platform:** Browser (HTML5 Canvas), hosted in the `jouster-ui` Angular app at `/jouster-quest`
 
@@ -78,7 +79,7 @@ apps/
 | **Battle** | Turn-based combat (section 5) |
 | **Inventory/Equipment** | Weapon, armor, shield and accessory slots with an EQUIP menu (15.4); consumables; key items; gold |
 | **Progression** | XP curve, level-ups, per-class stat growth, spells learned by level |
-| **Save/Load** | Save at the inn or chapel; one save slot (more slots deferred); schema version for migrations |
+| **Save/Load** | Save at the inn or chapel; three save slots picked on the title screen (§41); schema version for migrations |
 | **Audio** | SFX (step, hit, spell, level-up) and per-scene music loops (§22); `N` mutes both |
 
 ---
@@ -377,7 +378,7 @@ NPCs with hints and side quests
 | **5. Party & Economy** | RPG depth | Recruiting, party menu, inventory, equipment, shops, inns, save/load | Done: weapon, armor, shield and accessory slots, an EQUIP menu, an armorer and `I`/`E` shortcuts (15.4) |
 | **6. Act I slice** | Playable vertical slice | Prologue and Act I content through the Goblin King, plus revisions 2 and 3 | Done; in play-testing (PR #184) |
 | **7. Acts II–Finale** | Full story | Remaining regions, dungeons, bosses, ending | Act II (§17), Act III (§19) and the finale (§21) are done |
-| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32), the Thornwick ruins (§34), ground-anchored weather (§35), the Old Mine grind dungeon (§36), grind dungeons for Acts II–IV (36.2), bosses that attack on sight (§37), regional weather (§38), gear shown on party members (§39), shop comparison against worn gear (§40)). Open: giant toad art, post-unlock balance (4.4c) |
+| **8. Polish** | Feel & quality | Transitions, SFX/music, balancing pass, accessibility, battle poses and spell effects, mobile touch controls (stretch) | Partly done (fades, SFX, music loops (§22), battle animations, touch controls (16.9), smooth walking (§23), seamless tiles and joined bridges (§24, §25), one art style (§26), a Cypress smoke test (§27), poison and cures (§28), LPC attack and cast poses (§29), animated slimes and bats (§30), LPC trees and cave mouths (§32), the Thornwick ruins (§34), ground-anchored weather (§35), the Old Mine grind dungeon (§36), grind dungeons for Acts II–IV (36.2), bosses that attack on sight (§37), regional weather (§38), gear shown on party members (§39), shop comparison against worn gear (§40), three save slots (§41)). Open: giant toad art, post-unlock balance (4.4c) |
 
 **Milestone gate:** Phase 6 (Act I slice) must be fun and stable before Phase 7 starts.
 
@@ -1688,7 +1689,8 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~Status curing at the chapel (§12 deferred list).~~ Done in §28 (poison, with Antidote and Heal cures).
 - ~~A Cypress smoke test for `/jouster-quest`.~~ Done in §27.
 - ~~LPC wolf art~~ Done in 16.7 (wolf ×3, Alpha Wolf). ~~LPC attack animations (16.4 item 4c).~~ Done in §29.
-  Still open: giant toad (no suitable LPC art found). ~~LPC objects.~~ Done in §32 (trees, cave mouths).
+  Still open: giant toad (no suitable LPC art found; the CC0 "Frogs" pack on OpenGameArt was reviewed in §41 and
+  rejected because its frogs stand upright and face the viewer). ~~LPC objects.~~ Done in §32 (trees, cave mouths).
   ~~Animated slime and bat frames.~~ Done in §30.
 - ~~Make the classes more distinct (Paladin vs Cleric).~~ Done in §31: the Necromancer replaced the Paladin, and
   the Wizard starts with more Herbs and 2 Tonics.
@@ -1704,6 +1706,9 @@ Every Act III asset is procedural, at the §16.10 density:
 - ~~Region-specific weather (no snow in the desert).~~ Done in §38.
 - ~~Show each party member's armour, shield, accessory and weapon, with a plain look before any armour.~~ Done in
   §39.
+- ~~Compare shop gear with what each member wears.~~ Done in §40.
+- ~~More save slots.~~ Done in §41 (three slots).
+- Deferred: gamepad support.
 
 ## 20. Revision 6: solo only before the unlock
 
@@ -2706,3 +2711,28 @@ they should look very basic until they equip something.
   BUY view draws every member, the worn piece, the verdict, coloured `before > after` stats, the green upgrade
   line and list mark, with the panel above the info window and no text overflowing or overlapping; the equip prompt
   shows the gain next to each name.
+
+## 41. Three save slots (implemented)
+
+**Goal:** the next open item after §40. The Save/Load row of the feature table deferred more than one slot; with
+four classes worth trying solo, one slot forced players to lose a journey to start another.
+
+- **Slots** (`state/game-state.ts`): `SAVE_SLOTS = 3`. Slot 1 keeps the original `localStorage` key, so saves from
+  before this change load into slot 1 with no migration; slots 2 and 3 use `-slot2` / `-slot3` keys. A journey
+  remembers its slot (`GameState.slot`, optional) and every inn or chapel save writes back to it and stamps
+  `savedAt`. The key a save is read from decides its slot. `slotSummaries`, `latestSlot` and `hasSave` (any slot)
+  read the slots; the save version is unchanged because both new fields are optional.
+- **Title screen:** NEW GAME goes straight to class select while every slot is empty; otherwise it opens
+  "NEW GAME: CHOOSE A SLOT" on the first empty slot. Picking a filled slot asks NO / YES before replacing that
+  journey (the old save is only overwritten at the new journey's first save). CONTINUE loads directly when only one
+  slot is filled; otherwise "CONTINUE: CHOOSE A SLOT" starts on the newest save and empty slots are disabled. Each
+  row shows the slot, hero, class, level, where they saved and the play time (`slotRow`, `formatPlayTime`).
+- **Volumes:** the title screen applies the newest save's levels; OPTIONS on the title
+  screen writes the levels into every filled slot, and the field menu only into the journey's own slot.
+- **Messages:** the inn says which slot the journey was recorded in; the chapel priest names the page.
+- **Giant toad:** the CC0 "Frogs" pack on OpenGameArt (upright, front-facing 32×32 frogs and a frog reaper) was
+  reviewed and does not fit a left-facing lake beast; the toad keeps its procedural art.
+- **Tests:** `game-state.spec.ts` (slot keys, an old save loading into slot 1, saving to a slot with `savedAt`,
+  invalid slot numbers, summaries, newest slot, volumes into every slot or one); `title-scene.spec.ts` (CONTINUE
+  picker and cancel, continuing an older slot and saving back to it, NEW GAME into the first empty slot, the
+  overwrite NO / YES, the slot surviving a step back from name entry, and every slot row fitting for every map).

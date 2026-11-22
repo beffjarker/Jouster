@@ -10,7 +10,10 @@ import { PartyMember, createMember, memberStats } from './party';
 export const SAVE_VERSION = 6;
 /** Older save versions that loadGame can migrate. */
 const MIGRATABLE_VERSIONS: readonly number[] = [2, 3, 4, 5];
+/** Storage key of save slot 1 (the only slot before plan §41, so older saves land there). */
 export const SAVE_KEY = 'jouster-quest-save-v1';
+/** Number of save slots (adventure logs) on the title screen (plan §41). */
+export const SAVE_SLOTS = 3;
 export const MAX_PARTY = 3;
 export const STARTING_GOLD = 50;
 export const STARTING_HERBS = 3;
@@ -45,6 +48,21 @@ export interface GameState {
   playSeconds: number;
   /** Volume (0 to 1) per audio channel, restored when the game is continued. Missing in older saves. */
   volumes?: VolumeSettings;
+  /** Save slot (0-based) this journey is written to; missing means slot 0 (plan §41). */
+  slot?: number;
+  /** When this journey was last saved (ms since the epoch); the title screen picks the newest. */
+  savedAt?: number;
+}
+
+/** What the title screen shows for a filled save slot. */
+export interface SlotSummary {
+  slot: number;
+  heroName: string;
+  classId: ClassId;
+  level: number;
+  mapId: string;
+  playSeconds: number;
+  savedAt: number;
 }
 
 /** Saved volume per audio channel (0 to 1). */
@@ -274,20 +292,33 @@ export function addItem(state: GameState, itemId: string, count = 1): void {
   state.inventory[itemId] = (state.inventory[itemId] ?? 0) + count;
 }
 
+/** Storage key of a save slot (0-based); slot 0 keeps the original key so older saves still load. */
+export function slotKey(slot: number): string {
+  return slot === 0 ? SAVE_KEY : `${SAVE_KEY}-slot${slot + 1}`;
+}
+
+/** The slot a journey saves to: its own slot when valid, else slot 0. */
+export function stateSlot(state: Pick<GameState, 'slot'>): number {
+  const slot = state.slot;
+  return typeof slot === 'number' && Number.isInteger(slot) && slot >= 0 && slot < SAVE_SLOTS ? slot : 0;
+}
+
+/** Writes the journey into its slot (see `stateSlot`) and stamps `savedAt`. */
 export function saveGame(storage: SaveStorage, state: GameState): boolean {
   try {
-    storage.setItem(SAVE_KEY, JSON.stringify(state));
+    state.savedAt = Date.now();
+    storage.setItem(slotKey(stateSlot(state)), JSON.stringify(state));
     return true;
   } catch {
     return false;
   }
 }
 
-/** Loads and validates a save. Returns null when missing, corrupt or from another version. */
-export function loadGame(storage: SaveStorage): GameState | null {
+/** Loads and validates a save slot (0-based). Returns null when missing, corrupt or from another version. */
+export function loadGame(storage: SaveStorage, slot = 0): GameState | null {
   let raw: string | null;
   try {
-    raw = storage.getItem(SAVE_KEY);
+    raw = storage.getItem(slotKey(slot));
   } catch {
     return null;
   }
@@ -305,6 +336,15 @@ export function loadGame(storage: SaveStorage): GameState | null {
       data.volumes = volumes;
     } else {
       delete data.volumes;
+    }
+    // The key a save was read from decides its slot, so a copied save keeps writing where it was loaded.
+    if (slot === 0) {
+      delete data.slot;
+    } else {
+      data.slot = slot;
+    }
+    if (typeof data.savedAt !== 'number' || !Number.isFinite(data.savedAt)) {
+      delete data.savedAt;
     }
     return data;
   } catch {
@@ -328,25 +368,63 @@ export function cleanVolumes(raw: unknown): VolumeSettings | undefined {
 }
 
 /**
- * Writes new volume levels into the stored save without touching anything else in it, so changing the volume
- * never saves (or loses) game progress. Does nothing when there is no readable save.
+ * Writes new volume levels into a stored save without touching anything else in it, so changing the volume
+ * never saves (or loses) game progress. With no `slot` (the title screen), every stored save gets the levels.
+ * Returns true when at least one save was updated.
  */
-export function saveVolumes(storage: SaveStorage, volumes: VolumeSettings): boolean {
-  try {
-    const raw = storage.getItem(SAVE_KEY);
-    const data: unknown = raw ? JSON.parse(raw) : null;
-    if (typeof data !== 'object' || data === null) {
-      return false;
+export function saveVolumes(storage: SaveStorage, volumes: VolumeSettings, slot?: number): boolean {
+  const slots = slot === undefined ? Array.from({ length: SAVE_SLOTS }, (_, i) => i) : [slot];
+  let wrote = false;
+  for (const s of slots) {
+    try {
+      const raw = storage.getItem(slotKey(s));
+      const data: unknown = raw ? JSON.parse(raw) : null;
+      if (typeof data !== 'object' || data === null) {
+        continue;
+      }
+      storage.setItem(slotKey(s), JSON.stringify({ ...data, volumes: { ...volumes } }));
+      wrote = true;
+    } catch {
+      // A full or broken slot keeps its old levels; the others still update.
     }
-    storage.setItem(SAVE_KEY, JSON.stringify({ ...data, volumes: { ...volumes } }));
-    return true;
-  } catch {
-    return false;
   }
+  return wrote;
 }
 
+/** True when any slot holds a loadable save. */
 export function hasSave(storage: SaveStorage): boolean {
-  return loadGame(storage) !== null;
+  return slotSummaries(storage).some((s) => s !== null);
+}
+
+/** One entry per save slot: its summary, or null when the slot is empty or unreadable. */
+export function slotSummaries(storage: SaveStorage): Array<SlotSummary | null> {
+  return Array.from({ length: SAVE_SLOTS }, (_, slot) => {
+    const s = loadGame(storage, slot);
+    if (!s) {
+      return null;
+    }
+    const hero = s.party.find((m) => m.id === 'hero') ?? s.party[0];
+    return {
+      slot,
+      heroName: hero.name,
+      classId: hero.classId,
+      level: hero.level,
+      mapId: s.mapId,
+      playSeconds: s.playSeconds ?? 0,
+      savedAt: s.savedAt ?? 0,
+    };
+  });
+}
+
+/** The most recently saved slot (ties go to the lowest slot), or -1 when every slot is empty. */
+export function latestSlot(storage: SaveStorage): number {
+  let best: SlotSummary | null = null;
+  for (const s of slotSummaries(storage)) {
+    if (s && (!best || s.savedAt > best.savedAt)) {
+      best = s;
+    }
+  }
+  return best ? best.slot : -1;
 }
 
 /**
