@@ -458,27 +458,45 @@ jobs:
               comment.body.includes('<!-- preview-comment -->')
             );
 
+            // Standalone games/apps under apps/jouster-ui/public are served at the site root; link each one this
+            // PR touches so reviewers can open it directly (the site itself has no link to them).
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+            const playPaths = [...new Set(files
+              .filter(file => file.status !== 'removed')
+              .map(file => (/^apps\/jouster-ui\/public\/((?:games|apps)\/[^/]+)\//.exec(file.filename) || [])[1])
+              .filter(Boolean))];
+            const playRows = playPaths.map(p => {
+              const url = `${previewUrl}/${p}/index.html`;
+              return `| ${p.startsWith('games/') ? '🎮' : '🧩'} **Play ${p.split('/')[1]}** | [${url}](${url}) |`;
+            });
+
             const apiUrl = '${{ steps.backend.outputs.api_url }}';
             const commentBody = [
               '<!-- preview-comment -->',
-              '## ?? Preview Environment Deployed!',
+              '## 🚀 Preview Environment Deployed!',
               '',
               '| | |',
               '|---|---|',
-              `| ?? **Preview URL** | [${previewUrl}](${previewUrl}) |`,
-              `| ?? **API URL** | [${apiUrl}](${apiUrl}/health) |`,
-              `| ?? **Artifact** | \`jouster-ui-build-pr${prNumber}\` |`,
-              `| ?? **Branch** | \`${branch}\` |`,
-              `| ?? **Commit** | \`${sha}\` |`,
-              `| ?? **Deployed** | ${timestamp} |`,
-              `| ?? **Build Log** | [View Run](${runUrl}) |`,
+              `| 🌐 **Preview URL** | [${previewUrl}](${previewUrl}) |`,
+              ...playRows,
+              `| 🔌 **API URL** | [${apiUrl}](${apiUrl}/health) |`,
+              `| 📦 **Artifact** | \`jouster-ui-build-pr${prNumber}\` |`,
+              `| 🌿 **Branch** | \`${branch}\` |`,
+              `| 🔖 **Commit** | \`${sha}\` |`,
+              `| 🕐 **Deployed** | ${timestamp} |`,
+              `| 📋 **Build Log** | [View Run](${runUrl}) |`,
               '',
               'The frontend talks to a per-PR Express-on-Lambda backend, backed by the shared **dev** DynamoDB',
               'seeded with fake data (full functionality, no prod data).',
               '',
-              '### ?? Testing Instructions',
+              '### 🧪 Testing Instructions',
               '',
-              '1. Visit the preview URL above',
+              playRows.length ? '1. Visit the preview URL above, or open a game/app with its Play link' : '1. Visit the preview URL above',
               '2. Test your changes in the deployed environment',
               '3. Report any issues in this PR',
               '',

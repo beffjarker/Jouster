@@ -186,9 +186,11 @@ The IAM user needs these S3 permissions:
 
 ### GitHub Actions Workflows
 
-- **`.github/workflows/pull-request-deploy-preview.yml`**
+- **`.github/workflows/build-preview-artifact.yml`**
   - Deploys preview environment on PR open/update
-  - Posts preview URL comment
+  - Posts preview URL comment, with a **Play** link for each game or app the PR changes under
+    `apps/jouster-ui/public/games/<name>/` or `apps/jouster-ui/public/apps/<name>/` (served at
+    `/games/<name>/index.html` and `/apps/<name>/index.html`; the site itself does not link to them)
   - Adds `preview-deployed` label
 
 - **`.github/workflows/pull-request-delete-preview.yml`**
